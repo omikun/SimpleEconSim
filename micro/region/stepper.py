@@ -85,6 +85,15 @@ def step_economy(region: Any, t: int):
          formula_id='living.basket_prices_climate.v1',
          inputs={'food_price': food_price, 'wood_price': wood_price,
                  'furniture_price': furn_price, 'basket_weights': [4, 1, 0.25],
+                 'basket_component_goods': ['food', 'wood', 'furniture'],
+                 'basket_component_prices': {
+                     'food': food_price, 'wood': wood_price,
+                     'furniture': furn_price},
+                 'weighted_reference_price': (4 * food_price + wood_price
+                                              + 0.25 * furn_price),
+                 'component_coverage': ['food', 'wood', 'furniture'],
+                 'price_basis': 'displayed_recipe_reference',
+                 'currency': getattr(region, 'home_currency', None),
                  'regional_multiplier': region.col_multiplier,
                  'climate_multiplier': col_clim}, constraints={'floor': 0.1})
     region.food_price = food_price

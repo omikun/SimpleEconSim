@@ -32,6 +32,8 @@ class RunTrace:
         self._previous_person_flow_events = {}
         self._turn_production_events = {}
         self._turn_temporary_activity_events = {}
+        self._turn_living_cost_events = {}
+        self._latest_reference_price_events = {}
         self._shipment_departure_events = {}
         self._shipment_arrival_events = {}
         self._shipment_events_by_kind = {}
@@ -71,6 +73,7 @@ class RunTrace:
             self._person_flow_events = {}
             self._turn_production_events = {}
             self._turn_temporary_activity_events = {}
+            self._turn_living_cost_events = {}
         row = {'schema_version': SCHEMA_VERSION, 'run_id': self.run_id,
                'branch_id': self.branch_id, 'event_id': f'{self.run_id}:{sequence}',
                'sequence': sequence, 'turn': clock.get('turn', 0),
@@ -154,10 +157,32 @@ class RunTrace:
             event_inputs['departure_link_status'] = (
                 'linked' if departure_event_id is not None else 'departure_trace_missing')
             row['inputs'] = event_inputs
+        if (formula_id == 'living.basket_prices_climate.v1'
+                and (row.get('subject') or {}).get('type') == 'tile'):
+            tile_id = str(row['subject'].get('id'))
+            event_inputs = dict(row.get('inputs') or {})
+            component_event_ids = {}
+            for good_name in event_inputs.get('basket_component_goods', ()):
+                source_event_id = self._latest_reference_price_events.get(
+                    (tile_id, str(good_name)))
+                component_event_ids[str(good_name)] = source_event_id
+            event_inputs['component_price_event_ids'] = component_event_ids
+            event_inputs['component_price_link_status'] = {
+                good_name: ('linked' if source_event_id is not None
+                            else 'no_prior_price_record')
+                for good_name, source_event_id in component_event_ids.items()}
+            row['inputs'] = event_inputs
+            causes = list(row.get('cause_event_ids') or ())
+            for source_event_id in component_event_ids.values():
+                if source_event_id is not None and source_event_id not in causes:
+                    causes.append(source_event_id)
+            if causes:
+                row['cause_event_ids'] = causes
         if formula_id is not None and metric_id in (
                 'goods.price', 'goods.seller_ask', 'goods.delivered_quote',
                 'goods.transaction_vwap', 'goods.demand', 'goods.supply',
-                'goods.demand_ratio'):
+                'goods.demand_ratio', 'living.cost_of_living',
+                'goods.national_reference_price', 'goods.national_food_price'):
             from price_trace import replay_event
             replay = replay_event(row)
             if replay is not None:
@@ -223,6 +248,14 @@ class RunTrace:
                 and row.get('subject', {}).get('type') == 'agent'):
             self._turn_temporary_activity_events[
                 str(row['subject'].get('id'))] = row['event_id']
+        if (self.write_error is None and metric_id == 'goods.price'
+                and row.get('subject', {}).get('type') == 'tile'
+                and row.get('subject', {}).get('good') is not None):
+            self._latest_reference_price_events[
+                (str(row['subject'].get('id')), str(row['subject']['good']))] = row['event_id']
+        if (self.write_error is None and metric_id == 'living.cost_of_living'
+                and row.get('subject', {}).get('type') == 'tile'):
+            self._turn_living_cost_events[str(row['subject'].get('id'))] = row['event_id']
         self.recent.append(row)
         return row['event_id']
 
@@ -234,6 +267,14 @@ class RunTrace:
         if event_kind == 'latest':
             return self._latest_shipment_events.get(str(shipment_id))
         return events.get(event_kind)
+
+    def latest_reference_price_event_id(self, tile_id, good_name):
+        """Return the latest recorded local reference price for one good."""
+        return self._latest_reference_price_events.get((str(tile_id), str(good_name)))
+
+    def turn_living_cost_event_id(self, tile_id):
+        """Return the current-turn local basket calculation for one tile."""
+        return self._turn_living_cost_events.get(str(tile_id))
 
     def snapshot(self, clock, *, subject, metric_id, unit, before, after):
         key = (metric_id, json.dumps(subject, sort_keys=True))

@@ -151,6 +151,14 @@ class SimServer:
             self._trace_previous = sample(self.tiles, self.nations)
             self._trace_previous_people = resident_census(self.tiles)
             self._trace_previous_roles = entity_role_census(self.tiles)
+            self._trace_previous_nation_membership = {
+                nation.name: [tile.name for tile in nation.tiles]
+                for nation in self.nations}
+            self._trace_previous_tile_currencies = {
+                tile.name: getattr(tile, 'home_currency', None) for tile in self.tiles}
+            self._trace_previous_nation_currencies = {
+                nation.name: getattr(nation, 'currency', None)
+                for nation in self.nations}
 
     def _configure_nation_ai(self):
         """Run sovereign AI for rivals while leaving the selected nation to the player."""

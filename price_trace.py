@@ -102,6 +102,16 @@ def replay_transport(inputs):
     return max(floor, price, 0.1)
 
 
+def replay_living_basket(inputs):
+    """Replay the local food, heating, and shelter price basket."""
+    weights = inputs['basket_weights']
+    prices = (inputs['food_price'], inputs['wood_price'],
+              inputs['furniture_price'])
+    subtotal = sum(weight * price for weight, price in zip(weights, prices))
+    return max(0.1, subtotal * inputs['regional_multiplier']
+               * inputs['climate_multiplier'])
+
+
 def replay_event(row):
     formula = row.get('formula_id')
     if formula == 'market.reference.v1':
@@ -160,6 +170,17 @@ def replay_event(row):
         i = row['inputs']
         expected = (i['zero_supply_ratio'] if i['total_asks'] == 0
                     else i['bids'] / i['total_asks'])
+    elif formula == 'living.basket_prices_climate.v1':
+        expected = replay_living_basket(row['inputs'])
+    elif formula == 'aggregate.mean.v1':
+        inputs = row['inputs']
+        values = inputs['member_values']
+        if values:
+            expected = sum(values) / inputs['denominator']
+        else:
+            expected = inputs.get('empty_value', 0.0)
+    elif formula == 'aggregate.sum.v1':
+        expected = sum(row['inputs']['member_values'])
     elif formula == 'econsim.market_price.v1':
         expected = replay_econsim_market_price(row['inputs'])
     else:

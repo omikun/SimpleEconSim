@@ -123,6 +123,57 @@ class RunTraceTests(unittest.TestCase):
             self.assertEqual(zero_output['cause_event_ids'], [activity_id])
             self.assertEqual(zero_output['inputs']['temporary_work_share'], 0.25)
 
+    def test_national_basket_change_separates_territory_mix(self):
+        from trace_snapshots import _territorial_mix_evidence
+
+        previous = {
+            ('living.cost_of_living', 'Meridian'): (None, None, 15.0),
+            ('living.cost_of_living', 'A'): (None, None, 10.0),
+            ('living.cost_of_living', 'B'): (None, None, 20.0),
+        }
+        current = {
+            ('living.cost_of_living', 'Meridian'): (None, None, 21.0),
+            ('living.cost_of_living', 'A'): (None, None, 12.0),
+            ('living.cost_of_living', 'C'): (None, None, 30.0),
+        }
+        currencies = {'A': 'D', 'B': 'D', 'C': 'D'}
+        evidence = _territorial_mix_evidence(
+            'living.cost_of_living', 'Meridian', None, ['A', 'C'], ['A', 'B'],
+            previous, current, currencies, currencies, 'D', 'D')
+        self.assertEqual(evidence['added_member_tiles'], ['C'])
+        self.assertEqual(evidence['removed_member_tiles'], ['B'])
+        self.assertEqual(evidence['continuing_member_mean_change'], 2.0)
+        self.assertEqual(evidence['territorial_composition_residual'], 4.0)
+        self.assertEqual(evidence['delta_decomposition_status'],
+                         'arithmetic_decomposition_available')
+
+        mixed_currencies = dict(currencies, C='E')
+        mixed = _territorial_mix_evidence(
+            'living.cost_of_living', 'Meridian', None, ['A', 'C'], ['A', 'B'],
+            previous, current, currencies, mixed_currencies, 'D', 'D')
+        self.assertIsNone(mixed['territorial_composition_residual'])
+        self.assertEqual(mixed['delta_decomposition_status'],
+                         'mixed_or_changed_currency')
+
+        previous_food = {
+            **previous,
+            ('goods.national_food_price', 'Meridian'): (None, None, 15.0),
+            ('goods.price', 'A', 'food'): (None, None, 10.0),
+            ('goods.price', 'B', 'food'): (None, None, 20.0),
+        }
+        current_food = {
+            **current,
+            ('goods.national_food_price', 'Meridian'): (None, None, 21.0),
+            ('goods.price', 'A', 'food'): (None, None, 12.0),
+            ('goods.price', 'C', 'food'): (None, None, 30.0),
+        }
+        food_evidence = _territorial_mix_evidence(
+            'goods.national_food_price', 'Meridian', 'food', ['A', 'C'],
+            ['A', 'B'], previous_food, current_food, currencies, currencies,
+            'D', 'D')
+        self.assertEqual(food_evidence['continuing_member_mean_change'], 2.0)
+        self.assertEqual(food_evidence['territorial_composition_residual'], 4.0)
+
     def test_starvation_death_uses_region_trace_and_snapshot_counter(self):
         from demographics_estate import handle_death
 
@@ -734,6 +785,76 @@ class RunTraceTests(unittest.TestCase):
         self.assertEqual(verify(server.run_trace.path)['checkpoints'], 6)
         all_rows = server.run_trace.query(limit=100000)['events']
         all_rows_by_id = {row['event_id']: row for row in all_rows}
+        basket_calculations = [row for row in all_rows
+                               if row['kind'] == 'cost_of_living_calculation']
+        self.assertTrue(basket_calculations)
+        self.assertTrue(all(replay_event(row)['matches']
+                            for row in basket_calculations))
+        self.assertTrue(all(row['inputs']['basket_component_prices']
+                            and row['inputs']['currency']
+                            for row in basket_calculations))
+        second_turn_baskets = [row for row in basket_calculations
+                               if row['turn'] == 2]
+        self.assertTrue(second_turn_baskets)
+        for basket in second_turn_baskets:
+            component_event_ids = basket['inputs']['component_price_event_ids']
+            self.assertEqual(set(component_event_ids),
+                             {'food', 'wood', 'furniture'})
+            for event_id in component_event_ids.values():
+                self.assertIsNotNone(event_id)
+                self.assertIn(event_id, basket.get('cause_event_ids', []))
+                self.assertLess(all_rows_by_id[event_id]['turn'], basket['turn'])
+        national_baskets = [row for row in all_rows
+                            if row['kind'] == 'national_aggregate'
+                            and row.get('metric_id') == 'living.cost_of_living']
+        self.assertTrue(national_baskets)
+        for aggregate in national_baskets:
+            self.assertTrue(replay_event(aggregate)['matches'])
+            inputs = aggregate['inputs']
+            self.assertFalse(inputs['currency_conversion_applied'])
+            self.assertIn('territory_membership', inputs)
+            self.assertIn('territorial_composition_residual', inputs)
+            for member in inputs['territory_membership']:
+                event_id = member['basket_calculation_event_id']
+                self.assertIsNotNone(event_id)
+                self.assertIn(event_id, aggregate.get('cause_event_ids', []))
+        national_prices = [row for row in all_rows
+                           if row['kind'] == 'national_reference_price_aggregate']
+        self.assertTrue(national_prices)
+        for aggregate in national_prices:
+            self.assertTrue(replay_event(aggregate)['matches'])
+            inputs = aggregate['inputs']
+            self.assertFalse(inputs['currency_conversion_applied'])
+            self.assertEqual(inputs['coverage_count'],
+                             len(inputs['member_price_records']))
+            self.assertTrue(inputs['territory_membership'])
+            for member in inputs['member_price_records']:
+                event_id = member['source_price_event_id']
+                if event_id is not None:
+                    self.assertIn(event_id, aggregate.get('cause_event_ids', []))
+                    self.assertEqual(all_rows_by_id[event_id]['metric_id'],
+                                     'goods.price')
+        food_history_aggregates = [row for row in all_rows
+                                   if row['kind'] ==
+                                   'national_food_price_history_aggregate']
+        self.assertTrue(food_history_aggregates)
+        self.assertTrue(all(replay_event(row)['matches']
+                            for row in food_history_aggregates))
+        latest_food_history = {
+            row['subject']['id']: row['value_after']
+            for row in food_history_aggregates if row['turn'] == server.turn}
+        for nation in server.nations:
+            self.assertAlmostEqual(
+                round(latest_food_history[nation.name], 2),
+                server._nation_history[nation.name]['food_price'][-1])
+        latest_food_means = {
+            row['subject']['id']: row['value_after']
+            for row in national_prices if row['subject']['good'] == 'food'
+            and row['turn'] == server.turn}
+        for nation in server.nations:
+            self.assertAlmostEqual(
+                round(latest_food_means[nation.name], 2),
+                server._nation_history[nation.name]['food_price'][-1])
         departures = [row for row in all_rows
                       if row['kind'] == 'route_shipment_departure']
         arrivals = [row for row in all_rows

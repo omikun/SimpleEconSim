@@ -27,6 +27,17 @@ the FX matrix has a **Why?** button for each quoted currency pair.
 - Tile market demand, supply, price reference and decay, transport price,
   private/public paid sales, producer inventory, production, nominal GDP,
   population count, and cost of living.
+- Local cost-of-living calculations record fixed basket goods and weights,
+  component reference prices, regional/climate multipliers, local currency, and
+  a replayable total. National cost-of-living means link member baskets and
+  include coverage, territory membership, currencies, and arithmetic
+  continuing-member versus territorial-composition changes.
+- National reference prices are recorded per priced good with tile-level price
+  links, territory membership, coverage, and currency context. The legacy
+  national food-price history is separately replayed with its original
+  denominator, missing-recipe-as-zero rule, and empty-nation fallback. National
+  prices are intentionally unconverted means of local-currency values, with
+  mixed currency flagged.
 - Live market order chains record positive buyer quantities with current stock,
   household or input-need branch, cash availability and recipe context; local
   seller offers record available stock and reserves. Same-turn production,
@@ -142,17 +153,16 @@ the FX matrix has a **Why?** button for each quoted currency pair.
 ## Known gaps
 
 Reference snapshots cover priced recipe goods, and the live market, scenario
-quotes, settlements, and optional standalone `econsim.py --trace` run have
-separate price records with replay checks for supported formulas. Remaining
-price work is linking production, inventories, needs, accepted orders, and
-settlements through time without implying a trade caused an earlier quote.
-Imported shipment IDs now resolve across purchase, departure, arrival, supply,
-quote, and paid sale when those source records exist. The core local
-strike/workforce/output/offer/price path is now linked; basket and national
-price components, territorial membership effects, and scenario price histories
-still need explicit decomposition. The main market's `vwap` input is an unweighted
-recent-sample mean. The web inspector can filter a tile and selected good;
-historical chart points do not yet open that inspector directly.
+quotes, settlements, optional standalone `econsim.py --trace` runs, local
+baskets, and national price aggregates have separate records with replay checks
+for supported formulas. National and basket calculations retain their current
+unconverted currency semantics and flag mixed currency. Imported shipment IDs
+resolve across purchase, departure, arrival, supply, quote, and paid sale when
+those source records exist. The core local strike/workforce/output/offer/price
+path is linked. Remaining price work includes scenario history series and
+their membership/currency decomposition. The main market's `vwap` input is an
+unweighted recent-sample mean. Historical chart points do not yet open the web
+inspector directly.
 
 The coverage checker reports a changed snapshot as unexplained when its final
 value does not match a recorded calculation. Per-profession headcount snapshots

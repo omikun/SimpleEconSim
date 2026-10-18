@@ -9,6 +9,8 @@ from __future__ import annotations
 
 METRICS = {
     'goods.price': ('tile/simulation/good', 'local_currency_per_unit', 'displayed recipe reference price; region_market and econsim_trade_money price writers'),
+    'goods.national_reference_price': ('nation/good', 'mean_local_currency_per_unit', 'trace_snapshots.sample mean across territories with a recorded reference price; no currency conversion'),
+    'goods.national_food_price': ('nation/good', 'mean_local_currency_per_unit', 'sim_server._record_history food_price mean, with explicit territory coverage'),
     'goods.seller_ask': ('tile/good/seller', 'local_currency_per_unit', 'posted offer at evaluation'),
     'goods.delivered_quote': ('tile/good/buyer/seller', 'local_currency_per_unit', 'offer including delivery costs'),
     'goods.transaction_price': ('tile/good/buyer/seller', 'local_currency_per_unit', 'paid settlement price'),
@@ -23,7 +25,7 @@ METRICS = {
     'goods.zero_order_count': ('tile/good', 'orders', 'region_market.trade; zero bid and offer reason summary'),
     'goods.sold': ('tile/good', 'units', 'region_market.trade'),
     'goods.food_aid': ('tile/government', 'units', 'government.Government.provide_food_aid'),
-    'living.cost_of_living': ('tile', 'local_currency_per_basket', 'micro.region.stepper.step_economy'),
+    'living.cost_of_living': ('tile/nation', 'local_currency_per_basket', 'micro.region.stepper.step_economy and trace_snapshots national aggregation'),
     'people.population': ('tile/nation', 'people', 'sum of profession-coded agent counts and traders in micro.region.stepper.log_metrics'),
     'people.profession_population': ('tile/nation/profession', 'people', 'micro.region.stepper.log_metrics'),
     'people.residents': ('tile/nation', 'people', 'trace_snapshots resident census bridge'),
@@ -175,6 +177,8 @@ TRACE_INSTRUMENTED = set(LEGACY_HISTORY_TO_METRIC.values()) | {
     'goods.emergency_levy', 'goods.provincial_relief', 'land.customary_inheritance',
     'goods.demand_ratio', 'goods.buyer_bid_quantity', 'goods.seller_offer_quantity',
     'goods.zero_order_count',
+    'goods.national_reference_price',
+    'goods.national_food_price',
     'labor.strikers', 'labor.available_worker_hours',
 }
 

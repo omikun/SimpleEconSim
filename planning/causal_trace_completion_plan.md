@@ -393,3 +393,33 @@ independent zero rolls, and 24 market zero-order summaries. All cause IDs
 resolved, the checkpoint verified, and a trace-on/off run matched semantic
 state and Python RNG state. This direct scenario runner omits the server setup
 snapshot, so its size is not directly comparable to the earlier server sample.
+
+Phase 2 follow-up, 2026-10-18: local cost-of-living calculations now record the
+food, wood, and furniture prices, fixed basket weights, regional and climate
+multipliers, currency, and a replayable total. Each basket links to the latest
+prior reference-price event for each component, making the time ordering
+explicit. National cost-of-living means link to their member-tile calculations
+and record territory membership, coverage, currencies, basket definition, and
+the fact that no currency conversion occurs. Their continuing-tile price
+change and territory residual are reported separately; the residual is only an
+arithmetic decomposition and is omitted when the currency basis changes.
+
+National reference-price means now cover each priced recipe good and link to
+the tile reference-price snapshots used. They record covered and uncovered
+territories, price basis, local currencies, territory ownership, and changes in
+membership or price coverage. The legacy national food-price history has its
+own metric and replay record matching the existing formula exactly: total
+member-territory denominator, missing recipe contributes zero, and an empty
+nation falls back to 1.0. This preserves the meaning of the existing chart while
+distinguishing it from the better-covered-territory mean. Neither national
+price measure converts local currencies. Arithmetic territorial decomposition
+is only offered when currency context is stable and is not labeled as causal
+attribution.
+
+Verification: 60 focused trace, auction, route, collective-action, and codec
+tests passed; compilation and `git diff --check` passed. A two-turn seeded
+frontier server trace contained 4,917 events (301,179 compressed bytes), two
+checkpoints, 76 national reference-price aggregates, four cost-of-living and
+four legacy food-history aggregates, 1,124 replayable formulas with zero
+mismatches, and zero unresolved cause IDs. This is a compact two-turn audit,
+not the 30/100-turn performance gate.

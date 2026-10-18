@@ -35,6 +35,98 @@ def entity_role_census(tiles):
             for tile in tiles for agent in getattr(tile, 'agents', ())}
 
 
+def _territorial_mix_evidence(metric_id, nation_name, good_name, current_members,
+                              previous_members, previous_values, current_values,
+                              previous_tile_currencies, current_tile_currencies,
+                              previous_nation_currency, current_nation_currency):
+    """Show changing territory coverage separately from continuing-tile values."""
+    previous_members = list(previous_members or ())
+    previous_set, current_set = set(previous_members), set(current_members)
+    common = sorted(previous_set & current_set)
+
+    def member_key(tile_name):
+        if metric_id == 'living.cost_of_living':
+            return (metric_id, tile_name)
+        if metric_id == 'goods.national_food_price':
+            return ('goods.price', tile_name, good_name)
+        return (metric_id, tile_name, good_name)
+
+    if metric_id == 'goods.national_food_price':
+        common_with_values = common
+        prior_values = [previous_values.get(member_key(tile_name),
+                                            (None, None, 0.0))[2]
+                        for tile_name in common_with_values]
+        current_member_values = [current_values.get(member_key(tile_name),
+                                                     (None, None, 0.0))[2]
+                                 for tile_name in common_with_values]
+    else:
+        common_with_values = [tile_name for tile_name in common
+                              if member_key(tile_name) in previous_values
+                              and member_key(tile_name) in current_values]
+        prior_values = [previous_values[member_key(tile_name)][2]
+                        for tile_name in common_with_values]
+        current_member_values = [current_values[member_key(tile_name)][2]
+                                 for tile_name in common_with_values]
+    prior_common_mean = (sum(prior_values) / len(prior_values)
+                         if prior_values else None)
+    current_common_mean = (sum(current_member_values) / len(current_member_values)
+                           if current_member_values else None)
+    national_key = ((metric_id, nation_name)
+                    if metric_id in ('living.cost_of_living',
+                                     'goods.national_food_price') else
+                    (metric_id, nation_name, good_name))
+    prior_national = previous_values.get(national_key)
+    current_national = current_values.get(national_key)
+    continuing_change = (current_common_mean - prior_common_mean
+                         if prior_common_mean is not None
+                         and current_common_mean is not None else None)
+    national_change = (current_national[2] - prior_national[2]
+                       if prior_national is not None and current_national is not None
+                       else None)
+    current_currencies = {current_tile_currencies.get(tile_name)
+                          for tile_name in current_set}
+    previous_currencies = {previous_tile_currencies.get(tile_name)
+                           for tile_name in previous_set}
+    currencies_stable = (
+        previous_nation_currency == current_nation_currency
+        and all(previous_tile_currencies.get(tile_name)
+                == current_tile_currencies.get(tile_name)
+                for tile_name in common_with_values)
+        and len(current_currencies) <= 1
+        and len(previous_currencies) <= 1
+        and current_currencies == previous_currencies
+        and None not in current_currencies
+        and None not in previous_currencies)
+    composition_residual = (national_change - continuing_change
+                            if national_change is not None
+                            and continuing_change is not None
+                            and currencies_stable else None)
+    return {
+        'previous_member_tiles': previous_members,
+        'current_member_tiles': list(current_members),
+        'added_member_tiles': sorted(current_set - previous_set),
+        'removed_member_tiles': sorted(previous_set - current_set),
+        'common_member_tiles': common_with_values,
+        'membership_changed': previous_set != current_set,
+        'previous_nation_mean': prior_national[2] if prior_national else None,
+        'current_nation_mean': current_national[2] if current_national else None,
+        'national_mean_change': national_change,
+        'prior_common_member_mean': prior_common_mean,
+        'current_common_member_mean': current_common_mean,
+        'continuing_member_mean_change': continuing_change,
+        'territorial_composition_residual': composition_residual,
+        'currency_membership_stable': currencies_stable,
+        'delta_decomposition_status': (
+            'arithmetic_decomposition_available'
+            if composition_residual is not None else
+            'mixed_or_changed_currency' if not currencies_stable else
+            'no_prior_common_members_or_value'),
+        'delta_decomposition_note': (
+            'Continuing-member change plus territorial residual is an arithmetic '
+            'decomposition, not an independent causal share.'),
+    }
+
+
 def resident_population_bridges(previous, current, previous_roles, tiles, turn,
                                 flow_event_ids=None):
     """Reconcile resident census changes for tiles and territorial nations.
@@ -356,12 +448,47 @@ def sample(tiles, nations):
             subject, 'mean_local_currency_per_basket',
             sum(tile.cost_of_living for tile in members) / max(1, len(members))
             if members else 1.0)
+        national_goods = sorted(
+            {good for tile in members for good, recipe in tile.recipes.items()
+             if isinstance(good, Goods) and recipe is not None
+             and 'price' in recipe}, key=lambda good: good.value)
+        for good in national_goods:
+            covered_prices = [float(tile.recipes[good]['price']) for tile in members
+                              if good in tile.recipes
+                              and tile.recipes[good] is not None
+                              and 'price' in tile.recipes[good]]
+            if not covered_prices:
+                continue
+            values[('goods.national_reference_price', nation.name, good.name)] = (
+                {**subject, 'good': good.name},
+                'mean_local_currency_per_unit',
+                sum(covered_prices) / len(covered_prices))
+        food_history_values = [
+            float(tile.recipes[Goods.food]['price'])
+            if Goods.food in tile.recipes and tile.recipes[Goods.food] is not None
+            and 'price' in tile.recipes[Goods.food] else 0.0
+            for tile in members]
+        values[('goods.national_food_price', nation.name)] = (
+            {**subject, 'good': Goods.food.name},
+            'mean_local_currency_per_unit',
+            sum(food_history_values) / len(members) if members else 1.0)
     return values
 
 
 def record(server):
     current = sample(server.tiles, server.nations)
     previous = getattr(server, '_trace_previous', {})
+    previous_nation_membership = getattr(
+        server, '_trace_previous_nation_membership', {})
+    previous_tile_currencies = getattr(
+        server, '_trace_previous_tile_currencies', {})
+    previous_nation_currencies = getattr(
+        server, '_trace_previous_nation_currencies', {})
+    current_nation_membership = {
+        nation.name: [tile.name for tile in nation.tiles]
+        for nation in server.nations}
+    current_tile_currencies = {
+        tile.name: getattr(tile, 'home_currency', None) for tile in server.tiles}
     # Keep zero-valued profession keys in the internal baseline so a later
     # return to a profession has a real before value, without snapshotting
     # unchanged zero categories every turn.
@@ -472,19 +599,254 @@ def record(server):
                     'member_tiles': members,
                     'member_values': values_by_tile,
                     'denominator': max(1, len(members)) if reducer == 'mean' else None}
+                if reducer == 'mean' and not values_by_tile:
+                    aggregate_inputs['empty_value'] = current[key][2]
+                aggregate_before = previous.get(key)
+                aggregate_causes = []
                 if metric_id == 'people.deaths':
                     by_cause = {}
                     for tile in nation.tiles:
                         for cause, count in getattr(tile, 'deaths_by_cause_this_turn', {}).items():
                             by_cause[cause] = by_cause.get(cause, 0) + count
                     aggregate_inputs['deaths_by_cause'] = by_cause
+                elif metric_id == 'living.cost_of_living':
+                    member_records = []
+                    for tile_name, value in zip(members, values_by_tile):
+                        tile = next(tile for tile in nation.tiles
+                                    if tile.name == tile_name)
+                        calculation_event_id = server.run_trace.turn_living_cost_event_id(
+                            tile_name)
+                        member_records.append({
+                            'tile_id': tile_name,
+                            'owner_nation_at_snapshot': getattr(
+                                getattr(tile, 'owner_nation', None), 'name', None),
+                            'local_currency': getattr(tile, 'home_currency', None),
+                            'local_basket_value': value,
+                            'basket_calculation_event_id': calculation_event_id})
+                        if calculation_event_id is not None:
+                            aggregate_causes.append(calculation_event_id)
+                    aggregate_inputs.update({
+                        'territory_membership': member_records,
+                        'member_currencies': [row['local_currency']
+                                              for row in member_records],
+                        'target_nation_currency': getattr(nation, 'currency', None),
+                        'currency_conversion_applied': False,
+                        'currency_semantics': 'unconverted_mean_of_local_currency_baskets',
+                        'unconverted_mixed_currency': len({
+                            row['local_currency'] for row in member_records
+                            if row['local_currency'] is not None}) > 1,
+                        'basket_components': [
+                            {'good': 'food', 'weight': 4.0},
+                            {'good': 'wood', 'weight': 1.0},
+                            {'good': 'furniture', 'weight': 0.25}],
+                        'product_mix_changed': False,
+                        'coverage': {'member_tiles': len(members),
+                                     'tiles_with_basket': len(member_records),
+                                     'tiles_with_current_calculation': sum(
+                                         row['basket_calculation_event_id'] is not None
+                                         for row in member_records),
+                                     'tiles_without_current_calculation': [
+                                         row['tile_id'] for row in member_records
+                                         if row['basket_calculation_event_id'] is None]},
+                        'membership_turn': clock.get('turn', 0)})
+                    aggregate_inputs.update(_territorial_mix_evidence(
+                        metric_id, nation.name, None, members,
+                        previous_nation_membership.get(nation.name, ()),
+                        previous, current, previous_tile_currencies,
+                        current_tile_currencies,
+                        previous_nation_currencies.get(nation.name),
+                        getattr(nation, 'currency', None)))
                 server.run_trace.emit(clock, kind='national_aggregate',
                                       record_class='calculation', phase='snapshot',
                                       subject={'type': 'nation', 'id': nation.name},
                                       metric_id=metric_id, unit=unit,
+                                      before=(aggregate_before[2]
+                                              if metric_id == 'living.cost_of_living'
+                                              and aggregate_before is not None else None),
                                       after=current[key][2],
                                       formula_id=f'aggregate.{reducer}.v1',
-                                      inputs=aggregate_inputs)
+                                      inputs=aggregate_inputs,
+                                      cause_event_ids=aggregate_causes or None)
+            for key, (subject, unit, after) in current.items():
+                if (key[0] != 'goods.national_reference_price'
+                        or subject.get('type') != 'nation'
+                        or subject.get('id') != nation.name):
+                    continue
+                good_name = subject['good']
+                member_records = []
+                uncovered_tiles = []
+                for tile_name in members:
+                    tile = next(tile for tile in nation.tiles
+                                if tile.name == tile_name)
+                    tile_price_key = ('goods.price', tile_name, good_name)
+                    tile_price = current.get(tile_price_key)
+                    if tile_price is None:
+                        uncovered_tiles.append(tile_name)
+                        continue
+                    source_event_id = server.run_trace.latest_reference_price_event_id(
+                        tile_name, good_name)
+                    member_records.append({
+                        'tile_id': tile_name,
+                        'owner_nation_at_snapshot': getattr(
+                            getattr(tile, 'owner_nation', None), 'name', None),
+                        'local_currency': getattr(tile, 'home_currency', None),
+                        'reference_price': tile_price[2],
+                        'source_price_event_id': source_event_id,
+                        'source_price_link_status': (
+                            'linked' if source_event_id is not None
+                            else 'no_prior_price_record')})
+                covered_tiles = [row['tile_id'] for row in member_records]
+                member_values = [row['reference_price'] for row in member_records]
+                source_event_ids = [row['source_price_event_id']
+                                    for row in member_records
+                                    if row['source_price_event_id'] is not None]
+                prior_covered_tiles = [tile_name for tile_name in
+                                       previous_nation_membership.get(nation.name, ())
+                                       if ('goods.price', tile_name, good_name) in previous]
+                aggregate_inputs = {
+                    'good': good_name,
+                    'member_tiles': members,
+                    'territory_membership': [
+                        {'tile_id': tile.name,
+                         'owner_nation_at_snapshot': getattr(
+                             getattr(tile, 'owner_nation', None), 'name', None),
+                         'local_currency': getattr(tile, 'home_currency', None)}
+                        for tile in nation.tiles],
+                    'covered_member_tiles': covered_tiles,
+                    'previous_covered_member_tiles': prior_covered_tiles,
+                    'uncovered_member_tiles': uncovered_tiles,
+                    'member_price_records': member_records,
+                    'member_values': member_values,
+                    'denominator': len(member_values),
+                    'coverage_count': len(member_values),
+                    'territory_count': len(members),
+                    'coverage_share': len(member_values) / max(1, len(members)),
+                    'member_currencies': [row['local_currency']
+                                          for row in member_records],
+                    'target_nation_currency': getattr(nation, 'currency', None),
+                    'currency_conversion_applied': False,
+                    'currency_semantics': 'unconverted_mean_of_local_reference_prices',
+                    'unconverted_mixed_currency': len({
+                        row['local_currency'] for row in member_records
+                        if row['local_currency'] is not None}) > 1,
+                    'price_basis': 'displayed_recipe_reference',
+                    'membership_turn': clock.get('turn', 0)}
+                aggregate_inputs.update(_territorial_mix_evidence(
+                    'goods.national_reference_price', nation.name, good_name,
+                    covered_tiles, prior_covered_tiles,
+                    previous, current, previous_tile_currencies,
+                    current_tile_currencies,
+                    previous_nation_currencies.get(nation.name),
+                    getattr(nation, 'currency', None)))
+                aggregate_inputs['territory_membership_changed'] = (
+                    set(members) != set(previous_nation_membership.get(
+                        nation.name, ())))
+                aggregate_inputs['price_coverage_changed'] = (
+                    set(covered_tiles) != set(prior_covered_tiles))
+                server.run_trace.emit(
+                    clock, kind='national_reference_price_aggregate',
+                    record_class='calculation', phase='snapshot',
+                    subject=subject, metric_id='goods.national_reference_price',
+                    unit=unit,
+                    before=(previous[key][2] if key in previous else None),
+                    after=after, formula_id='aggregate.mean.v1',
+                    inputs=aggregate_inputs,
+                    cause_event_ids=source_event_ids or None)
+            food_history_key = ('goods.national_food_price', nation.name)
+            if food_history_key in current:
+                food_records = []
+                food_contributions = []
+                food_source_event_ids = []
+                for tile in nation.tiles:
+                    recipe = tile.recipes.get(Goods.food)
+                    has_price = recipe is not None and 'price' in recipe
+                    reference_price = (float(recipe['price']) if has_price else None)
+                    contribution = reference_price if reference_price is not None else 0.0
+                    source_event_id = (server.run_trace.latest_reference_price_event_id(
+                        tile.name, Goods.food.name) if has_price else None)
+                    food_records.append({
+                        'tile_id': tile.name,
+                        'owner_nation_at_snapshot': getattr(
+                            getattr(tile, 'owner_nation', None), 'name', None),
+                        'local_currency': getattr(tile, 'home_currency', None),
+                        'reference_price': reference_price,
+                        'legacy_mean_contribution': contribution,
+                        'source_price_event_id': source_event_id,
+                        'source_price_link_status': (
+                            'linked' if source_event_id is not None
+                            else 'no_prior_price_record')})
+                    food_contributions.append(contribution)
+                    if source_event_id is not None:
+                        food_source_event_ids.append(source_event_id)
+                denominator = max(1, len(members))
+                food_inputs = {
+                    'good': Goods.food.name,
+                    'history_field': 'sim_server._nation_history.food_price',
+                    'member_tiles': members,
+                    'previous_member_tiles': previous_nation_membership.get(
+                        nation.name, []),
+                    'current_member_tiles': members,
+                    'added_member_tiles': sorted(
+                        set(members) - set(previous_nation_membership.get(
+                            nation.name, ()))),
+                    'removed_member_tiles': sorted(
+                        set(previous_nation_membership.get(nation.name, ()))
+                        - set(members)),
+                    'membership_changed': set(members) != set(
+                        previous_nation_membership.get(nation.name, ())),
+                    'territory_membership': food_records,
+                    'member_price_records': food_records,
+                    'previous_member_price_records': [
+                        {'tile_id': tile_name,
+                         'reference_price': (
+                             previous[('goods.price', tile_name, Goods.food.name)][2]
+                             if ('goods.price', tile_name, Goods.food.name) in previous
+                             else None)}
+                        for tile_name in previous_nation_membership.get(
+                            nation.name, ())],
+                    'member_values': food_contributions,
+                    'denominator': denominator,
+                    'empty_value': 1.0 if not members else 0.0,
+                    'coverage_count': sum(
+                        row['reference_price'] is not None for row in food_records),
+                    'territory_count': len(members),
+                    'coverage_share': sum(
+                        row['reference_price'] is not None for row in food_records)
+                        / max(1, len(members)),
+                    'unpriced_member_tiles': [row['tile_id'] for row in food_records
+                                              if row['reference_price'] is None],
+                    'missing_recipe_contribution_policy': 'zero_in_legacy_display_mean',
+                    'no_territory_fallback': 1.0 if not members else None,
+                    'interpretation_status': (
+                        'empty_territory_history_fallback'
+                        if not members else 'legacy_food_price_mean'),
+                    'member_currencies': [row['local_currency']
+                                          for row in food_records],
+                    'target_nation_currency': getattr(nation, 'currency', None),
+                    'currency_conversion_applied': False,
+                    'currency_semantics': 'unconverted_mean_of_local_reference_prices',
+                    'unconverted_mixed_currency': len({
+                        row['local_currency'] for row in food_records
+                        if row['local_currency'] is not None}) > 1,
+                    'membership_turn': clock.get('turn', 0)}
+                food_inputs.update(_territorial_mix_evidence(
+                    'goods.national_food_price', nation.name, Goods.food.name,
+                    members, previous_nation_membership.get(nation.name, ()),
+                    previous, current, previous_tile_currencies,
+                    current_tile_currencies,
+                    previous_nation_currencies.get(nation.name),
+                    getattr(nation, 'currency', None)))
+                server.run_trace.emit(
+                    clock, kind='national_food_price_history_aggregate',
+                    record_class='calculation', phase='snapshot',
+                    subject=current[food_history_key][0],
+                    metric_id='goods.national_food_price',
+                    unit=current[food_history_key][1],
+                    before=(previous[food_history_key][2]
+                            if food_history_key in previous else None),
+                    after=current[food_history_key][2],
+                    formula_id='aggregate.mean.v1', inputs=food_inputs,
+                    cause_event_ids=food_source_event_ids or None)
             for key, (subject, unit, after) in current.items():
                 if (key[0] != 'people.profession_population'
                         or subject.get('type') != 'nation'
@@ -521,3 +883,8 @@ def record(server):
     server._trace_previous = current
     server._trace_previous_people = current_people
     server._trace_previous_roles = current_roles
+    server._trace_previous_nation_membership = current_nation_membership
+    server._trace_previous_tile_currencies = current_tile_currencies
+    server._trace_previous_nation_currencies = {
+        nation.name: getattr(nation, 'currency', None)
+        for nation in server.nations}
