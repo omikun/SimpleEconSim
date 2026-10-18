@@ -21,6 +21,135 @@ def _nation(world, name):
     return next((nation for nation in world['nations'] if nation.name == name), None)
 
 
+def _government_nation(world, government):
+    for nation in world.get('nations', []):
+        if getattr(nation, 'government', None) is government:
+            return nation
+    for tile in world.get('tiles', []):
+        if getattr(tile, 'gov', None) is government:
+            return getattr(tile, 'owner_nation', None)
+    return None
+
+
+def _trace_region(world, government, nation):
+    for tile in world.get('tiles', []):
+        if getattr(tile, 'gov', None) is government:
+            return tile
+    return next(iter(getattr(nation, 'tiles', [])), None)
+
+
+def _emit_revenue_assessment(world, government, *, turn, source, amount,
+                             operation_id=None, inputs=None, cause_event_ids=None):
+    payer_nation = _government_nation(world, government)
+    region = _trace_region(world, government, payer_nation)
+    if region is None:
+        return None
+    from run_trace import emit
+    currency = (getattr(payer_nation, 'currency', None)
+                or getattr(region, 'home_currency', None) or 'local_currency')
+    return emit(
+        region, kind='occupation_revenue_assessment', record_class='calculation',
+        phase='scenario_occupation',
+        subject={'type': 'nation/operation',
+                 'id': operation_id or f'{source}:{government.name}:{int(turn)}'},
+        metric_id='finance.occupation_transfer', unit=currency,
+        before=0.0, after=float(amount),
+        formula_id='occupation.revenue_cap_and_resistance.v1',
+        inputs={'operation_id': operation_id, 'turn': int(turn),
+                'source': source, 'amount': float(amount), **(inputs or {})},
+        cause_event_ids=cause_event_ids)
+
+
+def _record_occupation_cash_transfer(world, *, payer_nation, payee_nation,
+                                     payer_government, payee_government,
+                                     amount, turn, operation_id, source,
+                                     payer_before, payee_before, inputs=None):
+    """Trace both treasury legs and the exact occupation transfer."""
+    if payer_nation is None:
+        return []
+    region = _trace_region(world, payer_government, payer_nation)
+    if region is None:
+        return []
+    from finance_trace import account_ref, emit_treasury_leg, transfer_contract
+    payer_currency = (getattr(payer_nation, 'currency', None)
+                      or getattr(region, 'home_currency', None) or 'local_currency')
+    payee_currency = getattr(payee_nation, 'currency', None) or payer_currency
+    payer_after = float(payer_government.agent.cash)
+    payee_after = float(payee_government.agent.cash)
+    payer_account = account_ref(
+        'nation_treasury', payer_government.name, payer_currency,
+        nation_id=payer_nation.name, subaccount='government_agent.cash',
+        balance_before=float(payer_before), balance_after=payer_after,
+        balance_scope='government_agent.cash')
+    payee_account = account_ref(
+        'nation_treasury', payee_government.name, payee_currency,
+        nation_id=payee_nation.name, subaccount='government_agent.cash',
+        balance_before=float(payee_before), balance_after=payee_after,
+        balance_scope='government_agent.cash')
+    common = {
+        'amount': float(amount), 'amount_currency': payer_currency,
+        'payer_account': payer_account, 'payee_account': payee_account,
+        'local_cash_leg_amount': float(amount),
+        'local_cash_leg_currency': payer_currency,
+        'counterparty_leg_status': 'both_treasury_balances_captured',
+        'counterparty_currency': payee_currency,
+        'counterparty_currency_mismatch': payer_currency != payee_currency,
+        'currency_conversion_applied': False,
+        'mutation_reference': {'turn': int(turn), 'source': source,
+                               'operation_id': operation_id}}
+    payer_contract = transfer_contract(
+        operation_id, 'occupation_revenue_or_settlement', side='payer', **common)
+    payee_contract = transfer_contract(
+        operation_id, 'occupation_revenue_or_settlement', side='payee', **common)
+    payer_event_id = emit_treasury_leg(
+        region, kind='occupation_treasury_payment',
+        nation_name=payer_nation.name, currency=payer_currency,
+        signed_amount=-float(amount), contract=payer_contract,
+        phase='scenario_occupation',
+        inputs={'source': source, 'turn': int(turn), **(inputs or {})})
+    payee_event_id = emit_treasury_leg(
+        region, kind='occupation_treasury_receipt',
+        nation_name=payee_nation.name, currency=payee_currency,
+        signed_amount=float(amount), contract=payee_contract,
+        phase='scenario_occupation',
+        inputs={'source': source, 'turn': int(turn), **(inputs or {})})
+    causes = [event_id for event_id in (payer_event_id, payee_event_id)
+              if event_id is not None]
+    outcome_id = _emit_revenue_assessment(
+        world, payer_government, turn=turn, source=source, amount=amount,
+        operation_id=operation_id, inputs=inputs,
+        cause_event_ids=causes or None)
+    return causes + ([outcome_id] if outcome_id is not None else [])
+
+
+def _settle_occupation_payment(world, *, source, amount, turn):
+    egypt = _nation(world, 'Egypt')
+    britain = _nation(world, 'Britain')
+    if egypt is None or britain is None:
+        return None
+    occupation = world['scenario_state']['occupation']
+    ordinal = sum(1 for row in occupation['revenue_ledger']
+                  if row.get('turn') == int(turn) and row.get('source') == source)
+    operation_id = (f'occupation-settlement:{source}:{egypt.name}:{britain.name}:'
+                    f'{int(turn)}:{ordinal + 1}')
+    egypt_government = egypt.government
+    britain_government = britain.government
+    egypt_before = float(egypt_government.agent.cash)
+    britain_before = float(britain_government.agent.cash)
+    egypt_government.agent.cash -= float(amount)
+    britain_government.agent.cash += float(amount)
+    occupation['revenue_ledger'].append({
+        'turn': int(turn), 'source': source, 'amount': float(amount),
+        'holder': britain.name, 'operation_id': operation_id})
+    _record_occupation_cash_transfer(
+        world, payer_nation=egypt, payee_nation=britain,
+        payer_government=egypt_government, payee_government=britain_government,
+        amount=amount, turn=turn, operation_id=operation_id, source=source,
+        payer_before=egypt_before, payee_before=britain_before,
+        inputs={'settlement': True})
+    return operation_id
+
+
 def _event(world, message):
     state = world['scenario_state']['occupation']
     state['events'].append({'turn': int(world['turn']), 'text': message})
@@ -38,35 +167,85 @@ def intercept_revenue(world, government, source, gross, turn):
         return 0.0
     occupation = state['occupation']
     control = occupation['institutional_control']
-    if source == 'tariff' and control['customs'] != 'Britain':
-        return 0.0
-    if source == 'tax' and control['cabinet'] != 'Britain':
-        return 0.0
     if source not in ('tariff', 'tax'):
+        return 0.0
+    control_key = 'customs' if source == 'tariff' else 'cabinet'
+    controller = control.get(control_key)
+    if controller != 'Britain':
+        _emit_revenue_assessment(
+            world, government, turn=turn, source=source, amount=0.0,
+            inputs={'gross_receipt': float(gross), 'control_institution': control_key,
+                    'institution_controller': controller,
+                    'reason': 'institution_not_occupied'})
         return 0.0
     if occupation['collection_turn'] != turn:
         occupation['collection_turn'] = turn
         occupation['collected_this_turn'] = 0.0
+    collected_before = float(occupation['collected_this_turn'])
     room = max(0.0, OCCUPIED_RECEIPT_CAP - occupation['collected_this_turn'])
     boycott = .25 if turn <= occupation['boycott_until'] else 1.0
     strike = .5 if turn <= occupation['strike_until'] else 1.0
     resistance = float(occupation['resistance'])
     port_damage = float(state.get('campaign', {}).get('infrastructure_damage', {}).get('Alexandria', 0.0))
     port_factor = (1 - port_damage) if source == 'tariff' else 1.0
-    rate = ((.35 if source == 'tariff' else .20) * (1 - .6 * resistance)
-            * boycott * strike * port_factor)
+    base_rate = .35 if source == 'tariff' else .20
+    resistance_factor = 1 - .6 * resistance
+    rate = base_rate * resistance_factor * boycott * strike * port_factor
+    government_cash_before = float(government.agent.cash)
     amount = round(min(float(gross) * max(0, rate), room,
                        max(0, government.agent.cash)), 6)
     if amount <= 0:
+        reason = ('collection_cap_reached' if room <= 0 else
+                  'treasury_empty' if government_cash_before <= 0 else
+                  'no_eligible_receipts')
+        _emit_revenue_assessment(
+            world, government, turn=turn, source=source, amount=0.0,
+            inputs={'gross_receipt': float(gross), 'base_rate': base_rate,
+                    'resistance': resistance,
+                    'resistance_factor': resistance_factor,
+                    'boycott_factor': boycott, 'strike_factor': strike,
+                    'port_damage': port_damage, 'port_factor': port_factor,
+                    'effective_rate': rate, 'collection_cap': OCCUPIED_RECEIPT_CAP,
+                    'collected_before': collected_before, 'room': room,
+                    'government_cash_before': government_cash_before,
+                    'reason': reason})
         return 0.0
     britain = _nation(world, 'Britain')
     if britain is None:
+        _emit_revenue_assessment(
+            world, government, turn=turn, source=source, amount=0.0,
+            inputs={'gross_receipt': float(gross), 'effective_rate': rate,
+                    'reason': 'occupier_not_found'})
         return 0.0
+    payer_nation = _government_nation(world, government)
+    britain_government = britain.government
+    britain_cash_before = float(britain_government.agent.cash)
+    ordinal = sum(1 for row in occupation['revenue_ledger']
+                  if row.get('turn') == int(turn) and row.get('source') == source)
+    operation_id = (f'occupation-revenue:{getattr(payer_nation, "name", government.name)}:'
+                    f'{source}:{int(turn)}:{ordinal + 1}')
     government.agent.cash -= amount
-    britain.government.agent.cash += amount
+    britain_government.agent.cash += amount
     occupation['collected_this_turn'] += amount
     occupation['revenue_ledger'].append({'turn': turn, 'source': source, 'amount': amount,
-                                         'holder': 'Britain', 'resistance': resistance})
+                                         'holder': 'Britain', 'resistance': resistance,
+                                         'operation_id': operation_id})
+    transfer_inputs = {
+        'gross_receipt': float(gross), 'base_rate': base_rate,
+        'resistance': resistance, 'resistance_factor': resistance_factor,
+        'boycott_factor': boycott, 'strike_factor': strike,
+        'port_damage': port_damage, 'port_factor': port_factor,
+        'effective_rate': rate, 'collection_cap': OCCUPIED_RECEIPT_CAP,
+        'collected_before': collected_before,
+        'collected_after': float(occupation['collected_this_turn']),
+        'room_before': room, 'government_cash_before': government_cash_before,
+        'government_cash_after': float(government.agent.cash)}
+    _record_occupation_cash_transfer(
+        world, payer_nation=payer_nation, payee_nation=britain,
+        payer_government=government, payee_government=britain_government,
+        amount=amount, turn=turn, operation_id=operation_id, source=source,
+        payer_before=government_cash_before, payee_before=britain_cash_before,
+        inputs=transfer_inputs)
     return amount
 
 
@@ -168,12 +347,9 @@ def advance(world):
         occupation['withdrawal_proposal'] = None
         if accepted:
             amount = float(proposal['amount'])
-            egypt.government.agent.cash -= amount
-            britain.government.agent.cash += amount
-            occupation['revenue_ledger'].append({
-                'turn': int(world['turn']), 'source': 'withdrawal_settlement',
-                'amount': amount, 'holder': 'Britain',
-            })
+            _settle_occupation_payment(
+                world, source='withdrawal_settlement', amount=amount,
+                turn=int(world['turn']))
             withdraw(world, 'Britain accepts withdrawal terms as resistance and supply costs erode its position.',
                      cause='negotiated_withdrawal')
             _event(world, f'Britain accepts Cairo’s {amount:.0f}-unit withdrawal offer; Egyptian institutions return to local control.')
@@ -213,12 +389,9 @@ def resolve_capital(world, response_id):
     before = snapshot(world)
     occupation['capital_warning_resolved'] = True
     if response_id == 'negotiate_capital':
-        egypt = _nation(world, 'Egypt')
-        britain = _nation(world, 'Britain')
-        egypt.government.agent.cash -= 40.0
-        britain.government.agent.cash += 40.0
-        occupation['revenue_ledger'].append({'turn': int(world['turn']), 'source': 'postwar_settlement',
-                                             'amount': 40.0, 'holder': 'Britain'})
+        _settle_occupation_payment(
+            world, source='postwar_settlement', amount=40.0,
+            turn=int(world['turn']))
         state['payment_status'] = 'restructured'
         withdraw(world, 'Cairo negotiates a postwar settlement; Britain withdraws from Egyptian territory.', cause='settlement')
     elif response_id == 'evacuate_cairo':

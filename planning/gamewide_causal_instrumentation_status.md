@@ -202,7 +202,7 @@ Treasury snapshots show cash and deposit components. Bond, Caisse, public
 benefit, Egypt project payroll/recall/remittance, and tariff transfers now have
 operation IDs and balance evidence. Emergency food levies expose exact in-kind
 stock changes, and routine public grain purchases reconcile seller and treasury
-balances. Canal tolls, occupation seizures, tribute, tax recovery, Egypt
+balances. Canal tolls, imperial claim intercepts, tax recovery, Egypt
 subsistence and household aid flows, subsidies, repression spending,
 inheritance, and many scenario costs still need transfer contracts. National
 treasury, bank, household, firm, and goods-by-currency reconciliations remain
@@ -271,3 +271,18 @@ coercion, seven bond, and 29 live trace tests passed. Compilation and
 `git diff --check` passed. Occupation and tribute flows, general wealth and
 inheritance transfers, broad household/firm transfers, and some scenario costs
 remain open.
+
+Guided Egypt occupation receipts and negotiated withdrawal settlements now
+record paired payer and recipient treasury balances under a shared operation
+ID. Receipt calculations include institutional control, resistance, boycott,
+strike, port damage, the per-turn cap, and the government's available cash.
+Feudal tribute records each serf-to-lord inventory transfer by good, the
+subsistence reserve and enforcement context, and the reference valuation used
+by `tribute_collected_log`. Trace-on/off fixtures produced matching inventory
+balances and operation IDs. Six focused occupation/tribute tests, 16
+coercion/grain/government transfer tests, and 79 actor-account, fiscal, and live
+trace tests passed; compilation and `git diff --check` passed. The existing
+full Egypt occupation tests still fail during world generation because
+`shape_nile_delta` cannot find a second coastal outlet; they do not reach the
+changed occupation code. Imperial revenue claims outside this bounded scenario,
+tax recovery, household transfers, and general inheritance remain open.

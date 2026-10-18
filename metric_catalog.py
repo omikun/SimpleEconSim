@@ -73,12 +73,15 @@ METRICS = {
     'finance.treasury': ('nation', 'local_currency', 'nation.Nation.treasury'),
     'finance.sovereign_bond': ('nation', 'local_currency', 'sovereign_bonds.SovereignBondMarket'),
     'finance.treasury_flow': ('nation', 'signed_local_currency', 'sovereign_bonds.SovereignBondMarket and treasury operations'),
+    'finance.occupation_transfer': ('nation/operation', 'local_currency', 'scenario_occupation.intercept_revenue and occupation settlements'),
+    'finance.tribute_value': ('tile', 'local_currency', 'feudal_tribute.record_tribute_value'),
     'finance.cash_transfer': ('tile/operation', 'local_currency', 'finance_trace.emit_cash_transfer'),
     'finance.cash_creation': ('project/contractor', 'local_currency', 'sovereign_bonds.SovereignBondMarket municipal sewer credit; source debit not modelled'),
     'finance.internal_transfer': ('nation/tile', 'local_currency', 'food_security.enact_nation_food_response'),
     'finance.operator_fee': ('tile/agent', 'local_currency', 'economy.capitalist_planner.EliteCapitalistPlanner'),
     'labor.subsistence_exit': ('tile/agent', 'worker', 'economy.labor_mobility.LaborMobilityScheduler'),
     'goods.emergency_levy': ('tile/government', 'units', 'government.Government._levy_emergency_food'),
+    'goods.feudal_tribute': ('tile/serf/lord/good', 'units', 'feudal_tribute.collect_tribute'),
     'goods.grain_transfer': ('tile/operation', 'food_units', 'scenario_political_economy grain movement'),
     'goods.provincial_relief': ('province/tile', 'units', 'food_logistics.dispatch_province_food'),
     'land.customary_inheritance': ('tile/agent', 'right', 'livelihood_access.inherit_customary_access'),
@@ -168,6 +171,7 @@ LEGACY_HISTORY_TO_METRIC = {
     'infant_fatalities_log': 'health.infant_fatalities',
     'rent_collected_log': 'finance.rent_collected',
     'rent_arrears_log': 'finance.rent_arrears',
+    'tribute_collected_log': 'finance.tribute_value',
 }
 
 TRACE_INSTRUMENTED = set(LEGACY_HISTORY_TO_METRIC.values()) | {
@@ -175,6 +179,8 @@ TRACE_INSTRUMENTED = set(LEGACY_HISTORY_TO_METRIC.values()) | {
     'people.profession_population',
     'finance.sovereign_bond', 'finance.treasury_flow', 'finance.cash_creation',
     'finance.cash_transfer', 'goods.grain_transfer',
+    'finance.occupation_transfer',
+    'finance.tribute_value', 'goods.feudal_tribute',
     'finance.bank_bailin_transfer', 'finance.bank_debt_bailin',
     'finance.bank_debt_writeoff', 'finance.bank_recapitalization',
     'politics.faction_loyalty',

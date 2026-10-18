@@ -581,3 +581,21 @@ the $25 loss as $4 capital, $10 depositor haircut, $3 treasury funding, and $8
 residual loss, with exact account balances and cause links. Compilation and
 `git diff --check` passed. Occupation/tribute flows, general inheritance,
 broader household/firm transfers, and other scenario costs remain.
+
+Phase 3 follow-up, 2026-10-18: bounded Guided Egypt occupation receipts and
+withdrawal settlements now pair payer and recipient treasury balances under
+one operation ID. The receipt explanation records institutional control,
+resistance, boycott, strike, port damage, the per-turn cap, and available cash.
+Feudal in-kind tribute records each serf/lord inventory leg, subsistence
+protection, force and protest conditions, and a linked valuation using the
+legacy log's food and recipe prices.
+
+Verification: six occupation/tribute trace tests, 16 coercion, grain transfer,
+and government transfer tests, and 79 actor-account, fiscal, and live trace
+tests passed. Trace-on/off occupation and tribute fixtures preserved balances
+and stable operation IDs. Compilation and `git diff --check` passed. The six
+existing full Egypt occupation tests still fail before the changed code runs:
+world generation raises because `shape_nile_delta` cannot find a second coastal
+outlet. Imperial revenue claims outside this bounded occupation, tax recovery,
+general inheritance, broader household/firm transfers, and other scenario costs
+remain.

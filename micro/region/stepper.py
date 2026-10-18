@@ -188,13 +188,10 @@ def step_economy(region: Any, t: int):
     audit_cash(region, t, "produce_done")
 
     # Feudal tribute: lords collect in-kind share of harvest from serfs
-    tribute_data = _tribute.collect_tribute(region, t)
-    tribute_val = 0.0
-    if tribute_data:
-        for lord_id, goods_dict in tribute_data.items():
-            for g, qty in goods_dict.items():
-                price = region.food_price if g == Goods.food else region.recipes.get(g, {}).get('price', 2.0)
-                tribute_val += qty * price
+    tribute_data, tribute_event_ids = _tribute.collect_tribute(
+        region, t, return_trace=True)
+    tribute_val, _valuation_event_id = _tribute.record_tribute_value(
+        region, t, tribute_data, cause_event_ids=tribute_event_ids)
     region.tribute_collected_log.append(tribute_val)
 
     # Crop liens and share tenancy claim only this turn's independently produced harvest.
