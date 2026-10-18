@@ -208,7 +208,9 @@ seizures are traced with no-conversion currency mismatches and missing source
 legs exposed. Government food aid and household mutual aid now record exact food
 inventory movements. Provincial emergency relief now traces the donor levy,
 in-transit shipment inventory, haulage cash transfer and recipients or public
-stock on arrival. Other untraced imperial claim paths, Egypt subsistence,
+stock on arrival. National Egypt maize release traces each public-stock debit
+against an individual household's queued meal ration, with allocation outcomes
+and no-op reasons. Other untraced imperial claim paths, Egypt subsistence,
 additional household support channels, subsidies, other repression spending,
 inheritance, and many scenario costs still need transfer contracts. Egypt's
 district relief, tax relief, settlement, and repression actions now record
@@ -375,3 +377,12 @@ district-action tests passed, along with a 70-turn historical campaign path. The
 12 scenario-project tests also pass. The full ending-matrix audit, which starts
 fifteen separate 70-turn campaigns, was stopped after several minutes without
 output; complete ending coverage remains unverified.
+
+National maize release now records per-household ration entitlements as exact
+public-stock transfers and links them to a national outcome with recipient
+count and reserve before/after. A skipped release records whether its ration
+limit is zero, stock cannot fund a full ration, or nobody is underfed. Three
+focused fixtures cover allocation, all three no-op reasons, and trace-on/off
+state parity. Thirty-two national and
+district relief, household-aid, food-security, and government-transfer tests
+passed; compilation and `git diff --check` passed.

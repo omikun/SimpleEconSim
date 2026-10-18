@@ -736,3 +736,17 @@ Verification: 16 campaign, geography, and district-action tests passed, as did
 world-build check. The full ending-matrix audit launched 15 separate 70-turn
 campaigns and was stopped after several minutes without output; its complete
 matrix result is still unverified. Compilation and `git diff --check` passed.
+
+Phase 3 follow-up, 2026-10-18: the nationwide `release_maize` action now records
+each public-stock debit against an individual household's next-meal ration
+queue. A national outcome links those transfers to the number of recipients and
+the before/after reserve. Skipped releases record whether the reserve cannot
+fund a full ration or no household is underfed. These queue transfers are
+distinguished from food already in a household's inventory.
+
+Verification: three focused fixtures cover allocation, all three no-op reasons, and
+trace-on/off state equivalence. Thirty-two national and district relief,
+household-aid, food-security, and government-transfer tests passed. Compilation
+and `git diff --check` passed. Other public assistance and household subsistence
+flows, subsidies, repression spending, inheritance, and scenario action costs
+remain.

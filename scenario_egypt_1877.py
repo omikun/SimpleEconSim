@@ -453,6 +453,71 @@ def prepare_world(world: dict) -> dict:
     return world
 
 
+def _trace_national_maize_ration(tile, *, operation_id, turn, nation,
+                                  recipient, units, stock_before,
+                                  stock_after, queue_before, queue_after):
+    from run_trace import emit
+
+    contract = {
+        'contract_version': 'goods_transfer.v1',
+        'operation_id': operation_id,
+        'operation_type': 'national_maize_release_ration',
+        'good': Goods.food.name,
+        'unit': 'food_units',
+        'amount': int(units),
+        'payer_account': {
+            'type': 'government_food_inventory',
+            'id': str(nation.government.name), 'good': Goods.food.name,
+            'balance_before': int(stock_before),
+            'balance_after': int(stock_after),
+            'balance_scope': 'food_inventory',
+        },
+        'payee_account': {
+            'type': 'agent_emergency_ration_queue', 'id': str(recipient.id),
+            'good': Goods.food.name, 'balance_before': int(queue_before),
+            'balance_after': int(queue_after),
+            'balance_scope': 'next_meal_entitlement',
+        },
+        'delivery_status': 'queued_for_next_consumption_step',
+        'counterparty_leg_status': 'public_stock_and_household_entitlement_captured',
+    }
+    return emit(
+        tile, kind='national_maize_ration_transfer', record_class='transfer',
+        phase='scenario_action',
+        subject={'type': 'tile', 'id': tile.name, 'agent_id': recipient.id,
+                 'good': Goods.food.name},
+        metric_id='goods.national_relief_ration', unit='food_units',
+        before=0, after=int(units),
+        inputs={'operation_id': operation_id, 'turn': int(turn),
+                'recipient_id': recipient.id, 'transfer_contract': contract})
+
+
+def _trace_national_maize_release(world, nation, *, operation_id, turn,
+                                   outcome, stock_before, stock_after,
+                                   ration_limit, underfed_count,
+                                   recipient_ids=(), cause_event_ids=None):
+    from run_trace import emit
+
+    region = (getattr(nation, 'capital', None)
+              or next(iter(getattr(nation, 'tiles', ())), None))
+    return emit(
+        region, kind='national_maize_release_resolved',
+        record_class='outcome', phase='scenario_action',
+        subject={'type': 'nation', 'id': nation.name},
+        metric_id='scenario.national_maize_release', unit='households',
+        before=0, after=len(recipient_ids),
+        formula_id='scenario.national_maize_release_allocation.v1',
+        inputs={'operation_id': operation_id, 'action_id': 'release_maize',
+                'turn': int(turn), 'outcome': outcome,
+                'public_food_inventory_before': int(stock_before),
+                'public_food_inventory_after': int(stock_after),
+                'food_units_per_household': 4,
+                'ration_limit': int(ration_limit),
+                'underfed_household_count': int(underfed_count),
+                'recipient_ids': [str(agent_id) for agent_id in recipient_ids]},
+        cause_event_ids=cause_event_ids)
+
+
 def apply_action(world: dict, action_id: str) -> tuple[bool, str]:
     """Resolve a scenario choice against simulation state and record its cost."""
     if not is_scenario_id(world.get("scenario_id")):
@@ -498,9 +563,20 @@ def apply_action(world: dict, action_id: str) -> tuple[bool, str]:
             return False, message
     elif action_id == "release_maize":
         ration_size = 4
+        stock_before = int(getattr(nation.government, "food_inventory", 0))
+        release_limit = int(state.get("relief_units_per_turn", 30))
+        operation_id = (f'national-maize-release:{nation.name}:{turn}:'
+                        f'{stock_before}:{release_limit}')
         available = min(int(state.get("relief_units_per_turn", 30)),
                         int(getattr(nation.government, "food_inventory", 0)) // ration_size)
         if available <= 0:
+            reason = ('release_limit_is_zero' if release_limit <= 0
+                      else 'public_stock_below_full_ration')
+            _trace_national_maize_release(
+                world, nation, operation_id=operation_id, turn=turn,
+                outcome=reason, stock_before=stock_before,
+                stock_after=stock_before, ration_limit=release_limit,
+                underfed_count=0)
             return False, "The public maize reserve is empty."
         households = [a for tile in nation.tiles for a in getattr(tile, "agents", [])
                       if getattr(a, "alive", True) and not getattr(a, "is_government", False)
@@ -511,14 +587,41 @@ def apply_action(world: dict, action_id: str) -> tuple[bool, str]:
                                        -deficit_fraction(a)))
         recipients = households[:available]
         if not recipients:
+            _trace_national_maize_release(
+                world, nation, operation_id=operation_id, turn=turn,
+                outcome='no_underfed_households', stock_before=stock_before,
+                stock_after=stock_before, ration_limit=release_limit,
+                underfed_count=len(households))
             return False, "No households currently need a public maize meal."
         # The public stock moves into reserved household rations. Consumption
         # uses them next turn, before the ending measures household hunger.
         from nutrition import queue_emergency_meal
+        transfer_event_ids = []
         for person in recipients:
+            queue_before = int(getattr(person, 'emergency_food_units', 0))
             queue_emergency_meal(person, ration_size)
-        nation.government.food_inventory -= len(recipients) * ration_size
+            person_tile = next((tile for tile in nation.tiles
+                                if person in getattr(tile, 'agents', ())),
+                               getattr(nation, 'capital', None))
+            stock_at_start = int(nation.government.food_inventory)
+            nation.government.food_inventory -= ration_size
+            transfer_id = _trace_national_maize_ration(
+                person_tile, operation_id=f'{operation_id}:{person.id}',
+                turn=turn, nation=nation, recipient=person, units=ration_size,
+                stock_before=stock_at_start,
+                stock_after=int(nation.government.food_inventory),
+                queue_before=queue_before,
+                queue_after=int(getattr(person, 'emergency_food_units', 0)))
+            if transfer_id:
+                transfer_event_ids.append(transfer_id)
         state["public_maize_stock_units"] = nation.government.food_inventory
+        _trace_national_maize_release(
+            world, nation, operation_id=operation_id, turn=turn,
+            outcome='rations_queued', stock_before=stock_before,
+            stock_after=int(nation.government.food_inventory),
+            ration_limit=release_limit, underfed_count=len(households),
+            recipient_ids=[person.id for person in recipients],
+            cause_event_ids=transfer_event_ids)
         message = f"Issued next-meal maize rations to {len(recipients)} households from the public reserve."
     elif action_id == "prioritize_domestic_grain":
         if state.get("domestic_grain_priority"):
