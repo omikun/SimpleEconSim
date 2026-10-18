@@ -20,6 +20,7 @@ def record_person_death(region, person, turn: int, cause: str, *, inputs=None,
          subject={'type': 'tile/agent', 'id': str(person.id)},
          metric_id='people.deaths', unit='people', before=1, after=0,
          formula_id='people.registered_death.v1',
-         inputs={'tile': region.name, 'agent_id': str(person.id),
+         inputs={'tile': getattr(region, 'name', None),
+                 'agent_id': str(person.id),
                  'death_cause': cause, **(inputs or {})})
     return True

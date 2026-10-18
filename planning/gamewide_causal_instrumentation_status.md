@@ -59,6 +59,12 @@ the FX matrix has a **Why?** button for each quoted currency pair.
   selected newly infected person.
 - Named cash obligations record assessment basis, due date, debtor and creditor,
   interest, payment, balance remaining, and rent collected or outstanding.
+- Wage arrears record the original shortfall, oldest-first repayments, worker
+  cash or wallet receipts, and the firm payroll reserve. Migrating claimants
+  keep the receivable; worker death transfers it to heirs or probate recipients.
+  Firm exit uses remaining cash first and records any limited-liability
+  write-off. Actor statements and both clients expose accrual, collection,
+  inheritance, and loss.
 - Bank credit records requested and approved amounts, reserve capacity, frozen
   status, rates, borrower type, and repayments split into principal and interest.
 - Deposit interest, sovereign default write-downs, recapitalization, and bail-ins

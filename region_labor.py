@@ -47,6 +47,8 @@ def borrow_or_layoff(region, t):
                                 employer_before=a)
             total_wage = len(a.employees) * a.wage
         if len(a.employees) == 0 and a.cash <= 20.0:
+            from region_finance import liquidate_wage_arrears
+            liquidate_wage_arrears(region, t, a, reason='payroll_insolvency')
             a.is_corporation = False
             from run_trace import emit
             emit(region, kind='person_role_conversion', record_class='outcome',

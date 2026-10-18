@@ -39,7 +39,7 @@ def living_descendants_recursive(agent):
     return out
 
 
-def cleanup_dead_agent_links(agent):
+def cleanup_dead_agent_links(agent, region=None, t=0):
     """Clean up corporation/employee links for a dying agent."""
     if getattr(agent, 'employer', None) is not None:
         employer = agent.employer
@@ -47,6 +47,9 @@ def cleanup_dead_agent_links(agent):
             employer.employees.remove(agent)
         agent.employer = None
     if getattr(agent, 'is_corporation', False) and hasattr(agent, 'employees'):
+        if region is not None:
+            from region_finance import liquidate_wage_arrears
+            liquidate_wage_arrears(region, t, agent, reason='corporation_death')
         for emp in agent.employees:
             emp.employer = None
         agent.employees = []
@@ -56,7 +59,7 @@ def cleanup_dead_agent_links(agent):
             agent.owner = None
 
 
-def handle_company_inheritance(t, agent):
+def handle_company_inheritance(t, agent, region=None):
     """Pass company to heir when founder dies."""
     if getattr(agent, 'company_owned', None) is None:
         return
@@ -77,12 +80,142 @@ def handle_company_inheritance(t, agent):
     elif company.alive and company.is_corporation:
         logdebug(t, agent.name(), 'company', company.name(),
                  'dissolved (no heirs, no employees)')
+        if region is not None:
+            from region_finance import liquidate_wage_arrears
+            liquidate_wage_arrears(region, t, company,
+                                   reason='company_owner_estate_dissolution')
         for emp in company.employees:
             emp.employer = None
         company.employees = []
         company.is_corporation = False
         company.owner = None
     agent.company_owned = None
+
+
+def handle_wage_claim_inheritance(region, t, agent, living_descendants,
+                                  government=None, charity=None):
+    """Transfer unpaid wage receivables through the worker's estate."""
+    if region is None:
+        return []
+    from economy.actor_accounts import (
+        _wage_liability_totals, record as record_economic_event,
+        transfer_wage_arrear_claim, writeoff_wage_arrear,
+    )
+    outcomes = []
+    gov_agent = getattr(government, 'agent', None)
+    charity_agent = getattr(charity, 'agent', None)
+    province = getattr(region, 'province', None)
+    claim_regions = getattr(province, 'tiles', ()) or (region,)
+    firms = {int(firm.id): firm for claim_region in claim_regions
+             for firm in getattr(claim_region, 'agents', ())
+             if getattr(firm, 'is_corporation', False)}
+    for firm_id, firm in (getattr(agent, 'wage_claim_creditors', {}) or {}).items():
+        firms[int(firm_id)] = firm
+    for firm in firms.values():
+        _, claims = _wage_liability_totals(firm)
+        claim = float(claims.get(int(agent.id), 0.0))
+        if claim <= 1e-9:
+            continue
+        beneficiaries = []
+        living_heirs = [heir for heir in living_descendants
+                        if getattr(heir, 'alive', False)]
+        if living_heirs:
+            share = claim / len(living_heirs)
+            beneficiaries = [(heir, share, 'heir') for heir in living_heirs]
+        else:
+            probate = (min(1.0, max(0.0, float(
+                getattr(government, 'probate_fee_rate', 0.0))))
+                if gov_agent is not None else 0.0)
+            if gov_agent is not None and charity_agent is not None:
+                if claim * probate > 1e-9:
+                    beneficiaries.append((gov_agent, claim * probate,
+                                          'government_probate'))
+                if claim * (1.0 - probate) > 1e-9:
+                    beneficiaries.append((charity_agent, claim * (1.0 - probate),
+                                          'charity_escheat'))
+            elif gov_agent is not None:
+                beneficiaries.append((gov_agent, claim, 'government_escheat'))
+            elif charity_agent is not None:
+                beneficiaries.append((charity_agent, claim, 'charity_escheat'))
+
+        if not beneficiaries:
+            total_before, total_after, claim_before, claim_after, amount = (
+                writeoff_wage_arrear(firm, agent.id, claim))
+            if amount <= 1e-9:
+                continue
+            event = record_economic_event(
+                region, 'wage_arrears_written_off', turn=t,
+                payer_id=firm.id, recipient_id=agent.id, amount=amount,
+                asset_id=f'wage-arrears:{firm.id}:{agent.id}',
+                source_id=f'wage-arrears:{firm.id}:{agent.id}',
+                currency=getattr(region, 'home_currency', None),
+                detail={'employer_id': firm.id, 'worker_id': agent.id,
+                        'employer_payable_before': float(total_before),
+                        'employer_payable_after': float(total_after),
+                        'claim_before': float(claim_before),
+                        'claim_after': float(claim_after),
+                        'reason': 'no_estate_beneficiary',
+                        'settlement': 'unclaimed_wage_claim_writeoff'})
+            from run_trace import emit
+            emit(region, kind='wage_arrears_claim_escheated',
+                 record_class='outcome', phase='demographics',
+                 subject={'type': 'employment_wage_claim',
+                          'id': f'{firm.id}:{agent.id}', 'tile': region.name,
+                          'employer_id': firm.id, 'worker_id': agent.id},
+                 metric_id='finance.wage_arrears',
+                 unit=getattr(region, 'home_currency', None) or 'local_currency',
+                 before=float(claim_before), after=float(claim_after),
+                 formula_id='estate.wage_claim.no_beneficiary_writeoff.v1',
+                 inputs={'event_id': event['id'], 'amount': float(amount),
+                         'reason': 'no_government_or_charity_beneficiary'})
+            outcomes.append({'firm_id': firm.id, 'kind': 'written_off',
+                             'amount': amount})
+            continue
+
+        transfer_rows = []
+        for beneficiary, share, settlement in beneficiaries:
+            total_before, total_after, source_before, source_after, amount = (
+                transfer_wage_arrear_claim(
+                    firm, agent.id, beneficiary.id, share, t,
+                    target_worker=beneficiary, source_worker=agent))
+            if amount <= 1e-9:
+                continue
+            event = record_economic_event(
+                region, 'wage_arrears_claim_inherited', turn=t,
+                payer_id=agent.id, recipient_id=beneficiary.id,
+                amount=amount, asset_id=f'wage-arrears:{firm.id}:{agent.id}',
+                source_id=f'wage-arrears:{firm.id}:{agent.id}',
+                currency=getattr(region, 'home_currency', None),
+                detail={'employer_id': firm.id, 'deceased_worker_id': agent.id,
+                        'heir_id': beneficiary.id, 'settlement': settlement,
+                        'employer_payable_before': float(total_before),
+                        'employer_payable_after': float(total_after),
+                        'source_claim_before': float(source_before),
+                        'source_claim_after': float(source_after),
+                        'beneficiary_share': float(amount)})
+            transfer_rows.append({'beneficiary_id': beneficiary.id,
+                                  'amount': float(amount),
+                                  'settlement': settlement,
+                                  'event_id': event['id']})
+        if transfer_rows:
+            from run_trace import emit
+            emit(region, kind='wage_arrears_claim_inherited',
+                 record_class='transfer', phase='demographics',
+                 subject={'type': 'employment_wage_claim',
+                          'id': f'{firm.id}:{agent.id}', 'tile': region.name,
+                          'employer_id': firm.id, 'worker_id': agent.id},
+                 metric_id='finance.wage_arrears',
+                 unit=getattr(region, 'home_currency', None) or 'local_currency',
+                 before=claim, after=0.0,
+                 formula_id='estate.wage_claim.transfer_to_beneficiaries.v1',
+                 inputs={'employer_id': firm.id, 'deceased_worker_id': agent.id,
+                         'beneficiaries': transfer_rows,
+                         'claim_transferred': sum(row['amount']
+                                                  for row in transfer_rows)})
+            outcomes.append({'firm_id': firm.id, 'kind': 'inherited',
+                             'amount': sum(row['amount'] for row in transfer_rows),
+                             'beneficiaries': transfer_rows})
+    return outcomes
 
 
 def deposit_pool(bank):
@@ -635,6 +768,12 @@ def settle_external_death(region, t, agent, cause):
     from person_death import record_person_death
     if not record_person_death(region, agent, t, cause, phase='politics'):
         return False
+    cleanup_dead_agent_links(agent, region, t)
+    handle_company_inheritance(t, agent, region)
+    heirs = living_descendants_recursive(agent)
+    handle_wage_claim_inheritance(region, t, agent, heirs,
+                                  getattr(region, 'gov', None),
+                                  getattr(region, 'charity', None))
     if getattr(region, 'bank', None) is None:
         # Minimal scenario/test tiles have no probate ledger.
         charity = getattr(region, 'charity', None)
@@ -644,9 +783,6 @@ def settle_external_death(region, t, agent, cause):
         return True
     ctx = SimpleNamespace(bank=region.bank, default_gov=getattr(region, 'gov', None),
                           charity=getattr(region, 'charity', None), source_region=region)
-    cleanup_dead_agent_links(agent)
-    handle_company_inheritance(t, agent)
-    heirs = living_descendants_recursive(agent)
     reclaim_dead_route_cargo(ctx, agent)
     escheat_dead_parked_goods(ctx, agent)
     handle_debt_inheritance(ctx, t, agent, heirs)
@@ -777,9 +913,12 @@ def handle_death(ctx, t, agent, agents):
                                 'health_attrition': getattr(agent, 'health_attrition', 0.0),
                                 'starvation_hazard': hazard if starved else 0.0})
 
-    cleanup_dead_agent_links(agent)
-    handle_company_inheritance(t, agent)
+    cleanup_dead_agent_links(agent, trace_region, t)
+    handle_company_inheritance(t, agent, trace_region)
     living_descendants = living_descendants_recursive(agent)
+    handle_wage_claim_inheritance(
+        trace_region, t, agent, living_descendants,
+        getattr(ctx, 'default_gov', None), getattr(ctx, 'charity', None))
     logdebug(t, agent.name(), 'died, has', agent.cash,
              ' #descendants:', len(living_descendants),
              [a.name() for a in living_descendants])

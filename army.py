@@ -294,6 +294,7 @@ def settle_battle_casualties(units, tiles, nations, t):
     """Use the ordinary probate transfers for named battlefield deaths."""
     from types import SimpleNamespace
     from demographics_estate import (cleanup_dead_agent_links, handle_company_inheritance,
+                                     handle_wage_claim_inheritance,
                                      living_descendants_recursive, handle_debt_inheritance,
                                      handle_wealth_inheritance, zero_out_dead_agent)
 
@@ -308,9 +309,11 @@ def settle_battle_casualties(units, tiles, nations, t):
             record_person_death(region, person, t, 'combat',
                                 inputs={'military_unit_id': getattr(unit, 'id', None)},
                                 phase='military')
-            cleanup_dead_agent_links(person)
-            handle_company_inheritance(t, person)
+            cleanup_dead_agent_links(person, region, t)
+            handle_company_inheritance(t, person, region)
             heirs = living_descendants_recursive(person)
+            handle_wage_claim_inheritance(region, t, person, heirs,
+                                          region.gov, region.charity)
             handle_debt_inheritance(ctx, t, person, heirs)
             handle_wealth_inheritance(ctx, t, person, heirs)
             zero_out_dead_agent(ctx, person)

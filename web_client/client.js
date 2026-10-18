@@ -3044,8 +3044,11 @@
           || wageArrearsPayableAmount > 0 || wageArrearsClaimAmount > 0
           || Number(account.wage_arrears_accrued || 0) > 0
           || Number(account.wage_arrears_payable_paid || 0) > 0
+          || Number(account.wage_arrears_payable_written_off || 0) > 0
           || Number(account.wage_arrears_claim_accrued || 0) > 0
           || Number(account.wage_arrears_claim_paid || 0) > 0
+          || Number(account.wage_arrears_claim_written_off || 0) > 0
+          || Number(account.wage_arrears_claim_inherited || 0) > 0
           || Number(account.opening_owner_loan || 0) > 0 || ownerLoanBalance > 0
           || Number(account.owner_loan_repaid || 0) > 0;
         const earned = account.type === 'grower'
@@ -3117,12 +3120,15 @@
         const wageArrearsPayable = Number(account.opening_wage_arrears_payable || 0)
           || wageArrearsPayableAmount || Number(account.wage_arrears_accrued || 0)
           || Number(account.wage_arrears_payable_paid || 0)
-          ? ` · unpaid wages owed $${Number(account.opening_wage_arrears_payable || 0).toFixed(2)} → $${wageArrearsPayableAmount.toFixed(2)} (accrued $${Number(account.wage_arrears_accrued || 0).toFixed(2)}, repaid $${Number(account.wage_arrears_payable_paid || 0).toFixed(2)})`
+          || Number(account.wage_arrears_payable_written_off || 0)
+          ? ` · unpaid wages owed $${Number(account.opening_wage_arrears_payable || 0).toFixed(2)} → $${wageArrearsPayableAmount.toFixed(2)} (accrued $${Number(account.wage_arrears_accrued || 0).toFixed(2)}, repaid $${Number(account.wage_arrears_payable_paid || 0).toFixed(2)}, written off $${Number(account.wage_arrears_payable_written_off || 0).toFixed(2)})`
           : '';
         const wageArrearsClaim = Number(account.opening_wage_arrears_claim || 0)
           || wageArrearsClaimAmount || Number(account.wage_arrears_claim_accrued || 0)
           || Number(account.wage_arrears_claim_paid || 0)
-          ? ` · wage claim $${Number(account.opening_wage_arrears_claim || 0).toFixed(2)} → $${wageArrearsClaimAmount.toFixed(2)} (new $${Number(account.wage_arrears_claim_accrued || 0).toFixed(2)}, collected $${Number(account.wage_arrears_claim_paid || 0).toFixed(2)})`
+          || Number(account.wage_arrears_claim_written_off || 0)
+          || Number(account.wage_arrears_claim_inherited || 0)
+          ? ` · wage claim $${Number(account.opening_wage_arrears_claim || 0).toFixed(2)} → $${wageArrearsClaimAmount.toFixed(2)} (new $${Number(account.wage_arrears_claim_accrued || 0).toFixed(2)}, inherited $${Number(account.wage_arrears_claim_inherited || 0).toFixed(2)}, collected $${Number(account.wage_arrears_claim_paid || 0).toFixed(2)}, written off $${Number(account.wage_arrears_claim_written_off || 0).toFixed(2)})`
           : '';
         const ownerLoan = Number(account.opening_owner_loan || 0) || ownerLoanBalance
           ? ` · owner loan $${Number(account.opening_owner_loan || 0).toFixed(2)} → $${ownerLoanBalance.toFixed(2)} (repaid $${Number(account.owner_loan_repaid || 0).toFixed(2)})`

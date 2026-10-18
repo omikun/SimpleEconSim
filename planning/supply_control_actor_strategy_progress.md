@@ -110,8 +110,12 @@ already fun or balanced; that still needs player feedback.
   cash above a one-payroll reserve, oldest claim first. Cash and wallet
   settlements link the employer debit to the worker receipt, update the
   liability balance, and trace the before/after claim. Both clients show new
-  arrears and repayments. Firm/worker exit, write-off, and estate-transfer
-  handling remain to be implemented.
+  arrears and repayments. Migrating workers retain creditor references and
+  can collect into a currency wallet. Worker death passes claims to living
+  heirs or to government/charity probate shares; firms that dissolve use their
+  remaining cash first and write off any unpaid balance. The payroll
+  insolvency, construction bankruptcy, corporation-death, and owner-estate
+  dissolution paths use this settlement. Claim relationships survive save/load.
 - The frontier expedition now debits its advertised 100-unit cost from the
   sponsor treasury and funds five 20-unit pioneer wallets in the sponsor
   currency. Linked treasury-spend and wallet-grant events plus compact traces
@@ -162,12 +166,11 @@ already fun or balanced; that still needs player feedback.
   name the tenant, landlord, plot, crop share, and valuation basis. These flows
   are excluded from cash reconciliation and appear in actor statements and the
   web market summary.
-- Remaining gate work: audit other non-estate credit losses; decide how unpaid
-  wage claims behave when the firm or worker exits; decide whether wilderness
-  inventory advances should create a repayable debt claim. Scenario-seeded or
-  legacy cargo can still lack a settled source cost. The tested default runs
-  close the actor cash bridge, but they do not prove complete balance-sheet or
-  operating-profit coverage.
+- Remaining gate work: audit other non-estate credit losses; decide whether
+  wilderness inventory advances should create a repayable debt claim.
+  Scenario-seeded or legacy cargo can still lack a settled source cost. The
+  tested default runs close the actor cash bridge, but they do not prove
+  complete balance-sheet or operating-profit coverage.
 
 ## Phase 2 — grower and title-holder agency: implemented, deeper law/remedy work out of scope
 
@@ -388,4 +391,7 @@ already fun or balanced; that still needs player feedback.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_default.py 50 4242` — seed 4242 completed 50 turns with zero currency violations, zero unmatched cash on turn 50, zero unmatched cash across all actor-turn statements, and zero actor-turn statements above the 1-cent threshold. Seeds 4243 and 4244 also completed with zero currency violations and zero unmatched cash on turn 50.
 - `MPLCONFIGDIR=/private/tmp/wage-arrears-mpl venv/bin/python -m unittest test_plunder_labor test_web_client_parity` — 43 tests passed after wage-arrears repayment and UI account updates. `node --check web_client/client.js`, targeted Python compilation, and `git diff --check` passed.
 - `MPLCONFIGDIR=/private/tmp/wage-arrears-mpl venv/bin/python benchmark_supply_default.py 50 4242` — default three-nation run reached turn 50 on 80 tiles with zero currency violations and zero unmatched actor cash on turn 50 or across all actor-turn statements.
+- `MPLCONFIGDIR=/private/tmp/wage-exit-mpl venv/bin/python -m unittest test_plunder_labor test_run_trace test_web_client_parity test_supply_control_actor_strategy test_labor_shortage_wage_spike test_forex_accounting test_person_flows test_war_logic test_trade_route_epidemic_transmission` — 133 tests passed after wage-claim repayment, inheritance, remote settlement, and exit write-offs. Node syntax, targeted Python compilation, and `git diff --check` passed.
+- `MPLCONFIGDIR=/private/tmp/wage-exit-mpl venv/bin/python benchmark_supply_default.py 50 4242` — default three-nation run reached turn 50 on 80 tiles with zero currency violations and zero unmatched actor cash on turn 50 or across all actor-turn statements.
+- An adjacent construction-suite run found one separate failure: `test_07_operational_building_staffing_and_efficiency` remains at the 0.2 efficiency floor, including when run alone. The other tests in that suite passed.
 - Full `unittest discover` was attempted but this environment's native pygame/OpenGL tests crashed the Python process (exit 139) before a summary could be produced; the focused simulation, rights, auction, route, and web parity suite remains green.

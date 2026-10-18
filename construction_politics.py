@@ -224,6 +224,9 @@ def step_construction_politics(region: Region, t: int, world: dict = None):
 
             # 4. Long Drought: Bankruptcy & Dissolution (Turn >= 5 idle, low cash)
             elif contractor.idle_turns >= 5 and contractor.cash < 15.0:
+                from region_finance import liquidate_wage_arrears
+                liquidate_wage_arrears(region, t, contractor,
+                                       reason='construction_bankruptcy')
                 contractor.is_construction_company = False
                 contractor.is_corporation = False
                 contractor.social_class = 'proletarian'

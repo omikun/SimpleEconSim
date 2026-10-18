@@ -74,6 +74,8 @@ class TestWebClientParity(unittest.TestCase):
             'opening_wage_arrears_payable': 3.0,
             'closing_wage_arrears_payable': 4.0,
             'wage_arrears_accrued': 1.0,
+            'wage_arrears_payable_written_off': 2.0,
+            'wage_arrears_claim_inherited': 4.0,
             'opening_owner_loan': 8.0, 'closing_owner_loan': 5.0,
             'owner_loan_repaid': 3.0,
             'wallet_transfer_in_by_currency': {'USD': 12.0},
@@ -105,6 +107,8 @@ class TestWebClientParity(unittest.TestCase):
         self.assertEqual(account['bank_cash_deposited'], 12.0)
         self.assertEqual(account['bank_cash_withdrawn'], 5.0)
         self.assertEqual(account['closing_wage_arrears_payable'], 4.0)
+        self.assertEqual(account['wage_arrears_payable_written_off'], 2.0)
+        self.assertEqual(account['wage_arrears_claim_inherited'], 4.0)
         self.assertEqual(account['closing_owner_loan'], 5.0)
         self.assertEqual(account['wallet_transfer_in_by_currency'], {'USD': 12.0})
         self.assertEqual(data['financial_institution']['type'], 'commercial_bank')

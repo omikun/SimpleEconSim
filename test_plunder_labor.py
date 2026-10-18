@@ -389,6 +389,226 @@ class TestPlunderLaborMechanics(unittest.TestCase):
         self.assertEqual(trace['inputs']['reason'],
                          'surplus_after_current_payroll')
 
+    def test_wage_arrears_move_to_heirs_without_changing_firm_liability(self):
+        from economy.actor_accounts import accrue_wage_arrear, begin_turn, seal_turn
+        from demographics_estate import handle_wage_claim_inheritance
+
+        worker = self._worker(105)
+        heir_a = self._worker(106)
+        heir_b = self._worker(107)
+        employer_region = SimpleNamespace(name='Remote Mill District', agents=[],
+                                          recipes={}, tenure=None,
+                                          home_currency='USD')
+        province = SimpleNamespace(tiles=[employer_region, self.region])
+        employer_region.province = province
+        self.region.province = province
+        firm = self._firm(wage=2.0)
+        self.region.agents.remove(firm)
+        employer_region.agents.append(firm)
+        accrue_wage_arrear(firm, worker.id, 8.0, worker=worker)
+        firm.wage_liabilities = [{'worker_id': worker.id, 'turn': 0,
+                                  'amount': 8.0, 'status': 'unpaid'}]
+        self.region.home_currency = 'USD'
+        begin_turn(employer_region, 2)
+        begin_turn(self.region, 2)
+        worker.alive = False
+
+        transfers = handle_wage_claim_inheritance(
+            self.region, 2, worker, [heir_a, heir_b])
+        accounts = {row['actor_id']: row for row in seal_turn(
+            self.region, 2, event_regions=province.tiles)}
+        employer_accounts = {row['actor_id']: row for row in seal_turn(
+            employer_region, 2, event_regions=province.tiles)}
+        inherited_events = [event for event in self.region.economic_events
+                            if event['kind'] == 'wage_arrears_claim_inherited']
+
+        self.assertEqual(len(transfers), 1)
+        self.assertEqual(firm.wage_arrears_balance, 8.0)
+        self.assertEqual(firm.wage_arrears_by_worker,
+                         {heir_a.id: 4.0, heir_b.id: 4.0})
+        self.assertNotIn(firm.id, worker.wage_claim_creditors)
+        self.assertIs(heir_a.wage_claim_creditors[firm.id], firm)
+        self.assertIs(heir_b.wage_claim_creditors[firm.id], firm)
+        self.assertEqual(len(inherited_events), 2)
+        self.assertEqual({event['recipient_id'] for event in inherited_events},
+                         {heir_a.id, heir_b.id})
+        self.assertEqual(employer_accounts[firm.id]['closing_wage_arrears_payable'], 8.0)
+        for heir in (heir_a, heir_b):
+            self.assertEqual(accounts[heir.id]['opening_wage_arrears_claim'], 0.0)
+            self.assertEqual(accounts[heir.id]['closing_wage_arrears_claim'], 4.0)
+            self.assertEqual(accounts[heir.id]['wage_arrears_claim_inherited'], 4.0)
+            self.assertEqual(accounts[heir.id]['cash_change'], 0.0)
+
+    def test_firm_exit_pays_available_cash_then_writes_off_remaining_claim(self):
+        from economy.actor_accounts import accrue_wage_arrear, begin_turn, seal_turn
+        from region_finance import liquidate_wage_arrears
+
+        worker = self._worker(108)
+        firm = self._firm(wage=2.0)
+        firm.cash = 2.0
+        worker.employer = firm
+        firm.employees.append(worker)
+        accrue_wage_arrear(firm, worker.id, 4.0, worker=worker)
+        firm.wage_liabilities = [{'worker_id': worker.id, 'turn': 0,
+                                  'amount': 4.0, 'status': 'unpaid'}]
+        self.region.home_currency = 'USD'
+        begin_turn(self.region, 3)
+
+        outcome = liquidate_wage_arrears(
+            self.region, 3, firm, reason='test_exit')
+        accounts = {row['actor_id']: row for row in seal_turn(self.region, 3)}
+
+        self.assertEqual(outcome['cash_recovered'], 2.0)
+        self.assertEqual(outcome['claims_written_off'], 2.0)
+        self.assertEqual(firm.cash, 0.0)
+        self.assertEqual(worker.cash, 2.0)
+        self.assertEqual(firm.wage_arrears_balance, 0.0)
+        self.assertEqual(firm.wage_arrears_by_worker, {})
+        self.assertEqual(accounts[firm.id]['opening_wage_arrears_payable'], 4.0)
+        self.assertEqual(accounts[firm.id]['closing_wage_arrears_payable'], 0.0)
+        self.assertEqual(accounts[firm.id]['wage_arrears_payable_paid'], 2.0)
+        self.assertEqual(accounts[firm.id]['wage_arrears_payable_written_off'], 2.0)
+        self.assertEqual(accounts[worker.id]['closing_wage_arrears_claim'], 0.0)
+        self.assertEqual(accounts[worker.id]['wage_arrears_claim_paid'], 2.0)
+        self.assertEqual(accounts[worker.id]['wage_arrears_claim_written_off'], 2.0)
+        self.assertEqual(accounts[firm.id]['unposted_cash_change'], 0.0)
+        self.assertEqual(accounts[worker.id]['unposted_cash_change'], 0.0)
+
+    def test_payroll_insolvency_dissolution_runs_wage_claim_liquidation(self):
+        from economy.actor_accounts import accrue_wage_arrear, begin_turn, seal_turn
+        from region_labor import borrow_or_layoff
+
+        class BankStub:
+            total_liabilities = 0.0
+            deposits = {}
+            loans = []
+
+            def Borrow(self, *_args, **_kwargs):
+                return False
+
+        worker = self._worker(109)
+        firm = self._firm(wage=10.0)
+        firm.cash = 0.0
+        worker.employer = firm
+        firm.employees.append(worker)
+        accrue_wage_arrear(firm, worker.id, 3.0, worker=worker)
+        firm.wage_liabilities = [{'worker_id': worker.id, 'turn': 0,
+                                  'amount': 3.0, 'status': 'unpaid'}]
+        self.region.bank = BankStub()
+        begin_turn(self.region, 4)
+
+        borrow_or_layoff(self.region, 4)
+        accounts = {row['actor_id']: row for row in seal_turn(self.region, 4)}
+
+        self.assertFalse(firm.is_corporation)
+        self.assertEqual(firm.employees, [])
+        self.assertIsNone(worker.employer)
+        self.assertEqual(firm.wage_arrears_balance, 0.0)
+        self.assertEqual(accounts[firm.id]['opening_wage_arrears_payable'], 3.0)
+        self.assertEqual(accounts[firm.id]['closing_wage_arrears_payable'], 0.0)
+        self.assertEqual(accounts[firm.id]['wage_arrears_payable_written_off'], 3.0)
+        self.assertEqual(accounts[worker.id]['closing_wage_arrears_claim'], 0.0)
+        self.assertEqual(accounts[worker.id]['wage_arrears_claim_written_off'], 3.0)
+
+    def test_remote_wage_claimant_receives_wallet_and_province_accounting(self):
+        from economy.actor_accounts import (accrue_wage_arrear, begin_turn,
+                                            seal_turn)
+        from region_finance import settle_wage_arrears
+
+        source = SimpleNamespace(name='Mill District', agents=[], recipes={},
+                                 tenure=None, home_currency='USD')
+        destination = SimpleNamespace(name='Worker District', agents=[], recipes={},
+                                      tenure=None, home_currency='USD')
+        bank_source = SimpleNamespace(deposits={}, loans=[])
+        bank_destination = SimpleNamespace(deposits={}, loans=[])
+        source.bank = bank_source
+        destination.bank = bank_destination
+        province = SimpleNamespace(tiles=[source, destination])
+        source.province = province
+        destination.province = province
+
+        worker = self._worker(110)
+        self.region.agents.remove(worker)
+        worker.region = destination.name
+        worker._bank_ref = bank_destination
+        destination.agents = [worker]
+        firm = self._firm(wage=2.0)
+        firm.cash = 5.0
+        self.region.agents.remove(firm)
+        firm._bank_ref = bank_source
+        source.agents = [firm]
+        accrue_wage_arrear(firm, worker.id, 4.0, worker=worker)
+        firm.wage_liabilities = [{'worker_id': worker.id, 'turn': 0,
+                                  'amount': 4.0, 'status': 'unpaid'}]
+        begin_turn(source, 5)
+        begin_turn(destination, 5)
+
+        payments = settle_wage_arrears(source, 5)
+        source_accounts = {row['actor_id']: row for row in
+                           seal_turn(source, 5, event_regions=province.tiles)}
+        destination_accounts = {row['actor_id']: row for row in
+                                seal_turn(destination, 5,
+                                          event_regions=province.tiles)}
+
+        self.assertEqual(payments[0]['amount'], 4.0)
+        self.assertEqual(worker.cash, 0.0)
+        self.assertEqual(worker.wallets['USD'], 4.0)
+        self.assertEqual(source_accounts[firm.id]['posted_cash_change'], -4.0)
+        self.assertEqual(source_accounts[firm.id]['unposted_cash_change'], 0.0)
+        self.assertEqual(destination_accounts[worker.id]['wallet_change_by_currency'],
+                         {'USD': 4.0})
+        self.assertEqual(destination_accounts[worker.id]['closing_wage_arrears_claim'],
+                         0.0)
+        self.assertEqual(destination_accounts[worker.id]['wage_arrears_claim_paid'],
+                         4.0)
+        self.assertEqual(destination_accounts[worker.id]['unposted_cash_change'], 0.0)
+        self.assertNotIn(firm.id, worker.wage_claim_creditors)
+
+    def test_wage_claimant_links_survive_save_load(self):
+        import pickle
+        from economy.actor_accounts import accrue_wage_arrear
+
+        worker = self._worker(111)
+        firm = self._firm(wage=2.0)
+        accrue_wage_arrear(firm, worker.id, 3.0, worker=worker)
+
+        restored_firm, restored_worker = pickle.loads(
+            pickle.dumps((firm, worker)))
+
+        self.assertIs(restored_firm.wage_arrears_claimants[worker.id],
+                      restored_worker)
+        self.assertIs(restored_worker.wage_claim_creditors[firm.id],
+                      restored_firm)
+
+    def test_heirless_wage_claim_becomes_probate_receivable(self):
+        from agent import Agent
+        from economy.actor_accounts import accrue_wage_arrear, begin_turn, seal_turn
+        from demographics_estate import handle_wage_claim_inheritance
+
+        worker = self._worker(112)
+        firm = self._firm(wage=2.0)
+        accrue_wage_arrear(firm, worker.id, 8.0, worker=worker)
+        firm.wage_liabilities = [{'worker_id': worker.id, 'turn': 0,
+                                  'amount': 8.0, 'status': 'unpaid'}]
+        treasury, charity_agent = Agent(113), Agent(114)
+        self.region.agents.extend([treasury, charity_agent])
+        government = SimpleNamespace(agent=treasury, probate_fee_rate=0.25)
+        charity = SimpleNamespace(agent=charity_agent)
+        begin_turn(self.region, 6)
+
+        outcomes = handle_wage_claim_inheritance(
+            self.region, 6, worker, [], government, charity)
+        accounts = {row['actor_id']: row for row in seal_turn(self.region, 6)}
+
+        self.assertEqual(firm.wage_arrears_by_worker,
+                         {treasury.id: 2.0, charity_agent.id: 6.0})
+        self.assertEqual(firm.wage_arrears_balance, 8.0)
+        self.assertEqual(outcomes[0]['amount'], 8.0)
+        self.assertEqual(accounts[treasury.id]['closing_wage_arrears_claim'], 2.0)
+        self.assertEqual(accounts[charity_agent.id]['closing_wage_arrears_claim'], 6.0)
+        self.assertEqual(accounts[treasury.id]['wage_arrears_claim_inherited'], 2.0)
+        self.assertEqual(accounts[charity_agent.id]['wage_arrears_claim_inherited'], 6.0)
+
     def test_quit_penalty_creates_claim_but_does_not_reattach_worker(self):
         worker = self._worker(111)
         firm = self._firm(wage=2.0)

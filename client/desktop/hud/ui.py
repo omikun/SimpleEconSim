@@ -1148,11 +1148,12 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
         surface.blit(supply_line, (PANEL_LEFT, y_cursor))
         y_cursor += 16
         firm_account = next((a for a in getattr(region, 'actor_turn_accounts', [])
-                             if a.get('type') == 'corporation'
-                             and (a.get('sales_cash', 0) > 0
-                                  or a.get('wage_arrears_accrued', 0) > 0
-                                  or a.get('wage_arrears_payable_paid', 0) > 0
-                                  or a.get('closing_wage_arrears_payable', 0) > 0)), None)
+                             if ((a.get('type') == 'corporation'
+                                  and a.get('sales_cash', 0) > 0)
+                                 or a.get('wage_arrears_accrued', 0) > 0
+                                 or a.get('wage_arrears_payable_paid', 0) > 0
+                                 or a.get('wage_arrears_payable_written_off', 0) > 0
+                                 or a.get('closing_wage_arrears_payable', 0) > 0)), None)
         if firm_account:
             currency = firm_account.get('delivered_input_currency') or ''
             currency_prefix = f"{currency} " if currency else ""
@@ -1169,10 +1170,14 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
             arrears_close = float(firm_account.get('closing_wage_arrears_payable', 0.0))
             arrears_accrued = float(firm_account.get('wage_arrears_accrued', 0.0))
             arrears_paid = float(firm_account.get('wage_arrears_payable_paid', 0.0))
-            if arrears_open > 0 or arrears_close > 0 or arrears_accrued > 0 or arrears_paid > 0:
+            arrears_written_off = float(
+                firm_account.get('wage_arrears_payable_written_off', 0.0))
+            if (arrears_open > 0 or arrears_close > 0 or arrears_accrued > 0
+                    or arrears_paid > 0 or arrears_written_off > 0):
                 arrears_line = font_small.render(
                     f"Unpaid wages owed: ${arrears_open:.1f} -> ${arrears_close:.1f} "
-                    f"(new ${arrears_accrued:.1f}, repaid ${arrears_paid:.1f})",
+                    f"(new ${arrears_accrued:.1f}, repaid ${arrears_paid:.1f}, "
+                    f"written off ${arrears_written_off:.1f})",
                     True, (225, 175, 120))
                 surface.blit(arrears_line, (PANEL_LEFT, y_cursor))
                 y_cursor += 16
@@ -1214,6 +1219,21 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
                 breakdown = font_small.render(cost_detail, True, (170, 195, 205))
                 surface.blit(breakdown, (PANEL_LEFT, y_cursor))
                 y_cursor += 16
+        worker_claim = next((a for a in getattr(region, 'actor_turn_accounts', [])
+                             if (a.get('wage_arrears_claim_inherited', 0) > 0
+                                 or a.get('wage_arrears_claim_paid', 0) > 0
+                                 or a.get('wage_arrears_claim_written_off', 0) > 0)), None)
+        if worker_claim:
+            claim_line = font_small.render(
+                f"Wage claim ({worker_claim['actor_name']}): "
+                f"${worker_claim.get('opening_wage_arrears_claim', 0):.1f} -> "
+                f"${worker_claim.get('closing_wage_arrears_claim', 0):.1f} "
+                f"(inherited ${worker_claim.get('wage_arrears_claim_inherited', 0):.1f}, "
+                f"collected ${worker_claim.get('wage_arrears_claim_paid', 0):.1f}, "
+                f"written off ${worker_claim.get('wage_arrears_claim_written_off', 0):.1f})",
+                True, (200, 200, 175))
+            surface.blit(claim_line, (PANEL_LEFT, y_cursor))
+            y_cursor += 16
         if pending_offers:
             offer = next(c for c in region.supply_proposals
                          if c.get('status') in ('proposed', 'countered'))

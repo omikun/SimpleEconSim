@@ -13,7 +13,8 @@ _NONCASH_EVENTS = {'production', 'input_consumed', 'scrip_wage',
                    'bank_debt_inheritance', 'bank_debt_writeoff',
                    'company_debt_writeoff',
                    'tax_arrears_writeoff', 'cash_obligation_writeoff',
-                   'wage_arrears_accrued', 'foreign_wallet_grant',
+                   'wage_arrears_accrued', 'wage_arrears_written_off',
+                   'wage_arrears_claim_inherited', 'foreign_wallet_grant',
                    'wallet_transfer_in', 'wallet_transfer_out',
                    'wilderness_goods_advance',
                    'wilderness_goods_collection',
@@ -41,7 +42,9 @@ def _wage_liability_totals(firm):
                       'inherited'}:
             continue
         amount = max(0.0, float(liability.get('amount', 0.0))
-                     - float(liability.get('paid_amount', 0.0)))
+                     - float(liability.get('paid_amount', 0.0))
+                     - float(liability.get('written_off_amount', 0.0))
+                     - float(liability.get('inherited_amount', 0.0)))
         worker_id = liability.get('worker_id')
         if amount <= 0 or worker_id is None:
             continue
@@ -51,7 +54,7 @@ def _wage_liability_totals(firm):
     return total, claims
 
 
-def accrue_wage_arrear(firm, worker_id, amount):
+def accrue_wage_arrear(firm, worker_id, amount, worker=None):
     """Update persisted liability totals while retaining only recent detail rows."""
     amount = max(0.0, float(amount))
     if amount <= 0:
@@ -62,6 +65,13 @@ def accrue_wage_arrear(firm, worker_id, amount):
     claims[worker_id] = claim_before + amount
     firm.wage_arrears_balance = total + amount
     firm.wage_arrears_by_worker = claims
+    if worker is not None:
+        claimants = dict(getattr(firm, 'wage_arrears_claimants', {}) or {})
+        claimants[worker_id] = worker
+        firm.wage_arrears_claimants = claimants
+        creditors = dict(getattr(worker, 'wage_claim_creditors', {}) or {})
+        creditors[int(firm.id)] = firm
+        worker.wage_claim_creditors = creditors
     return total, total + amount, claim_before, claim_before + amount
 
 
@@ -76,46 +86,166 @@ def settle_wage_arrear(firm, worker_id, amount):
     claim_after = max(0.0, claim_before - settled)
     if claim_after <= 1e-9:
         claims.pop(worker_id, None)
+        claimants = dict(getattr(firm, 'wage_arrears_claimants', {}) or {})
+        claimant = claimants.pop(worker_id, None)
+        firm.wage_arrears_claimants = claimants
+        if claimant is not None:
+            creditors = dict(getattr(claimant, 'wage_claim_creditors', {}) or {})
+            creditors.pop(int(firm.id), None)
+            claimant.wage_claim_creditors = creditors
     else:
         claims[worker_id] = claim_after
     firm.wage_arrears_balance = max(0.0, total - settled)
     firm.wage_arrears_by_worker = claims
 
-    remaining_payment = settled
-    liabilities = list(getattr(firm, 'wage_liabilities', ()))
-    matching = sorted(
-        (row for row in liabilities
-         if int(row.get('worker_id', -1)) == worker_id
-         and str(row.get('status', 'unpaid')).lower()
-         not in {'paid', 'settled', 'written_off', 'forgiven', 'cancelled',
-                 'inherited'}),
-        key=lambda row: (int(row.get('turn', 0)),))
-    for row in matching:
-        original = max(0.0, float(row.get('amount', 0.0)))
-        already_paid = max(0.0, float(row.get('paid_amount', 0.0)))
-        outstanding = max(0.0, original - already_paid)
-        applied = min(remaining_payment, outstanding)
-        if applied <= 0:
-            continue
-        row['paid_amount'] = already_paid + applied
-        remaining_payment -= applied
-        row['status'] = 'paid' if row['paid_amount'] + 1e-9 >= original else 'partial'
-        if remaining_payment <= 1e-9:
-            break
-    firm.wage_liabilities = liabilities[-500:]
+    _reduce_wage_liability_details(firm, worker_id, settled, 'paid_amount')
     return total, firm.wage_arrears_balance, claim_before, claim_after, settled
 
 
-def _wage_arrears_by_actor(region):
+def transfer_wage_arrear_claim(firm, source_worker_id, target_worker_id,
+                               amount, turn, target_worker=None,
+                               source_worker=None):
+    """Transfer a worker's wage receivable to an heir without changing firm debt."""
+    total, claims = _wage_liability_totals(firm)
+    source_worker_id = int(source_worker_id)
+    target_worker_id = int(target_worker_id)
+    source_before = claims.get(source_worker_id, 0.0)
+    transferred = min(max(0.0, float(amount)), source_before)
+    if transferred <= 0:
+        return total, total, source_before, source_before, 0.0
+    source_after = max(0.0, source_before - transferred)
+    if source_after <= 1e-9:
+        claims.pop(source_worker_id, None)
+    else:
+        claims[source_worker_id] = source_after
+    claims[target_worker_id] = claims.get(target_worker_id, 0.0) + transferred
+    firm.wage_arrears_balance = total
+    firm.wage_arrears_by_worker = claims
+    claimants = dict(getattr(firm, 'wage_arrears_claimants', {}) or {})
+    source_worker = source_worker or claimants.get(source_worker_id)
+    if source_after <= 1e-9:
+        claimants.pop(source_worker_id, None)
+        if source_worker is not None:
+            creditors = dict(getattr(source_worker, 'wage_claim_creditors', {}) or {})
+            creditors.pop(int(firm.id), None)
+            source_worker.wage_claim_creditors = creditors
+    if target_worker is not None:
+        claimants[target_worker_id] = target_worker
+        creditors = dict(getattr(target_worker, 'wage_claim_creditors', {}) or {})
+        creditors[int(firm.id)] = firm
+        target_worker.wage_claim_creditors = creditors
+    elif source_worker is not None and int(getattr(source_worker, 'id', -1)) == target_worker_id:
+        claimants[target_worker_id] = source_worker
+    firm.wage_arrears_claimants = claimants
+    _reduce_wage_liability_details(
+        firm, source_worker_id, transferred, 'inherited_amount')
+    liabilities = list(getattr(firm, 'wage_liabilities', ()))
+    liabilities.append({'worker_id': target_worker_id, 'turn': int(turn),
+                        'amount': transferred, 'status': 'unpaid',
+                        'inherited_from': source_worker_id})
+    firm.wage_liabilities = liabilities[-500:]
+    return total, total, source_before, source_after, transferred
+
+
+def writeoff_wage_arrear(firm, worker_id, amount):
+    """Remove an uncollectible worker claim and its matching firm liability."""
+    total, claims = _wage_liability_totals(firm)
+    worker_id = int(worker_id)
+    claim_before = claims.get(worker_id, 0.0)
+    written_off = min(max(0.0, float(amount)), claim_before)
+    if written_off <= 0:
+        return total, total, claim_before, claim_before, 0.0
+    claim_after = max(0.0, claim_before - written_off)
+    if claim_after <= 1e-9:
+        claims.pop(worker_id, None)
+        claimants = dict(getattr(firm, 'wage_arrears_claimants', {}) or {})
+        claimant = claimants.pop(worker_id, None)
+        firm.wage_arrears_claimants = claimants
+        if claimant is not None:
+            creditors = dict(getattr(claimant, 'wage_claim_creditors', {}) or {})
+            creditors.pop(int(firm.id), None)
+            claimant.wage_claim_creditors = creditors
+    else:
+        claims[worker_id] = claim_after
+    firm.wage_arrears_balance = max(0.0, total - written_off)
+    firm.wage_arrears_by_worker = claims
+    _reduce_wage_liability_details(firm, worker_id, written_off,
+                                  'written_off_amount')
+    return total, firm.wage_arrears_balance, claim_before, claim_after, written_off
+
+
+def _reduce_wage_liability_details(firm, worker_id, amount, field):
+    """Apply a payment, inheritance, or write-off to oldest detail rows first."""
+    remaining = max(0.0, float(amount))
+    liabilities = list(getattr(firm, 'wage_liabilities', ()))
+    matching = sorted(
+        (row for row in liabilities
+         if int(row.get('worker_id', -1)) == int(worker_id)
+         and str(row.get('status', 'unpaid')).lower()
+         not in {'paid', 'settled', 'written_off', 'forgiven', 'cancelled',
+                 'inherited'}),
+        key=lambda row: int(row.get('turn', 0)))
+    for row in matching:
+        original = max(0.0, float(row.get('amount', 0.0)))
+        already_paid = max(0.0, float(row.get('paid_amount', 0.0)))
+        already_written_off = max(0.0, float(row.get('written_off_amount', 0.0)))
+        already_inherited = max(0.0, float(row.get('inherited_amount', 0.0)))
+        outstanding = max(0.0, original - already_paid
+                          - already_written_off - already_inherited)
+        applied = min(remaining, outstanding)
+        if applied <= 0:
+            continue
+        row[field] = max(0.0, float(row.get(field, 0.0))) + applied
+        remaining -= applied
+        consumed = (already_paid + already_written_off + already_inherited
+                    + applied)
+        if consumed + 1e-9 >= original:
+            if already_inherited + (applied if field == 'inherited_amount' else 0) > 0:
+                row['status'] = 'inherited'
+            elif already_written_off + (applied if field == 'written_off_amount' else 0) > 0:
+                row['status'] = 'written_off'
+            else:
+                row['status'] = 'paid'
+        else:
+            row['status'] = 'partial'
+        if remaining <= 1e-9:
+            break
+    firm.wage_liabilities = liabilities[-500:]
+
+
+def _wage_arrears_by_actor(region, event_regions=None):
     payable = {}
     claims = {}
-    for firm in getattr(region, 'agents', ()):
-        if not getattr(firm, 'is_corporation', False):
-            continue
-        total, worker_claims = _wage_liability_totals(firm)
-        payable[firm.id] = total
-        for worker_id, amount in worker_claims.items():
-            claims[worker_id] = claims.get(worker_id, 0.0) + amount
+    claim_sources = {}
+    if event_regions is None:
+        province = getattr(region, 'province', None)
+        event_regions = getattr(province, 'tiles', ()) or (region,)
+    seen_firms = set()
+    for source_region in event_regions:
+        for firm in getattr(source_region, 'agents', ()):
+            if (not getattr(firm, 'is_corporation', False)
+                    or int(firm.id) in seen_firms):
+                continue
+            seen_firms.add(int(firm.id))
+            total, worker_claims = _wage_liability_totals(firm)
+            payable[firm.id] = total
+            for worker_id, amount in worker_claims.items():
+                claims[worker_id] = claims.get(worker_id, 0.0) + amount
+                claim_sources.setdefault(worker_id, set()).add(int(firm.id))
+    # A living claimant can move away from the tile that holds the employer.
+    # Retained creditor references keep the receivable visible in their local
+    # turn statement even when employer and worker are in different provinces.
+    for actor in getattr(region, 'agents', ()):
+        for firm_id, firm in (getattr(actor, 'wage_claim_creditors', {}) or {}).items():
+            if int(firm_id) in claim_sources.get(int(actor.id), set()):
+                continue
+            total, worker_claims = _wage_liability_totals(firm)
+            amount = worker_claims.get(int(actor.id), 0.0)
+            if amount <= 0:
+                continue
+            payable[int(firm_id)] = total
+            claims[actor.id] = claims.get(actor.id, 0.0) + amount
+            claim_sources.setdefault(int(actor.id), set()).add(int(firm_id))
     return payable, claims
 
 
@@ -218,7 +348,15 @@ def seal_turn(region, turn, event_regions=None):
     cash_events = [event for event_region in unique_event_regions
                    for event in getattr(event_region, 'economic_events', [])
                    if event['turn'] == turn]
-    wage_arrears_payable, wage_arrears_claims = _wage_arrears_by_actor(region)
+    wage_events = [event for event_region in unique_event_regions
+                   for event in getattr(event_region, 'economic_events', [])
+                   if event['turn'] == turn
+                   and (event['kind'].startswith('wage_arrears_')
+                        or (event['kind'] == 'wallet_transfer_in'
+                            and event['detail'].get('payment_kind')
+                            == 'wage_arrears_paid'))]
+    wage_arrears_payable, wage_arrears_claims = _wage_arrears_by_actor(
+        region, unique_event_regions)
     by_actor = {}
     for event in events:
         for ident in {event['payer_id'], event['recipient_id']} - {None}:
@@ -227,9 +365,14 @@ def seal_turn(region, turn, event_regions=None):
     for event in cash_events:
         for ident in {event['payer_id'], event['recipient_id']} - {None}:
             cash_by_actor.setdefault(ident, []).append(event)
+    wage_by_actor = {}
+    for event in wage_events:
+        for ident in {event['payer_id'], event['recipient_id']} - {None}:
+            wage_by_actor.setdefault(ident, []).append(event)
     accounts = []
     for actor in getattr(region, 'agents', []):
         own = by_actor.get(actor.id, [])
+        wage_own = wage_by_actor.get(actor.id, own)
         cash_own = cash_by_actor.get(actor.id, own)
         receipts = sum((e['detail'].get(
                             'cash_receipt', e['detail'].get('seller_receipt', e['amount']))
@@ -361,20 +504,30 @@ def seal_turn(region, turn, event_regions=None):
             e['quantity'] for e in own
             if e['recipient_id'] == actor.id and e['kind'] == 'crop_share_rent')
         wage_arrears_accrued = sum(
-            e['amount'] for e in own
+            e['amount'] for e in wage_own
             if e['payer_id'] == actor.id and e['kind'] == 'wage_arrears_accrued')
         wage_arrears_claim_accrued = sum(
-            e['amount'] for e in own
+            e['amount'] for e in wage_own
             if e['recipient_id'] == actor.id and e['kind'] == 'wage_arrears_accrued')
         wage_arrears_payable_paid = sum(
-            e['amount'] for e in own
+            e['amount'] for e in wage_own
             if e['payer_id'] == actor.id and e['kind'] == 'wage_arrears_paid')
         wage_arrears_claim_paid = sum(
-            e['amount'] for e in own
+            e['amount'] for e in wage_own
             if (e['recipient_id'] == actor.id and e['kind'] == 'wage_arrears_paid')
             or (e['recipient_id'] == actor.id
                 and e['kind'] == 'wallet_transfer_in'
                 and e['detail'].get('payment_kind') == 'wage_arrears_paid'))
+        wage_arrears_payable_written_off = sum(
+            e['amount'] for e in wage_own
+            if e['payer_id'] == actor.id and e['kind'] == 'wage_arrears_written_off')
+        wage_arrears_claim_written_off = sum(
+            e['amount'] for e in wage_own
+            if e['recipient_id'] == actor.id and e['kind'] == 'wage_arrears_written_off')
+        wage_arrears_claim_inherited = sum(
+            e['amount'] for e in wage_own
+            if e['recipient_id'] == actor.id
+            and e['kind'] == 'wage_arrears_claim_inherited')
         foreign_wallet_debt_paid = {}
         for event in own:
             if (event['payer_id'] == actor.id
@@ -500,12 +653,18 @@ def seal_turn(region, turn, event_regions=None):
                 wage_arrears_payable.get(actor.id, 0.0), 2),
             'wage_arrears_accrued': round(wage_arrears_accrued, 2),
             'wage_arrears_payable_paid': round(wage_arrears_payable_paid, 2),
+            'wage_arrears_payable_written_off': round(
+                wage_arrears_payable_written_off, 2),
             'opening_wage_arrears_claim': round(
                 prior.get('wage_arrears_claim', 0.0), 2),
             'closing_wage_arrears_claim': round(
                 wage_arrears_claims.get(actor.id, 0.0), 2),
             'wage_arrears_claim_accrued': round(wage_arrears_claim_accrued, 2),
             'wage_arrears_claim_paid': round(wage_arrears_claim_paid, 2),
+            'wage_arrears_claim_written_off': round(
+                wage_arrears_claim_written_off, 2),
+            'wage_arrears_claim_inherited': round(
+                wage_arrears_claim_inherited, 2),
             'opening_bank_deposit': round(prior['bank_deposit'], 2),
             'closing_bank_deposit': round(bank_deposit, 2),
             'bank_cash_deposited': round(bank_cash_deposited, 2),

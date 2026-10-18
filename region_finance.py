@@ -73,7 +73,7 @@ def pay_wages(region, t):
                         from economy.actor_accounts import (accrue_wage_arrear,
                                                             record as record_economic_event)
                         payable_before, payable_after, claim_before, claim_after = (
-                            accrue_wage_arrear(a, e.id, e.wage_withheld))
+                            accrue_wage_arrear(a, e.id, e.wage_withheld, worker=e))
                         liabilities = getattr(a, 'wage_liabilities', [])
                         liabilities.append({'worker_id': e.id, 'turn': t,
                                             'amount': e.wage_withheld, 'status': 'unpaid'})
@@ -118,7 +118,7 @@ def pay_wages(region, t):
                     e.mem_push('mem_wages', wage_to_pay)
 
 
-def settle_wage_arrears(region, t, *, firm_id=None, liquidating=False):
+def settle_wage_arrears(region, t, *, firm_id=None, firm=None, liquidating=False):
     """Pay old wage claims from cash beyond the next payroll reserve.
 
     On liquidation, any available firm cash is available to wage claimants.
@@ -135,10 +135,12 @@ def settle_wage_arrears(region, t, *, firm_id=None, liquidating=False):
              and (liquidating or getattr(firm, 'alive', True))
              and (firm_id is None or firm.id == firm_id)]
     if firm_id is not None and not any(firm.id == firm_id for firm in firms):
-        firm = by_id.get(int(firm_id))
-        if (firm is not None and getattr(firm, 'is_corporation', False)
-                and (liquidating or getattr(firm, 'alive', True))):
-            firms.append(firm)
+        matched_firm = firm or by_id.get(int(firm_id))
+        if (matched_firm is not None
+                and int(matched_firm.id) == int(firm_id)
+                and getattr(matched_firm, 'is_corporation', False)
+                and (liquidating or getattr(matched_firm, 'alive', True))):
+            firms.append(matched_firm)
     payments = []
     for firm in firms:
         total, claims = _wage_liability_totals(firm)
@@ -167,7 +169,8 @@ def settle_wage_arrears(region, t, *, firm_id=None, liquidating=False):
         for worker_id in sorted(claims, key=lambda ident: (first_turn.get(ident, t), ident)):
             if available_cash <= 1e-9:
                 break
-            worker = by_id.get(int(worker_id))
+            worker = (by_id.get(int(worker_id))
+                      or (getattr(firm, 'wage_arrears_claimants', {}) or {}).get(worker_id))
             if worker is None or not getattr(worker, 'alive', True):
                 continue
             claim_before = float(claims[worker_id])
@@ -177,8 +180,15 @@ def settle_wage_arrears(region, t, *, firm_id=None, liquidating=False):
             firm_cash_before = float(firm.cash)
             worker_cash_before = float(worker.cash)
             currency = getattr(region, 'home_currency', None)
-            use_wallet = bool(currency and getattr(worker, '_bank_ref', None)
-                              is not getattr(region, 'bank', None))
+            local_institution_agents = {
+                id(getattr(getattr(region, 'gov', None), 'agent', None)),
+                id(getattr(getattr(region, 'charity', None), 'agent', None)),
+            }
+            is_local_worker = (by_id.get(int(worker_id)) is worker
+                               or id(worker) in local_institution_agents)
+            use_wallet = bool(currency and (
+                not is_local_worker
+                or getattr(worker, '_bank_ref', None) is not getattr(region, 'bank', None)))
             wallet_before = None
             if use_wallet:
                 wallet_before = float(_fx.fx_balance(worker, currency))
@@ -250,6 +260,78 @@ def settle_wage_arrears(region, t, *, firm_id=None, liquidating=False):
                              'transfer_id': transfer_id})
             available_cash -= settled
     return payments
+
+
+def liquidate_wage_arrears(region, t, firm, *, reason='firm_exit'):
+    """Use a departing firm's remaining cash for wage claims, then write off loss."""
+    from economy.actor_accounts import (
+        _wage_liability_totals, record as record_economic_event,
+        writeoff_wage_arrear,
+    )
+    payments = settle_wage_arrears(
+        region, t, firm_id=firm.id, firm=firm, liquidating=True)
+    _, claims = _wage_liability_totals(firm)
+    written_off = []
+    for worker_id, claim_amount in sorted(claims.items()):
+        total_before, total_after, claim_before, claim_after, amount = (
+            writeoff_wage_arrear(firm, worker_id, claim_amount))
+        if amount <= 0:
+            continue
+        event = record_economic_event(
+            region, 'wage_arrears_written_off', turn=t,
+            payer_id=firm.id, recipient_id=worker_id, amount=amount,
+            asset_id=f'wage-arrears:{firm.id}:{worker_id}',
+            source_id=f'wage-arrears:{firm.id}:{worker_id}',
+            currency=getattr(region, 'home_currency', None),
+            detail={'employer_id': firm.id, 'worker_id': worker_id,
+                    'employer_payable_before': float(total_before),
+                    'employer_payable_after': float(total_after),
+                    'claim_before': float(claim_before),
+                    'claim_after': float(claim_after),
+                    'reason': reason, 'settlement': 'limited_liability_writeoff'})
+        from run_trace import emit
+        emit(region, kind='wage_arrears_written_off', record_class='outcome',
+             phase='finance',
+             subject={'type': 'employment_wage_claim',
+                      'id': f'{firm.id}:{worker_id}', 'tile': region.name,
+                      'employer_id': firm.id, 'worker_id': worker_id},
+             metric_id='finance.wage_arrears',
+             unit=getattr(region, 'home_currency', None) or 'local_currency',
+             before=float(claim_before), after=float(claim_after),
+             formula_id='labor.wage_arrears.employer_exit_writeoff.v1',
+             inputs={'event_id': event['id'], 'employer_id': firm.id,
+                     'worker_id': worker_id, 'amount': float(amount),
+                     'reason': reason,
+                     'cash_recovered': sum(row['amount'] for row in payments)})
+        written_off.append({'worker_id': worker_id, 'amount': amount,
+                            'event_id': event['id']})
+
+    orphaned = max(0.0, float(getattr(firm, 'wage_arrears_balance', 0.0)))
+    if orphaned > 1e-9:
+        before = orphaned
+        firm.wage_arrears_balance = 0.0
+        event = record_economic_event(
+            region, 'wage_arrears_written_off', turn=t, payer_id=firm.id,
+            amount=orphaned, asset_id=f'wage-arrears:{firm.id}:orphaned',
+            source_id=f'wage-arrears:{firm.id}:orphaned',
+            currency=getattr(region, 'home_currency', None),
+            detail={'employer_id': firm.id, 'employer_payable_before': before,
+                    'employer_payable_after': 0.0, 'reason': reason,
+                    'settlement': 'unmatched_liability_writeoff',
+                    'claimant_id_missing': True})
+        from run_trace import emit
+        emit(region, kind='wage_arrears_writeoff_without_claimant',
+             record_class='outcome', phase='finance',
+             subject={'type': 'agent', 'id': firm.id, 'tile': region.name},
+             metric_id='finance.wage_arrears',
+             unit=getattr(region, 'home_currency', None) or 'local_currency',
+             before=before, after=0.0,
+             formula_id='labor.wage_arrears.orphan_liability_writeoff.v1',
+             inputs={'event_id': event['id'], 'reason': reason,
+                     'employer_id': firm.id})
+    return {'payments': payments, 'written_off': written_off,
+            'cash_recovered': sum(row['amount'] for row in payments),
+            'claims_written_off': sum(row['amount'] for row in written_off)}
 
 
 def redeem_company_scrip(region, t):
