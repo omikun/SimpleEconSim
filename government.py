@@ -761,10 +761,15 @@ class Government:
             self._food_aid_turn = t
             for agent in agents:
                 agent.food_aid_received_this_turn = 0
+        cumulative_aid_before = int(self.food_aid_last_turn)
         if self.emergency_food_policy and region is not None:
             self._levy_emergency_food(t, agents, region)
         inventory_before = self.food_inventory
+        operation_region = getattr(region, 'name', self.name)
+        operation_id = (f'government-food-aid:{operation_region}:{int(t)}:'
+                        f'{cumulative_aid_before}')
         transfers = []
+        recipient_event_ids = []
 
         # Separate candidates: children and starving agents
         candidates = [a for a in agents
@@ -781,14 +786,33 @@ class Government:
                 missing = max(0, appetite_units(agent) - agent.inv_get(Goods.food, 0))
                 given = min(missing, self.food_inventory)
                 if given:
+                    government_food_before = int(self.food_inventory)
+                    recipient_food_before = int(agent.inv_get(Goods.food, 0))
                     self.food_inventory -= given
                     agent.inv_add(Goods.food, given)
                     agent.food_aid_received_this_turn = (
                         getattr(agent, 'food_aid_received_this_turn', 0) + given)
-                    transfers.append({'agent_id': agent.id, 'units': given})
+                    transfer = {
+                        'agent_id': agent.id, 'units': given,
+                        'government_food_before': government_food_before,
+                        'government_food_after': int(self.food_inventory),
+                        'recipient_food_before': recipient_food_before,
+                        'recipient_food_after': int(agent.inv_get(Goods.food, 0)),
+                    }
+                    event_id = self._trace_food_aid_recipient(
+                        t, region, operation_id, len(transfers), agent, given,
+                        government_food_before, int(self.food_inventory),
+                        recipient_food_before, int(agent.inv_get(Goods.food, 0)),
+                        emergency=True)
+                    if event_id is not None:
+                        transfer['trace_event_id'] = event_id
+                        recipient_event_ids.append(event_id)
+                    transfers.append(transfer)
             total_food_given = inventory_before - self.food_inventory
             self.food_aid_last_turn += total_food_given
-            self._trace_food_aid(t, inventory_before, transfers, region)
+            self._trace_food_aid(t, inventory_before, transfers, region,
+                                 operation_id=operation_id,
+                                 recipient_event_ids=recipient_event_ids)
             return total_food_given
 
         children = [a for a in candidates
@@ -802,10 +826,27 @@ class Government:
         for child in children:
             if self.food_inventory <= 0:
                 break
+            government_food_before = int(self.food_inventory)
+            recipient_food_before = int(child.inv_get(Goods.food, 0))
             self.food_inventory -= 1
             child.inv_add(Goods.food, 1)
             total_food_given += 1
-            transfers.append({'agent_id': child.id, 'units': 1})
+            transfer = {
+                'agent_id': child.id, 'units': 1,
+                'government_food_before': government_food_before,
+                'government_food_after': int(self.food_inventory),
+                'recipient_food_before': recipient_food_before,
+                'recipient_food_after': int(child.inv_get(Goods.food, 0)),
+            }
+            event_id = self._trace_food_aid_recipient(
+                t, region, operation_id, len(transfers), child, 1,
+                government_food_before, int(self.food_inventory),
+                recipient_food_before, int(child.inv_get(Goods.food, 0)),
+                emergency=False)
+            if event_id is not None:
+                transfer['trace_event_id'] = event_id
+                recipient_event_ids.append(event_id)
+            transfers.append(transfer)
             loginfo(t, f"Government({self.name}) child food aid to {child.name()}")
 
         # 2. Determine how many starving to feed based on available surplus
@@ -830,12 +871,29 @@ class Government:
             fed = starving[:int(feed_count)]
 
             for agent in fed:
+                government_food_before = int(self.food_inventory)
+                recipient_food_before = int(agent.inv_get(Goods.food, 0))
                 self.food_inventory -= 1
                 agent.inv_add(Goods.food, 1)
                 agent.food_aid_received_this_turn = (
                     getattr(agent, 'food_aid_received_this_turn', 0) + 1)
                 total_food_given += 1
-                transfers.append({'agent_id': agent.id, 'units': 1})
+                transfer = {
+                    'agent_id': agent.id, 'units': 1,
+                    'government_food_before': government_food_before,
+                    'government_food_after': int(self.food_inventory),
+                    'recipient_food_before': recipient_food_before,
+                    'recipient_food_after': int(agent.inv_get(Goods.food, 0)),
+                }
+                event_id = self._trace_food_aid_recipient(
+                    t, region, operation_id, len(transfers), agent, 1,
+                    government_food_before, int(self.food_inventory),
+                    recipient_food_before, int(agent.inv_get(Goods.food, 0)),
+                    emergency=False)
+                if event_id is not None:
+                    transfer['trace_event_id'] = event_id
+                    recipient_event_ids.append(event_id)
+                transfers.append(transfer)
                 loginfo(t, f"Government({self.name}) food aid to {agent.name()} "
                         f"(hungry_steps={agent.hungry_steps})")
 
@@ -844,7 +902,9 @@ class Government:
                     f"(remaining inventory: {self.food_inventory}, "
                     f"cash: ${self.agent.cash:.2f})")
 
-        self._trace_food_aid(t, inventory_before, transfers, region)
+        self._trace_food_aid(t, inventory_before, transfers, region,
+                             operation_id=operation_id,
+                             recipient_event_ids=recipient_event_ids)
         self.food_aid_last_turn += total_food_given
         return total_food_given
 
@@ -937,7 +997,58 @@ class Government:
                          'donors': levies})
         return collected
 
-    def _trace_food_aid(self, t, inventory_before, transfers, region=None):
+    def _trace_food_aid_recipient(self, t, region, operation_id, index, agent,
+                                  units, government_before, government_after,
+                                  recipient_before, recipient_after, *, emergency):
+        if region is None:
+            region = next((candidate for candidate in self.regions
+                           if getattr(candidate, 'gov', None) is self
+                           and getattr(candidate, '_run_trace', None) is not None), None)
+        if region is None:
+            return None
+        from run_trace import emit
+        from finance_trace import account_ref
+
+        transfer_id = f'{operation_id}:recipient:{agent.id}'
+        contract = {
+            'contract_version': 'goods_transfer.v1',
+            'operation_id': transfer_id,
+            'operation_type': 'government_food_aid',
+            'good': Goods.food.name,
+            'unit': 'food_units',
+            'amount': int(units),
+            'payer_account': account_ref(
+                'government_food_inventory', self.name, 'food_units',
+                balance_before=int(government_before),
+                balance_after=int(government_after),
+                balance_scope='food_inventory'),
+            'payee_account': account_ref(
+                'agent_inventory', agent.id, 'food_units',
+                balance_before=int(recipient_before),
+                balance_after=int(recipient_after),
+                balance_scope='inventory.food'),
+            'counterparty_leg_status': 'both food inventory balances captured',
+        }
+        return emit(
+            region, kind='government_food_aid_recipient',
+            record_class='transfer', phase='livelihood',
+            subject={'type': 'tile/agent', 'id': str(agent.id),
+                     'tile': region.name, 'good': Goods.food.name},
+            metric_id='goods.food_aid_recipient', unit='food_units',
+            before=int(recipient_before), after=int(recipient_after),
+            formula_id='government.food_aid_recipient_transfer.v1',
+            inputs={'operation_id': transfer_id, 'aid_operation_id': operation_id,
+                    'turn': int(t), 'transfer_index': int(index),
+                    'agent_id': agent.id, 'units': int(units),
+                    'government': self.name, 'emergency_policy': bool(emergency),
+                    'recipient_food_before': int(recipient_before),
+                    'recipient_food_after': int(recipient_after),
+                    'government_food_before': int(government_before),
+                    'government_food_after': int(government_after),
+                    'transfer_contract': contract})
+
+    def _trace_food_aid(self, t, inventory_before, transfers, region=None, *,
+                        operation_id=None, recipient_event_ids=None):
         if not transfers:
             return
         from run_trace import emit
@@ -949,9 +1060,11 @@ class Government:
              subject={'type': 'tile', 'id': region.name, 'good': Goods.food.name},
              metric_id='goods.food_aid', unit='units',
              before=inventory_before, after=self.food_inventory,
-             inputs={'turn': t, 'emergency': self.emergency_food_policy,
+             inputs={'turn': t, 'operation_id': operation_id,
+                     'emergency': self.emergency_food_policy,
                      'units_delivered': inventory_before - self.food_inventory,
-                     'recipients': transfers})
+                     'recipients': transfers},
+             cause_event_ids=recipient_event_ids or None)
 
     def distribute_welfare(self, t, agents, min_reserve=0, region=None):
         """Distribute all excess cash above min_reserve to starving agents.

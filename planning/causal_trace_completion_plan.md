@@ -651,6 +651,22 @@ Compilation and `git diff --check` passed. Caisse transit-toll and granary
 seizures, other imperial claims, household aid and subsistence flows, subsidies,
 repression costs, inheritance, and other scenario costs remain.
 
+Phase 3 follow-up, 2026-10-18: public food-aid distributions now record each
+government food-stock debit and recipient inventory increase under a
+`goods_transfer.v1` contract; the aggregate distribution links to its recipient
+events. Automatic and government-supported household mutual aid record the
+donor and recipient food balances, total meals moved, and the supported
+program's legitimacy change.
+
+Verification: five focused fixtures cover ordinary and emergency public food
+aid, automatic and supported mutual aid, exact inventory balances, outcome
+cause links, and trace-on/off state equality. Fifty-six food-security, scenario
+grain, government-transfer, and live-trace tests passed. Compilation and
+`git diff --check` passed. Full Egypt integration remains blocked during world
+generation by the existing Nile delta outlet error. Broader subsistence flows,
+other household aid channels, subsidies, repression costs, inheritance, and
+other scenario costs remain.
+
 Phase 3 follow-up, 2026-10-18: Caisse transit-toll seizures now trace the
 debtor treasury debit when it occurs, the creditor treasury credit, and the
 receivership balance change. Granary seizure records the district stock loss,

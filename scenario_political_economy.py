@@ -124,6 +124,62 @@ def _record_grain(world, tile, kind, units, cash, owner_id, turn=None,
     _economy(world)['grain_transactions'].append(row)
 
 
+def _trace_household_mutual_aid_transfer(tile, *, operation_id, turn, donor,
+                                        receiver, donor_before, donor_after,
+                                        receiver_before, receiver_after, mode):
+    from run_trace import emit
+
+    transfer_contract = {
+        'contract_version': 'goods_transfer.v1',
+        'operation_id': operation_id,
+        'operation_type': 'household_mutual_aid',
+        'good': Goods.food.name,
+        'unit': 'food_units',
+        'amount': int(donor_before - donor_after),
+        'payer_account': account_ref(
+            'agent_inventory', donor.id, 'food_units',
+            balance_before=int(donor_before), balance_after=int(donor_after),
+            balance_scope='inventory.food'),
+        'payee_account': account_ref(
+            'agent_inventory', receiver.id, 'food_units',
+            balance_before=int(receiver_before), balance_after=int(receiver_after),
+            balance_scope='inventory.food'),
+        'counterparty_leg_status': 'both household food inventories captured',
+    }
+    return emit(
+        tile, kind='household_mutual_aid_food_transfer',
+        record_class='transfer', phase='scenario_economy',
+        subject={'type': 'tile/operation', 'id': operation_id,
+                 'tile': tile.name, 'good': Goods.food.name},
+        metric_id='goods.mutual_aid_transfer', unit='food_units',
+        before=0, after=int(donor_before - donor_after),
+        formula_id='scenario.household_mutual_aid_transfer.v1',
+        inputs={'operation_id': operation_id, 'turn': int(turn), 'mode': mode,
+                'donor_id': donor.id, 'receiver_id': receiver.id,
+                'donor_food_before': int(donor_before),
+                'donor_food_after': int(donor_after),
+                'receiver_food_before': int(receiver_before),
+                'receiver_food_after': int(receiver_after),
+                'transfer_contract': transfer_contract})
+
+
+def _trace_mutual_aid_total(tile, *, operation_id, turn, mode, before, after,
+                            transfer_event_ids):
+    if after <= before:
+        return None
+    from run_trace import emit
+    return emit(
+        tile, kind='household_mutual_aid_meals', record_class='outcome',
+        phase='scenario_economy',
+        subject={'type': 'tile', 'id': tile.name},
+        metric_id='politics.mutual_aid_meals', unit='meals',
+        before=int(before), after=int(after),
+        formula_id='scenario.household_mutual_aid_total.v1',
+        inputs={'operation_id': operation_id, 'turn': int(turn), 'mode': mode,
+                'transfers': int(after - before)},
+        cause_event_ids=transfer_event_ids or None)
+
+
 def _grain_operation_id(tile, turn, kind, goods_payer_id, goods_payee_id):
     """Return an operation ID independent of whether optional tracing is on."""
     return (f'grain:{tile.name}:{int(turn)}:{kind}:'
@@ -866,12 +922,35 @@ def _organize(world, tile):
               and deficit_fraction(a) == 0]
     receivers = [a for a in people if a.inv_get(Goods.food, 0) == 0
                  and deficit_fraction(a) > 0]
+    mutual_aid_before = int(row['mutual_aid_meals'])
+    mutual_aid_operation = (
+        f'mutual-aid:{tile.name}:{int(world["turn"])}:automatic:'
+        f'{mutual_aid_before}')
+    mutual_aid_event_ids = []
     meals = 0
-    for donor, receiver in zip(donors, receivers):
+    for index, (donor, receiver) in enumerate(zip(donors, receivers)):
+        donor_before = int(donor.inv_get(Goods.food, 0))
+        receiver_before = int(receiver.inv_get(Goods.food, 0))
         donor.inv_add(Goods.food, -1)
         receiver.inv_add(Goods.food, 1)
+        event_id = _trace_household_mutual_aid_transfer(
+            tile,
+            operation_id=f'{mutual_aid_operation}:{index + 1}',
+            turn=int(world['turn']), donor=donor, receiver=receiver,
+            donor_before=donor_before,
+            donor_after=int(donor.inv_get(Goods.food, 0)),
+            receiver_before=receiver_before,
+            receiver_after=int(receiver.inv_get(Goods.food, 0)),
+            mode='automatic')
+        if event_id is not None:
+            mutual_aid_event_ids.append(event_id)
         meals += 1
     row['mutual_aid_meals'] += meals
+    _trace_mutual_aid_total(
+        tile, operation_id=mutual_aid_operation, turn=int(world['turn']),
+        mode='automatic', before=mutual_aid_before,
+        after=int(row['mutual_aid_meals']),
+        transfer_event_ids=mutual_aid_event_ids)
 
 
 def advance(world, nation, turn):
@@ -1194,17 +1273,52 @@ def apply_action(world, nation, action_id, tile=None):
         if not donors or not receivers:
             return False, 'Mutual aid needs both a willing food donor and an underfed household.'
         moved = 0
+        mutual_aid_before = int(collective['mutual_aid_meals'])
+        operation_id = (f'mutual-aid:{tile.name}:{int(world["turn"])}:supported:'
+                        f'{mutual_aid_before}')
+        transfer_event_ids = []
         for receiver in receivers:
             if not donors:
                 break
             donor = donors[0]
+            donor_before = int(donor.inv_get(Goods.food, 0))
+            receiver_before = int(receiver.inv_get(Goods.food, 0))
             donor.inv_add(Goods.food, -1)
             receiver.inv_add(Goods.food, 1)
+            event_id = _trace_household_mutual_aid_transfer(
+                tile, operation_id=f'{operation_id}:{moved + 1}',
+                turn=int(world['turn']), donor=donor, receiver=receiver,
+                donor_before=donor_before,
+                donor_after=int(donor.inv_get(Goods.food, 0)),
+                receiver_before=receiver_before,
+                receiver_after=int(receiver.inv_get(Goods.food, 0)),
+                mode='supported')
+            if event_id is not None:
+                transfer_event_ids.append(event_id)
             moved += 1
             if donor.inv_get(Goods.food, 0) < 5:
                 donors.pop(0)
         collective['mutual_aid_meals'] += moved
-        nation.legitimacy = min(1.0, float(nation.legitimacy) + .005 * (1 - exp(-moved / 5)))
+        total_event_id = _trace_mutual_aid_total(
+            tile, operation_id=operation_id, turn=int(world['turn']),
+            mode='supported', before=mutual_aid_before,
+            after=int(collective['mutual_aid_meals']),
+            transfer_event_ids=transfer_event_ids)
+        legitimacy_before = float(nation.legitimacy)
+        nation.legitimacy = min(1.0, legitimacy_before
+                                + .005 * (1 - exp(-moved / 5)))
+        from run_trace import emit
+        emit(tile, kind='mutual_aid_legitimacy_gain', record_class='outcome',
+             phase='scenario_economy',
+             subject={'type': 'nation', 'id': nation.name},
+             metric_id='politics.legitimacy', unit='ratio',
+             before=legitimacy_before, after=float(nation.legitimacy),
+             formula_id='scenario.mutual_aid_legitimacy.v1',
+             inputs={'operation_id': operation_id,
+                     'meals_moved': int(moved),
+                     'increase': float(nation.legitimacy) - legitimacy_before},
+             cause_event_ids=([total_event_id]
+                              if total_event_id is not None else None))
         return True, f'Local mutual-aid networks moved {moved} food units from surplus households in {_name(tile)}.'
     if action_id == 'district_bargain_workers':
         strikers = [a for a in people if getattr(a, 'is_striking', False)]

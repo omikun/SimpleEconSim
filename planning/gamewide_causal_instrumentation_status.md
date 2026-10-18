@@ -205,8 +205,9 @@ food levies expose exact in-kind stock changes, and routine public grain
 purchases reconcile seller and treasury balances. Guided canal transit tolls,
 customs-receivership tariff interception, Caisse toll debits, and granary stock
 seizures are traced with no-conversion currency mismatches and missing source
-legs exposed. Other untraced imperial claim paths, Egypt subsistence and
-household aid flows,
+legs exposed. Government food aid and household mutual aid now record exact food
+inventory movements. Other untraced imperial claim paths, Egypt subsistence,
+additional household aid channels,
 subsidies, repression spending,
 inheritance, and many scenario costs still need transfer contracts. National
 treasury, bank, household, firm, and goods-by-currency reconciliations remain
@@ -319,6 +320,17 @@ imperial-debt, scenario-debt, public-transfer, and run-trace tests passed,
 including trace-on/off state equivalence. Caisse transit-toll and granary
 seizures, other imperial claims, household aid and subsistence transfers,
 subsidies, repression, inheritance, and other scenario transfers remain.
+
+Public food aid now emits one exact goods transfer per recipient, pairing the
+government stock decrease with the resident's food inventory increase. The
+aggregate aid record links those transfers. Automatic mutual aid and the
+player-supported mutual-aid action record donor/receiver inventories and total
+meals moved; the supported action also links its legitimacy gain. Five focused
+fixtures and 56 food-security, grain, government-transfer, and live-trace tests
+passed, including trace-on/off equivalence. The Egypt world-generation error
+still blocks full scenario integration. Broader subsistence flows, additional
+household aid channels, subsidies, repression, inheritance, and other scenario
+transfers remain.
 
 Caisse transit-toll seizures now trace actual debtor cash debits and creditor
 credits. The legacy fallback can credit up to $5 without a debtor debit when
