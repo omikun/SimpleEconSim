@@ -287,6 +287,61 @@ class FoodSecurityRecoveryTests(unittest.TestCase):
         self.assertFalse(allowed)
         self.assertIn('policy', reason)
 
+    def test_nation_food_funding_traces_paired_treasury_legs(self):
+        fixtures = []
+        for traced in (False, True):
+            nation = Nation('Trace Relief', initial_cash=500)
+            tile = Region('Trace Hungry', 0, 10)
+            nation.add_tile(tile)
+            tile.gov.agent.cash = 0
+            for person in tile.agents:
+                if not person.is_government and not person.is_corporation:
+                    person.inv_set(Goods.food, 0)
+                    person.calorie_deficit_kcal = 1000
+            trace = MemoryTrace()
+            if traced:
+                tile._run_trace = trace
+                tile._collective_trace_clock = {
+                    'turn': 1, 'phase': 'strategy', 'next': 1}
+            response = enact_nation_food_response(nation, 1)[0]
+            fixtures.append((nation, tile, response, trace))
+
+        plain, traced = fixtures
+        self.assertEqual(
+            (plain[0].government.agent.cash, plain[1].gov.agent.cash,
+             plain[2]['funding_transferred']),
+            (traced[0].government.agent.cash, traced[1].gov.agent.cash,
+             traced[2]['funding_transferred']))
+        self.assertGreater(traced[2]['funding_transferred'], 0)
+
+        rows = traced[3].rows
+        debit = next(row for row in rows
+                     if row['kind'] == 'public_food_budget_transfer_debit')
+        receipt = next(row for row in rows
+                       if row['kind'] == 'public_food_budget_transfer')
+        assessment = next(row for row in rows
+                          if row['kind'] == 'food_security_assessment')
+        debit_contract = debit['inputs']['transfer_contract']
+        receipt_contract = receipt['inputs']['transfer_contract']
+        amount = traced[2]['funding_transferred']
+        self.assertEqual(debit['after'], -amount)
+        self.assertEqual(receipt['after'], amount)
+        self.assertEqual(debit_contract['operation_id'],
+                         receipt_contract['operation_id'])
+        self.assertEqual(debit_contract['side'], 'payer')
+        self.assertEqual(receipt_contract['side'], 'payee')
+        self.assertEqual(debit_contract['counterparty_leg_status'],
+                         'paired_internal_transfer_same_nation')
+        self.assertEqual(debit_contract['payer_account']['balance_before'], 500.0)
+        self.assertEqual(debit_contract['payer_account']['balance_after'],
+                         traced[0].government.agent.cash)
+        self.assertEqual(receipt_contract['payee_account']['balance_before'], 0.0)
+        self.assertEqual(receipt_contract['payee_account']['balance_after'],
+                         traced[1].gov.agent.cash)
+        self.assertEqual(receipt['cause_event_ids'], [debit['event_id']])
+        self.assertEqual(assessment['cause_event_ids'], [receipt['event_id']])
+        self.assertEqual(debit['after'] + receipt['after'], 0.0)
+
     def test_shared_province_relief_remains_on_when_neighbor_is_stable(self):
         nation = Nation('Shared', initial_cash=500)
         hungry = Region('Hungry', 0, 4)

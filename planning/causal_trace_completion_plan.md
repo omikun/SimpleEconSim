@@ -1529,3 +1529,15 @@ Verification: traced and untraced fixtures produce identical balances. Focused
 tests verify both donor types, exact wallet and deposit changes, withdrawal
 causality, the existing donation journal behavior, and metric catalog coverage
 (3 tests); compilation and `git diff --check` passed.
+
+## Phase 3 follow-up — Pair nation food-security funding legs
+
+The response that funds municipal food purchases now records a sovereign cash
+debit and matching municipal receipt with one operation ID and a shared
+`treasury_transfer.v1` contract. Exact balances and currencies are recorded at
+both accounts; the receipt links to the debit, and the household food-security
+assessment links to that receipt.
+
+Verification: traced and untraced fixtures produce identical treasury and
+municipal balances. Focused food-security, paired-leg, and metric-catalog tests
+passed (3 tests); compilation and `git diff --check` passed.

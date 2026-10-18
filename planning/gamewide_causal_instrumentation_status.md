@@ -1127,3 +1127,13 @@ individual balances, retained earnings, bank deposits, transfer contracts,
 withdrawal causality, and final charity reserves. Donation regressions and the
 metric-catalog callsite audit passed (3 tests); compilation and
 `git diff --check` passed.
+
+Phase 3 follow-up, 2026-10-18: national food-security funding now records both
+the sovereign treasury debit and municipal receipt under one operation ID and
+`treasury_transfer.v1` contract. Each side includes exact account balances and
+currency; the receipt links to the debit, and the food-security assessment
+links to the receipt. The paired amounts net to zero within the nation.
+
+Verification: the traced/untraced food-security fixtures retain identical
+balances and policy results. The focused response, paired-leg, and metric
+catalog tests passed (3 tests); compilation and `git diff --check` passed.
