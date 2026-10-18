@@ -37,7 +37,10 @@ already fun or balanced; that still needs player feedback.
   at the end. The final-turn sum of absolute unmatched actor cash movements was
   $22,664.76, showing that a full per-actor cash bridge is not complete. Some
   unmatched movement is from legacy systems that have not been connected to this
-  journal; do not read the displayed recorded result as complete profit.
+  journal; do not read the displayed recorded result as complete profit. The
+  benchmark now names the eight largest unmatched actors; the top absolute gap
+  was $1,713.25 for a grower and $1,463.82 for a corporation, giving the next
+  instrumentation pass concrete targets.
 - Remaining gate work: complete bank deposit transaction adapters and
   farmgate-to-route-to-import accounting for every cargo source. An earlier
   benchmark run reported a turn-21 USD discrepancy (-$17.61), but the direct

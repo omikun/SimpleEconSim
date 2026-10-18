@@ -48,6 +48,12 @@ def run(turns=50, seed=4242):
             'grower_crop_value_last_turn': round(sum(a['crop_value'] for a in growers), 2),
             'unposted_cash_last_turn': round(sum(abs(a['unposted_cash_change'])
                                                  for a in accounts), 2),
+            'largest_unposted_cash_accounts': [
+                {'tile': a['tile'], 'actor': a['actor_name'], 'type': a['type'],
+                 'cash_change': a['cash_change'], 'posted_change': a['posted_cash_change'],
+                 'unposted_change': a['unposted_cash_change']}
+                for a in sorted(accounts, key=lambda row: abs(row['unposted_cash_change']),
+                                reverse=True)[:8]],
             'cotton_spot_units_last_turn': sum(e['quantity'] for tile in tiles
                                                for e in getattr(tile, 'market_trade_events', [])
                                                if e['good'] == Goods.cotton.name and e['turn'] == turns)}

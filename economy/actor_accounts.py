@@ -114,7 +114,7 @@ def seal_turn(region, turn):
         produced = sum(e['quantity'] for e in events if e['recipient_id'] == actor.id
                        and e['kind'] == 'production' and e['good'] == output_name)
         accounts.append({
-            'turn': int(turn), 'actor_id': actor.id,
+            'turn': int(turn), 'tile': region.name, 'actor_id': actor.id,
             'actor_name': getattr(actor, 'company_name', None) or
                           getattr(actor, 'display_name', None) or f'Actor {actor.id}',
             'type': 'corporation' if getattr(actor, 'is_corporation', False) else
