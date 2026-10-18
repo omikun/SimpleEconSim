@@ -28,7 +28,7 @@ transfers handled by the election/coup modules).
 from __future__ import annotations
 
 from election import run_election
-from coup import coup_chance, execute_coup
+from coup import assess_coup, execute_coup
 
 
 #: Fixed election interval (turns) for democratic regimes.
@@ -181,14 +181,15 @@ def step_regime(nation, t, rng=None):
 
     # 1. Coup
     coup_draw = rng if rng is not None else random.random()
-    general, fires = coup_chance(nation, t, coup_draw)
+    general, fires, coup_inputs = assess_coup(nation, t, coup_draw)
     if nation.tiles:
         from run_trace import emit
         emit(nation.tiles[0], kind='coup_check', record_class='outcome',
              subject={'type': 'nation', 'id': nation.name},
-             inputs={'rng_draw': coup_draw, 'rng_stream': 'regime.random',
-                     'general_id': getattr(general, 'id', None),
-                     'fired': fires, 'legitimacy': nation.legitimacy,
+             metric_id='politics.coup_decision', unit='boolean',
+             after=fires, formula_id='coup.force_balance.v1',
+             inputs={**coup_inputs, 'rng_draw': coup_draw,
+                     'rng_stream': 'regime.random', 'fired': fires,
                      'regime_type': nation.regime_type})
     if fires and general is not None:
         deposed = getattr(nation, 'ruling_faction', None)

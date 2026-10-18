@@ -1050,3 +1050,16 @@ Verification: the metric registry, market-route, and run-trace suites passed
 (45 tests). The integration run exercises both departure and arrival quantities
 and confirms freight rows link to their shipment. Compilation and
 `git diff --check` passed.
+
+Phase 4 follow-up, 2026-10-18: coup checks now use a shared assessment result
+for gameplay and tracing. The registered `politics.coup_decision` record shows
+whether low legitimacy allowed candidate screening, the ranked eligible
+generals and trait weights, the leader's cash, mutinous and loyal unit details,
+government guard mobilization, legitimacy defense, optional RNG margin, both
+force totals, and the strict comparison reason. The public `coup_chance()`
+two-value return contract and coup outcome rules remain unchanged.
+
+Verification: three focused coup trace tests cover trace-on/off outcome parity,
+force reconstruction, legitimacy and candidate gates, and successful coup
+execution. The existing coercion/GDD tests and the full metric-catalog callsite
+audit also passed (12 tests); compilation and `git diff --check` passed.

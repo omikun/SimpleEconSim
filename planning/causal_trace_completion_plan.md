@@ -1441,3 +1441,18 @@ Verification: the metric-registry, market-route, and run-trace suites passed
 (45 tests). End-to-end checks reconstruct departure and arrival quantities and
 match freight payments to shipment IDs; compilation and `git diff --check`
 passed.
+
+## Phase 4 follow-up — Explain coup decisions
+
+The regime coup check now emits the registered `politics.coup_decision`
+metric, backed by the same assessment helper that returns the gameplay result.
+It records the legitimacy and candidate gates, ranked general scores and
+weights, candidate cash, mutinous and loyal military units, government treasury
+mobilization, legitimacy defense force, supplied random margin, total force
+values, and the final comparison reason. The public `coup_chance()` API still
+returns `(general, fires)` and the existing force thresholds are unchanged.
+
+Verification: focused tests cover no-candidate and legitimacy gates, full
+force arithmetic, trace-on/off parity, and coup execution. Three coup trace
+tests, the coercion/GDD suite, and the metric catalog audit passed (12 tests);
+compilation and `git diff --check` passed.
