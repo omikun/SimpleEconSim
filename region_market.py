@@ -494,7 +494,7 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
         ask = import_ask_price(region, trader, good)
         is_parked = item[2] if len(item) > 2 else False
         book.append([ask, qty, trader, True, is_parked,
-                     *(item[3:7] if len(item) > 3 else [])])
+                     *(item[3:] if len(item) > 3 else [])])
     book.sort(key=lambda o: o[0])
 
     bid_limits = {}
@@ -540,6 +540,10 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
         source_unit_cost = b[6] if len(b) > 6 else None
         freight_per_unit = b[7] if len(b) > 7 else None
         source_currency = b[8] if len(b) > 8 else None
+        source_cost_status = b[9] if len(b) > 9 else None
+        source_shipment_id = b[10] if len(b) > 10 else shipment_id
+        source_region = b[11] if len(b) > 11 else None
+        route_history = list(b[12] if len(b) > 12 and b[12] else [])
         if qty <= 0 or units >= total_bids:
             continue
         remaining = qty
@@ -646,6 +650,14 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
                            metric_id='goods.sold', unit='units', before=0, after=take,
                            inputs={'buyer_id': buyer.id, 'seller_id': seller.id,
                                    'imported': is_import, 'parked': is_parked,
+                                   'shipment_id': shipment_id,
+                                   'source_shipment_id': source_shipment_id,
+                                   'source_region': source_region,
+                                   'source_unit_cost': source_unit_cost,
+                                   'freight_per_unit': freight_per_unit,
+                                   'source_currency': source_currency,
+                                   'source_cost_status': source_cost_status,
+                                   'route_history': route_history,
                                    'unit_price': unit_price, 'total_paid': cost,
                                    'buyer_cash_before': buyer_cash_before,
                                    'buyer_cash_after': buyer.cash,
@@ -671,7 +683,14 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
                                  'seller_id': seller.id, 'quantity': int(take),
                                  'unit_price': float(unit_price), 'total_paid': float(cost),
                                  'imported': bool(is_import),
-                                 'shipment_id': shipment_id})
+                                 'shipment_id': shipment_id,
+                                 'source_shipment_id': source_shipment_id,
+                                 'source_region': source_region,
+                                 'source_unit_cost': source_unit_cost,
+                                 'freight_per_unit': freight_per_unit,
+                                 'source_currency': source_currency,
+                                 'source_cost_status': source_cost_status,
+                                 'route_history': route_history})
             region.market_trade_events = trade_events[-500:]
             from economy.actor_accounts import record as record_economic_event
             record_economic_event(region, 'spot_sale', turn=t, payer_id=buyer.id,
@@ -683,6 +702,10 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
                                           'source_unit_cost': source_unit_cost,
                                           'freight_per_unit': freight_per_unit,
                                           'source_currency': source_currency,
+                                          'source_cost_status': source_cost_status,
+                                          'source_shipment_id': source_shipment_id,
+                                          'source_region': source_region,
+                                          'route_history': route_history,
                                           'seller_receipt': seller.cash - seller_cash_before +
                                               _fx.fx_balance(seller, region.home_currency) - seller_wallet_before,
                                           'government_receipt':

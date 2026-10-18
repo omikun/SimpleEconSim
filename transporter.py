@@ -29,7 +29,7 @@ class Route:
         self.dst = dst          # destination Region
         self.base_delay = base_delay
         self.capacity_per_unit = capacity_per_unit
-        self.pending = []       # posted this turn: [trader, good, qty, location]
+        self.pending = []       # posted this turn, followed by optional cost/provenance
         self.in_transit = []    # en route:        [trader, good, qty, turns_left, location]
         self.delivered_this_turn = []   # (trader, good, qty) matured this turn
         self.parked_this_turn = []      # (trader, good, qty) matured into parked_foreign
@@ -64,9 +64,12 @@ class Route:
         self._next_shipment_id += 1
         if unit_cost is None:
             unit_cost = float(trader.cost_get(good, 0.0))
+        unit_cost = float(unit_cost)
+        source_currency = source_currency or getattr(self.src, 'home_currency', None)
+        cost_status = 'trader_cost_basis' if unit_cost > 0 else 'unknown_cost_basis'
         self.pending.append([trader, good, qty, self.src.name, shipment_id,
-                             float(unit_cost), float(freight_per_unit),
-                             source_currency or getattr(self.src, 'home_currency', None)])
+                             unit_cost, float(freight_per_unit), source_currency,
+                             shipment_id, self.src.name, cost_status, [self.name]])
         return qty
 
     def post_parked(self, trader, good, qty):
@@ -83,7 +86,83 @@ class Route:
         if qty <= 0:
             return 0
         trader.parked_sub(src_name, good, qty)
-        self.pending.append([trader, good, qty, src_name])
+        remaining = qty
+        lots = getattr(trader, 'import_lots', [])
+        for lot in lots:
+            if (remaining <= 0 or lot.get('destination') != src_name
+                    or lot.get('good') != good.name or not lot.get('parked', False)):
+                continue
+            available = max(0, int(lot.get('quantity', 0)))
+            moved = min(available, remaining)
+            if moved <= 0:
+                continue
+            lot['quantity'] = available - moved
+            shipment_id = f'{self.name}:{self._next_shipment_id}'
+            self._next_shipment_id += 1
+            history = list(lot.get('route_history') or [])
+            history.append(self.name)
+            self.pending.append([
+                trader, good, moved, src_name, shipment_id,
+                lot.get('unit_cost'), float(lot.get('freight_per_unit') or 0.0),
+                lot.get('source_currency'),
+                lot.get('source_shipment_id') or lot.get('shipment_id'),
+                lot.get('source_region') or src_name,
+                lot.get('source_cost_status') or 'unlinked_legacy_cargo', history])
+            from economy.actor_accounts import record as record_economic_event
+            record_economic_event(self.src, 'shipment_departure', payer_id=trader.id,
+                                  good=good, quantity=moved, asset_id=shipment_id,
+                                  currency=lot.get('source_currency'),
+                                  detail={'destination': self.dst.name,
+                                          'shipment_id': shipment_id,
+                                          'source_shipment_id':
+                                              lot.get('source_shipment_id') or lot.get('shipment_id'),
+                                          'source_region': lot.get('source_region') or src_name,
+                                          'source_unit_cost': lot.get('unit_cost'),
+                                          'freight_per_unit': lot.get('freight_per_unit'),
+                                          'source_cost_status': lot.get('source_cost_status') or
+                                              'unlinked_legacy_cargo',
+                                          'route_history': history})
+            from run_trace import emit
+            emit(self.src, kind='route_shipment_departure', record_class='observation',
+                 subject={'type': 'shipment', 'id': shipment_id},
+                 inputs={'trader_id': trader.id, 'good': good.name,
+                         'quantity': moved, 'source_shipment_id':
+                             lot.get('source_shipment_id') or lot.get('shipment_id'),
+                         'source_region': lot.get('source_region') or src_name,
+                         'source_unit_cost': lot.get('unit_cost'),
+                         'freight_per_unit': lot.get('freight_per_unit'),
+                         'source_currency': lot.get('source_currency'),
+                         'source_cost_status': lot.get('source_cost_status') or
+                             'unlinked_legacy_cargo',
+                         'route_history': history})
+            remaining -= moved
+        if remaining > 0:
+            shipment_id = f'{self.name}:{self._next_shipment_id}'
+            self._next_shipment_id += 1
+            self.pending.append([trader, good, remaining, src_name, shipment_id,
+                                 None, 0.0, getattr(self.src, 'home_currency', None),
+                                 None, src_name, 'unlinked_legacy_cargo', [self.name]])
+            from economy.actor_accounts import record as record_economic_event
+            record_economic_event(self.src, 'shipment_departure', payer_id=trader.id,
+                                  good=good, quantity=remaining, asset_id=shipment_id,
+                                  detail={'destination': self.dst.name,
+                                          'shipment_id': shipment_id,
+                                          'source_shipment_id': None,
+                                          'source_region': src_name,
+                                          'source_unit_cost': None,
+                                          'freight_per_unit': 0.0,
+                                          'source_cost_status': 'unlinked_legacy_cargo',
+                                          'route_history': [self.name]})
+            from run_trace import emit
+            emit(self.src, kind='route_shipment_departure', record_class='observation',
+                 subject={'type': 'shipment', 'id': shipment_id},
+                 inputs={'trader_id': trader.id, 'good': good.name,
+                         'quantity': remaining, 'source_shipment_id': None,
+                         'source_region': src_name, 'source_unit_cost': None,
+                         'freight_per_unit': 0.0,
+                         'source_currency': getattr(self.src, 'home_currency', None),
+                         'source_cost_status': 'unlinked_legacy_cargo',
+                         'route_history': [self.name]})
         return qty
 
     # ------------------------------------------------------------------
@@ -109,32 +188,62 @@ class Route:
                 unit_cost = entry[6] if len(entry) > 6 else None
                 freight_per_unit = entry[7] if len(entry) > 7 else 0.0
                 source_currency = entry[8] if len(entry) > 8 else None
+                source_shipment_id = entry[9] if len(entry) > 9 else shipment_id
+                source_region = entry[10] if len(entry) > 10 else self.src.name
+                source_cost_status = (entry[11] if len(entry) > 11 else
+                                      ('trader_cost_basis' if unit_cost else 'unknown_cost_basis'))
+                route_history = list(entry[12] if len(entry) > 12 and entry[12] else [self.name])
                 # T1: the cargo matures HERE (this route's dst) no matter what.
                 # If the trader re-pointed away, park it instead of letting it
                 # ride the trader's new destination.
                 if getattr(trader, 'destination_region', None) is not self.dst:
                     trader.parked_add(self.dst.name, good, qty)
                     self.parked_this_turn.append((trader, good, qty))
+                    parked = True
                 else:
                     trader.inventory_foreign[good.value] += qty
                     self.delivered_this_turn.append((trader, good, qty))
-                    if shipment_id is not None:
-                        lots = getattr(trader, 'import_lots', [])
-                        lots.append({'shipment_id': shipment_id, 'good': good.name,
-                                     'destination': self.dst.name, 'quantity': qty,
-                                     'unit_cost': unit_cost, 'freight_per_unit': freight_per_unit,
-                                     'source_currency': source_currency,
-                                     'source_region': self.src.name})
-                        trader.import_lots = lots[-500:]
-                        from economy.actor_accounts import record as record_economic_event
-                        record_economic_event(self.src, 'shipment_arrival',
-                                              payer_id=trader.id, good=good,
-                                              quantity=qty, asset_id=shipment_id,
-                                              currency=source_currency,
-                                              detail={'destination': self.dst.name,
-                                                      'source_unit_cost': unit_cost,
-                                                      'freight_per_unit': freight_per_unit,
-                                                      'shipment_id': shipment_id})
+                    parked = False
+                if shipment_id is not None:
+                    lots = getattr(trader, 'import_lots', [])
+                    lots.append({'shipment_id': shipment_id,
+                                 'source_shipment_id': source_shipment_id,
+                                 'good': good.name, 'destination': self.dst.name,
+                                 'quantity': qty, 'unit_cost': unit_cost,
+                                 'freight_per_unit': freight_per_unit,
+                                 'source_currency': source_currency,
+                                 'source_region': source_region,
+                                 'source_cost_status': source_cost_status,
+                                 'route_history': route_history, 'parked': parked})
+                    trader.import_lots = lots[-500:]
+                    from economy.actor_accounts import record as record_economic_event
+                    record_economic_event(self.src, 'shipment_arrival',
+                                          payer_id=trader.id, good=good,
+                                          quantity=qty, asset_id=shipment_id,
+                                          currency=source_currency,
+                                          detail={'destination': self.dst.name,
+                                                  'source_unit_cost': unit_cost,
+                                                  'freight_per_unit': freight_per_unit,
+                                                  'shipment_id': shipment_id,
+                                                  'source_shipment_id': source_shipment_id,
+                                                  'source_region': source_region,
+                                                  'source_cost_status': source_cost_status,
+                                                  'route_history': route_history,
+                                                  'parked': parked})
+                    from run_trace import emit
+                    emit(self.src, kind='route_shipment_arrival',
+                         record_class='observation',
+                         subject={'type': 'shipment', 'id': shipment_id},
+                         inputs={'trader_id': trader.id, 'good': good.name,
+                                 'quantity': qty, 'destination': self.dst.name,
+                                 'source_shipment_id': source_shipment_id,
+                                 'source_region': source_region,
+                                 'source_unit_cost': unit_cost,
+                                 'freight_per_unit': freight_per_unit,
+                                 'source_currency': source_currency,
+                                 'source_cost_status': source_cost_status,
+                                 'route_history': route_history,
+                                 'parked': parked})
             else:
                 remaining.append(entry)
         self.in_transit = remaining
@@ -183,5 +292,11 @@ class Route:
             else:
                 kept.append(entry)
         self.in_transit = kept
-        # Also drop anything this trader posted but never loaded
-        self.pending = [e for e in self.pending if e[0] is not trader]
+        # Return anything posted but not yet loaded, too.
+        pending = []
+        for entry in self.pending:
+            if entry[0] is trader:
+                trader.inventory_export[entry[1].value] += entry[2]
+            else:
+                pending.append(entry)
+        self.pending = pending

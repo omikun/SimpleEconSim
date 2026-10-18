@@ -240,7 +240,11 @@ def seal_turn(region, turn, event_regions=None):
                  'quantity': e['quantity'], 'paid_unit_price': e['detail'].get('unit_price'),
                  'source_unit_cost': e['detail'].get('source_unit_cost'),
                  'freight_per_unit': e['detail'].get('freight_per_unit'),
-                 'source_currency': e['detail'].get('source_currency')}
+                 'source_currency': e['detail'].get('source_currency'),
+                 'source_cost_status': e['detail'].get('source_cost_status'),
+                 'source_shipment_id': e['detail'].get('source_shipment_id'),
+                 'source_region': e['detail'].get('source_region'),
+                 'route_history': list(e['detail'].get('route_history') or [])}
                 for e in delivered_imports],
             'other_costs_cash': round(other_costs, 2),
             'input_consumed_cost': round(input_used, 2),

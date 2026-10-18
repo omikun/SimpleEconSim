@@ -225,7 +225,24 @@ def post_exports_to_route(region):
                                           detail={'destination': route.dst.name,
                                                   'source_unit_cost': unit_cost,
                                                   'freight_per_unit': freight_unit,
-                                                  'shipment_id': shipment[4]})
+                                                  'shipment_id': shipment[4],
+                                                  'source_shipment_id': shipment[8],
+                                                  'source_region': shipment[9],
+                                                  'source_cost_status': shipment[10],
+                                                  'route_history': list(shipment[11])})
+                    from run_trace import emit
+                    emit(region, kind='route_shipment_departure',
+                         record_class='observation',
+                         subject={'type': 'shipment', 'id': shipment[4]},
+                         inputs={'trader_id': trader.id, 'good': g.name,
+                                 'quantity': moved,
+                                 'source_shipment_id': shipment[8],
+                                 'source_region': shipment[9],
+                                 'source_unit_cost': unit_cost,
+                                 'freight_per_unit': freight_unit,
+                                 'source_currency': shipment[7],
+                                 'source_cost_status': shipment[10],
+                                 'route_history': list(shipment[11])})
 
 
 def liquidation_price(good, cost_basis):

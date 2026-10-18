@@ -154,16 +154,27 @@ already fun or balanced; that still needs player feedback.
   paid destination price back to it. The actor account and both clients show
   actual imported input unit prices; the account also exposes shipment IDs,
   source cost, and freight as separate values.
+- Parked arrivals now receive import-lot records too. A parked sale retains the
+  same cost and shipment link, and re-routing creates a new route-leg ID while
+  keeping the original source shipment, source region, cost status, and full
+  route history. Legacy parked quantities without a lot are tagged
+  `unlinked_legacy_cargo` instead of being assigned invented costs. Shipment
+  departure, arrival, and sale records carry the same provenance in the
+  economic journal and compact causal trace. Reclaiming a trader also returns
+  cargo still waiting in a route's pending queue to export stock.
 - The source cost is the trader's weighted acquisition cost at posting. It is
   not yet a complete named farmgate receipt ledger for every way cargo can be
-  gathered, and parked/re-routed legacy cargo does not retain the same link.
-  FX and tariff conversions also remain separate cash legs rather than a fully
-  normalized per-shipment delivered-cost calculation.
+  gathered. FX and tariff conversions remain separate cash legs rather than a
+  fully normalized per-shipment delivered-cost calculation.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_supply_control_actor_strategy test_supply_rights test_market_auction test_market_routes test_web_client_parity test_truck_system_and_scrip` — 67 tests passed after bank debt, company-store debt, campaign-currency, and linked shipment additions.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_run_trace test_market_auction test_supply_control_actor_strategy test_phase1_enclosure_expansions` — 34 tests passed after inheritance, cash-rent, enclosure-fee, and public food-purchase postings.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_supply_control_actor_strategy.ActorAccountTests test_supply_control_actor_strategy.SupplyControlActorFixtureTests test_phase1_enclosure_expansions` — 29 tests passed after shared-province cash postings and alienation-flow instrumentation.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_supply_control_actor_strategy.ActorAccountTests.test_estate_debt_settlement_records_foreign_payment_and_inherited_principal test_supply_control_actor_strategy.ActorAccountTests.test_heirless_default_records_loss_waterfall_and_treasury_funding` — estate repayments, multi-currency inherited debt, deposit bail-in, and treasury recapitalization postings passed.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_supply_control_actor_strategy.ActorAccountTests test_supply_control_actor_strategy.SupplyControlActorFixtureTests test_phase1_enclosure_expansions` — 31 tests passed after the estate-debt journal additions. `test_run_trace` passed all 17 tests; `test_true_cost_externalities` passed all 10 when run alone.
+- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_market_routes test_market_auction test_phase4 test_supply_control_actor_strategy.ActorAccountTests test_run_trace` — 52 tests passed after parked and re-routed shipment provenance, trace linkage, and pending-cargo reclaim.
+- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_supply_control_actor_strategy test_supply_rights test_market_auction test_market_routes test_web_client_parity test_truck_system_and_scrip test_run_trace` — 100 tests passed across the actor-account, rights, market, route, web-parity, truck/scrip, and trace suites.
+- `git diff --check` and `venv/bin/python -m compileall -q transporter.py world_trade.py region_market.py region_logistics.py economy/actor_accounts.py` — passed for the shipment-provenance slice.
+- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_default.py 50 4242` — default three-nation 50-turn run completed with zero currency violations, zero unmatched cash on turn 50, and zero unmatched cash across actor-turn statements.
 - `node --check web_client/client.js` and `git diff --check` — passed after the same changes.
 - `node --check web_client/client.js` — passed.
 - `git diff --check` — passed.

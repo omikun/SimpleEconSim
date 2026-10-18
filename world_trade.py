@@ -42,7 +42,7 @@ T1_MARGIN_MIN = 0.05
 def pending_imports(dest, src):
     """Goods that *src*'s traders have physically delivered to *dest*.
 
-    Returns {Goods.good: [(trader, qty, is_parked), ...]}.
+    Returns {Goods.good: [(trader, qty, is_parked, ...provenance), ...]}.
       - Active pool: ``inventory_foreign`` lots whose current destination is
         *dest* (same rule as the legacy two-region helper) -> is_parked=False.
       - Parked pool (T1): lots that matured at *dest* after the trader
@@ -59,6 +59,7 @@ def pending_imports(dest, src):
                     continue
                 lots = [lot for lot in getattr(trader, 'import_lots', [])
                         if lot.get('destination') == dest.name and lot.get('good') == g.name
+                        and not lot.get('parked', False)
                         and int(lot.get('quantity', 0)) > 0]
                 lot_qty = sum(int(lot['quantity']) for lot in lots)
                 for lot in lots:
@@ -66,16 +67,38 @@ def pending_imports(dest, src):
                                                    lot.get('shipment_id'),
                                                    lot.get('unit_cost'),
                                                    lot.get('freight_per_unit'),
-                                                   lot.get('source_currency')))
+                                                   lot.get('source_currency'),
+                                                   lot.get('source_cost_status'),
+                                                   lot.get('source_shipment_id'),
+                                                   lot.get('source_region'),
+                                                   list(lot.get('route_history') or [])))
                 qty = max(0, int(trader.inventory_foreign[g.value]) - lot_qty)
                 if qty > 0:
-                    pend.setdefault(g, []).append((trader, qty, False))
+                    pend.setdefault(g, []).append((trader, qty, False, None, None,
+                                                   None, None, 'unlinked_legacy_cargo',
+                                                   None, None, []))
         for g in TRADE_GOODS:
             if g not in getattr(dest, 'recipes', {}):
                 continue
-            qty = trader.parked_get(dest.name, g, 0)
+            lots = [lot for lot in getattr(trader, 'import_lots', [])
+                    if lot.get('destination') == dest.name and lot.get('good') == g.name
+                    and lot.get('parked', False) and int(lot.get('quantity', 0)) > 0]
+            lot_qty = sum(int(lot['quantity']) for lot in lots)
+            for lot in lots:
+                pend.setdefault(g, []).append((trader, int(lot['quantity']), True,
+                                               lot.get('shipment_id'),
+                                               lot.get('unit_cost'),
+                                               lot.get('freight_per_unit'),
+                                               lot.get('source_currency'),
+                                               lot.get('source_cost_status'),
+                                               lot.get('source_shipment_id'),
+                                               lot.get('source_region'),
+                                               list(lot.get('route_history') or [])))
+            qty = max(0, int(trader.parked_get(dest.name, g, 0)) - lot_qty)
             if qty > 0:
-                pend.setdefault(g, []).append((trader, qty, True))
+                pend.setdefault(g, []).append((trader, qty, True, None, None, None,
+                                               None, 'unlinked_legacy_cargo', None,
+                                               None, []))
     return pend
 
 

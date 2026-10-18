@@ -13,6 +13,28 @@ from world_trade import pending_imports
 
 
 class MarketRouteTests(unittest.TestCase):
+    def _trader(self, source, destination, qty=3):
+        trader = Agent(0)
+        initialize_agent(trader, Goods.food, 0, 0, 50.0)
+        trader.is_trader = True
+        trader.home_region = source.name
+        trader.home_currency = 'D'
+        trader.destination_region = destination
+        trader.inventory_export[Goods.cotton.value] = qty
+        trader.cost_set(Goods.cotton, 5.0)
+        source.trader_agents = [trader]
+        return trader
+
+    def _destination_market(self, destination, source, imports):
+        return SimpleNamespace(
+            name=destination.name, home_currency='D', recipes=destination.recipes,
+            neighbors={source.name: source}, destination_region=source,
+            forex_desks={}, forex=None, exchange_rate=1.0,
+            _trade_fee_mult=1.0, gov=None,
+            IMPORT_MARGIN_MIN=0.05, IMPORT_MARGIN_MAX=0.30,
+            _auction_import_sales={}, pending_imports=imports,
+        )
+
     def test_route_carries_cotton_from_export_stock_to_import_pool(self):
         source = SimpleNamespace(name='Upland', home_currency='D', routes={}, neighbors={},
                                  transport_delay=1,
@@ -78,6 +100,146 @@ class MarketRouteTests(unittest.TestCase):
         self.assertEqual(imported_sale['detail']['shipment_id'], shipment_id)
         self.assertEqual(imported_sale['detail']['source_unit_cost'], 5.0)
         self.assertAlmostEqual(imported_sale['detail']['unit_price'], paid / 3)
+
+    def test_parked_shipment_can_be_sold_with_its_original_provenance(self):
+        source = SimpleNamespace(name='Upland', home_currency='D', routes={}, neighbors={},
+                                 forex_desks={}, forex=None,
+                                 recipes={Goods.cotton: {'price': 5.0}})
+        parked_tile = SimpleNamespace(name='Lowland', recipes={Goods.cotton: {'price': 10.0}})
+        new_destination = SimpleNamespace(name='Highland')
+        route = Route('Upland->Lowland', source, parked_tile, base_delay=1)
+        trader = self._trader(source, parked_tile)
+        route.post(trader, Goods.cotton, 3, unit_cost=5.0, freight_per_unit=0.75)
+        shipment_id = route.pending[0][4]
+        route.deliver_pending()
+        trader.destination_region = new_destination
+        route.advance()
+
+        imports = pending_imports(parked_tile, source)
+        offered = imports[Goods.cotton][0]
+        self.assertEqual(offered[:4], (trader, 3, True, shipment_id))
+        self.assertEqual(offered[4:10], (5.0, 0.75, 'D', 'trader_cost_basis',
+                                         shipment_id, 'Upland'))
+        self.assertEqual(offered[10], ['Upland->Lowland'])
+
+        market = self._destination_market(parked_tile, source, imports)
+        buyer = Agent(0)
+        initialize_agent(buyer, Goods.cloth, 2, 0, 100.0)
+        buyer.is_corporation = True
+        buyer.inv_set(Goods.cotton, 0)
+        clear_discriminatory(
+            market, Goods.cotton, 10.0, total_asks=3, total_bids=3,
+            imp_pool=imports[Goods.cotton], agents=[buyer], t=1,
+            local_orders={'sellers': [], 'buyers': [
+                {'agent': buyer, 'quantity': 3, 'limit_price': 10.0},
+            ]})
+        sale = next(e for e in market.economic_events if e['kind'] == 'spot_sale')
+        detail = sale['detail']
+        self.assertTrue(detail['parked'])
+        self.assertEqual(detail['shipment_id'], shipment_id)
+        self.assertEqual(detail['source_shipment_id'], shipment_id)
+        self.assertEqual(detail['source_region'], 'Upland')
+        self.assertEqual(detail['source_cost_status'], 'trader_cost_basis')
+        self.assertEqual(detail['route_history'], ['Upland->Lowland'])
+        self.assertEqual(trader.parked_get(parked_tile.name, Goods.cotton), 0)
+        self.assertEqual(trader.import_lots[0]['quantity'], 0)
+
+    def test_rerouted_parked_shipment_retains_source_link_and_route_history(self):
+        source = SimpleNamespace(name='Upland', home_currency='D', routes={}, neighbors={},
+                                 forex_desks={}, forex=None,
+                                 recipes={Goods.cotton: {'price': 5.0}})
+        middle = SimpleNamespace(name='Lowland', home_currency='D', routes={},
+                                 neighbors={'Highland': True})
+        destination = SimpleNamespace(name='Highland', recipes={Goods.cotton: {'price': 15.0}})
+        first_route = Route('Upland->Lowland', source, middle, base_delay=1)
+        trader = self._trader(source, middle)
+        first_route.post(trader, Goods.cotton, 3, unit_cost=5.0, freight_per_unit=0.75)
+        source_shipment_id = first_route.pending[0][4]
+        first_route.deliver_pending()
+        trader.destination_region = destination
+        first_route.advance()
+        self.assertEqual(trader.parked_get(middle.name, Goods.cotton), 3)
+
+        onward = Route('Lowland->Highland', middle, destination, base_delay=1)
+        middle.routes = {destination.name: onward}
+        trace_rows = []
+        middle._collective_trace_clock = {'next': 1, 'turn': 2, 'phase': 'trade'}
+
+        def collect_trace(clock, **row):
+            clock['next'] += 1
+            trace_rows.append(row)
+            return f'test:{clock["next"]}'
+
+        middle._run_trace = SimpleNamespace(emit=collect_trace)
+        self.assertEqual(onward.post_parked(trader, Goods.cotton, 3), 3)
+        pending = onward.pending[0]
+        self.assertEqual(pending[4], 'Lowland->Highland:1')
+        self.assertEqual(pending[5], 5.0)
+        self.assertEqual(pending[6], 0.75)
+        self.assertEqual(pending[8], source_shipment_id)
+        self.assertEqual(pending[9], 'Upland')
+        self.assertEqual(pending[10], 'trader_cost_basis')
+        self.assertEqual(pending[11], ['Upland->Lowland', 'Lowland->Highland'])
+
+        onward.deliver_pending()
+        onward.advance()
+        imports = pending_imports(destination, source)
+        offered = imports[Goods.cotton][0]
+        self.assertEqual(offered[3], pending[4])
+        self.assertEqual(offered[4], 5.0)
+        self.assertEqual(offered[5], 0.75)
+        self.assertEqual(offered[8], source_shipment_id)
+        self.assertEqual(offered[9], 'Upland')
+        self.assertEqual(offered[10], ['Upland->Lowland', 'Lowland->Highland'])
+
+        market = self._destination_market(destination, source, imports)
+        buyer = Agent(1)
+        initialize_agent(buyer, Goods.cloth, 2, 0, 100.0)
+        buyer.is_corporation = True
+        buyer.inv_set(Goods.cotton, 0)
+        clear_discriminatory(
+            market, Goods.cotton, 15.0, total_asks=3, total_bids=3,
+            imp_pool=imports[Goods.cotton], agents=[buyer], t=2,
+            local_orders={'sellers': [], 'buyers': [
+                {'agent': buyer, 'quantity': 3, 'limit_price': 15.0},
+            ]})
+        sale = next(e for e in market.economic_events if e['kind'] == 'spot_sale')
+        self.assertEqual(sale['detail']['shipment_id'], pending[4])
+        self.assertEqual(sale['detail']['source_shipment_id'], source_shipment_id)
+        self.assertEqual(sale['detail']['source_region'], 'Upland')
+        self.assertEqual(sale['detail']['route_history'],
+                         ['Upland->Lowland', 'Lowland->Highland'])
+        arrival_rows = [row for row in trace_rows
+                        if row['kind'] == 'route_shipment_arrival']
+        departure_rows = [row for row in trace_rows
+                          if row['kind'] == 'route_shipment_departure']
+        self.assertEqual(len(arrival_rows), 1)
+        self.assertEqual(len(departure_rows), 1)
+        self.assertEqual(arrival_rows[0]['inputs']['source_shipment_id'], source_shipment_id)
+        self.assertEqual(arrival_rows[0]['inputs']['route_history'],
+                         ['Upland->Lowland', 'Lowland->Highland'])
+
+    def test_unlinked_parked_cargo_is_tagged_when_rerouted(self):
+        source = SimpleNamespace(name='Lowland', home_currency='D')
+        destination = SimpleNamespace(name='Highland')
+        trader = self._trader(source, destination, qty=0)
+        trader.parked_add(source.name, Goods.cotton, 4)
+        route = Route('Lowland->Highland', source, destination)
+        self.assertEqual(route.post_parked(trader, Goods.cotton, 4), 4)
+        self.assertEqual(route.pending[0][5], None)
+        self.assertEqual(route.pending[0][8], None)
+        self.assertEqual(route.pending[0][10], 'unlinked_legacy_cargo')
+
+    def test_reclaim_returns_not_yet_loaded_pending_cargo(self):
+        source = SimpleNamespace(name='Upland', home_currency='D')
+        destination = SimpleNamespace(name='Lowland')
+        route = Route('Upland->Lowland', source, destination)
+        trader = self._trader(source, destination, qty=7)
+        self.assertEqual(route.post(trader, Goods.cotton, 5, unit_cost=5.0), 5)
+        self.assertEqual(trader.inventory_export[Goods.cotton.value], 2)
+        route.reclaim(trader)
+        self.assertEqual(trader.inventory_export[Goods.cotton.value], 7)
+        self.assertEqual(route.pending, [])
 
     def test_trader_repoints_toward_profitable_requested_input(self):
         source = SimpleNamespace(
