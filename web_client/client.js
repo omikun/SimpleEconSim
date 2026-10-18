@@ -3023,9 +3023,13 @@
       for (const account of accounts) {
         const row = document.createElement('div');
         row.className = 'market-actor-line';
+        const debtReliefAmount = Number(account.company_debt_written_off || 0);
+        const receivableLossAmount = Number(account.company_receivable_written_off || 0);
         const earned = account.type === 'grower'
           ? `crop value $${Number(account.crop_value).toFixed(2)} · cash receipts $${Number(account.sales_cash).toFixed(2)}`
-          : `sales cash $${Number(account.sales_cash).toFixed(2)} · input used $${Number(account.input_consumed_cost).toFixed(2)} · wages $${Number(account.wages_cash).toFixed(2)}`;
+          : account.type === 'other' && debtReliefAmount > 0
+            ? 'company debt relief (noncash)'
+            : `sales cash $${Number(account.sales_cash).toFixed(2)} · input used $${Number(account.input_consumed_cost).toFixed(2)} · wages $${Number(account.wages_cash).toFixed(2)}`;
         const delivered = Number(account.delivered_input_purchase_units || 0) > 0
           ? ` · imported input ${Number(account.delivered_input_purchase_units).toFixed(1)} at $${Number(account.delivered_input_unit_price).toFixed(2)}/unit` : '';
         const unposted = Math.abs(Number(account.unposted_cash_change || 0)) > 0.01
@@ -3038,7 +3042,11 @@
           ? ` · deposits $${Number(account.opening_bank_deposit).toFixed(2)} → $${Number(account.closing_bank_deposit).toFixed(2)}` : '';
         const companyDebt = Number(account.opening_company_debt || 0) || Number(account.closing_company_debt || 0)
           ? ` · company debt $${Number(account.opening_company_debt).toFixed(2)} → $${Number(account.closing_company_debt).toFixed(2)}` : '';
-        row.textContent = `${account.actor_name}: ${earned}${delivered} · cash $${Number(account.opening_cash).toFixed(2)} → $${Number(account.closing_cash).toFixed(2)}${scrip} · food ${account.opening_food} → ${account.closing_food} · debt $${Number(account.opening_debt).toFixed(2)} → $${Number(account.closing_debt).toFixed(2)}${companyDebt}${bankDebt}${deposits}${unposted}. Recorded costs may be incomplete.`;
+        const companyDebtRelief = debtReliefAmount > 0
+          ? ` · company debt discharged $${debtReliefAmount.toFixed(2)}` : '';
+        const companyCreditLoss = receivableLossAmount > 0
+          ? ` · store receivable written off $${receivableLossAmount.toFixed(2)}` : '';
+        row.textContent = `${account.actor_name}: ${earned}${delivered} · cash $${Number(account.opening_cash).toFixed(2)} → $${Number(account.closing_cash).toFixed(2)}${scrip} · food ${account.opening_food} → ${account.closing_food} · debt $${Number(account.opening_debt).toFixed(2)} → $${Number(account.closing_debt).toFixed(2)}${companyDebt}${companyDebtRelief}${companyCreditLoss}${bankDebt}${deposits}${unposted}. Recorded costs may be incomplete.`;
         supplyDetails.appendChild(row);
       }
 

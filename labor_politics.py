@@ -346,11 +346,36 @@ def enact_anti_truck_act(target) -> Tuple[bool, str]:
             if getattr(a, 'is_corporation', False):
                 a.pay_mode = "cash"
             if getattr(a, 'company_debt', 0.0) > 0:
-                debt_discharged_total += a.company_debt
+                debt_before = float(a.company_debt)
+                debt_discharged_total += debt_before
                 a.company_debt = 0.0
                 peons_freed += 1
                 a.despair = max(0.0, getattr(a, 'despair', 0.0) - 0.20)
                 a.mem_push('mem_promises', 1.0)
+                creditor_id = getattr(getattr(a, 'employer', None), 'id', None)
+                turn = (getattr(tile, '_collective_trace_clock', {}) or {}).get(
+                    'turn', getattr(tile, '_last_turn', 0))
+                from economy.actor_accounts import record as record_economic_event
+                event = record_economic_event(
+                    tile, 'company_debt_writeoff', turn=turn,
+                    payer_id=a.id, recipient_id=creditor_id,
+                    amount=debt_before,
+                    asset_id=f'company-debt:{creditor_id or tile.name}:{a.id}',
+                    detail={'debtor_id': a.id, 'creditor_id': creditor_id,
+                            'law': 'anti_truck_act',
+                            'company_debt_before': debt_before,
+                            'company_debt_after': 0.0})
+                from run_trace import emit
+                emit(tile, kind='company_store_debt_cancelled',
+                     record_class='outcome', phase='policy',
+                     subject={'type': 'tile', 'id': tile.name,
+                              'worker_id': a.id, 'creditor_id': creditor_id},
+                     metric_id='finance.company_debt_writeoff',
+                     unit=getattr(tile, 'home_currency', None) or 'local_currency',
+                     before=debt_before, after=0.0,
+                     inputs={'economic_event_id': event['id'],
+                             'debtor_id': a.id, 'creditor_id': creditor_id,
+                             'law': 'anti_truck_act'})
         factions = getattr(getattr(tile, 'factions', None), 'factions', {})
         for fname in ('Labor', 'Peasant', 'Commoners'):
             if fname in factions:

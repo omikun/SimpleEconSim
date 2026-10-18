@@ -103,8 +103,12 @@ class TestTruckSystemAndScrip(unittest.TestCase):
         self.assertAlmostEqual(worker.alienation, 0.20)
 
     def test_anti_truck_act_enactment(self):
+        from economy.actor_accounts import begin_turn, seal_turn
+
         nat = Nation("Testland")
         tile = MockTile()
+        tile.home_currency = 'USD'
+        tile._last_turn = 4
         tile.owner_nation = nat
         nat.tiles = [tile]
 
@@ -119,6 +123,16 @@ class TestTruckSystemAndScrip(unittest.TestCase):
         corp.employees = [worker]
 
         tile.agents = [corp, worker]
+        class Recorder:
+            def __init__(self):
+                self.rows = []
+
+            def emit(self, clock, **row):
+                self.rows.append({'turn': clock['turn'], **row})
+
+        tile._collective_trace_clock = {'turn': 4, 'next': 1, 'phase': 'policy'}
+        tile._run_trace = Recorder()
+        begin_turn(tile, 4)
 
         self.assertFalse(nat.truck_act_enacted)
         self.assertEqual(corp.pay_mode, "scrip")
@@ -129,6 +143,21 @@ class TestTruckSystemAndScrip(unittest.TestCase):
         self.assertTrue(nat.truck_act_enacted)
         self.assertEqual(corp.pay_mode, "cash")
         self.assertEqual(worker.company_debt, 0.0)  # All peonage debt canceled!
+        rows = {row['actor_id']: row for row in seal_turn(tile, 4)}
+        self.assertEqual(rows[worker.id]['company_debt_written_off'], 25.0)
+        self.assertEqual(rows[corp.id]['company_receivable_written_off'], 25.0)
+        self.assertEqual(rows[worker.id]['cash_change'], 0.0)
+        self.assertEqual(rows[worker.id]['posted_cash_change'], 0.0)
+        writeoff = next(event for event in tile.economic_events
+                        if event['kind'] == 'company_debt_writeoff')
+        self.assertEqual(writeoff['turn'], 4)
+        self.assertEqual(writeoff['currency'], 'USD')
+        self.assertEqual(writeoff['payer_id'], worker.id)
+        self.assertEqual(writeoff['recipient_id'], corp.id)
+        self.assertEqual(tile._run_trace.rows[0]['metric_id'],
+                         'finance.company_debt_writeoff')
+        self.assertEqual(tile._run_trace.rows[0]['before'], 25.0)
+        self.assertEqual(tile._run_trace.rows[0]['after'], 0.0)
 
         # Now verify pay_wages under enacted Truck Act:
         # Firm cannot pay in scrip even if low cash

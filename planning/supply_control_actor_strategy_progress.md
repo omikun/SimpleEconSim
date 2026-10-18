@@ -67,6 +67,9 @@ already fun or balanced; that still needs player feedback.
   heirless principal write-offs. The write-off event names how much was absorbed
   by bank capital, depositors, and treasury recapitalization; actor summaries
   keep debt amounts grouped by currency.
+- The Anti-Truck Act's company-store debt cancellation is recorded as a paired
+  noncash event: workers see the liability discharged, the employer sees its
+  store receivable written off, and neither side gets a false cash movement.
 - Remaining gate work: extend coverage to non-estate credit losses and other
   non-probate currency legs. Paid market purchases now
   link cargo from named sellers through route legs to destination fills;
@@ -163,6 +166,12 @@ already fun or balanced; that still needs player feedback.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_supply_control_actor_strategy test_supply_rights test_market_auction test_market_routes test_web_client_parity test_truck_system_and_scrip test_run_trace test_trace_codec test_banking_contagion` — 116 tests passed.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_default.py 50 4242` — default three-nation run completed 50 turns with zero currency violations, zero unposted actor cash on turn 50, and zero unposted actor-turn cash across the run.
 - `git diff --check` and targeted Python compilation passed for the bank, bond, snapshot, serializer, and test changes.
+- The Anti-Truck Act now links a debt write-off event to worker and employer
+  statements, records the law and currency in the causal trace, and shows the
+  worker relief or firm receivable loss in the web actor-account summary.
+- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_supply_control_actor_strategy test_supply_rights test_market_auction test_market_routes test_web_client_parity test_truck_system_and_scrip test_run_trace test_trace_codec test_banking_contagion` — 116 tests passed after the Anti-Truck Act ledger addition.
+- `node --check web_client/client.js`, targeted Python compilation, and
+  `git diff --check` passed for the Anti-Truck Act ledger and display changes.
 
 - Local FX desk conversions now record their home-currency cash leg and the
   foreign amount/rate in the same economic event; a focused account test checks

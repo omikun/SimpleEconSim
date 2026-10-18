@@ -80,6 +80,7 @@ METRICS = {
     'finance.bank_liabilities': ('tile', 'local_currency', 'econsim_trade_money.Bank.total_liabilities'),
     'finance.bank_bond_writeoff': ('tile/bond', 'local_currency', 'econsim_trade_money.Bank.write_down_bonds'),
     'finance.bank_cumulative_writedowns': ('tile', 'local_currency', 'econsim_trade_money.Bank.cumulative_writedowns'),
+    'finance.company_debt_writeoff': ('tile/worker/creditor', 'local_currency', 'labor_politics.enact_anti_truck_act'),
     'finance.bank_debt_inheritance': ('tile/agent', 'local_currency', 'demographics_estate.handle_debt_inheritance'),
     'finance.bank_debt_writeoff': ('tile/agent', 'local_currency', 'demographics_estate.forgive_bad_debt'),
     'finance.foreign_wallet_debt_payment': ('tile/agent', 'currency', 'demographics_estate.handle_debt_inheritance'),

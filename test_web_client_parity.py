@@ -48,6 +48,13 @@ class TestWebClientParity(unittest.TestCase):
 
     def test_tile_deep_inspection(self):
         inhabited = [t for t in self.sim.tiles if getattr(t, 'owner_nation', None) is not None][0]
+        accounts = list(getattr(inhabited, 'actor_turn_accounts', []))
+        accounts.append({
+            'actor_id': -999, 'actor_name': 'Company debt relief test worker',
+            'type': 'other', 'event_ids': [1], 'sales_cash': 0.0, 'crop_value': 0.0,
+            'company_debt_written_off': 25.0, 'company_receivable_written_off': 0.0,
+        })
+        inhabited.actor_turn_accounts = accounts
         data = self.sim.serialize_tile(inhabited, turn=self.sim.turn)
         self.assertIn('market_prices', data)
         self.assertIn('stockpiles', data)
@@ -68,6 +75,7 @@ class TestWebClientParity(unittest.TestCase):
         self.assertIn('livelihoods', data['labor_institutions'])
         self.assertIn('market_activity', data)
         self.assertIn('economic_actors', data)
+        self.assertTrue(any(row['actor_id'] == -999 for row in data['actor_accounts']))
         self.assertEqual(data['financial_institution']['type'], 'commercial_bank')
         self.assertIn('cumulative_bond_writeoffs', data['financial_institution'])
         self.assertIn('sovereign_bonds_held', data['financial_institution'])
