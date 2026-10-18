@@ -3,6 +3,7 @@ test_banking_contagion.py — Tests for Domestic Banking Contagion, Corralito Fr
 """
 
 import unittest
+from types import SimpleNamespace
 from agent import Agent
 from nation import Nation
 from econsim_trade_money import Bank
@@ -282,6 +283,17 @@ class TestBankingContagion(unittest.TestCase):
                              contract['operation_id'])
 
     def test_deposit_bailin_haircut_decree(self):
+        class MemoryTrace:
+            def __init__(self):
+                self.rows = []
+
+            def emit(self, clock, **row):
+                sequence = clock['next']
+                clock['next'] += 1
+                event_id = f'test:{sequence}'
+                self.rows.append({'event_id': event_id, **row})
+                return event_id
+
         bank = self.tile1.bank
         bank.capital = -50.0
         bank.is_frozen = True
@@ -289,6 +301,16 @@ class TestBankingContagion(unittest.TestCase):
         rich_depositor = Agent(2)
         bank.deposits[rich_depositor] = 500.0
         bank.total_deposits = 500.0
+
+        trace = MemoryTrace()
+        clock = {'turn': 9, 'phase': 'banking_policy', 'next': 1}
+        self.tile1.home_currency = 'USD'
+        self.tile1._run_trace = trace
+        self.tile1._collective_trace_clock = clock
+        self.nation.legitimacy = 0.7
+        bourgeoisie = SimpleNamespace(name='Bourgeoisie', loyalty=0.8)
+        workers = SimpleNamespace(name='Labor', loyalty=0.6)
+        self.nation.factions = [bourgeoisie, workers]
 
         # Haircut 25% on balances > 50: excess = 450, 25% = 112.50
         # 112.50 moved from deposits to capital
@@ -300,6 +322,32 @@ class TestBankingContagion(unittest.TestCase):
         self.assertAlmostEqual(bank.total_deposits, 387.50)
         self.assertAlmostEqual(bank.capital, 62.50)
         self.assertFalse(bank.is_frozen)  # Solvency restored!
+        transfer = next(row for row in trace.rows
+                        if row.get('metric_id') == 'finance.bank_bailin_transfer')
+        contract = transfer['inputs']['transfer_contract']
+        aggregate = next(row for row in trace.rows
+                         if row.get('kind') == 'bank_depositor_bail_in'
+                         and row.get('metric_id') == 'finance.bank_capital')
+        self.assertEqual(contract['contract_version'], 'bank_bailin.v1')
+        self.assertFalse(contract['cash_movement'])
+        self.assertEqual(contract['amount'], 112.5)
+        self.assertEqual(contract['payer_account']['balance_before'], 500.0)
+        self.assertEqual(contract['payer_account']['balance_after'], 387.5)
+        self.assertEqual(contract['payee_account']['balance_before'], -50.0)
+        self.assertEqual(contract['payee_account']['balance_after'], 62.5)
+        self.assertEqual(aggregate['inputs']['deposit_transfer_event_ids'],
+                         [transfer['event_id']])
+        loyalty = {row['inputs']['faction']: row for row in trace.rows
+                   if row.get('metric_id') == 'politics.faction_loyalty'}
+        self.assertAlmostEqual(loyalty['Bourgeoisie']['after'], 0.55)
+        self.assertAlmostEqual(loyalty['Labor']['after'], 0.55)
+        self.assertEqual(loyalty['Bourgeoisie']['cause_event_ids'],
+                         [aggregate['event_id']])
+        legitimacy = next(row for row in trace.rows
+                          if row.get('metric_id') == 'politics.legitimacy')
+        self.assertAlmostEqual(legitimacy['before'], 0.7)
+        self.assertAlmostEqual(legitimacy['after'], 0.55)
+        self.assertEqual(legitimacy['cause_event_ids'], [aggregate['event_id']])
 
 
 if __name__ == '__main__':

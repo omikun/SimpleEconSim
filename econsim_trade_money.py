@@ -389,13 +389,14 @@ class Bank():
         return (result, event_id) if return_event_id else result
 
     def apply_bail_in_haircut(self, haircut_pct: float = 0.25, exemption_floor: float = 50.0,
-                              trace_region=None) -> float:
+                              trace_region=None, *, return_event_id=False):
         """Execute a Cyprus-style statutory bail-in haircut on large deposits.
 
         Converts uninsured deposit liabilities into Tier-1 shareholder equity.
         """
         total_haircut = 0.0
         affected = []
+        bailin_event_ids = []
         capital_before = self.capital
         deposits_before = self.total_deposits
         for agent, dep in list(self.deposits.items()):
@@ -403,6 +404,8 @@ class Bank():
                 excess = dep - exemption_floor
                 cut = round(excess * haircut_pct, 2)
                 if cut > 0:
+                    depositor_balance_before = float(dep)
+                    bank_capital_before = float(self.capital)
                     self.deposits[agent] -= cut
                     self.total_deposits -= cut
                     self.capital += cut
@@ -411,18 +414,75 @@ class Bank():
                                                float(cut), payer=True,
                                                detail={'deposit_haircut': True})
                     affected.append({'agent_id': getattr(agent, 'id', None),
-                                     'deposit_before': dep, 'haircut': cut})
+                                     'deposit_before': dep,
+                                     'deposit_after': float(self.deposits[agent]),
+                                     'haircut': cut})
                     # Psychological and grievance impact on depositor
                     if hasattr(agent, 'despair'):
                         agent.despair = min(1.0, getattr(agent, 'despair', 0.0) + 0.20)
                     if hasattr(agent, 'alienation'):
                         agent.alienation = min(1.0, getattr(agent, 'alienation', 0.0) + 0.15)
+                    if trace_region is not None:
+                        from finance_trace import account_ref
+                        from run_trace import emit
+                        owner_nation = getattr(trace_region, 'owner_nation', None)
+                        currency = (getattr(owner_nation, 'currency', None)
+                                    or getattr(trace_region, 'home_currency', None)
+                                    or 'local_currency')
+                        clock = getattr(trace_region, '_collective_trace_clock', {}) or {}
+                        turn = int(clock.get('turn',
+                                             getattr(trace_region, '_last_turn', 0)))
+                        operation_id = (f'bank-bail-in:{trace_region.name}:{turn}:'
+                                        f'{getattr(agent, "id", None)}')
+                        deposit_account = account_ref(
+                            'depositor_bank_deposit', getattr(agent, 'id', None), currency,
+                            balance_before=depositor_balance_before,
+                            balance_after=float(self.deposits[agent]),
+                            balance_scope='depositor_bank_deposit')
+                        capital_account = account_ref(
+                            'bank_capital', trace_region.name, currency,
+                            balance_before=bank_capital_before,
+                            balance_after=float(self.capital), balance_scope='capital')
+                        contract = {
+                            'contract_version': 'bank_bailin.v1',
+                            'operation_id': operation_id,
+                            'operation_type': 'deposit_to_equity_conversion',
+                            'amount': float(cut), 'amount_currency': currency,
+                            'side': 'depositor_asset_loss_bank_equity_gain',
+                            'payer_account': deposit_account,
+                            'payee_account': capital_account,
+                            'cash_movement': False,
+                            'currency_conversion_applied': False,
+                            'counterparty_leg_status': 'deposit_reduction_matches_equity_increase',
+                            'mutation_reference': {'bank_tile': trace_region.name,
+                                                   'depositor_id': getattr(agent, 'id', None),
+                                                   'haircut_fraction': float(haircut_pct),
+                                                   'exemption_floor': float(exemption_floor)},
+                        }
+                        event_id = emit(
+                            trace_region, kind='bank_depositor_bail_in_transfer',
+                            record_class='transfer', phase='banking_policy',
+                            subject={'type': 'tile', 'id': trace_region.name,
+                                     'depositor_id': getattr(agent, 'id', None)},
+                            metric_id='finance.bank_bailin_transfer', unit=currency,
+                            after=float(cut), inputs={'operation_id': operation_id,
+                                'transfer_contract': contract,
+                                'deposit_before': depositor_balance_before,
+                                'deposit_after': float(self.deposits[agent]),
+                                'bank_capital_before': bank_capital_before,
+                                'bank_capital_after': float(self.capital),
+                                'haircut_fraction': float(haircut_pct),
+                                'exemption_floor': float(exemption_floor)})
+                        if event_id is not None:
+                            bailin_event_ids.append(event_id)
+                        affected[-1]['operation_id'] = operation_id
         if self.capital > 0.0:
             self.is_frozen = False
             self.frozen_turns = 0
         if trace_region is not None:
             from run_trace import emit
-            emit(trace_region, kind='bank_depositor_bail_in', record_class='outcome',
+            aggregate_event_id = emit(
+                 trace_region, kind='bank_depositor_bail_in', record_class='outcome',
                  subject={'type': 'tile', 'id': trace_region.name},
                  metric_id='finance.bank_capital', unit='local_currency',
                  before=capital_before, after=self.capital,
@@ -432,8 +492,12 @@ class Bank():
                          'deposits_before': deposits_before,
                          'deposits_after': self.total_deposits,
                          'affected_depositors': affected,
+                         'deposit_transfer_event_ids': bailin_event_ids,
                          'deposit_freeze_after': self.is_frozen})
-        return total_haircut
+        else:
+            aggregate_event_id = None
+        return ((total_haircut, aggregate_event_id) if return_event_id
+                else total_haircut)
 
     def PayDepositInterest(self, agents, trace_region=None):
         """Pay interest to all depositors based on their deposit balance.

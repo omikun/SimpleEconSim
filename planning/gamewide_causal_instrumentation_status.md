@@ -123,6 +123,10 @@ the FX matrix has a **Why?** button for each quoted currency pair.
 - Sovereign bank recaps now pair each treasury debit with its bank-capital
   increase under a shared operation ID and link the cash record to the capital
   change. The transfer is split per bank for accurate reconciliation.
+- Deposit bail-ins record each depositor's balance loss and matching bank-equity
+  gain as a non-cash conversion. The aggregate bank event links to affected
+  depositors, and faction loyalty and legitimacy changes link back to the
+  resolution.
 - Sovereign bond purchases, proceeds, domestic underwriting, coupons,
   maturities, defaults, and early redemptions record signed nation treasury
   flows and the bond terms. These and campaign Caisse payments use the shared
@@ -251,3 +255,7 @@ the same balances, stock, history row, and operation ID.
 Sovereign bank recapitalization passed seven banking tests and 21 combined
 banking, debt-enforcement, and bond tests. The two-bank fixture confirms that
 per-bank cash debits sum to the sovereign expense and link to capital increases.
+
+Deposit bail-in tracing passed all seven banking-contagion tests. The fixture
+verified depositor balances, matching equity, no cash movement, and the policy's
+class and legitimacy consequences.

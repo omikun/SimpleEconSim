@@ -550,5 +550,18 @@ Verification: 21 banking-contagion, debt-enforcement, and bond-announcement
 tests passed. The two-bank rescue fixture reconciled its $1,050 total debit to
 the individual $650 and $400 capital increases, with both account balances and
 cause links checked. Compilation and `git diff --check` passed. Estate-driven
-bank recapitalization, statutory bail-ins, occupation/tribute flows,
-inheritance, broader household/firm transfers, and other scenario costs remain.
+bank recapitalization, occupation/tribute flows, inheritance, broader
+household/firm transfers, and other scenario costs remain.
+
+Phase 3 follow-up, 2026-10-18: deposit bail-ins now record each depositor's
+reduced bank claim against the matching bank-capital increase as a non-cash
+conversion. Aggregate bank changes link the individual conversions; faction
+loyalty and national legitimacy outcomes link back to the bank resolution.
+
+Verification: 50 banking-contagion, debt-enforcement, bond-announcement, and
+live trace tests passed. The bail-in fixture checked a $112.50 depositor
+haircut, equal bank-equity gain, explicit no-cash status, and the downstream
+bourgeoisie, labor, and legitimacy changes. Compilation and `git diff --check`
+passed. Estate-driven bank recapitalization,
+occupation/tribute flows, inheritance, broader household/firm transfers, and
+other scenario costs remain.

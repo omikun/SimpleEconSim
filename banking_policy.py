@@ -202,22 +202,52 @@ def enact_deposit_bailin_haircut(nation: Nation, haircut_pct: float = 0.25, exem
         return False, "No domestic banks are currently insolvent or frozen; bail-in resolution not permitted."
 
     total_haircut = 0.0
+    bank_event_ids = []
     for bank in frozen_banks:
         trace_region = next((tile for tile in nation.tiles if tile.bank is bank), nation.tiles[0])
-        total_haircut += bank.apply_bail_in_haircut(haircut_pct, exemption_floor,
-                                                   trace_region=trace_region)
+        amount, bank_event_id = bank.apply_bail_in_haircut(
+            haircut_pct, exemption_floor, trace_region=trace_region,
+            return_event_id=True)
+        total_haircut += amount
+        if bank_event_id is not None:
+            bank_event_ids.append(bank_event_id)
 
     # Political and Class fallout
+    from run_trace import emit
+    trace_region = nation.tiles[0]
+    clock = getattr(trace_region, '_collective_trace_clock', {}) or {}
+    turn = int(clock.get('turn', getattr(trace_region, '_last_turn', 0)))
     if hasattr(nation, 'factions'):
         for f in getattr(nation, 'factions', []):
             fname = getattr(f, 'name', '').lower()
+            loyalty_before = float(getattr(f, 'loyalty', 0.5))
             if 'bourgeois' in fname or 'capitalist' in fname:
-                f.loyalty = max(0.0, getattr(f, 'loyalty', 0.5) - 0.25)
+                f.loyalty = max(0.0, loyalty_before - 0.25)
             elif 'aristocra' in fname or 'lord' in fname:
-                f.loyalty = max(0.0, getattr(f, 'loyalty', 0.5) - 0.20)
+                f.loyalty = max(0.0, loyalty_before - 0.20)
             elif 'labor' in fname or 'peasant' in fname:
-                f.loyalty = max(0.0, getattr(f, 'loyalty', 0.5) - 0.05)
+                f.loyalty = max(0.0, loyalty_before - 0.05)
+            if float(getattr(f, 'loyalty', loyalty_before)) != loyalty_before:
+                emit(trace_region, kind='bank_bailin_faction_loyalty',
+                     record_class='outcome', phase='banking_policy',
+                     subject={'type': 'tile/faction', 'id': getattr(f, 'name', 'unknown')},
+                     metric_id='politics.faction_loyalty', unit='ratio',
+                     before=loyalty_before, after=float(f.loyalty),
+                     formula_id='banking_policy.bailin_faction_backlash.v1',
+                     inputs={'faction': getattr(f, 'name', 'unknown'),
+                             'turn': turn, 'bank_bailin_event_ids': bank_event_ids},
+                     cause_event_ids=bank_event_ids or None)
 
-    nation.legitimacy = max(0.10, getattr(nation, 'legitimacy', 0.5) - 0.15)
+    legitimacy_before = float(getattr(nation, 'legitimacy', 0.5))
+    nation.legitimacy = max(0.10, legitimacy_before - 0.15)
+    emit(trace_region, kind='bank_bailin_legitimacy',
+         record_class='outcome', phase='banking_policy',
+         subject={'type': 'nation', 'id': nation.name},
+         metric_id='politics.legitimacy', unit='ratio',
+         before=legitimacy_before, after=float(nation.legitimacy),
+         formula_id='banking_policy.bailin_legitimacy_loss.v1',
+         inputs={'turn': turn, 'bank_bailin_event_ids': bank_event_ids,
+                 'legitimacy_loss': legitimacy_before - float(nation.legitimacy)},
+         cause_event_ids=bank_event_ids or None)
 
     return True, f"Bail-in resolution executed! Enacted 25% haircut on large deposits (${total_haircut:,.0f} converted to capital). Bank solvency restored; Bourgeoisie enraged."
