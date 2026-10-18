@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import random
 import sys
 
 import forex
@@ -14,6 +15,10 @@ from world_names import assign_world_identities
 def run(turns=50, seed=4242):
     import ledger
     ledger.reset()
+    # The world builder gets explicit terrain/nation seeds, but simulation
+    # phases also use Python's process-global RNG. Seed that stream as well so
+    # a seed-labeled benchmark can be reproduced across fresh processes.
+    random.seed(seed)
     tiles, nations, _ = build_world(seed=seed, terrain_seed=seed, nation_seed=seed)
     assign_world_identities(tiles, nations, seed=seed)
     pairs = [(r, o) for r in tiles for o in r.neighbors.values()
