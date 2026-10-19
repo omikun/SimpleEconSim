@@ -47,6 +47,14 @@ class DesktopChartTraceTests(unittest.TestCase):
         self.assertEqual(
             chart_trace_binding('eco', 3, 'cholera'),
             {'metric_id': 'health.disease_cases', 'disease': 'waterborne'})
+        self.assertEqual(
+            chart_trace_binding('citizen', 1, 'worker'),
+            {'metric_id': 'society.class_population',
+             'class_group': 'worker'})
+        self.assertEqual(
+            chart_trace_binding('citizen', 3, 'commons %'),
+            {'metric_id': 'land.commons_access',
+             'plot_transform': '×100 display scale'})
         self.assertIsNone(chart_trace_binding('econ', 1, 'not a series'))
 
     def test_every_tile_economic_and_ecological_series_has_a_binding(self):
@@ -69,6 +77,27 @@ class DesktopChartTraceTests(unittest.TestCase):
                     self.assertIsNotNone(
                         chart_trace_binding(mode, chart_idx, label),
                         (mode, chart_idx, label))
+
+    def test_citizen_chart_series_bind_and_include_trader_hunger(self):
+        from goods import Goods
+        from worldview_citizens import tile_citizen_charts
+        region = SimpleNamespace(
+            social_class_log=[{'serf': 2, 'tenant': 1, 'proletarian': 3,
+                               'dispossessed': 1, 'lord': 1, 'landlord': 1,
+                               'petty_bourgeois': 1, 'industrialist': 1}],
+            food_foraged_log=[4], food_purchased_log=[5],
+            hungry_log={Goods.food: [1, 2], Goods.wood: [2, 3],
+                        Goods.furniture: [3, 4], 'trader': [4, 5]},
+            tenure_log=[0.8], rent_collected_log=[2.0],
+            rent_arrears_log=[1.0], gini_log={Goods.food: [0.3]},
+            protest_energy_log=[1.5])
+        charts = tile_citizen_charts(region)
+        self.assertEqual(charts[1][2][2], [10, 14])
+        for chart_idx, chart in enumerate(charts, start=1):
+            for label in chart[4]:
+                self.assertIsNotNone(
+                    chart_trace_binding('citizen', chart_idx, label),
+                    (chart_idx, label))
 
     def test_line_click_uses_visible_latest_window_and_resolves_turn(self):
         chart = ('Prices', 'line', [[1.0, 2.0, 3.0], [100.0, 200.0, 300.0]],
@@ -120,6 +149,44 @@ class DesktopChartTraceTests(unittest.TestCase):
                          {'type': 'tile', 'id': 'Delta', 'good': 'food'})
         self.assertEqual(trace.query_args['metric_id'], 'goods.price')
         self.assertEqual(trace.query_args['limit'], 200)
+
+    def test_citizen_chart_query_filters_the_selected_class_group(self):
+        trace = FakeTrace([{'kind': 'social_class_population_calculation',
+                            'record_class': 'calculation', 'value_after': 12}])
+        region = FakeRegion(trace)
+        chart = ('Classes', 'line', [[8.0, 12.0]], ['green'], ['worker'])
+        selection = select_chart_trace(
+            region, 'citizen', 1, chart, (10, 20, 100, 100), (104, 44), 2)
+        self.assertEqual(selection['chart_family'], 'citizen')
+        self.assertEqual(selection['metric_id'], 'society.class_population')
+        self.assertEqual(trace.query_args['subject'], {
+            'type': 'tile', 'id': 'Delta', 'class_group': 'worker'})
+
+    def test_citizen_panel_click_dispatches_point_to_trace_selection(self):
+        from worldview_camera import HEIGHT, TICKER_H, TOP_BAR_H
+        from worldview_citizens import PANEL_LEFT, citizen_panel_hit
+        region = FakeRegion(FakeTrace([{
+            'kind': 'social_class_population_calculation',
+            'record_class': 'calculation', 'value_after': 12}]))
+        chart = ('Classes', 'line', [[8.0, 12.0]], ['green'], ['worker'])
+        chart_y0 = 180 + TOP_BAR_H + 52 + 60 + 30
+        plot_rect = (PANEL_LEFT + 10, chart_y0 + 20, 100, 100)
+        world = {
+            'selected_region': region, 'scope': 'tile', 'citizen_scope': 'tile',
+            'citizen_subtab': 'class', 'citizen_class_mode': 'charts',
+            'citizen_chart_view': 1, 'window': 2, 'turn': 25,
+            '_chart_zoom_trace_info': {
+                'chart_family': 'citizen', 'chart_mode': 'citizen',
+                'chart_idx': 1, 'chart': chart, 'plot_rect': plot_rect,
+                'window': 2},
+        }
+        point = (plot_rect[0] + 94, plot_rect[1] + 24)
+        self.assertLess(point[1], HEIGHT - TICKER_H - 24)
+        self.assertTrue(citizen_panel_hit(point, world))
+        self.assertEqual(world['_chart_trace_selection']['metric_id'],
+                         'society.class_population')
+        self.assertEqual(world['_chart_trace_selection']['chart_family'],
+                         'citizen')
 
 
 if __name__ == '__main__':

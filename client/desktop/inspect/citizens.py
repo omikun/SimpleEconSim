@@ -16,7 +16,7 @@ from client.desktop.camera import WIDTH, HEIGHT, MAP_RIGHT, TOP_BAR_H, TICKER_H
 from client.desktop.map.map_renderer import TEXT, DIM, RED, GREEN, ACCENT, HEX_EDGE
 from client.desktop.charts.charts import (
     draw_chart_grid, draw_chart_large, chart_at_pixel,
-    CHART_BOX
+    CHART_BOX, sum_turns
 )
 
 PANEL_LEFT = MAP_RIGHT + 12
@@ -60,8 +60,10 @@ def tile_citizen_charts(region):
 
     foraged = getattr(region, 'food_foraged_log', []) or []
     purchased = getattr(region, 'food_purchased_log', []) or []
-    hs = [region.hungry_log.get(gd, []) for gd in (Goods.food, Goods.wood, Goods.furniture)]
-    hungry = [sum(row) for row in zip(*hs)] if any(hs) else []
+    hs = [region.hungry_log.get(gd, [])
+          for gd in (Goods.food, Goods.wood, Goods.furniture)]
+    hs.append(region.hungry_log.get('trader', []))
+    hungry = sum_turns(hs)
 
     commons = [c * 100.0 for c in (getattr(region, 'tenure_log', []) or [])]
     rent = getattr(region, 'rent_collected_log', []) or []
@@ -156,7 +158,7 @@ def nation_citizen_charts(nation):
     for t in range(max_len):
         h_sum = 0
         for r in tiles:
-            for gd in (Goods.food, Goods.wood, Goods.furniture):
+            for gd in (Goods.food, Goods.wood, Goods.furniture, 'trader'):
                 hlog = r.hungry_log.get(gd, [])
                 if t < len(hlog):
                     h_sum += hlog[t]
@@ -445,7 +447,22 @@ def draw_citizens_panel(surface, world, region, font, font_small, mouse_pos=None
 
         draw_chart_large(surface, charts[idx], font, font_small,
                          world['window'], chart_y0, chart_y1, mouse_pos=mouse_pos, world=world, region=region, chart_idx=c_view)
-        hint = font_small.render(f"{charts[idx][0]} (Click/Esc = Grid)", True, DIM)
+        world['_chart_zoom_trace_info'].update({
+            'chart_family': 'citizen', 'chart_mode': 'citizen',
+            'chart_scope': scope})
+        selection = world.get('_chart_trace_selection')
+        if (selection and selection.get('chart_family') == 'citizen'
+                and selection.get('chart_mode') == 'citizen'
+                and selection.get('chart_idx') == c_view
+                and selection.get('tile') == getattr(region, 'name', None)):
+            from desktop_chart_trace import draw_trace_selection
+            panel_rect = (PANEL_LEFT + 6, chart_y0,
+                          WIDTH - 14 - PANEL_LEFT, chart_y1 - chart_y0)
+            draw_trace_selection(surface, selection, panel_rect, font_small)
+        drilldown_hint = ("Click point: trace · Esc: Grid" if scope == 'tile'
+                          else "Nation trace unavailable · Esc: Grid")
+        hint = font_small.render(
+            f"{charts[idx][0]}  {drilldown_hint}", True, DIM)
         surface.blit(hint, (PANEL_LEFT + 6, chart_y1 + 4))
 
 
@@ -462,9 +479,11 @@ def citizen_panel_hit(pos, world):
     # Scope Toggle
     if tile_btn[0] <= mx <= tile_btn[0] + btn_w and tile_btn[1] <= my <= tile_btn[1] + btn_h:
         world['citizen_scope'] = 'tile'
+        world['_chart_trace_selection'] = None
         return True
     if nat_btn[0] <= mx <= nat_btn[0] + btn_w and nat_btn[1] <= my <= nat_btn[1] + btn_h:
         world['citizen_scope'] = 'nation'
+        world['_chart_trace_selection'] = None
         return True
 
     # Sub-tab Toggle
@@ -473,10 +492,12 @@ def citizen_panel_hit(pos, world):
     if sub_class_btn[0] <= mx <= sub_class_btn[0] + btn_w and sub_class_btn[1] <= my <= sub_class_btn[1] + 20:
         world['citizen_subtab'] = 'class'
         world['citizen_chart_view'] = 0
+        world['_chart_trace_selection'] = None
         return True
     if sub_labor_btn[0] <= mx <= sub_labor_btn[0] + btn_w and sub_labor_btn[1] <= my <= sub_labor_btn[1] + 20:
         world['citizen_subtab'] = 'labor'
         world['citizen_chart_view'] = 0
+        world['_chart_trace_selection'] = None
         return True
 
     # If in labor subtab, pass to labor panel hit
@@ -491,9 +512,11 @@ def citizen_panel_hit(pos, world):
     btn_pyr = (PANEL_LEFT + 10 + btn_w, card_y + card_h + 6, btn_w, 20)
     if btn_charts[0] <= mx <= btn_charts[0] + btn_w and btn_charts[1] <= my <= btn_charts[1] + 20:
         world['citizen_class_mode'] = 'charts'
+        world['_chart_trace_selection'] = None
         return True
     if btn_pyr[0] <= mx <= btn_pyr[0] + btn_w and btn_pyr[1] <= my <= btn_pyr[1] + 20:
         world['citizen_class_mode'] = 'pyramid'
+        world['_chart_trace_selection'] = None
         return True
 
     # Chart Zoom Hit (when in charts mode)
@@ -504,10 +527,34 @@ def citizen_panel_hit(pos, world):
             hit_idx = chart_at_pixel(pos, chart_y0, chart_y1, num_charts=4)
             if hit_idx is not None:
                 world['citizen_chart_view'] = hit_idx
+                world['_chart_trace_selection'] = None
                 return True
         else:
             if PANEL_LEFT + 6 <= mx <= WIDTH - 8 and chart_y0 <= my <= chart_y1:
-                world['citizen_chart_view'] = 0
+                info = world.get('_chart_zoom_trace_info') or {}
+                region = world.get('selected_region') or world.get('hover_region')
+                if (region is None and world.get('nations')
+                        and getattr(world['nations'][0], 'tiles', None)):
+                    region = world['nations'][0].tiles[0]
+                selection = None
+                scope = world.get('citizen_scope', world.get('scope', 'tile'))
+                if (scope == 'tile'
+                        and region is not None
+                        and info.get('chart_family') == 'citizen'
+                        and info.get('chart') is not None
+                        and info.get('plot_rect') is not None):
+                    from desktop_chart_trace import select_chart_trace
+                    selection = select_chart_trace(
+                        region, 'citizen', info.get('chart_idx') or
+                        world.get('citizen_chart_view'), info['chart'],
+                        info['plot_rect'], pos,
+                        info.get('window', world.get('window', 100)),
+                        fallback_turn=world.get('turn', 0))
+                if selection is not None:
+                    world['_chart_trace_selection'] = selection
+                else:
+                    world['citizen_chart_view'] = 0
+                    world['_chart_trace_selection'] = None
                 return True
 
     return False

@@ -2325,3 +2325,16 @@ good, government revenue, and metric-catalog tests passed (12 tests total).
 Compilation and `git diff --check` passed. Nation-scope and Citizen/Labor panel
 chart drilldowns remain open. For moving-average chart points, the UI identifies
 the transform but currently shows source trace rows only for the selected turn.
+
+## Phase 5 follow-up — Connect desktop Citizen Class & Tenure charts (implemented)
+
+Tile Citizen points now query class-group population, food gathered or
+purchased, total hunger, commons access, rent collection, rent arrears, food
+inequality, and protest records. The trace panel marks the ×100 display scales.
+Citizen hunger includes the trader cohort, so its chart value matches the
+`people.hungry` trace metric. The Citizen Nation view stays visibly marked as
+unavailable until its cross-tile aggregation evidence is connected.
+
+Verification: nine desktop tests cover chart point mapping, every Citizen tile
+series binding, trader hunger, class-group filtering, and click handling. Python
+compilation and `git diff --check` passed.

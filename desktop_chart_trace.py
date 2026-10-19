@@ -49,11 +49,29 @@ _ECO_BINDINGS = {
     6: {'wear %': ('health.average_bodily_wear', None)},
 }
 
+_CITIZEN_BINDINGS = {
+    1: {'serf': ('society.class_population', 'serf'),
+        'tenant': ('society.class_population', 'tenant'),
+        'worker': ('society.class_population', 'worker'),
+        'disposs': ('society.class_population', 'dispossessed'),
+        'gentry': ('society.class_population', 'gentry'),
+        'artisan': ('society.class_population', 'artisan')},
+    2: {'foraged': ('food.foraged', None),
+        'market food': ('food.purchased', None),
+        'hungry': ('people.hungry', None)},
+    3: {'commons %': ('land.commons_access', None),
+        'rent ($)': ('finance.rent_collected', None),
+        'arrears ($)': ('finance.rent_arrears', None)},
+    4: {'gini (x100)': ('economy.gini', 'food'),
+        'protest': ('politics.protest_energy', None)},
+}
+
 
 def chart_trace_binding(chart_mode: str, chart_idx: int, label: str) -> dict | None:
     """Return trace filters for one plotted series, if that series is mapped."""
     label_key = str(label).strip().lower()
-    mapping = _ECO_BINDINGS if chart_mode == 'eco' else _ECON_BINDINGS
+    mapping = {'eco': _ECO_BINDINGS, 'citizen': _CITIZEN_BINDINGS}.get(
+        chart_mode, _ECON_BINDINGS)
     row = mapping.get(int(chart_idx), {}).get(label_key)
     if row is None:
         return None
@@ -61,6 +79,8 @@ def chart_trace_binding(chart_mode: str, chart_idx: int, label: str) -> dict | N
     binding = {'metric_id': metric_id}
     if metric_id == 'health.disease_cases':
         binding['disease'] = filter_value
+    elif metric_id == 'society.class_population':
+        binding['class_group'] = filter_value
     elif filter_value is not None:
         binding['good'] = filter_value
     if metric_id == 'finance.government_income':
@@ -74,6 +94,8 @@ def chart_trace_binding(chart_mode: str, chart_idx: int, label: str) -> dict | N
         ('econ', 8, 'commons x5'): '×5 display scale',
         ('eco', 1): '×100 display scale',
         ('eco', 6): '×100 display scale',
+        ('citizen', 3, 'commons %'): '×100 display scale',
+        ('citizen', 4, 'gini (x100)'): '×100 display scale',
     }
     transform = transforms.get((chart_mode, int(chart_idx), label_key))
     if transform is None:
@@ -202,7 +224,7 @@ def select_chart_trace(region, chart_mode, chart_idx, chart, plot_rect,
     last_turn = int(getattr(region, '_last_turn', fallback_turn))
     turn = max(0, last_turn - (point['series_length'] - 1 - point['point_index']))
     subject = {'type': 'tile', 'id': region.name}
-    for key in ('good', 'disease'):
+    for key in ('good', 'disease', 'class_group'):
         if binding.get(key) is not None:
             subject[key] = binding[key]
     trace = getattr(region, '_run_trace', None)
@@ -230,6 +252,7 @@ def select_chart_trace(region, chart_mode, chart_idx, chart, plot_rect,
         'has_trace': trace is not None,
         'chart_idx': int(chart_idx),
         'chart_mode': chart_mode,
+        'chart_family': 'citizen' if chart_mode == 'citizen' else 'tile',
     }
 
 

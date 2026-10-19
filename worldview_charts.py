@@ -65,10 +65,10 @@ def tile_charts(region):
     g_dem = lambda gd: region.demand_ratio_log.get(gd, [])
 
     pop = region.total_population or []
-    hs = [region.hungry_log.get(gd, []) for gd in (Goods.food, Goods.wood,
-                                                   Goods.furniture)]
-    hungry = ([sum(row) for row in zip(*hs)] if all(hs)
-              else [sum(row) for row in zip(*[h for h in hs if h])])
+    hs = [region.hungry_log.get(gd, []) for gd in
+          (Goods.food, Goods.wood, Goods.furniture)]
+    hs.append(region.hungry_log.get('trader', []))
+    hungry = sum_turns(hs)
     exp = [region.export_val.get(gd, []) for gd in (Goods.food, Goods.wood,
                                                     Goods.furniture)]
     imp = [region.import_val.get(gd, []) for gd in (Goods.food, Goods.wood,
@@ -369,7 +369,9 @@ def chart_at_pixel(pos, y0, y1, num_charts=10):
     return None
 
 
-def draw_chart_large(surface, chart, font, font_small, window, y0, y1, mouse_pos=None, world=None, region=None, chart_idx=None):
+def draw_chart_large(surface, chart, font, font_small, window, y0, y1,
+                     mouse_pos=None, world=None, region=None, chart_idx=None,
+                     trace_context=None):
     """Detailed single chart drawn large with min/max/current statistics readout."""
     title, kind, series, colors, labels = chart
     rect = (PANEL_LEFT + 6, y0, WIDTH - 14 - PANEL_LEFT, y1 - y0)
@@ -413,15 +415,20 @@ def draw_chart_large(surface, chart, font, font_small, window, y0, y1, mouse_pos
     elif kind == 'stack':
         plot_stacked_bars(surface, plot_rect, series, colors, labels, window, font_small)
     if world is not None:
-        world['_chart_zoom_trace_info'] = {
+        info = {
             'chart': chart, 'plot_rect': plot_rect, 'window': window,
             'chart_idx': chart_idx,
             'chart_mode': world.get('tile_chart_mode', 'econ'),
+            'chart_family': 'tile',
             'tile': getattr(region, 'name', None),
         }
+        info.update(trace_context or {})
+        world['_chart_zoom_trace_info'] = info
         selection = world.get('_chart_trace_selection')
-        if (selection and selection.get('tile') == getattr(region, 'name', None)
+        if (selection and selection.get('chart_family', 'tile')
+                == info.get('chart_family', 'tile')
+                and selection.get('tile') == getattr(region, 'name', None)
                 and selection.get('chart_idx') == chart_idx
-                and selection.get('chart_mode') == world.get('tile_chart_mode', 'econ')):
+                and selection.get('chart_mode') == info.get('chart_mode')):
             from desktop_chart_trace import draw_trace_selection
             draw_trace_selection(surface, selection, rect, font_small)

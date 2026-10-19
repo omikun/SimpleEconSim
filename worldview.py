@@ -948,6 +948,7 @@ def main():
                 if event.key == pygame.K_ESCAPE:
                     if world.get('citizen_chart_view', 0) != 0:
                         world['citizen_chart_view'] = 0
+                        world['_chart_trace_selection'] = None
                     elif world.get('view', 0) != 0:
                         world['view'] = 0
                         world['_chart_trace_selection'] = None
@@ -1013,6 +1014,7 @@ def main():
                 elif event.key == pygame.K_TAB:
                     if world.get('panel_tab') == 'citizens':
                         world['citizen_chart_view'] = 0
+                        world['_chart_trace_selection'] = None
                     elif world.get('panel_tab') == 'policies':
                         world['panel_tab'] = 'charts'
                     else:

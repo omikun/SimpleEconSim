@@ -201,8 +201,8 @@ food producer inventory, food-cash Gini, soil fertility, nutrition density,
 air and water pollution, disease fatalities, individual
 malnutrition/waterborne/respiratory/chemical case counts, and combined
 healthcare outlays. Other chart series still need explicit source mappings.
-Desktop point-to-trace drilldown currently covers the tile Economic and Ecology
-charts; Nation-scope and Citizen/Labor panel charts remain open.
+Desktop point-to-trace drilldown currently covers tile Economic, Ecology, and
+Citizen Class & Tenure charts; Nation-scope and Labor panel charts remain open.
 
 The coverage checker reports a changed snapshot as unexplained when its final
 value does not match a recorded calculation. Per-profession headcount snapshots
@@ -250,9 +250,9 @@ catalog does not yet cover every displayed field;
 untraced so a missing probe is visible during development.
 The UI shows unavailable comparison placeholders as such. Web charts show an
 empty-state message when a series has no data instead of drawing a sample
-curve. Nation-scope and Citizen/Labor panel charts do not yet have a trace
-drilldown. Save/rebranch and a persistent query index are not implemented. The
-compact source trace is queried by scanning events.
+curve. Nation-scope and Labor panel charts do not yet have a trace drilldown.
+Save/rebranch and a persistent query index are not implemented. The compact
+source trace is queried by scanning events.
 
 The first 20-turn labor scenario coverage run recorded 9,043 rows in 5.3 MB,
 with 20 valid checkpoints and no currency-audit violations. Tracing on and off
@@ -1721,3 +1721,17 @@ and metric-catalog tests passed (12 tests total). Python compilation and
 `git diff --check` passed. Desktop Nation-scope and Citizen/Labor panel charts
 remain open; transformed points identify their display transform, while the
 current selection shows the underlying trace at the selected turn.
+
+Phase 5 follow-up, 2026-10-18: added desktop trace drilldown to the tile
+Citizen Class & Tenure charts. Class groups, food gathered or purchased, total
+hunger, commons access, rent, arrears, food inequality, and protest each map to
+their existing turn-level trace metrics. Hunger now includes trader households
+in both the main desktop population chart and Citizen chart, matching the
+recorded total. Tile points show the same compact trace evidence panel; the
+Citizen Nation view labels its drilldown unavailable until the nation
+aggregation is connected.
+
+Verification: desktop chart tests cover every Citizen chart binding, the trader
+hunger contribution, class-group trace filtering, and click dispatch from the
+Citizen zoom view. Nine focused desktop tests, Python compilation, and
+`git diff --check` passed.
