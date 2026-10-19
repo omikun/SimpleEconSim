@@ -2873,9 +2873,9 @@
     const optionsHtml = options.map(([value, label]) =>
       `<option value="${escapeHtml(value)}"${value === metric ? ' selected' : ''}>${escapeHtml(label)}</option>`
     ).join('');
-    const selectedTurn = Number.isInteger(Number(turn)) && Number(turn) >= 1
+    const selectedTurn = Number.isInteger(Number(turn)) && Number(turn) >= 0
       ? Number(turn) : Math.max(1, Number(worldState.turn || 1));
-    detail.innerHTML = `<h4>${escapeHtml(good)} price history · ${escapeHtml(entity)}</h4><label>Turn <input class="trace-turn" type="number" min="1" max="${Number(worldState.turn || 1)}" value="${selectedTurn}" style="width:5rem"></label> <label>Price <select class="trace-price-kind">${optionsHtml}</select></label> <label>Event ID <input type="text" class="trace-event-id" placeholder="Exact event" style="width:13rem"></label> <button type="button" class="btn btn-secondary btn-xs trace-load">Show records</button><div class="price-trace-result" aria-live="polite"></div>`;
+    detail.innerHTML = `<h4>${escapeHtml(good)} price history · ${escapeHtml(entity)}</h4><label>Turn <input class="trace-turn" type="number" min="0" max="${Number(worldState.turn || 0)}" value="${selectedTurn}" style="width:5rem"></label> <label>Price <select class="trace-price-kind">${optionsHtml}</select></label> <label>Event ID <input type="text" class="trace-event-id" placeholder="Exact event" style="width:13rem"></label> <button type="button" class="btn btn-secondary btn-xs trace-load">Show records</button><div class="price-trace-result" aria-live="polite"></div>`;
     container.appendChild(detail);
     const turnInput = detail.querySelector('.trace-turn');
     const priceKind = detail.querySelector('.trace-price-kind');
@@ -2884,7 +2884,7 @@
     const load = async () => {
       const selected = Number(turnInput.value);
       const eventId = eventIdInput.value.trim();
-      if (!eventId && (!Number.isInteger(selected) || selected < 1
+      if (!eventId && (!Number.isInteger(selected) || selected < 0
           || selected > Number(worldState.turn || 0))) {
         output.textContent = 'Choose a completed turn.';
         return;
@@ -2981,43 +2981,153 @@
     load();
   }
 
+  function openChartTraceInspector({ metric, entity, turn, value, label, container }) {
+    if (!container) return;
+    const old = document.getElementById('market-price-trace-detail');
+    if (old) old.remove();
+    const detail = document.createElement('div');
+    detail.id = 'market-price-trace-detail';
+    detail.className = 'card';
+    const selectedTurn = Number.isInteger(Number(turn)) && Number(turn) >= 0
+      ? Number(turn) : Number(worldState.turn || 0);
+    detail.innerHTML = `<h4>${escapeHtml(label)} trace · ${escapeHtml(entity)}</h4><p>Chart value: ${escapeHtml(String(value))}</p><label>Turn <input class="trace-turn" type="number" min="0" max="${Number(worldState.turn || 0)}" value="${selectedTurn}" style="width:5rem"></label> <label>Event ID <input type="text" class="trace-event-id" placeholder="Exact event" style="width:13rem"></label> <button type="button" class="btn btn-secondary btn-xs trace-load">Show records</button><div class="trace-record-result" aria-live="polite"></div>`;
+    container.appendChild(detail);
+    const turnInput = detail.querySelector('.trace-turn');
+    const eventIdInput = detail.querySelector('.trace-event-id');
+    const output = detail.querySelector('.trace-record-result');
+    const load = async () => {
+      const selected = Number(turnInput.value);
+      const eventId = eventIdInput.value.trim();
+      if (!eventId && (!Number.isInteger(selected) || selected < 0
+          || selected > Number(worldState.turn || 0))) {
+        output.textContent = 'Choose a completed turn.';
+        return;
+      }
+      output.textContent = eventId ? 'Loading exact event…' : 'Loading metric records…';
+      try {
+        const params = eventId
+          ? new URLSearchParams({ event_id: eventId, limit: '1' })
+          : new URLSearchParams({ turn: String(selected), entity, metric, limit: '200' });
+        const response = await fetch(`/api/trace?${params}`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const result = await response.json();
+        const rows = result.events || [];
+        output.replaceChildren();
+        const summary = document.createElement('p');
+        summary.textContent = rows.length
+          ? `${result.total} trace record(s) for ${metric} at turn ${selected}.`
+          : eventId ? 'No event with that ID was found in this run.'
+            : `No ${metric} records were captured for this entity and turn.`;
+        output.appendChild(summary);
+        for (const row of rows) {
+          const article = document.createElement('article');
+          article.className = 'trace-record';
+          const before = row.value_before == null ? null : Number(row.value_before);
+          const after = row.value_after == null ? null : Number(row.value_after);
+          const valueText = before == null
+            ? (after == null ? 'value unavailable' : `value ${after}`)
+            : `${before} → ${after}`;
+          const heading = document.createElement('p');
+          heading.textContent = `${row.kind || 'record'} · ${valueText} ${row.unit || ''} · ${row.explanation_status || row.confidence || row.record_class || 'status unavailable'} · ${row.event_id || ''}`;
+          article.appendChild(heading);
+          const evidence = {
+            record_class: row.record_class,
+            phase: row.phase,
+            formula_id: row.formula_id,
+            formula_replay: row.formula_replay,
+            confidence: row.confidence,
+            explanation_status: row.explanation_status,
+            inputs: row.inputs,
+            constraints: row.constraints
+          };
+          if (Object.values(evidence).some(item => item !== undefined)) {
+            const disclosure = document.createElement('details');
+            const summary = document.createElement('summary');
+            summary.textContent = 'Recorded inputs and formula evidence';
+            const pre = document.createElement('pre');
+            pre.textContent = JSON.stringify(evidence, null, 2);
+            disclosure.append(summary, pre);
+            article.appendChild(disclosure);
+          }
+          const causes = Array.isArray(row.cause_event_ids) ? row.cause_event_ids : [];
+          if (causes.length) {
+            const causeLine = document.createElement('p');
+            causeLine.textContent = 'Upstream evidence:';
+            article.appendChild(causeLine);
+            for (const causeId of causes) {
+              const inspect = document.createElement('button');
+              inspect.type = 'button';
+              inspect.className = 'btn btn-secondary btn-xs';
+              inspect.textContent = causeId;
+              inspect.addEventListener('click', () => {
+                eventIdInput.value = causeId;
+                load();
+              });
+              article.appendChild(inspect);
+            }
+          }
+          output.appendChild(article);
+        }
+        if (result.total > rows.length) {
+          const more = document.createElement('p');
+          more.textContent = `${result.total - rows.length} further records exist; use the trace download for the full history.`;
+          output.appendChild(more);
+        }
+      } catch (error) { output.textContent = `Could not load metric records: ${error.message}`; }
+    };
+    detail.querySelector('.trace-load').addEventListener('click', load);
+    load();
+  }
+
   function renderHistoricalChart() {
     const chartCanvas = document.getElementById('historical-chart-canvas');
     if (!chartCanvas || !worldState) return;
 
     let values = [];
+    const charts = window.CoCCharts;
+    const traceBinding = charts.getTraceBinding(activeChartMetric);
     let traceEntity = null;
     let traceMetric = null;
     let traceGood = null;
-    if (activeChartMetric === 'food_price' && selectedTileDetail?.charts) {
-      values = selectedTileDetail.charts.economic?.prices?.food || [];
-      traceEntity = `tile:${selectedTileDetail.name}`;
-      traceMetric = 'goods.price';
-      traceGood = 'food';
-    } else if (activeChartMetric === 'food_price') {
-      values = worldState.history?.food_price || [];
-      traceEntity = `nation:${worldState.player_nation_name}`;
-      traceMetric = 'goods.national_food_price';
-      traceGood = 'food';
-    } else if (selectedTileDetail && selectedTileDetail.charts) {
+    if (selectedTileDetail && selectedTileDetail.charts) {
+      if (traceBinding?.tilePath) {
+        values = traceBinding.tilePath.reduce((value, key) => value?.[key], selectedTileDetail.charts) || [];
+        traceEntity = `tile:${selectedTileDetail.name}`;
+        traceMetric = activeChartMetric === 'food_price' ? 'goods.price' : traceBinding.metricId;
+        traceGood = activeChartMetric === 'food_price' ? 'food' : null;
+      }
+    } else if (traceBinding?.historyKey) {
+      values = worldState.history?.[traceBinding.historyKey] || [];
+      traceEntity = `nation:${worldState.player_nation}`;
+      traceMetric = traceBinding.metricId;
+      traceGood = activeChartMetric === 'food_price' ? 'food' : null;
+    }
+    if (!values.length && selectedTileDetail && selectedTileDetail.charts
+        && !traceBinding?.tilePath) {
       const mode = selectedTileDetail.charts[activeChartMode];
       if (mode && mode[activeChartMetric]) values = mode[activeChartMetric];
     }
-    if (values.length === 0 && worldState.history) {
+    if (values.length === 0 && !selectedTileDetail && worldState.history) {
       values = worldState.history[activeChartMetric] || [];
     }
 
-    const charts = window.CoCCharts;
     const turns = (worldState.history?.turns || []).slice(-values.length);
     const onPointSelect = traceEntity && turns.length === values.length
       ? point => {
         const container = chartCanvas.parentElement;
         const title = document.getElementById('chart-legend-text');
         if (title) title.textContent = `${activeChartMetric}: Turn ${point.turn} selected`;
-        openPriceTraceInspector({
-          good: traceGood, entity: traceEntity, metric: traceMetric,
-          turn: point.turn, container
-        });
+        if (traceGood) {
+          openPriceTraceInspector({
+            good: traceGood, entity: traceEntity, metric: traceMetric,
+            turn: point.turn, container
+          });
+        } else {
+          openChartTraceInspector({
+            metric: traceMetric, entity: traceEntity, turn: point.turn,
+            value: point.value, label: traceBinding.label, container
+          });
+        }
       }
       : null;
     const legend = charts.drawHistoricalChart(

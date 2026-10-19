@@ -136,6 +136,8 @@ class TestWebServerEndpoints(unittest.TestCase):
         self.assertIn('axialToPixel', body)
         self.assertIn('pixelToAxial', body)
         self.assertIn('tap a point to inspect its turn', body)
+        self.assertIn('Recorded inputs and formula evidence', body)
+        self.assertIn('nation:${worldState.player_nation}', body)
 
     def test_serve_web_ui_utilities(self):
         handler = MockHttpRequestHandler(self.mock_server, 'GET', '/ui_utils.js')
@@ -165,6 +167,8 @@ class TestWebServerEndpoints(unittest.TestCase):
         self.assertIn('javascript', handler.response_headers.get('content-type', ''))
         body = handler.get_body().decode('utf-8')
         self.assertIn('CoCCharts', body)
+        self.assertIn('getTraceBinding', body)
+        self.assertIn('Nominal GDP', body)
 
     def test_serve_help_content_module(self):
         handler = MockHttpRequestHandler(self.mock_server, 'GET', '/help_content.js')
@@ -217,6 +221,38 @@ class TestWebServerEndpoints(unittest.TestCase):
         self.assertTrue(compact.get_body().startswith(b'COCTRACE2\n'))
         self.assertLess(len(compact.get_body()), len(handler.get_body()))
         self.assertTrue(compact.response_headers['content-disposition'].endswith('.ctr"'))
+
+    def test_macro_chart_metrics_are_queryable_by_nation_and_turn(self):
+        self.sim.step()
+        nation = self.sim.nations[0].name
+        for metric in ('economy.gdp_nominal', 'finance.treasury',
+                       'people.population', 'politics.protest_energy'):
+            query = urllib.parse.urlencode({
+                'turn': 1, 'entity': f'nation:{nation}', 'metric': metric,
+                'limit': 200})
+            handler = MockHttpRequestHandler(
+                self.mock_server, 'GET', f'/api/trace?{query}')
+            self.assertEqual(handler.response_status, 200)
+            payload = json.loads(handler.get_body())
+            self.assertGreater(payload['total'], 0, metric)
+            self.assertTrue(all(row['metric_id'] == metric
+                                and row['turn'] == 1
+                                and row['subject']['id'] == nation
+                                for row in payload['events']), metric)
+        tile = self.sim.nations[0].tiles[0].name
+        for metric in ('economy.gdp_nominal', 'people.population',
+                       'politics.protest_energy'):
+            query = urllib.parse.urlencode({
+                'turn': 1, 'entity': f'tile:{tile}', 'metric': metric,
+                'limit': 200})
+            handler = MockHttpRequestHandler(
+                self.mock_server, 'GET', f'/api/trace?{query}')
+            payload = json.loads(handler.get_body())
+            self.assertGreater(payload['total'], 0, (tile, metric))
+            self.assertTrue(all(row['metric_id'] == metric
+                                and row['turn'] == 1
+                                and row['subject']['id'] == tile
+                                for row in payload['events']), (tile, metric))
 
     def test_api_world_state(self):
         handler = MockHttpRequestHandler(self.mock_server, 'GET', '/api/state')

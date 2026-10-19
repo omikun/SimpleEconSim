@@ -2055,3 +2055,24 @@ effects, attrition cap behavior, and trace-on/off state parity. Campaign,
 occupation, metric-catalog and geography suites passed (27 tests), including
 compact trace decoding for bombardment and landing responses. Compilation and
 `git diff --check` passed.
+
+## Phase 5 follow-up — Bind core macro charts to trace records (implemented)
+
+Added explicit web chart-source bindings for nominal GDP, treasury, population,
+and protest energy, alongside food price. National chart points query their
+nation-level trace metric; selected-tile charts query tile-level GDP,
+population, protest energy, or food price. The shared inspector exposes
+turn-scoped records, formulas, inputs, constraints, explanation status, and
+clickable upstream event IDs. Turn zero is selectable so setup observations
+can be inspected. The GDP chart is labeled nominal to match the metric the
+simulation records.
+
+Verification: chart-binding tests cover all five supported chart IDs and the
+unsupported-series path. The web trace API returns turn- and nation-scoped
+records for GDP, treasury, population, and protest energy. Focused web API,
+chart-renderer, history-serialization, and JavaScript checks passed (5 Python
+tests plus the UI utility test and JavaScript syntax checks). Remaining chart
+metrics still need explicit bindings; this does not establish coverage for
+every series. A combined web endpoint and parity run reached its 30-second
+tool window without returning a final summary, so only the focused cases above
+are counted as verified.

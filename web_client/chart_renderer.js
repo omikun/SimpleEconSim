@@ -4,7 +4,7 @@
 
   const chartCatalog = Object.freeze({
     economic: [
-      { id: 'gdp', name: 'Real GDP' }, { id: 'treasury', name: 'Treasury' },
+      { id: 'gdp', name: 'Nominal GDP' }, { id: 'treasury', name: 'Treasury' },
       { id: 'food_price', name: 'Food Price' }, { id: 'pop', name: 'Pop/Hunger' },
       { id: 'production', name: 'Production' }, { id: 'trade', name: 'Trade Flow' },
       { id: 'gov_income', name: 'Gov Revenue' }, { id: 'gini', name: 'Gini Inequality' },
@@ -26,8 +26,28 @@
     unrest: '#ef4444', soil: '#10b981', smog: '#94a3b8', alienation: '#f43f5e'
   };
 
+  const traceBindings = Object.freeze({
+    gdp: Object.freeze({ metricId: 'economy.gdp_nominal', historyKey: 'gdp',
+      tilePath: ['economic', 'gdp'], label: 'Nominal GDP' }),
+    treasury: Object.freeze({ metricId: 'finance.treasury', historyKey: 'treasury',
+      label: 'Treasury' }),
+    food_price: Object.freeze({ metricId: 'goods.national_food_price',
+      historyKey: 'food_price', tilePath: ['economic', 'prices', 'food'],
+      label: 'Food price' }),
+    pop: Object.freeze({ metricId: 'people.population', historyKey: 'pop',
+      tilePath: ['economic', 'pop_hunger', 'pop'], label: 'Population' }),
+    unrest: Object.freeze({ metricId: 'politics.protest_energy', historyKey: 'unrest',
+      tilePath: ['economic', 'protest_commons', 'protest'],
+      label: 'Protest energy' })
+  });
+
   function getChartCatalog() {
     return chartCatalog;
+  }
+
+  function getTraceBinding(metric) {
+    const binding = traceBindings[metric];
+    return binding ? { ...binding, tilePath: binding.tilePath && [...binding.tilePath] } : null;
   }
 
   function drawHistoricalChart(canvas, values, metric, dpr = 1, options = {}) {
@@ -130,6 +150,6 @@
     return `${String(metric).toUpperCase()}: Historical Trend over Turns (Min ${minVal.toFixed(1)} | Max ${maxVal.toFixed(1)})`;
   }
 
-  const CoCCharts = Object.freeze({ getChartCatalog, drawHistoricalChart });
+  const CoCCharts = Object.freeze({ getChartCatalog, getTraceBinding, drawHistoricalChart });
   root.CoCCharts = CoCCharts;
 })(typeof globalThis !== 'undefined' ? globalThis : window);
