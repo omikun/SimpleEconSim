@@ -3105,18 +3105,21 @@
       if (traceBinding?.tilePath || traceBinding?.seriesPaths) {
         values = charts.getTileSeries(selectedTileDetail.charts, traceBinding);
         traceEntity = `tile:${selectedTileDetail.name}`;
-        traceMetric = activeChartMetric === 'food_price' ? 'goods.price' : traceBinding.metricId;
+        traceMetric = traceBinding.tileMetricId
+          || (activeChartMetric === 'food_price' ? 'goods.price' : traceBinding.metricId);
         traceGood = traceBinding.good || (activeChartMetric === 'food_price' ? 'food' : null);
         traceDisease = traceBinding.disease || null;
         traceClassGroup = traceBinding.classGroup || null;
-        traceIsPrice = activeChartMetric === 'food_price';
+        traceIsPrice = Boolean(traceBinding.priceChart)
+          || activeChartMetric === 'food_price';
       }
     } else if (traceBinding?.historyKey) {
       values = worldState.history?.[traceBinding.historyKey] || [];
       traceEntity = `nation:${worldState.player_nation}`;
       traceMetric = traceBinding.metricId;
-      traceGood = activeChartMetric === 'food_price' ? 'food' : null;
-      traceIsPrice = activeChartMetric === 'food_price';
+      traceGood = traceBinding.good || (activeChartMetric === 'food_price' ? 'food' : null);
+      traceIsPrice = Boolean(traceBinding.priceChart)
+        || activeChartMetric === 'food_price';
     }
     if (!values.length && selectedTileDetail && selectedTileDetail.charts
         && !traceBinding?.tilePath && !traceBinding?.seriesPaths) {

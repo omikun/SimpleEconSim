@@ -1314,6 +1314,21 @@ def trade(region, t):
 
     decide_borrow_deposit(region, region.agents, all_goods_price, food_price, t)
 
+    def record_chart_demand_ratio(good, value, event_id):
+        chart_log = getattr(region, 'market_demand_ratio_chart_log', None)
+        if chart_log is None:
+            chart_log = {}
+            region.market_demand_ratio_chart_log = chart_log
+        rows = chart_log.setdefault(good, [])
+        point = {'turn': int(t), 'value': float(value),
+                 'event_id': event_id}
+        if rows and rows[-1].get('turn') == int(t):
+            rows[-1] = point
+        else:
+            rows.append(point)
+        if len(rows) > 50:
+            del rows[:-50]
+
     # ---- Phase A: trade food, wood, furniture, and active local goods ----
     recipes = region.recipes
     agents = region.agents
@@ -1711,6 +1726,7 @@ def trade(region, t):
                         'public_food_surplus_available': 0,
                         'buyer_order_count': 0, 'local_seller_order_count': 0,
                         'import_lot_count': 0})
+            record_chart_demand_ratio(good, 5.0, pressure_event_id)
             price_decay(region, good,
                         cause_event_ids=[event_id for event_id in
                                          (demand_event_id, supply_event_id,
@@ -1781,6 +1797,7 @@ def trade(region, t):
                     'buyer_order_count': len(local_orders[good]['buyers']),
                     'local_seller_order_count': len(local_orders[good]['sellers']),
                     'import_lot_count': len(imp_pool)})
+        record_chart_demand_ratio(good, demand_ratio, pressure_event_id)
         if max_demand_ratio < demand_ratio and tb > 0:
             max_demand_ratio = demand_ratio
             most_demand_good = good

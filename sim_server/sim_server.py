@@ -1507,7 +1507,13 @@ class SimServer:
         g_price = lambda gd: [round(float(p), 2) for p in tile.price_log.get(gd, [])[-30:]]
         g_prod = lambda gd: [round(float(p), 2) for p in tile.production_log.get(gd, [])[-30:]]
         g_inv = lambda gd: [round(float(p), 1) for p in tile.inventory_log.get(gd, [])[-30:]]
-        g_dem = lambda gd: [round(float(p), 2) for p in tile.demand_ratio_log.get(gd, [])[-30:]]
+        def g_dem(good):
+            chart_log = getattr(tile, 'market_demand_ratio_chart_log', {}) or {}
+            points = chart_log.get(good, [])
+            if points:
+                return [round(float(row['value']), 2) for row in points[-30:]]
+            return [round(float(value), 2)
+                    for value in tile.demand_ratio_log.get(good, [])[-30:]]
 
         pop_series = (tile.total_population or [])[-30:]
         hs = [tile.hungry_log.get(gd, []) for gd in (Goods.food, Goods.wood, Goods.furniture)]

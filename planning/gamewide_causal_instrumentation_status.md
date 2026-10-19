@@ -1639,3 +1639,15 @@ Verification: the web integration test replays class groups, food totals, and
 commons access from the turn-scoped inputs, applies the class-group trace filter,
 and matches all displayed series to their calculation records. Metric-catalog,
 Node UI, JavaScript/Python syntax, and whitespace checks passed.
+
+Phase 5 follow-up, 2026-10-18: extended market charts to wood and furniture
+prices, production, and producer inventory, and added demand/supply ratios for
+food, wood, and furniture. Demand-ratio chart history is now separately stored
+once per turn, including the explicit zero-order ratio and event ID, so it stays
+aligned with the world turn axis without changing the sparse history used by
+AI decisions.
+
+Verification: two-turn integration checks match price, production, inventory,
+and all three demand-ratio chart points to the selected good's turn-scoped trace
+records and replay demand divided by supply (or the recorded zero-supply case).
+Trade-chart integration, Node UI, syntax, and `git diff --check` passed.

@@ -211,6 +211,9 @@ class Region:
         self.hungry_log: dict = {}
         self.production_log: dict = {}
         self.demand_ratio_log: dict = {}
+        # Turn-aligned chart copy; demand_ratio_log remains the sparse history
+        # consumed by AI systems that only act when a market clears.
+        self.market_demand_ratio_chart_log: dict = {}
         self.supply_log: dict = {}
         self.demand_log: dict = {}
         self.per_capita_inventory: dict = {}
@@ -272,6 +275,7 @@ class Region:
             self.hungry_log[g] = []
             if g != Goods.gov:
                 self.demand_ratio_log[g] = []
+                self.market_demand_ratio_chart_log[g] = []
                 self.demand_log[g] = []
                 self.supply_log[g] = []
                 self.inventory_log[g] = []

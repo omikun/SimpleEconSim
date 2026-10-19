@@ -478,6 +478,73 @@ class TestWebServerEndpoints(unittest.TestCase):
                 charts['citizens']['commons_rent'][series_key][-1],
                 calculation['value_after'], places=1)
 
+    def test_nonfood_market_charts_match_good_and_turn_trace_records(self):
+        self.sim.step()
+        self.sim.step()
+        tile = self.sim.nations[0].tiles[0]
+        charts = self.sim.serialize_tile(tile, turn=self.sim.turn)['charts']
+
+        for good, price_series, production_series, inventory_series in (
+                ('wood', 'wood', 'wood', 'wood'),
+                ('furniture', 'furniture', 'furniture', 'furniture')):
+            query = urllib.parse.urlencode({
+                'turn': 2, 'entity': f'tile:{tile.name}',
+                'metric': 'goods.price', 'good': good, 'limit': 200})
+            payload = json.loads(MockHttpRequestHandler(
+                self.mock_server, 'GET', f'/api/trace?{query}').get_body())
+            price_bridge = next(row for row in payload['events']
+                                if row['kind'] == 'price_bridge')
+            displayed_price = charts['economic']['prices'][price_series][-1]
+            self.assertAlmostEqual(displayed_price,
+                                   price_bridge['value_after'], places=2)
+
+            production_query = urllib.parse.urlencode({
+                'turn': 2, 'entity': f'tile:{tile.name}',
+                'metric': 'goods.production', 'good': good, 'limit': 200})
+            production_payload = json.loads(MockHttpRequestHandler(
+                self.mock_server, 'GET',
+                f'/api/trace?{production_query}').get_body())
+            production = next(row for row in production_payload['events']
+                              if row['kind'] == 'tile_production_total')
+            self.assertEqual(
+                charts['economic']['production'][production_series][-1],
+                production['value_after'])
+
+            inventory_query = urllib.parse.urlencode({
+                'turn': 2, 'entity': f'tile:{tile.name}',
+                'metric': 'goods.producer_inventory', 'good': good,
+                'limit': 200})
+            inventory_payload = json.loads(MockHttpRequestHandler(
+                self.mock_server, 'GET',
+                f'/api/trace?{inventory_query}').get_body())
+            inventory = next(row for row in inventory_payload['events']
+                             if row['kind'] == 'producer_inventory_total')
+            self.assertAlmostEqual(
+                charts['economic']['inventories'][inventory_series][-1],
+                inventory['value_after'], places=1)
+
+        for good, series_key in (('food', 'food'), ('wood', 'wood'),
+                                 ('furniture', 'furniture')):
+            points = charts['economic']['demand_ratio'][series_key]
+            self.assertEqual(len(points), 2, good)
+            for index, turn in enumerate((1, 2)):
+                query = urllib.parse.urlencode({
+                    'turn': turn, 'entity': f'tile:{tile.name}',
+                    'metric': 'goods.demand_ratio', 'good': good,
+                    'limit': 200})
+                payload = json.loads(MockHttpRequestHandler(
+                    self.mock_server, 'GET', f'/api/trace?{query}').get_body())
+                calculation = next(row for row in payload['events']
+                                   if row['kind'] ==
+                                   'market_demand_supply_ratio')
+                inputs = calculation['inputs']
+                replay = (inputs['bids'] / inputs['total_asks']
+                          if inputs['total_asks'] else
+                          inputs['zero_supply_ratio'])
+                self.assertAlmostEqual(replay, calculation['value_after'])
+                self.assertAlmostEqual(points[index], calculation['value_after'],
+                                       places=2, msg=(good, turn))
+
     def test_government_revenue_chart_point_has_trace_record(self):
         self.sim.step()
         tile = self.sim.nations[0].tiles[0]

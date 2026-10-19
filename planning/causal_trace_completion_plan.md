@@ -2230,3 +2230,19 @@ commons-access formulas, checks class-group filtering, and compares the
 displayed class, food, commons, and rent points to turn/tile records. The
 metric-catalog, UI, syntax, and `git diff --check` checks pass. Desktop chart
 drilldown and other remaining chart histories are still open.
+
+## Phase 5 follow-up — Extend market chart coverage by good (implemented)
+
+Added tile charts for wood and furniture prices, production, and producer
+inventory, plus food/wood/furniture demand-to-supply ratios. Price chart clicks
+open the existing price inspector with the selected good, including its quote
+and paid-price views. The demand-ratio chart reads a turn-aligned chart-only
+history with the source calculation event ID; it records the no-order fallback
+as well as active-market ratios, leaving the sparse AI decision history intact.
+
+Verification: a two-turn endpoint test matches wood/furniture price, production,
+and inventory points to good-filtered trace records. It matches all three
+demand-ratio series by turn and replays bids divided by offers or the explicit
+zero-supply fallback. Trade charts, Node UI, JavaScript/Python syntax, and
+`git diff --check` passed. Additional active local goods and desktop chart
+drilldown remain open.
