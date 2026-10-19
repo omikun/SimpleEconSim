@@ -1681,5 +1681,23 @@ settled withdrawals, wallet deficit, rollback, remaining bank settlement, and
 contractor payment/no-payment. BuildIntent, trace-catalog, and run-trace suites
 passed (34 tests). The construction suite had one unrelated textile staffing
 failure: `operational_efficiency` was exactly 0.2 where the test expects above
-0.2, including when isolated. The focused multi-tier construction test,
-compilation, and `git diff --check` passed.
+0.2, including when isolated. The focused multi-tier construction UI test did
+not complete because its Python process aborted with exit 134 during pygame.
+Compilation and `git diff --check` passed.
+
+## Phase 3 follow-up — Trace imperial enforcement-agent costs (implemented)
+
+Record the initial agent-contract affordability gate and $50 fee, each $2
+recurring retainer, and a $50 replacement-agent contract when standing military
+enforcement loses its force. Link exact creditor and agent wallet balances with
+a stable operation ID and the affected receivership. If no living non-government
+agent is found by the existing recipient search, preserve the treasury debit as
+an explicit uncredited policy expense. Trace unaffordable retainers and the
+resulting receivership suspension. Flag currency mismatches without applying
+conversion.
+
+Verification: traced/untraced establishment and recurring-retainer paths match
+for cash, receivership state, and RNG progression. Dedicated tests cover exact
+payments, missing recipients, and unaffordable suspension; the metric-catalog
+audit and imperialism, coercion, phase-4, and hired-agent conservation tests
+passed (13 distinct tests). Compilation and `git diff --check` passed.

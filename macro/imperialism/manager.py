@@ -18,6 +18,139 @@ if TYPE_CHECKING:
     from nation import Nation
     from region import Region
 
+
+def _imperial_trace_region(world: dict | None, *nations):
+    """Choose an existing tile trace for an imperialism operation."""
+    candidates = []
+    seen = set()
+    for nation in nations:
+        for tile in getattr(nation, 'tiles', ()) or ():
+            if id(tile) not in seen:
+                seen.add(id(tile))
+                candidates.append(tile)
+    for tile in (world or {}).get('tiles', ()) or ():
+        if id(tile) not in seen:
+            seen.add(id(tile))
+            candidates.append(tile)
+    return next((tile for tile in candidates
+                 if getattr(tile, '_run_trace', None) is not None
+                 and getattr(tile, '_collective_trace_clock', None) is not None),
+                candidates[0] if candidates else None)
+
+
+def _trace_enforcement_funding_gate(region, *, operation_id, receivership_id,
+                                    creditor, debtor_name, turn, fee_required,
+                                    amount_required, cash_before, funded, reason,
+                                    enforcement_mode):
+    if region is None:
+        return None
+    from run_trace import emit
+
+    return emit(
+        region, kind='imperial_enforcement_funding_gate',
+        record_class='outcome', phase='imperialism',
+        subject={'type': 'nation/receivership', 'id': receivership_id,
+                 'nation': creditor.name},
+        metric_id='finance.enforcement_agent_funding', unit='funded',
+        before=None, after=bool(funded), operation_id=operation_id,
+        inputs={'operation_id': operation_id,
+                'receivership_id': receivership_id,
+                'creditor_nation': creditor.name,
+                'debtor_nation': debtor_name, 'turn': int(turn),
+                'enforcement_mode': enforcement_mode,
+                'fee_required': bool(fee_required),
+                'amount_required': float(amount_required),
+                'creditor_treasury_cash_before': float(cash_before),
+                'cash_shortfall': max(0.0, float(amount_required)
+                                      - float(cash_before)),
+                'funded': bool(funded), 'reason': reason})
+
+
+def _trace_enforcement_agent_payment(region, *, operation_id, receivership_id,
+                                     creditor, turn, amount, reason,
+                                     cash_before, cash_after, disbursement,
+                                     cause_event_id=None, world=None):
+    """Trace the creditor debit and the actual hired-agent wallet, if any."""
+    if region is None:
+        return None
+    from finance_trace import account_ref, cash_transfer_contract, emit_cash_transfer
+    from run_trace import emit
+
+    government = getattr(creditor, 'government', None)
+    currency = (getattr(creditor, 'currency', None)
+                or getattr(government, 'currency', None)
+                or getattr(region, 'home_currency', None) or 'local_currency')
+    payer = account_ref(
+        'government_treasury', creditor.name, currency,
+        nation_id=creditor.name, subaccount='government_agent.cash',
+        balance_before=float(cash_before), balance_after=float(cash_after),
+        balance_scope='government_agent.cash', balance_status='exact_cash_debit')
+    causes = [cause_event_id] if cause_event_id else None
+    recipient = (disbursement or {}).get('recipient')
+    if recipient is not None:
+        payee_currency = (getattr(recipient, 'home_currency', None)
+                          or getattr(recipient, 'currency', None) or currency)
+        recipient_region = next((tile for tile in
+                                 [*(getattr(creditor, 'tiles', ()) or ()),
+                                  *((world or {}).get('tiles', ()) or ())]
+                                 if recipient in getattr(tile, 'agents', ())), None)
+        payee = account_ref(
+            ('corporate_wallet' if getattr(recipient, 'is_corporation', False)
+             else 'agent_wallet'), str(recipient.id), payee_currency,
+            person_id=recipient.id,
+            balance_before=float(disbursement['cash_before']),
+            balance_after=float(disbursement['cash_after']),
+            balance_scope='cash_wallet', balance_status='exact_cash_credit',
+            tile=getattr(recipient, 'region', None))
+        contract = cash_transfer_contract(
+            operation_id, 'imperial_enforcement_agent_payment',
+            amount=amount, currency=currency, payer_account=payer,
+            payee_account=payee,
+            counterparty_leg_status='creditor and hired-agent cash balances captured',
+            receivership_id=receivership_id,
+            payee_currency=payee_currency,
+            currency_conversion_applied=False)
+        return emit_cash_transfer(
+            region, kind='imperial_enforcement_agent_payment', contract=contract,
+            phase='imperialism',
+            subject={'type': 'nation/receivership', 'id': receivership_id,
+                     'nation': creditor.name},
+            cause_event_ids=causes,
+            inputs={'turn': int(turn), 'reason': reason,
+                    'recipient_id': recipient.id,
+                    'recipient_region': (recipient_region.name
+                                         if recipient_region else
+                                         getattr(recipient, 'region', None)),
+                    'payer_cash_before': float(cash_before),
+                    'payer_cash_after': float(cash_after),
+                    'payee_cash_before': float(disbursement['cash_before']),
+                    'payee_cash_after': float(disbursement['cash_after']),
+                    'currency_conversion_applied': False})
+
+    payee = account_ref(
+        'uncredited_agent_fee', operation_id, currency,
+        balance_scope='missing_agent_payee',
+        balance_status='no_eligible_agent_wallet_found')
+    contract = cash_transfer_contract(
+        operation_id, 'imperial_enforcement_agent_payment',
+        amount=amount, currency=currency, payer_account=payer,
+        payee_account=payee,
+        counterparty_leg_status='treasury debited; no eligible agent received cash',
+        receivership_id=receivership_id)
+    return emit(
+        region, kind='imperial_enforcement_agent_payment_uncredited',
+        record_class='outcome', phase='imperialism',
+        subject={'type': 'nation/receivership', 'id': receivership_id,
+                 'nation': creditor.name},
+        metric_id='finance.policy_expenditure', unit=currency,
+        before=float(cash_before), after=float(cash_after),
+        operation_id=operation_id, cause_event_ids=causes,
+        inputs={'turn': int(turn), 'reason': reason,
+                'amount_paid': float(amount), 'recipient_found': False,
+                'payer_cash_before': float(cash_before),
+                'payer_cash_after': float(cash_after),
+                'transfer_contract': contract})
+
 def _disburse_agent_funds(world: dict | None, creditor: Any | None, amount: float):
     """Conserve currency by paying hired agents/bailiffs from creditor funds into living non-gov agents."""
     if amount <= 0:
@@ -430,6 +563,12 @@ class ImperialismManager:
                 existing.creditor_obj = creditor
             return True, f"Augmented active Customs Receivership on {debtor.name} by +${amount:.0f}.", existing
 
+        rec_id = f"rec_{uuid.uuid4().hex[:6]}"
+        operation_id = f'imperial-enforcement:{rec_id}:establishment'
+        trace_region = _imperial_trace_region(world, creditor, debtor)
+        fee_gate_event_id = None
+        fee_payment_event_id = None
+
         # Enforcement validation: standing military forces or hired international agents
         has_military = any(getattr(u, 'soldiers', 0) > 0 for u in getattr(creditor, 'military_units', []))
         cred_gov = getattr(creditor, 'government', None)
@@ -437,21 +576,69 @@ class ImperialismManager:
 
         if has_military and not hire_agents:
             enforce_mode = "military"
+            fee_gate_event_id = _trace_enforcement_funding_gate(
+                trace_region, operation_id=operation_id,
+                receivership_id=rec_id, creditor=creditor,
+                debtor_name=debtor.name, turn=t, fee_required=False,
+                amount_required=0.0, cash_before=cred_cash, funded=True,
+                reason='standing_military_force_no_agent_fee',
+                enforcement_mode=enforce_mode)
         elif cred_cash >= 50.0:
             enforce_mode = "hired_agents"
             if cred_gov and hasattr(cred_gov, 'agent'):
+                cash_before = float(cred_gov.agent.cash)
+                fee_gate_event_id = _trace_enforcement_funding_gate(
+                    trace_region, operation_id=operation_id,
+                    receivership_id=rec_id, creditor=creditor,
+                    debtor_name=debtor.name, turn=t, fee_required=True,
+                    amount_required=50.0, cash_before=cash_before,
+                    funded=True, reason='agent_contract_affordable',
+                    enforcement_mode=enforce_mode)
                 cred_gov.agent.cash -= 50.0
-                _disburse_agent_funds(world, creditor, 50.0)
+                disbursement = _disburse_agent_funds(world, creditor, 50.0)
+                fee_payment_event_id = _trace_enforcement_agent_payment(
+                    trace_region, operation_id=operation_id,
+                    receivership_id=rec_id, creditor=creditor, turn=t,
+                    amount=50.0, reason='receivership_agent_contract',
+                    cash_before=cash_before,
+                    cash_after=float(cred_gov.agent.cash),
+                    disbursement=disbursement,
+                    cause_event_id=fee_gate_event_id, world=world)
         else:
+            fee_gate_event_id = _trace_enforcement_funding_gate(
+                trace_region, operation_id=operation_id,
+                receivership_id=rec_id, creditor=creditor,
+                debtor_name=debtor.name, turn=t, fee_required=True,
+                amount_required=50.0, cash_before=cred_cash, funded=False,
+                reason='insufficient_creditor_treasury_cash',
+                enforcement_mode='hired_agents')
             return False, "Creditor lacks military forces and cannot afford $50 fee to hire enforcement agents.", None
 
         # Coercion gating: must have credible threat unless forced or consented
         if not force_override:
             can_enf, enf_msg, threat = self.can_enforce_receivership(creditor, debtor, world)
             if not can_enf and enforce_mode == "military":
+                if trace_region is not None:
+                    from run_trace import emit
+                    emit(trace_region, kind='imperial_receivership_establishment_result',
+                         record_class='outcome', phase='imperialism',
+                         subject={'type': 'nation/receivership', 'id': rec_id,
+                                  'nation': creditor.name},
+                         metric_id='imperialism.receivership_state',
+                         unit='status', before='absent', after='rejected',
+                         operation_id=operation_id,
+                         cause_event_ids=([fee_gate_event_id]
+                                          if fee_gate_event_id else None),
+                         inputs={'receivership_id': rec_id,
+                                 'creditor_nation': creditor.name,
+                                 'debtor_nation': debtor.name,
+                                 'turn': int(t), 'reason': enf_msg,
+                                 'enforcement_mode': enforce_mode,
+                                 'enforcement_fee_paid': False,
+                                 'credibility_score': threat.credibility_score,
+                                 'threat_tier': threat.tier})
                 return False, enf_msg, None
 
-        rec_id = f"rec_{uuid.uuid4().hex[:6]}"
         receivership = CustomsReceivership(
             receivership_id=rec_id,
             creditor_nation=creditor.name,
@@ -471,7 +658,9 @@ class ImperialismManager:
                 d['status'] = 'in_receivership'
 
         # Debtor grievance & legitimacy hit
+        legitimacy_before = float(getattr(debtor, 'legitimacy', 0.5))
         debtor.legitimacy = max(0.05, getattr(debtor, 'legitimacy', 0.5) - 0.15)
+        legitimacy_after = float(debtor.legitimacy)
         for tile in getattr(debtor, 'tiles', []):
             factions = getattr(getattr(tile, 'factions', None), 'factions', {})
             for f in factions.values():
@@ -497,6 +686,30 @@ class ImperialismManager:
                 f"⚓ IMPERIAL RECEIVERSHIP: {creditor.name} established Customs Receivership on {debtor.name} (intercepting 40% revenues for ${amount:.0f} debt)!",
                 (240, 160, 60)
             )
+
+        if trace_region is not None:
+            from run_trace import emit
+            causes = [event_id for event_id in
+                      (fee_gate_event_id, fee_payment_event_id) if event_id]
+            emit(trace_region, kind='imperial_receivership_establishment_result',
+                 record_class='outcome', phase='imperialism',
+                 subject={'type': 'nation/receivership', 'id': rec_id,
+                          'nation': creditor.name},
+                 metric_id='imperialism.receivership_state', unit='status',
+                 before='absent', after=receivership.status,
+                 operation_id=operation_id, cause_event_ids=causes or None,
+                 inputs={'receivership_id': rec_id,
+                         'creditor_nation': creditor.name,
+                         'debtor_nation': debtor.name,
+                         'turn': int(t), 'enforcement_mode': enforce_mode,
+                         'remaining_debt': float(receivership.remaining_debt),
+                         'intercept_share': float(receivership.intercept_share),
+                         'enforcement_fee_required': enforce_mode == 'hired_agents',
+                         'enforcement_fee_paid': fee_payment_event_id is not None,
+                         'fee_gate_event_id': fee_gate_event_id,
+                         'fee_payment_event_id': fee_payment_event_id,
+                         'debtor_legitimacy_before': legitimacy_before,
+                         'debtor_legitimacy_after': legitimacy_after})
 
         return True, f"Established Customs Receivership #{rec_id} on {debtor.name} for ${amount:.0f}.", receivership
 
@@ -1252,14 +1465,60 @@ class ImperialismManager:
             if creditor:
                 cred_gov = getattr(creditor, 'government', None)
                 has_military = any(getattr(u, 'soldiers', 0) > 0 for u in getattr(creditor, 'military_units', []))
+                trace_region = _imperial_trace_region(world, creditor, debtor)
 
                 if rec.enforcement_mode == "military":
                     if not has_military:
                         # Creditor lost military forces: auto-hire agents if cash available, else suspend
                         if cred_gov and hasattr(cred_gov, 'agent') and cred_gov.agent.cash >= 50.0:
+                            operation_id = (f'imperial-enforcement:{rec.receivership_id}:'
+                                            f'{int(t)}:replacement-agents')
+                            cash_before = float(cred_gov.agent.cash)
+                            gate_event_id = _trace_enforcement_funding_gate(
+                                trace_region, operation_id=operation_id,
+                                receivership_id=rec.receivership_id,
+                                creditor=creditor, debtor_name=rec.debtor_nation,
+                                turn=t, fee_required=True, amount_required=50.0,
+                                cash_before=cash_before, funded=True,
+                                reason='replacement_agents_affordable',
+                                enforcement_mode='hired_agents')
                             cred_gov.agent.cash -= 50.0
-                            _disburse_agent_funds(world, creditor, 50.0)
+                            disbursement = _disburse_agent_funds(world, creditor, 50.0)
+                            payment_event_id = _trace_enforcement_agent_payment(
+                                trace_region, operation_id=operation_id,
+                                receivership_id=rec.receivership_id,
+                                creditor=creditor, turn=t, amount=50.0,
+                                reason='receivership_replacement_agent_contract',
+                                cash_before=cash_before,
+                                cash_after=float(cred_gov.agent.cash),
+                                disbursement=disbursement,
+                                cause_event_id=gate_event_id, world=world)
+                            mode_before = rec.enforcement_mode
                             rec.enforcement_mode = "hired_agents"
+                            if trace_region is not None:
+                                from run_trace import emit
+                                causes = [event_id for event_id in
+                                          (gate_event_id, payment_event_id)
+                                          if event_id]
+                                emit(trace_region,
+                                     kind='imperial_receivership_enforcement_state',
+                                     record_class='outcome', phase='imperialism',
+                                     subject={'type': 'nation/receivership',
+                                              'id': rec.receivership_id,
+                                              'nation': creditor.name},
+                                     metric_id='imperialism.receivership_state',
+                                     unit='status',
+                                     before=f'active:{mode_before}',
+                                     after=f'active:{rec.enforcement_mode}',
+                                     operation_id=operation_id,
+                                     cause_event_ids=causes or None,
+                                     inputs={'receivership_id': rec.receivership_id,
+                                             'turn': int(t),
+                                             'creditor_nation': creditor.name,
+                                             'debtor_nation': rec.debtor_nation,
+                                             'status': rec.status,
+                                             'reason': 'military_force_lost; replacement agents contracted',
+                                             'agent_payment_event_id': payment_event_id})
                             if world:
                                 from client.desktop.engine import ticker_push
                                 ticker_push(
@@ -1268,7 +1527,41 @@ class ImperialismManager:
                                     (245, 180, 50)
                                 )
                         else:
+                            operation_id = (f'imperial-enforcement:{rec.receivership_id}:'
+                                            f'{int(t)}:replacement-agents')
+                            cash_before = (float(cred_gov.agent.cash)
+                                           if cred_gov and hasattr(cred_gov, 'agent')
+                                           else 0.0)
+                            gate_event_id = _trace_enforcement_funding_gate(
+                                trace_region, operation_id=operation_id,
+                                receivership_id=rec.receivership_id,
+                                creditor=creditor, debtor_name=rec.debtor_nation,
+                                turn=t, fee_required=True, amount_required=50.0,
+                                cash_before=cash_before, funded=False,
+                                reason='lost_military_force_and_insufficient_cash',
+                                enforcement_mode='hired_agents')
+                            status_before = rec.status
                             rec.status = "suspended"
+                            if trace_region is not None:
+                                from run_trace import emit
+                                emit(trace_region,
+                                     kind='imperial_receivership_enforcement_state',
+                                     record_class='outcome', phase='imperialism',
+                                     subject={'type': 'nation/receivership',
+                                              'id': rec.receivership_id,
+                                              'nation': creditor.name},
+                                     metric_id='imperialism.receivership_state',
+                                     unit='status', before=status_before,
+                                     after=rec.status, operation_id=operation_id,
+                                     cause_event_ids=([gate_event_id]
+                                                      if gate_event_id else None),
+                                     inputs={'receivership_id': rec.receivership_id,
+                                             'turn': int(t),
+                                             'creditor_nation': creditor.name,
+                                             'debtor_nation': rec.debtor_nation,
+                                             'reason': 'lost_military_force_and_agent_fee_unaffordable',
+                                             'required_cash': 50.0,
+                                             'cash_before': cash_before})
                             if world:
                                 from client.desktop.engine import ticker_push
                                 ticker_push(
@@ -1279,10 +1572,64 @@ class ImperialismManager:
                 elif rec.enforcement_mode == "hired_agents":
                     retainer = rec.agent_retainer_cost
                     if cred_gov and hasattr(cred_gov, 'agent') and cred_gov.agent.cash >= retainer:
+                        operation_id = (f'imperial-enforcement:{rec.receivership_id}:'
+                                        f'{int(t)}:agent-retainer')
+                        cash_before = float(cred_gov.agent.cash)
+                        gate_event_id = _trace_enforcement_funding_gate(
+                            trace_region, operation_id=operation_id,
+                            receivership_id=rec.receivership_id,
+                            creditor=creditor, debtor_name=rec.debtor_nation,
+                            turn=t, fee_required=True,
+                            amount_required=retainer, cash_before=cash_before,
+                            funded=True, reason='agent_retainer_affordable',
+                            enforcement_mode='hired_agents')
                         cred_gov.agent.cash -= retainer
-                        _disburse_agent_funds(world, creditor, retainer)
+                        disbursement = _disburse_agent_funds(world, creditor, retainer)
+                        _trace_enforcement_agent_payment(
+                            trace_region, operation_id=operation_id,
+                            receivership_id=rec.receivership_id,
+                            creditor=creditor, turn=t, amount=retainer,
+                            reason='receivership_agent_retainer',
+                            cash_before=cash_before,
+                            cash_after=float(cred_gov.agent.cash),
+                            disbursement=disbursement,
+                            cause_event_id=gate_event_id, world=world)
                     else:
+                        operation_id = (f'imperial-enforcement:{rec.receivership_id}:'
+                                        f'{int(t)}:agent-retainer')
+                        cash_before = (float(cred_gov.agent.cash)
+                                       if cred_gov and hasattr(cred_gov, 'agent')
+                                       else 0.0)
+                        gate_event_id = _trace_enforcement_funding_gate(
+                            trace_region, operation_id=operation_id,
+                            receivership_id=rec.receivership_id,
+                            creditor=creditor, debtor_name=rec.debtor_nation,
+                            turn=t, fee_required=True,
+                            amount_required=retainer, cash_before=cash_before,
+                            funded=False, reason='insufficient_cash_for_agent_retainer',
+                            enforcement_mode='hired_agents')
+                        status_before = rec.status
                         rec.status = "suspended"
+                        if trace_region is not None:
+                            from run_trace import emit
+                            emit(trace_region,
+                                 kind='imperial_receivership_enforcement_state',
+                                 record_class='outcome', phase='imperialism',
+                                 subject={'type': 'nation/receivership',
+                                          'id': rec.receivership_id,
+                                          'nation': creditor.name},
+                                 metric_id='imperialism.receivership_state',
+                                 unit='status', before=status_before,
+                                 after=rec.status, operation_id=operation_id,
+                                 cause_event_ids=([gate_event_id]
+                                                  if gate_event_id else None),
+                                 inputs={'receivership_id': rec.receivership_id,
+                                         'turn': int(t),
+                                         'creditor_nation': creditor.name,
+                                         'debtor_nation': rec.debtor_nation,
+                                         'reason': 'agent_retainer_unaffordable',
+                                         'required_cash': float(retainer),
+                                         'cash_before': cash_before})
                         if world:
                             from client.desktop.engine import ticker_push
                             ticker_push(

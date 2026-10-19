@@ -1263,5 +1263,21 @@ rollback, the remaining settled bank withdrawal, and that no contractor payment
 occurs. BuildIntent, trace-catalog, and run-trace suites passed (34 tests).
 Construction regressions passed except the existing textile staffing test,
 which fails its `operational_efficiency > 0.2` assertion at exactly 0.2 even
-when run alone. The focused multi-tier grant and construction test passed.
+when run alone. The focused multi-tier grant and construction UI test did not
+complete: its Python process aborted with exit 134 during the pygame test.
 Compilation and `git diff --check` passed.
+
+Phase 3 follow-up, 2026-10-18: imperial receivership enforcement now records
+the initial $50 agent-contract gate and payment, recurring retainer affordability
+and payment, and the $50 replacement-agent contract when military enforcement
+loses its force. Exact creditor and agent wallet balances share stable operation
+IDs with the receivership state. An unaffordable payment links to suspension.
+If the current recipient search finds no agent, the creditor debit is recorded
+as an explicit uncredited policy expense instead of a fabricated transfer.
+Cross-currency payments flag that no conversion occurred.
+
+Verification: three focused fixtures cover establishment and retainer transfers,
+missing payees, and unaffordable suspension; trace-on/off balances and RNG state
+match. The metric-catalog audit and imperialism, coercion, phase-4, and
+hired-agent conservation tests passed (13 distinct tests). Compilation and
+`git diff --check` passed.
