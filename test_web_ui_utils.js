@@ -54,7 +54,12 @@ for (const [chartId, metricId] of Object.entries({
   effluent: 'ecology.pollution_water', illness_deaths: 'health.fatalities',
   malnutrition_cases: 'health.disease_cases', waterborne_cases: 'health.disease_cases',
   respiratory_cases: 'health.disease_cases', chemical_cases: 'health.disease_cases',
-  health_outlays: 'health.medical_spending'
+  health_outlays: 'health.medical_spending',
+  shift_hours: 'labor.average_shift_hours',
+  exploitation: 'labor.exploitation_rate',
+  alienation: 'labor.average_alienation',
+  consciousness: 'labor.average_class_consciousness',
+  strikes: 'labor.strikers'
 })) {
   assert.equal(globalThis.CoCCharts.getTraceBinding(chartId).metricId, metricId);
 }
@@ -67,10 +72,16 @@ assert.equal(globalThis.CoCCharts.getTraceBinding('soil').chartScale, 100);
 assert.deepEqual(globalThis.CoCCharts.getTraceBinding('nutrition').tilePath,
   ['ecological', 'soil_nutrition', 'nutrition']);
 assert.equal(globalThis.CoCCharts.getTraceBinding('waterborne_cases').disease, 'waterborne');
+assert.deepEqual(globalThis.CoCCharts.getTraceBinding('shift_hours').tilePath,
+  ['labor', 'shifts_exploitation', 'shifts']);
+assert.equal(globalThis.CoCCharts.getTraceBinding('exploitation').chartScale, 100);
+assert.equal(globalThis.CoCCharts.getTraceBinding('alienation').chartScale, 100);
+assert.equal(globalThis.CoCCharts.getTraceBinding('consciousness').chartScale, 100);
+assert.deepEqual(globalThis.CoCCharts.getTraceBinding('strikes').tilePath,
+  ['labor', 'workplace_resistance', 'strikers']);
 assert.deepEqual(globalThis.CoCCharts.getTileSeries({ ecological: { healthcare_outlay: {
   private: [2, 3, 4], public: [5, 7, 11]
 } } }, globalThis.CoCCharts.getTraceBinding('health_outlays')), [7, 10, 15]);
-assert.equal(globalThis.CoCCharts.getTraceBinding('strikes'), null);
 
 const listeners = {};
 const selectedPoints = [];

@@ -214,8 +214,14 @@ def aggregate_tile_surplus(region) -> dict:
     if not firms:
         return {
             'avg_shift_hours': CUSTOMARY_SHIFT_HOURS,
+            'avg_shift_hours_inputs': {
+                'firms': [], 'weighted_shift_hours_sum': 0.0,
+                'worker_count': 0, 'empty_value': CUSTOMARY_SHIFT_HOURS},
             'total_surplus_value': 0.0,
             'avg_rate_of_exploitation': 0.0,
+            'exploitation_inputs': {
+                'firms': [], 'total_surplus_value': 0.0,
+                'total_variable_capital': 0.0, 'empty_value': 0.0},
             'total_machinery': 0,
             'total_broken_machinery': 0,
             'active_workers': 0,
@@ -228,12 +234,17 @@ def aggregate_tile_surplus(region) -> dict:
     total_s = 0.0
     total_machinery = 0
     total_broken = 0
+    shift_rows = []
+    exploitation_rows = []
 
     for f in firms:
         w_count = len(getattr(f, 'employees', []))
         total_workers += w_count
         s_hours = getattr(f, 'shift_hours', CUSTOMARY_SHIFT_HOURS)
         weighted_shifts += s_hours * max(1, w_count)
+        shift_rows.append({'firm_id': f.id, 'shift_hours': float(s_hours),
+                           'worker_count': w_count,
+                           'weight': max(1, w_count)})
 
         total_machinery += getattr(f, 'machinery_level', 1)
         total_broken += getattr(f, 'broken_machinery', 0)
@@ -243,16 +254,34 @@ def aggregate_tile_surplus(region) -> dict:
             total_surplus += stats.surplus_value
             total_s += stats.surplus_value
             total_v += stats.variable_capital
+            exploitation_rows.append({
+                'firm_id': f.id, 'surplus_value': float(stats.surplus_value),
+                'variable_capital': float(stats.variable_capital),
+                'included_in_rate': True})
         else:
             total_surplus += getattr(f, 'surplus_value_extracted', 0.0)
+            exploitation_rows.append({
+                'firm_id': f.id,
+                'surplus_value_extracted': float(
+                    getattr(f, 'surplus_value_extracted', 0.0)),
+                'included_in_rate': False,
+                'exclusion_reason': 'latest_labor_stats_unavailable'})
 
     avg_shift = weighted_shifts / max(1, total_workers) if total_workers > 0 else CUSTOMARY_SHIFT_HOURS
     avg_exploitation = (total_s / total_v) if total_v > 0.0 else 0.0
 
     return {
         'avg_shift_hours': avg_shift,
+        'avg_shift_hours_inputs': {
+            'firms': shift_rows, 'weighted_shift_hours_sum': weighted_shifts,
+            'worker_count': total_workers,
+            'empty_value': CUSTOMARY_SHIFT_HOURS if total_workers == 0 else None},
         'total_surplus_value': total_surplus,
         'avg_rate_of_exploitation': avg_exploitation,
+        'exploitation_inputs': {
+            'firms': exploitation_rows, 'total_surplus_value': total_s,
+            'total_variable_capital': total_v,
+            'empty_value': 0.0 if total_v <= 0.0 else None},
         'total_machinery': total_machinery,
         'total_broken_machinery': total_broken,
         'active_workers': total_workers,

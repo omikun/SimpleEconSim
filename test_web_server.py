@@ -298,6 +298,55 @@ class TestWebServerEndpoints(unittest.TestCase):
         displayed = chart['economic']['gini_migration']['gini'][-1]
         self.assertAlmostEqual(displayed, calculation['value_after'] * 100)
 
+    def test_labor_chart_points_have_trace_calculations(self):
+        self.sim.step()
+        tile = self.sim.nations[0].tiles[0]
+        chart = self.sim.serialize_tile(tile, turn=self.sim.turn)['charts']['labor']
+        cases = (
+            ('labor.average_shift_hours', 'shifts_exploitation', 'shifts', 1.0),
+            ('labor.exploitation_rate', 'shifts_exploitation', 'sv_rate', 100.0),
+            ('labor.average_alienation', 'alienation_health', 'alienation', 100.0),
+            ('labor.average_class_consciousness', 'consciousness_pacification',
+             'consciousness', 100.0),
+            ('labor.strikers', 'workplace_resistance', 'strikers', 1.0),
+        )
+        for metric, group, series, chart_scale in cases:
+            query = urllib.parse.urlencode({
+                'turn': 1, 'entity': f'tile:{tile.name}', 'metric': metric,
+                'limit': 200})
+            handler = MockHttpRequestHandler(
+                self.mock_server, 'GET', f'/api/trace?{query}')
+            payload = json.loads(handler.get_body())
+            calculations = [row for row in payload['events']
+                            if row['record_class'] == 'calculation']
+            self.assertTrue(calculations, metric)
+            calculation = calculations[0]
+            displayed = chart[group][series][-1]
+            self.assertAlmostEqual(
+                displayed, calculation['value_after'] * chart_scale,
+                places=1, msg=metric)
+            self.assertTrue(calculation.get('formula_id'), metric)
+            inputs = calculation.get('inputs', {})
+            if metric == 'labor.average_shift_hours':
+                denominator = inputs['worker_count']
+                replay = (inputs['weighted_shift_hours_sum'] / denominator
+                          if denominator else inputs['empty_value'])
+                self.assertAlmostEqual(replay, calculation['value_after'])
+            elif metric in ('labor.average_alienation',
+                            'labor.average_class_consciousness'):
+                denominator = inputs['denominator']
+                replay = (sum(inputs['values']) / denominator
+                          if denominator else inputs['empty_population_value'])
+                self.assertAlmostEqual(replay, calculation['value_after'])
+            elif metric == 'labor.exploitation_rate':
+                denominator = inputs['total_variable_capital']
+                replay = (inputs['total_surplus_value'] / denominator
+                          if denominator else inputs['empty_value'])
+                self.assertAlmostEqual(replay, calculation['value_after'])
+            elif metric == 'labor.strikers':
+                self.assertEqual(len(inputs['striking_agent_ids']),
+                                 calculation['value_after'])
+
     def test_api_world_state(self):
         handler = MockHttpRequestHandler(self.mock_server, 'GET', '/api/state')
         self.assertEqual(handler.response_status, 200)

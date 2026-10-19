@@ -1567,3 +1567,20 @@ Verification: the chart renderer's point-selection test confirms index, value,
 turn, and hit-area behavior. UI utility/geometry/API transport tests passed;
 web JavaScript serving and trace-query tests passed (2); JavaScript syntax
 checks passed.
+
+Phase 5 follow-up, 2026-10-18: repaired web chart sources for average shift
+hours, exploitation rate, average alienation, average class consciousness, and
+active strikers. Added turn-scoped calculation evidence and chart bindings for
+all five. Formula inputs expose the firm weights, surplus/variable-capital
+totals, member IDs and values, or striker IDs; empty calculation branches are
+explicit. The serializer now reads the actual simulation histories rather than
+unused legacy field names.
+
+Verification: the labor chart endpoint test checks all five chart values
+against their turn/tile calculation event, replays each calculation from its
+recorded inputs, and accounts for display rounding. Focused labor, macro chart,
+history serialization, and metric-catalog checks passed along with two direct
+aggregate formula tests (6 Python tests), as did the Node UI utility test,
+JavaScript syntax checks, and `git diff --check`.
+Desktop chart-to-trace selection and the remaining labor chart histories are
+still open.

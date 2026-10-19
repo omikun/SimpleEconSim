@@ -325,6 +325,16 @@ def sample(tiles, nations):
             tile_subject, 'people_per_turn', int(getattr(tile, 'deaths_this_turn', 0)))
         values[('people.births', tile.name)] = (
             tile_subject, 'people_per_turn', int(getattr(tile, 'births_this_turn', 0)))
+        for metric_id, field, unit in (
+                ('labor.average_shift_hours', 'avg_shift_hours_log', 'hours'),
+                ('labor.average_alienation', 'avg_alienation_log', 'ratio'),
+                ('labor.average_class_consciousness', 'avg_consciousness_log', 'ratio'),
+                ('labor.exploitation_rate', 'rate_of_exploitation_log', 'ratio'),
+                ('labor.strikers', 'strikers_log', 'people')):
+            history = getattr(tile, field, ())
+            if history:
+                values[(metric_id, tile.name)] = (
+                    tile_subject, unit, float(history[-1]))
         values[('people.residents', tile.name)] = (
             tile_subject, 'people', sum(
                 1 for person in tile.agents if person.alive

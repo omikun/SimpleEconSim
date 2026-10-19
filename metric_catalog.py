@@ -56,7 +56,10 @@ METRICS = {
     'economy.gdp_nominal': ('tile', 'local_currency_per_turn', 'micro.region.stepper.log_gdp'),
     'economy.cash': ('tile', 'local_currency', 'micro.region.stepper.log_metrics'),
     'economy.gini': ('tile/cohort', 'ratio', 'micro.region.stepper.log_metrics'),
-    'labor.exploitation_rate': ('tile', 'ratio', 'labor_contract.aggregate_tile_surplus'),
+    'labor.exploitation_rate': ('tile', 'ratio', 'labor_contract.aggregate_tile_surplus; total surplus divided by variable capital'),
+    'labor.average_shift_hours': ('tile', 'hours', 'labor_contract.aggregate_tile_surplus; worker-weighted firm shift hours'),
+    'labor.average_alienation': ('tile', 'ratio', 'alienation.step_tile_alienation; mean across living non-corporate agents'),
+    'labor.average_class_consciousness': ('tile', 'ratio', 'alienation.step_tile_alienation; mean across living non-corporate agents'),
     'labor.strikers': ('tile', 'people', 'labor_resistance.step_workplace_resistance'),
     'labor.available_worker_hours': ('tile/firm', 'hours', 'labor_resistance.record_workforce_availability before production'),
     'labor.hiring_decision': ('tile/firm/worker', 'accepted', 'region_labor.hire_workers'),
@@ -373,6 +376,11 @@ LEGACY_HISTORY_TO_METRIC = {
     'rent_collected_log': 'finance.rent_collected',
     'rent_arrears_log': 'finance.rent_arrears',
     'tribute_collected_log': 'finance.tribute_value',
+    'avg_shift_hours_log': 'labor.average_shift_hours',
+    'avg_alienation_log': 'labor.average_alienation',
+    'avg_consciousness_log': 'labor.average_class_consciousness',
+    'rate_of_exploitation_log': 'labor.exploitation_rate',
+    'strikers_log': 'labor.strikers',
 }
 
 TRACE_INSTRUMENTED = set(LEGACY_HISTORY_TO_METRIC.values()) | {

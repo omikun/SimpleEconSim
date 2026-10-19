@@ -241,6 +241,17 @@ def apply_mass_entertainment_pacifier(region, t: int):
                     a.cash += fee
 
 
+def _emit_average_metric(region, metric_id, history_name, value, inputs,
+                         unit='ratio'):
+    from run_trace import emit
+    history = getattr(region, history_name, ())
+    emit(region, kind=f'{metric_id.replace(".", "_")}_calculation',
+         record_class='calculation', phase='local',
+         subject={'type': 'tile', 'id': region.name}, metric_id=metric_id,
+         unit=unit, before=history[-2] if len(history) > 1 else None,
+         after=float(value), formula_id='aggregate.mean.v1', inputs=inputs)
+
+
 def step_tile_alienation(region, t: int):
     """Step psychology, health attrition, and mass entertainment across a tile."""
     agents = [a for a in getattr(region, 'agents', [])
@@ -251,6 +262,13 @@ def step_tile_alienation(region, t: int):
         region.avg_consciousness_log.append(0.0)
         region.workplace_accidents_log.append(0)
         region.entertainment_log.append(getattr(region, 'entertainment_level', 0.0))
+        empty_inputs = {'member_count': 0, 'agent_ids': [], 'values': [],
+                        'denominator': 0,
+                        'empty_population_value': 0.0}
+        _emit_average_metric(region, 'labor.average_alienation',
+                             'avg_alienation_log', 0.0, empty_inputs)
+        _emit_average_metric(region, 'labor.average_class_consciousness',
+                             'avg_consciousness_log', 0.0, empty_inputs)
         return
 
     ent_level = getattr(region, 'entertainment_level', 0.0)
@@ -260,11 +278,17 @@ def step_tile_alienation(region, t: int):
     total_attrition = 0.0
     total_consciousness = 0.0
     total_accidents = 0
+    alienation_ids = []
+    alienation_values = []
+    consciousness_ids = []
+    consciousness_values = []
 
     for a in agents:
         alien = compute_agent_alienation(a, region, t)
         a.alienation = alien
         total_alienation += alien
+        alienation_ids.append(a.id)
+        alienation_values.append(float(alien))
 
         attr = step_health_attrition(a, region, t)
         total_attrition += attr
@@ -274,6 +298,8 @@ def step_tile_alienation(region, t: int):
         process_despair_spending(a, region, t)
         c = update_class_consciousness(a, region, ent_level, t)
         total_consciousness += c
+        consciousness_ids.append(a.id)
+        consciousness_values.append(float(c))
 
     n = len(agents)
     region.avg_alienation_log.append(total_alienation / n)
@@ -281,3 +307,13 @@ def step_tile_alienation(region, t: int):
     region.avg_consciousness_log.append(total_consciousness / n)
     region.workplace_accidents_log.append(total_accidents)
     region.entertainment_log.append(ent_level)
+    _emit_average_metric(
+        region, 'labor.average_alienation', 'avg_alienation_log',
+        total_alienation / n,
+        {'member_count': n, 'agent_ids': alienation_ids,
+         'values': alienation_values, 'denominator': n})
+    _emit_average_metric(
+        region, 'labor.average_class_consciousness', 'avg_consciousness_log',
+        total_consciousness / n,
+        {'member_count': n, 'agent_ids': consciousness_ids,
+         'values': consciousness_values, 'denominator': n})

@@ -2134,3 +2134,26 @@ Verification: the UI utility test draws a mapped chart, selects a point, then
 draws an empty metric and confirms the click handler is removed, the cursor is
 reset, and no line or sample points are rendered. JavaScript syntax, UI
 utility, and chart-renderer serving checks passed.
+
+## Phase 5 follow-up — Connect labor charts to recorded histories (implemented)
+
+The web serializer now reads the live histories for average shift hours,
+exploitation rate, alienation, class consciousness, and active strikers. Each
+chart has an explicit trace binding and accurate label; ratios plotted as
+percentages identify their ×100 scale in the inspector. The source histories
+are also sampled under their registered metrics.
+
+Each plotted turn now has a calculation record. Shift-hour evidence lists firm
+hours and employee weights; exploitation evidence records surplus and variable
+capital inputs; alienation and consciousness evidence records the member IDs
+and values used in each mean; strike evidence lists the active strikers. Empty
+population and denominator branches are recorded explicitly. This only adds
+telemetry and fixes chart sources; it does not change labor behavior.
+
+Verification: the focused endpoint test checks that all five chart values
+match their turn/tile calculation records after display rounding and replays
+the recorded formulas. Chart bindings, macro history serialization,
+metric-catalog coverage, JavaScript syntax and UI utility checks passed (4
+focused integration/catalog/parity Python tests plus 2 aggregate formula tests
+and the Node UI test). Desktop chart-to-trace selection and the other labor
+panel histories remain open work.

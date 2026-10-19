@@ -21,8 +21,11 @@
       { id: 'health_outlays', name: 'Healthcare Outlays' }, { id: 'illness_deaths', name: 'Illness Fatalities' }
     ],
     labor: [
-      { id: 'shift_hours', name: 'Shift Hours & (s/v)' }, { id: 'alienation', name: '4D Alienation' },
-      { id: 'consciousness', name: 'Class Consciousness' }, { id: 'strikes', name: 'Wildcat Strikes' }
+      { id: 'shift_hours', name: 'Average Shift Hours' },
+      { id: 'exploitation', name: 'Rate of Exploitation (s/v)' },
+      { id: 'alienation', name: 'Average Alienation' },
+      { id: 'consciousness', name: 'Average Class Consciousness' },
+      { id: 'strikes', name: 'Active Strikers' }
     ]
   });
 
@@ -81,7 +84,22 @@
     health_outlays: Object.freeze({ metricId: 'health.medical_spending',
       seriesPaths: [['ecological', 'healthcare_outlay', 'private'],
         ['ecological', 'healthcare_outlay', 'public']],
-      label: 'Healthcare outlays' })
+      label: 'Healthcare outlays' }),
+    shift_hours: Object.freeze({ metricId: 'labor.average_shift_hours',
+      tilePath: ['labor', 'shifts_exploitation', 'shifts'],
+      label: 'Average shift hours' }),
+    exploitation: Object.freeze({ metricId: 'labor.exploitation_rate',
+      tilePath: ['labor', 'shifts_exploitation', 'sv_rate'],
+      chartScale: 100, displayUnit: '%', label: 'Rate of exploitation (s/v)' }),
+    alienation: Object.freeze({ metricId: 'labor.average_alienation',
+      tilePath: ['labor', 'alienation_health', 'alienation'],
+      chartScale: 100, displayUnit: '%', label: 'Average alienation' }),
+    consciousness: Object.freeze({ metricId: 'labor.average_class_consciousness',
+      tilePath: ['labor', 'consciousness_pacification', 'consciousness'],
+      chartScale: 100, displayUnit: '%', label: 'Average class consciousness' }),
+    strikes: Object.freeze({ metricId: 'labor.strikers',
+      tilePath: ['labor', 'workplace_resistance', 'strikers'],
+      label: 'Active strikers' })
   });
 
   function getChartCatalog() {

@@ -283,6 +283,23 @@ def step_economy(region: Any, t: int):
     region.avg_shift_hours_log.append(surplus_stats['avg_shift_hours'])
     region.surplus_value_log.append(surplus_stats['total_surplus_value'])
     region.rate_of_exploitation_log.append(surplus_stats['avg_rate_of_exploitation'])
+    from run_trace import emit
+    for metric_id, history, value, unit, kind, formula_id, inputs in (
+            ('labor.average_shift_hours', region.avg_shift_hours_log,
+             surplus_stats['avg_shift_hours'], 'hours',
+             'labor_shift_hours_calculation',
+             'labor.weighted_average_shift_hours.v1',
+             surplus_stats['avg_shift_hours_inputs']),
+            ('labor.exploitation_rate', region.rate_of_exploitation_log,
+             surplus_stats['avg_rate_of_exploitation'], 'ratio',
+             'labor_exploitation_rate_calculation',
+             'labor.surplus_over_variable_capital.v1',
+             surplus_stats['exploitation_inputs'])):
+        emit(region, kind=kind, record_class='calculation', phase='local',
+             subject={'type': 'tile', 'id': region.name}, metric_id=metric_id,
+             unit=unit,
+             before=history[-2] if len(history) > 1 else None,
+             after=float(value), formula_id=formula_id, inputs=inputs)
 
     if t > 0 and t % 10 == 0:
         _fin.recalculate_multipliers(region)

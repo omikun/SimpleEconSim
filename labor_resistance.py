@@ -226,6 +226,23 @@ def step_workplace_resistance(region, t: int) -> dict:
                          if getattr(a, 'is_striking', False) and getattr(a, 'alive', True))
     total_broken = sum(getattr(f, 'broken_machinery', 0) for f in firms)
     active_strikes = sum(1 for f in firms if getattr(f, 'is_on_strike', False))
+    striker_ids = [a.id for a in getattr(region, 'agents', [])
+                   if getattr(a, 'is_striking', False)
+                   and getattr(a, 'alive', True)]
+    from run_trace import emit
+    striker_history = getattr(region, 'strikers_log', ())
+    emit(region, kind='labor_striker_count_calculation',
+         record_class='calculation', phase='local',
+         subject={'type': 'tile', 'id': region.name},
+         metric_id='labor.strikers', unit='people',
+         before=striker_history[-1] if striker_history else None,
+         after=total_strikers,
+         formula_id='labor.count_active_strikers.v1',
+         inputs={'striking_agent_ids': striker_ids,
+                 'active_strike_count': active_strikes,
+                 'firm_count': len(firms),
+                 'broken_machinery': total_broken,
+                 'machinery_smashed_this_turn': smashed})
 
     return {
         'strikers': total_strikers,

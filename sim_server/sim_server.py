@@ -1549,15 +1549,15 @@ class SimServer:
         health_attr_series = [round(float(h) * 100.0, 1) for h in (getattr(tile, 'avg_health_attrition_log', []) or [])][-30:]
 
         # Labor & Alienation charts (4 series)
-        shifts_series = [round(float(s), 1) for s in (getattr(tile, 'labor_shift_log', []) or [])][-30:]
-        sv_rates_series = [round(float(v) * 100.0, 1) for v in (getattr(tile, 'labor_sv_log', []) or [])][-30:]
+        shifts_series = [round(float(s), 1) for s in (getattr(tile, 'avg_shift_hours_log', []) or [])][-30:]
+        sv_rates_series = [round(float(v) * 100.0, 1) for v in (getattr(tile, 'rate_of_exploitation_log', []) or [])][-30:]
         legal_caps = [round(float(getattr(tile, 'max_workday_hours', 16.0)), 1)] * len(shifts_series)
-        alienation_series = [round(float(a) * 100.0, 1) for a in (getattr(tile, 'alienation_log', []) or [])][-30:]
+        alienation_series = [round(float(a) * 100.0, 1) for a in (getattr(tile, 'avg_alienation_log', []) or [])][-30:]
         health_series = [round(float(h) * 1000.0, 1) for h in (getattr(tile, 'health_attrition_log', []) or [])][-30:]
         vice_series = [round(float(v), 1) for v in (getattr(tile, 'vice_spending_log', []) or [])][-30:]
-        consc_series = [round(float(c) * 100.0, 1) for c in (getattr(tile, 'class_consciousness_log', []) or [])][-30:]
+        consc_series = [round(float(c) * 100.0, 1) for c in (getattr(tile, 'avg_consciousness_log', []) or [])][-30:]
         entertain_series = [round(float(e) * 100.0, 1) for e in (getattr(tile, 'entertainment_level_log', []) or [])][-30:]
-        strikers_series = (getattr(tile, 'strikes_log', []) or [])[-30:]
+        strikers_series = (getattr(tile, 'strikers_log', []) or [])[-30:]
         broken_series = (getattr(tile, 'sabotage_log', []) or [])[-30:]
         machines_series = (getattr(tile, 'machinery_stock_log', []) or [])[-30:]
 
