@@ -483,7 +483,8 @@ class TestWebServerEndpoints(unittest.TestCase):
                     history[history_key][-1],
                     round(row['value_after'] * scale, 1), places=1)
                 self.assertTrue(any(
-                    contribution['source_link_status'] == 'linked'
+                    contribution['source_link_status'] in (
+                        'linked', 'linked_observation')
                     for contribution in row['inputs']['member_contributions']))
                 if family == 'market_demand_ratio':
                     self.assertEqual(row['inputs']['reducer'], 'mean')
@@ -491,6 +492,53 @@ class TestWebServerEndpoints(unittest.TestCase):
                         contribution['source_link_status'] == 'linked'
                         for contribution in row['inputs']['member_contributions']
                         if contribution['value'] is not None))
+
+    def test_nation_ecology_and_health_histories_match_aggregates(self):
+        self.sim.step()
+        nation = self.sim.nations[0]
+        history = self.sim.serialize_world()['history']
+        cases = (
+            ('soil', 'ecology', 'soil', 'ecology.soil_fertility', None, None, 100.0),
+            ('nutrition', 'ecology', 'nutrition', 'ecology.nutrition_density', None, None, 100.0),
+            ('smog', 'ecology', 'smog', 'ecology.pollution_air', None, None, 1.0),
+            ('effluent', 'ecology', 'effluent', 'ecology.pollution_water', None, None, 1.0),
+            ('soil_pollution', 'ecology', 'soil toxicity', 'ecology.pollution_soil', None, None, 1.0),
+            ('malnutrition_cases', 'health', 'malnutrition cases', 'health.disease_cases', 'disease', 'malnutrition', 1.0),
+            ('waterborne_cases', 'health', 'waterborne cases', 'health.disease_cases', 'disease', 'waterborne', 1.0),
+            ('respiratory_cases', 'health', 'respiratory cases', 'health.disease_cases', 'disease', 'respiratory', 1.0),
+            ('chemical_cases', 'health', 'chemical cases', 'health.disease_cases', 'disease', 'chemical', 1.0),
+            ('health_outlays', 'health', 'outlays', 'health.medical_spending', None, None, 1.0),
+            ('untreated_cases', 'health', 'untreated', 'health.untreated_cases', None, None, 1.0),
+            ('illness_deaths', 'health', 'fatalities', 'health.fatalities', None, None, 1.0),
+        )
+        for history_key, family, chart_series, metric, filter_key, filter_value, scale in cases:
+            with self.subTest(history_key=history_key):
+                self.assertEqual(len(history[history_key]), len(history['turns']))
+                self.assertIsNone(history[history_key][0])
+                self.assertIsNotNone(history[history_key][-1])
+                params = {'turn': self.sim.turn, 'entity': f'nation:{nation.name}',
+                          'metric': metric, 'limit': 200}
+                if filter_key:
+                    params[filter_key] = filter_value
+                query = urllib.parse.urlencode(params)
+                payload = json.loads(MockHttpRequestHandler(
+                    self.mock_server, 'GET', f'/api/trace?{query}').get_body())
+                rows = [row for row in payload['events']
+                        if row['kind'] == 'nation_chart_history_aggregate'
+                        and row['inputs']['chart_family'] == family
+                        and row['inputs']['chart_series'] == chart_series]
+                self.assertEqual(len(rows), 1)
+                row = rows[0]
+                self.assertAlmostEqual(
+                    history[history_key][-1],
+                    round(row['value_after'] * scale, 1), places=1)
+                self.assertTrue(any(
+                    contribution['source_link_status'] in (
+                        'linked', 'linked_observation')
+                    for contribution in row['inputs']['member_contributions']))
+                if history_key == 'health_outlays':
+                    self.assertFalse(row['inputs']['currency_conversion_applied'])
+                    self.assertIn('local-currency', row['inputs']['currency_semantics'])
 
     def test_workplace_condition_charts_replay_from_trace_inputs(self):
         self.sim.step()

@@ -66,6 +66,12 @@ class TestWebClientParity(unittest.TestCase):
         for series in ('market_production_food', 'market_inventory_food',
                        'market_demand_ratio_food'):
             self.assertEqual(len(hist[series]), len(hist['turns']))
+        for series in ('soil', 'nutrition', 'smog', 'effluent',
+                       'soil_pollution', 'malnutrition_cases',
+                       'waterborne_cases', 'respiratory_cases',
+                       'chemical_cases', 'health_outlays', 'untreated_cases',
+                       'illness_deaths'):
+            self.assertEqual(len(hist[series]), len(hist['turns']))
 
     def test_tile_deep_inspection(self):
         inhabited = [t for t in self.sim.tiles if getattr(t, 'owner_nation', None) is not None][0]

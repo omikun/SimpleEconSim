@@ -332,6 +332,11 @@ def nation_chart_aggregation_rows(nation, turn=None):
         history = getattr(tile, field, ()) or ()
         return history[index] if index < len(history) else None
 
+    def current_list_value(tile, field):
+        history = getattr(tile, field, ()) or ()
+        index = turn - 1 if turn is not None else len(history) - 1
+        return history[index] if 0 <= index < len(history) else None
+
     citizen_length = max((len(getattr(tile, 'social_class_log', ()) or ())
                           for tile in tiles), default=0)
     if citizen_length:
@@ -437,6 +442,70 @@ def nation_chart_aggregation_rows(nation, turn=None):
             add('market_demand_ratio', good_name, 'goods.demand_ratio',
                 'ratio', 'mean', ratio_index, ratio_for_tile,
                 {'good': good.name})
+
+    for label, metric_id, field, unit in (
+            ('soil', 'ecology.soil_fertility', 'soil_fertility_log', 'ratio'),
+            ('nutrition', 'ecology.nutrition_density',
+             'nutrition_density_log', 'ratio'),
+            ('smog', 'ecology.pollution_air', 'pollution_air_log', 'index'),
+            ('effluent', 'ecology.pollution_water',
+             'pollution_water_log', 'index'),
+            ('soil toxicity', 'ecology.pollution_soil',
+             'pollution_soil_log', 'index')):
+        values = [current_list_value(tile, field) for tile in tiles]
+        if any(value is not None for value in values):
+            index = (max(0, turn - 1) if turn is not None else
+                     max((len(getattr(tile, field, ()) or ()) - 1
+                          for tile in tiles), default=0))
+            add('ecology', label, metric_id, unit, 'mean', index,
+                lambda tile, _i, name=field: current_list_value(tile, name))
+
+    diseases = (
+        ('malnutrition', 'malnutrition cases'),
+        ('waterborne', 'waterborne cases'),
+        ('respiratory', 'respiratory cases'),
+        ('chemical', 'chemical cases'))
+    for disease, label in diseases:
+        case_values = []
+        for tile in tiles:
+            row = current_list_value(tile, 'disease_cases_log')
+            case_values.append(row.get(disease) if isinstance(row, dict) else None)
+        if any(value is not None for value in case_values):
+            index = max(0, turn - 1) if turn is not None else max((
+                len(getattr(tile, 'disease_cases_log', ()) or ()) - 1
+                for tile in tiles), default=0)
+            add('health', label, 'health.disease_cases', 'people', 'sum',
+                index,
+                lambda tile, _i, name=disease: (
+                    (current_list_value(tile, 'disease_cases_log') or {}).get(name)
+                    if isinstance(current_list_value(tile, 'disease_cases_log'), dict)
+                    else None), {'disease': disease})
+
+    for label, metric_id, field, unit in (
+            ('untreated', 'health.untreated_cases', 'untreated_cases_log', 'cases'),
+            ('fatalities', 'health.fatalities', 'disease_fatalities_log', 'people')):
+        if any(current_list_value(tile, field) is not None for tile in tiles):
+            index = (max(0, turn - 1) if turn is not None else
+                     max((len(getattr(tile, field, ()) or ()) - 1
+                          for tile in tiles), default=0))
+            add('health', label, metric_id, unit, 'sum', index,
+                lambda tile, _i, name=field: current_list_value(tile, name))
+
+    def current_medical_spending(tile):
+        private = current_list_value(tile, 'medical_spending_private_log')
+        public = current_list_value(tile, 'medical_spending_public_log')
+        if private is None and public is None:
+            return None
+        return float(private or 0.0) + float(public or 0.0)
+
+    if any(current_medical_spending(tile) is not None for tile in tiles):
+        index = (max(0, turn - 1) if turn is not None else max((
+            max(len(getattr(tile, 'medical_spending_private_log', ()) or ()),
+                len(getattr(tile, 'medical_spending_public_log', ()) or ())) - 1
+            for tile in tiles), default=0))
+        add('health', 'outlays', 'health.medical_spending', 'local_currency',
+            'sum', index,
+            lambda tile, _i: current_medical_spending(tile))
 
     labor_length = max((len(getattr(tile, 'avg_shift_hours_log', ()) or ())
                         for tile in tiles), default=0)
@@ -1220,9 +1289,15 @@ def record(server):
                     source_event_id = server.run_trace.latest_metric_calculation_event_id(
                         aggregate['metric_id'], source_subject)
                     contribution['source_event_id'] = source_event_id
-                    contribution['source_link_status'] = (
-                        'linked' if source_event_id is not None
-                        else 'tile_calculation_not_captured')
+                    if source_event_id is not None:
+                        contribution['source_link_status'] = 'linked'
+                    else:
+                        source_event_id = server.run_trace.latest_metric_event_id(
+                            aggregate['metric_id'], source_subject)
+                        contribution['source_event_id'] = source_event_id
+                        contribution['source_link_status'] = (
+                            'linked_observation' if source_event_id is not None
+                            else 'tile_calculation_not_captured')
                     if source_event_id is not None:
                         source_event_ids.append(source_event_id)
                 inputs = dict(aggregate['inputs'])

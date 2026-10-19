@@ -34,6 +34,18 @@ _NATION_CHART_HISTORY_KEYS = {
     ('trade', 'net'): ('trade', 1.0),
     ('trade', 'exports'): ('trade_exports', 1.0),
     ('trade', 'imports'): ('trade_imports', 1.0),
+    ('ecology', 'soil'): ('soil', 100.0),
+    ('ecology', 'nutrition'): ('nutrition', 100.0),
+    ('ecology', 'smog'): ('smog', 1.0),
+    ('ecology', 'effluent'): ('effluent', 1.0),
+    ('ecology', 'soil toxicity'): ('soil_pollution', 1.0),
+    ('health', 'malnutrition cases'): ('malnutrition_cases', 1.0),
+    ('health', 'waterborne cases'): ('waterborne_cases', 1.0),
+    ('health', 'respiratory cases'): ('respiratory_cases', 1.0),
+    ('health', 'chemical cases'): ('chemical_cases', 1.0),
+    ('health', 'outlays'): ('health_outlays', 1.0),
+    ('health', 'untreated'): ('untreated_cases', 1.0),
+    ('health', 'fatalities'): ('illness_deaths', 1.0),
     ('citizen', 'serf'): ('class_serf', 1.0),
     ('citizen', 'tenant'): ('class_tenant', 1.0),
     ('citizen', 'worker'): ('class_worker', 1.0),
@@ -295,12 +307,16 @@ class SimServer:
 
             aggregates = nation_chart_aggregation_rows(n, turn=t)
             market_history_values = {}
+            environment_history_values = {}
             for aggregate in aggregates:
                 family = aggregate['inputs']['chart_family']
                 chart_series = aggregate['inputs']['chart_series']
                 if family in ('market_production', 'market_inventory',
                               'market_demand_ratio'):
                     market_history_values[(family, chart_series)] = aggregate['after']
+                if family in ('ecology', 'health'):
+                    environment_history_values[(family, chart_series)] = aggregate['after']
+                    continue
                 key = _NATION_CHART_HISTORY_KEYS.get((
                     family, chart_series))
                 if key is None:
@@ -328,6 +344,19 @@ class SimServer:
                     value = market_history_values.get((family, good_name))
                     series.append(round(float(value), digits)
                                   if value is not None else None)
+
+            # Ecology and health use one chart point per Nation turn. If no
+            # tile produced a current reading, preserve a gap at this turn.
+            for (family, chart_series), (history_key, display_scale) in (
+                    _NATION_CHART_HISTORY_KEYS.items()):
+                if family not in ('ecology', 'health'):
+                    continue
+                series = hist.setdefault(history_key, [])
+                while len(series) < len(hist['turns']) - 1:
+                    series.append(None)
+                value = environment_history_values.get((family, chart_series))
+                series.append(round(float(value) * display_scale, 1)
+                              if value is not None else None)
 
             # Keep Nation-wide reference-price histories on the same covered-
             # member mean used by goods.national_reference_price trace rows.

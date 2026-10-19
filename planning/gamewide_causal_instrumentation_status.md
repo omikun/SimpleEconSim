@@ -1995,6 +1995,12 @@ member values, currencies, source event links, and mixed-currency status.
 Existing trade chart selections now show these Nation series when no tile is
 selected and open the selected aggregate's trace evidence.
 
+Verification: the aggregation fixture checks export/import/net sums and flags
+mixed-currency raw sums. The web trace endpoint matches all three history
+points with their Nation aggregate events, and the serialization and frontend
+binding tests pass. Python compilation, JavaScript syntax checks, and
+`git diff --check` passed.
+
 Phase 5 follow-up, 2026-10-18: added Nation histories for per-good production,
 producer inventory, and demand/supply ratios. Production and inventory sum the
 current-turn tile calculations; demand/supply ratios average only tiles with a
@@ -2010,8 +2016,19 @@ and verify source links; frontend tests verify the dynamic metric/history
 bindings and turn-aligned gaps. Python and JavaScript syntax checks and
 `git diff --check` passed.
 
-Verification: the aggregation fixture checks export/import/net sums and flags
-mixed-currency raw sums. The web trace endpoint matches all three history
-points with their Nation aggregate events, and the serialization and frontend
-binding tests pass. Python compilation, JavaScript syntax checks, and
+Phase 5 follow-up, 2026-10-18: exposed Nation histories for soil fertility,
+nutrition density, air/water/soil pollution, disease cases by type, untreated
+cases, disease fatalities, and healthcare spending. Ecological conditions use
+equal-tile means; counts and spending use sums. Spending is explicitly shown as
+an unconverted sum of local currency values. Each series preserves turn gaps,
+and its aggregate links member tiles to calculation records; fatality totals
+link to the available observation record when no calculation event exists.
+Chart selectors now bind to these Nation histories, including the existing
+Nation bodily-wear history.
+
+Verification: synthetic aggregation tests check means, sums, and mixed-currency
+spending semantics. Web endpoint tests match all 12 new ecology/health series
+to their Nation aggregate records and verify tile-source links, including the
+observation link for fatalities. The trace and metric-catalog suites passed
+(37 tests); all 10 frontend tests passed. Python/JavaScript syntax checks and
 `git diff --check` passed.

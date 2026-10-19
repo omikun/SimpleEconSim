@@ -27,6 +27,7 @@ class RunTrace:
         self._calculated = set()
         self._calculated_values = {}
         self._latest_calculation_event_ids = {}
+        self._latest_metric_event_ids = {}
         self._treasury_flows = {}
         self._price_mutations = {}
         self._person_flow_events = {}
@@ -72,6 +73,7 @@ class RunTrace:
             self._calculated.clear()
             self._calculated_values.clear()
             self._latest_calculation_event_ids.clear()
+            self._latest_metric_event_ids.clear()
             self._treasury_flows.clear()
             self._price_mutations.clear()
             self._previous_person_flow_events = self._person_flow_events
@@ -220,6 +222,9 @@ class RunTrace:
         except OSError as exc:
             self.write_error = str(exc)
         else:
+            if metric_id is not None and subject is not None:
+                self._latest_metric_event_ids[(
+                    metric_id, json.dumps(subject, sort_keys=True))] = row['event_id']
             if (record_class == 'calculation' and metric_id is not None
                     and subject is not None):
                 self._latest_calculation_event_ids[(
@@ -321,6 +326,11 @@ class RunTrace:
         """Return the latest current-turn calculation for an exact subject."""
         key = (metric_id, json.dumps(subject, sort_keys=True))
         return self._latest_calculation_event_ids.get(key)
+
+    def latest_metric_event_id(self, metric_id, subject):
+        """Return the latest current-turn record for an exact metric subject."""
+        key = (metric_id, json.dumps(subject, sort_keys=True))
+        return self._latest_metric_event_ids.get(key)
 
     def turn_tile_production_event_id(self, tile_id, good_name):
         """Return the current-turn aggregate production event for a tile good."""

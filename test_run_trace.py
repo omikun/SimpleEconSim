@@ -758,7 +758,19 @@ class RunTraceTests(unittest.TestCase):
                 market_demand_ratio_chart_log={Goods.wool: [{
                     'turn': 1 if name == 'North' else 0,
                     'value': 2.25 if name == 'North' else 9.0,
-                    'event_id': 10 if name == 'North' else 9}]})
+                    'event_id': 10 if name == 'North' else 9}]},
+                soil_fertility_log=[0.8 if name == 'North' else 1.0],
+                nutrition_density_log=[0.6 if name == 'North' else 0.8],
+                pollution_air_log=[4.0 if name == 'North' else 8.0],
+                pollution_water_log=[3.0 if name == 'North' else 5.0],
+                pollution_soil_log=[7.0 if name == 'North' else 9.0],
+                disease_cases_log=[{
+                    'malnutrition': serf, 'waterborne': serf + 1,
+                    'respiratory': 0, 'chemical': 2}],
+                untreated_cases_log=[serf],
+                disease_fatalities_log=[serf // 2],
+                medical_spending_private_log=[serf * 3],
+                medical_spending_public_log=[serf * 2])
 
         nation = SimpleNamespace(name='Republic', tiles=[
             tile('North', 2, 0.5, 0.2, 8.0, 1),
@@ -787,6 +799,18 @@ class RunTraceTests(unittest.TestCase):
         self.assertEqual(
             [row['value'] for row in wool_ratio['inputs']['member_contributions']],
             [2.25, None])
+        self.assertAlmostEqual(by_series[('ecology', 'soil')]['after'], 0.9)
+        self.assertAlmostEqual(
+            by_series[('ecology', 'nutrition')]['after'], 0.7)
+        self.assertEqual(by_series[('ecology', 'smog')]['after'], 6.0)
+        self.assertEqual(
+            by_series[('health', 'malnutrition cases')]['after'], 6.0)
+        self.assertEqual(by_series[('health', 'untreated')]['after'], 6.0)
+        self.assertEqual(by_series[('health', 'fatalities')]['after'], 3.0)
+        outlays = by_series[('health', 'outlays')]
+        self.assertEqual(outlays['after'], 30.0)
+        self.assertTrue(outlays['inputs']['unconverted_mixed_currency'])
+        self.assertFalse(outlays['inputs']['currency_conversion_applied'])
         net_trade = by_series[('trade', 'net')]
         self.assertEqual(net_trade['inputs']['member_currencies'], ['NRC', 'SRC'])
         self.assertTrue(net_trade['inputs']['unconverted_mixed_currency'])
@@ -813,6 +837,14 @@ class RunTraceTests(unittest.TestCase):
                        metric_id='people.hungry', after=3)
             self.assertNotEqual(trace.latest_metric_calculation_event_id(
                 'people.hungry', subject), event_id)
+            clock.update(turn=3, next=3)
+            observation_id = trace.emit(
+                clock, kind='metric_snapshot', record_class='observation',
+                subject=subject, metric_id='health.fatalities', after=0)
+            self.assertEqual(trace.latest_metric_event_id(
+                'health.fatalities', subject), observation_id)
+            self.assertIsNone(trace.latest_metric_calculation_event_id(
+                'health.fatalities', subject))
 
     def test_scenario_quote_replays_and_paid_price_is_separate(self):
         from sim_server.sim_server import SimServer

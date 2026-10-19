@@ -314,6 +314,13 @@ test('every historical chart has a trace binding, including effective workday ca
     assert.ok(binding.historyKey, `missing Nation trade history for ${id}`);
     assert.ok(binding.metricId.startsWith('trade.'));
   }
+  for (const id of ['soil', 'nutrition', 'smog', 'effluent',
+    'soil_pollution', 'bodily_wear', 'illness_deaths', 'untreated_cases',
+    'malnutrition_cases', 'waterborne_cases', 'respiratory_cases',
+    'chemical_cases', 'health_outlays']) {
+    const binding = charts.getTraceBinding(id);
+    assert.ok(binding.historyKey, `missing Nation ecology/health history for ${id}`);
+  }
 
   const binding = charts.getTraceBinding('workday_cap');
   assert.equal(binding.metricId, 'labor.statutory_workday');
