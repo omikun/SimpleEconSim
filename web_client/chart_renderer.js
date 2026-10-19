@@ -291,18 +291,20 @@
 
   function getTraceBinding(metric, selectedGood) {
     const binding = traceBindings[metric];
+    const dynamicGood = String(selectedGood || '').toLowerCase();
     return binding ? {
       ...binding,
       historyKey: binding.dynamicGood
-        ? `market_price_${String(selectedGood || '').toLowerCase()}`
+        ? `${metric}_${dynamicGood}`
         : binding.historyKey,
       nationMetricId: binding.dynamicGood
-        ? 'goods.national_reference_price' : binding.nationMetricId,
+        ? (metric === 'market_price'
+          ? 'goods.national_reference_price' : binding.metricId)
+        : binding.nationMetricId,
       tilePath: binding.dynamicGood
-        ? [...binding.pathPrefix, String(selectedGood || '').toLowerCase()]
+        ? [...binding.pathPrefix, dynamicGood]
         : binding.tilePath && [...binding.tilePath],
-      good: binding.dynamicGood ? String(selectedGood || '').toLowerCase()
-        : binding.good,
+      good: binding.dynamicGood ? dynamicGood : binding.good,
       label: binding.dynamicGood
         ? `${String(selectedGood || 'Good').replaceAll('_', ' ')} ${binding.labelSuffix}`
         : binding.label,

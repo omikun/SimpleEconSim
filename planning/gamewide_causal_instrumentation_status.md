@@ -1995,6 +1995,21 @@ member values, currencies, source event links, and mixed-currency status.
 Existing trade chart selections now show these Nation series when no tile is
 selected and open the selected aggregate's trace evidence.
 
+Phase 5 follow-up, 2026-10-18: added Nation histories for per-good production,
+producer inventory, and demand/supply ratios. Production and inventory sum the
+current-turn tile calculations; demand/supply ratios average only tiles with a
+reading for that turn, and stale readings remain gaps. Each aggregate records
+good, current Nation membership, per-tile coverage and values, and links back
+to the tile calculation. Dynamic chart bindings now select the corresponding
+Nation history and metric instead of reusing the price series.
+
+Verification: aggregation tests cover production and inventory sums plus
+current-turn ratio coverage (including exclusion of a stale tile reading).
+Web endpoint tests match all three Nation histories to their trace aggregate
+and verify source links; frontend tests verify the dynamic metric/history
+bindings and turn-aligned gaps. Python and JavaScript syntax checks and
+`git diff --check` passed.
+
 Verification: the aggregation fixture checks export/import/net sums and flags
 mixed-currency raw sums. The web trace endpoint matches all three history
 points with their Nation aggregate events, and the serialization and frontend

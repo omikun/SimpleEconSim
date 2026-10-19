@@ -271,7 +271,7 @@ def resident_population_bridges(previous, current, previous_roles, tiles, turn,
             + bridge_rows(before_nation, after_nation, nation_flows, 'nation'))
 
 
-def nation_chart_aggregation_rows(nation):
+def nation_chart_aggregation_rows(nation, turn=None):
     """Build current-turn, traceable reducers for Nation chart histories."""
     tiles = list(getattr(nation, 'tiles', ()))
     if not tiles:
@@ -384,6 +384,59 @@ def nation_chart_aggregation_rows(nation):
                 ('imports', 'trade.import_value', 'import_value_log')):
             add('trade', label, metric_id, 'local_currency_per_turn', 'sum',
                 index, lambda tile, i, name=field: series_value(tile, name, i))
+
+    market_goods = set()
+    for tile in tiles:
+        for good in getattr(tile, 'market_chart_goods', ()) or ():
+            if isinstance(good, Goods) and good not in (Goods.gov, Goods.none):
+                market_goods.add(good)
+        for field in ('production_log', 'inventory_log',
+                      'market_demand_ratio_chart_log'):
+            for good in (getattr(tile, field, {}) or {}):
+                if isinstance(good, Goods) and good not in (Goods.gov, Goods.none):
+                    market_goods.add(good)
+
+    def current_market_value(tile, field, good):
+        history = (getattr(tile, field, {}) or {}).get(good, ()) or ()
+        index = turn - 1 if turn is not None else len(history) - 1
+        return history[index] if 0 <= index < len(history) else None
+
+    def current_demand_ratio(tile, good):
+        points = ((getattr(tile, 'market_demand_ratio_chart_log', {}) or {})
+                  .get(good, ()))
+        if turn is None:
+            point = points[-1] if points else None
+        else:
+            point = next((row for row in reversed(points)
+                          if int(row.get('turn', -1)) == int(turn)), None)
+        return float(point['value']) if point is not None else None
+
+    for good in sorted(market_goods, key=lambda item: item.name):
+        good_name = good.name.lower()
+        for family, metric_id, field, unit in (
+                ('market_production', 'goods.production', 'production_log',
+                 'units_per_turn'),
+                ('market_inventory', 'goods.producer_inventory', 'inventory_log',
+                 'units')):
+            value_for_tile = lambda tile, _i, name=field, item=good: (
+                current_market_value(tile, name, item))
+            if any(value_for_tile(tile, 0) is not None for tile in tiles):
+                index = (max(0, turn - 1) if turn is not None else
+                         max((len((getattr(tile, field, {}) or {}).get(good, ()) or ()) - 1
+                              for tile in tiles), default=0))
+                add(family, good_name, metric_id, unit, 'sum', index,
+                    value_for_tile, {'good': good.name})
+
+        ratio_for_tile = lambda tile, _i, item=good: current_demand_ratio(tile, item)
+        if any(ratio_for_tile(tile, 0) is not None for tile in tiles):
+            ratio_index = (int(turn) if turn is not None else max((
+                int(row.get('turn', 0))
+                for tile in tiles
+                for row in ((getattr(tile, 'market_demand_ratio_chart_log', {}) or {})
+                            .get(good, ()))), default=0))
+            add('market_demand_ratio', good_name, 'goods.demand_ratio',
+                'ratio', 'mean', ratio_index, ratio_for_tile,
+                {'good': good.name})
 
     labor_length = max((len(getattr(tile, 'avg_shift_hours_log', ()) or ())
                         for tile in tiles), default=0)
@@ -1156,7 +1209,8 @@ def record(server):
             server.run_trace.snapshot(clock, subject=subject, metric_id=key[0],
                                       unit=unit, before=before, after=after)
         for nation in server.nations:
-            for aggregate in nation_chart_aggregation_rows(nation):
+            for aggregate in nation_chart_aggregation_rows(
+                    nation, turn=clock.get('turn', 0)):
                 source_event_ids = []
                 source_filters = aggregate['source_subject_filter']
                 for contribution in aggregate['inputs']['member_contributions']:

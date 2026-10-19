@@ -451,6 +451,47 @@ class TestWebServerEndpoints(unittest.TestCase):
                 self.assertFalse(
                     rows[0]['inputs']['currency_conversion_applied'])
 
+    def test_nation_market_histories_match_current_turn_aggregates(self):
+        self.sim.step()
+        nation = self.sim.nations[0]
+        history = self.sim.serialize_world()['history']
+        cases = (
+            ('market_production_food', 'market_production',
+             'goods.production', 1.0),
+            ('market_inventory_food', 'market_inventory',
+             'goods.producer_inventory', 1.0),
+            ('market_demand_ratio_food', 'market_demand_ratio',
+             'goods.demand_ratio', 1.0),
+        )
+        for history_key, family, metric, scale in cases:
+            with self.subTest(history_key=history_key):
+                self.assertEqual(len(history[history_key]), len(history['turns']))
+                self.assertIsNone(history[history_key][0])
+                self.assertIsNotNone(history[history_key][-1])
+                query = urllib.parse.urlencode({
+                    'turn': self.sim.turn, 'entity': f'nation:{nation.name}',
+                    'metric': metric, 'good': 'food', 'limit': 200})
+                payload = json.loads(MockHttpRequestHandler(
+                    self.mock_server, 'GET', f'/api/trace?{query}').get_body())
+                rows = [row for row in payload['events']
+                        if row['kind'] == 'nation_chart_history_aggregate'
+                        and row['inputs']['chart_family'] == family
+                        and row['inputs']['chart_series'] == 'food']
+                self.assertEqual(len(rows), 1)
+                row = rows[0]
+                self.assertAlmostEqual(
+                    history[history_key][-1],
+                    round(row['value_after'] * scale, 1), places=1)
+                self.assertTrue(any(
+                    contribution['source_link_status'] == 'linked'
+                    for contribution in row['inputs']['member_contributions']))
+                if family == 'market_demand_ratio':
+                    self.assertEqual(row['inputs']['reducer'], 'mean')
+                    self.assertTrue(all(
+                        contribution['source_link_status'] == 'linked'
+                        for contribution in row['inputs']['member_contributions']
+                        if contribution['value'] is not None))
+
     def test_workplace_condition_charts_replay_from_trace_inputs(self):
         self.sim.step()
         tile = self.sim.nations[0].tiles[0]

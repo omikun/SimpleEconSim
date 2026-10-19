@@ -293,15 +293,41 @@ class SimServer:
             hist['food_price'].append(round(float(avg_food), 2))
             hist['unrest'].append(round(float(unrest), 2))
 
-            for aggregate in nation_chart_aggregation_rows(n):
+            aggregates = nation_chart_aggregation_rows(n, turn=t)
+            market_history_values = {}
+            for aggregate in aggregates:
+                family = aggregate['inputs']['chart_family']
+                chart_series = aggregate['inputs']['chart_series']
+                if family in ('market_production', 'market_inventory',
+                              'market_demand_ratio'):
+                    market_history_values[(family, chart_series)] = aggregate['after']
                 key = _NATION_CHART_HISTORY_KEYS.get((
-                    aggregate['inputs']['chart_family'],
-                    aggregate['inputs']['chart_series']))
+                    family, chart_series))
                 if key is None:
                     continue
                 history_key, display_scale = key
                 series = hist.setdefault(history_key, [])
                 series.append(round(float(aggregate['after']) * display_scale, 1))
+
+            # Dynamic good histories are turn-aligned. Missing local readings
+            # stay gaps instead of borrowing an older production or market value.
+            market_families = (
+                ('market_production', 1),
+                ('market_inventory', 1),
+                ('market_demand_ratio', 2),
+            )
+            for good in Goods:
+                if good in (Goods.gov, Goods.none):
+                    continue
+                good_name = good.name.lower()
+                for family, digits in market_families:
+                    history_key = f'{family}_{good_name}'
+                    series = hist.setdefault(history_key, [])
+                    while len(series) < len(hist['turns']) - 1:
+                        series.append(None)
+                    value = market_history_values.get((family, good_name))
+                    series.append(round(float(value), digits)
+                                  if value is not None else None)
 
             # Keep Nation-wide reference-price histories on the same covered-
             # member mean used by goods.national_reference_price trace rows.

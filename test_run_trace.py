@@ -751,12 +751,19 @@ class RunTraceTests(unittest.TestCase):
                 entertainment_log=[0.3], strikers_log=[serf],
                 broken_machinery_log=[1], sabotage_log=[1],
                 export_value_log=[serf * 10], import_value_log=[serf * 4],
-                net_trade_value_log=[serf * 6])
+                net_trade_value_log=[serf * 6],
+                market_chart_goods={Goods.wool},
+                production_log={Goods.wool: [serf * 0.5]},
+                inventory_log={Goods.wool: [serf * 2.0]},
+                market_demand_ratio_chart_log={Goods.wool: [{
+                    'turn': 1 if name == 'North' else 0,
+                    'value': 2.25 if name == 'North' else 9.0,
+                    'event_id': 10 if name == 'North' else 9}]})
 
         nation = SimpleNamespace(name='Republic', tiles=[
             tile('North', 2, 0.5, 0.2, 8.0, 1),
             tile('South', 4, 1.0, 0.4, 10.0, 2)])
-        rows = nation_chart_aggregation_rows(nation)
+        rows = nation_chart_aggregation_rows(nation, turn=1)
         by_series = {(row['inputs']['chart_family'],
                       row['inputs']['chart_series']): row for row in rows}
         self.assertEqual(by_series[('citizen', 'serf')]['after'], 6.0)
@@ -769,6 +776,17 @@ class RunTraceTests(unittest.TestCase):
         self.assertEqual(by_series[('trade', 'exports')]['after'], 60.0)
         self.assertEqual(by_series[('trade', 'imports')]['after'], 24.0)
         self.assertEqual(by_series[('trade', 'net')]['after'], 36.0)
+        self.assertEqual(
+            by_series[('market_production', 'wool')]['after'], 3.0)
+        self.assertEqual(
+            by_series[('market_inventory', 'wool')]['after'], 12.0)
+        wool_ratio = by_series[('market_demand_ratio', 'wool')]
+        self.assertEqual(wool_ratio['after'], 2.25)
+        self.assertEqual(wool_ratio['inputs']['reducer'], 'mean')
+        self.assertEqual(wool_ratio['inputs']['coverage_count'], 1)
+        self.assertEqual(
+            [row['value'] for row in wool_ratio['inputs']['member_contributions']],
+            [2.25, None])
         net_trade = by_series[('trade', 'net')]
         self.assertEqual(net_trade['inputs']['member_currencies'], ['NRC', 'SRC'])
         self.assertTrue(net_trade['inputs']['unconverted_mixed_currency'])

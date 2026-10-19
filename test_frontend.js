@@ -326,6 +326,16 @@ test('every historical chart has a trace binding, including effective workday ca
   const market = charts.getTraceBinding('market_price', 'wool');
   assert.equal(market.historyKey, 'market_price_wool');
   assert.equal(market.nationMetricId, 'goods.national_reference_price');
+  for (const [chart, key, metric] of [
+    ['market_production', 'market_production_wool', 'goods.production'],
+    ['market_demand_ratio', 'market_demand_ratio_wool', 'goods.demand_ratio'],
+    ['market_inventory', 'market_inventory_wool', 'goods.producer_inventory']
+  ]) {
+    const dynamic = charts.getTraceBinding(chart, 'wool');
+    assert.equal(dynamic.historyKey, key);
+    assert.equal(dynamic.nationMetricId, metric);
+    assert.equal(dynamic.good, 'wool');
+  }
 });
 
 test('historical chart leaves unavailable turns as gaps and keeps their turn indices', () => {
