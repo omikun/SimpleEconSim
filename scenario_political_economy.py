@@ -480,6 +480,87 @@ def _trace_tax_treasury_allocation(tile, government, *, nation, tier,
                 'treasury_tier': tier, 'household_count': len(payment_event_ids)})
 
 
+def _trace_worker_bargain(tile, nation, *, operation_id, turn, success,
+                          reason, inputs, cause_event_ids=None):
+    """Record the labor outcome and the scenario action that produced it."""
+    from run_trace import emit
+
+    labor_event_id = emit(
+        tile, kind=('district_bargain_settled' if success
+                    else 'district_bargain_gate_rejected'),
+        record_class='outcome' if success else 'decision',
+        phase='scenario_action',
+        subject={'type': 'tile/operation', 'id': operation_id,
+                 'tile': tile.name, 'nation': nation.name},
+        metric_id='labor.collective_action', unit='event_kind',
+        before='bargain_pending',
+        after='bargain_settled' if success else 'bargain_rejected',
+        formula_id='scenario.district_bargain_workers.v1',
+        inputs={'operation_id': operation_id, 'action_id': 'district_bargain_workers',
+                'turn': int(turn), 'reason': reason, **inputs},
+        cause_event_ids=cause_event_ids)
+    return emit(
+        tile, kind='district_bargain_action_resolved',
+        record_class='outcome', phase='scenario_action',
+        subject={'type': 'tile', 'id': tile.name, 'nation': nation.name,
+                 'action_id': 'district_bargain_workers'},
+        metric_id='scenario.district_action', unit='success',
+        before=0, after=int(bool(success)),
+        formula_id='scenario_district.action_resolution.v1',
+        inputs={'operation_id': operation_id, 'action_id': 'district_bargain_workers',
+                'turn': int(turn), 'success': bool(success), 'reason': reason,
+                'labor_outcome_event_id': labor_event_id, **inputs},
+        cause_event_ids=([labor_event_id] if labor_event_id is not None else None))
+
+
+def _trace_worker_bargain_transfer(tile, *, operation_id, turn, currency,
+                                   total, source_legs, recipients):
+    """Record the employer pool and every worker receipt without inventing a wallet."""
+    if total <= 0:
+        return None
+    from finance_trace import cash_transfer_contract, emit_cash_transfer
+
+    payer = account_ref(
+        'virtual_employer_pool', f'{operation_id}:employers', currency,
+        balance_scope='itemized_employer_contributions', virtual_pool=True,
+        balance_captured=False, source_legs=source_legs)
+    if recipients:
+        payee = account_ref(
+            'household_agent_cash_group', f'{operation_id}:workers', currency,
+            balance_scope='member_cash_balances', member_count=len(recipients),
+            member_ids=[str(row['agent_id']) for row in recipients],
+            members=[{'type': 'agent_cash', 'id': str(row['agent_id']),
+                      'amount': float(row['amount']), 'currency': currency,
+                      'balance_before': float(row['cash_before']),
+                      'balance_after': float(row['cash_after'])}
+                     for row in recipients])
+        counterparty_status = (
+            'all employer cash debits and worker cash receipts captured')
+        kind = 'district_bargain_cash_transfer'
+    else:
+        payee = account_ref(
+            'uncredited_household_payment', f'{operation_id}:no-recipient', currency,
+            balance_scope='missing_payee',
+            balance_status='employer_cash_debited_without_worker_receipt')
+        counterparty_status = (
+            'employer cash debited; no eligible household receipt was recorded')
+        kind = 'district_bargain_cash_debit_without_recipient'
+    contract = cash_transfer_contract(
+        operation_id, 'district_collective_bargain', amount=total,
+        currency=currency, payer_account=payer, payee_account=payee,
+        counterparty_leg_status=counterparty_status,
+        source_leg_count=len(source_legs), recipient_count=len(recipients))
+    return emit_cash_transfer(
+        tile, kind=kind, contract=contract,
+        phase='scenario_action',
+        subject={'type': 'tile/operation', 'id': operation_id,
+                 'tile': tile.name},
+        inputs={'turn': int(turn), 'action_id': 'district_bargain_workers',
+                'distribution_rule': 'equal_split_among_selected_recipients',
+                'source_legs': source_legs,
+                'recipient_allocations': recipients})
+
+
 def _assess_arrears(world, tile, assessed_ids):
     econ = _economy(world)
     rate = max(0.0, float(tile.gov.tax_rate))
@@ -1321,29 +1402,142 @@ def apply_action(world, nation, action_id, tile=None):
                               if total_event_id is not None else None))
         return True, f'Local mutual-aid networks moved {moved} food units from surplus households in {_name(tile)}.'
     if action_id == 'district_bargain_workers':
+        turn = int(world['turn'])
+        operation_id = f'district-bargain:{tile.name}:{turn}'
         strikers = [a for a in people if getattr(a, 'is_striking', False)]
         if not strikers and not collective['petitioners']:
+            _trace_worker_bargain(
+                tile, nation, operation_id=operation_id, turn=turn,
+                success=False, reason='no_active_petition_or_strike',
+                inputs={'active_striker_ids': [],
+                        'petitioners_before': int(collective['petitioners']),
+                        'employer_ids_considered': []})
             return False, 'No local petition or strike is active.'
         employers = [a for a in tile.agents if getattr(a, 'is_corporation', False) and a.alive]
         employers += [a for a in tile.agents if getattr(a, 'is_lord', False) and a.alive]
         if not employers:
+            _trace_worker_bargain(
+                tile, nation, operation_id=operation_id, turn=turn,
+                success=False, reason='no_living_local_employer',
+                inputs={'active_striker_ids': [str(a.id) for a in strikers],
+                        'petitioners_before': int(collective['petitioners']),
+                        'employer_ids_considered': []})
             return False, 'No local owner or employer is available to bargain.'
+
+        petitioners_before = int(collective['petitioners'])
+        recorded_strikers_before = int(collective['strikers'])
+        settlement_until_before = int(collective['settlement_until_turn'])
+        recorded_scenario_strikers_before = [
+            str(agent_id) for agent_id in econ['scenario_strikers_by_tile'][tile.name]]
+        unrest_before = float(tile.unrest_level)
+        legitimacy_before = float(nation.legitimacy)
+        wage_event_ids = []
+        source_legs = []
         payments = 0.0
         for employer in employers:
-            employer.wage = min(20.0, float(employer.wage) + .5)
-            grant = min(5.0, max(0.0, float(employer.cash)) * .02)
+            wage_before = float(employer.wage)
+            cash_before = float(employer.cash)
+            wage_after = min(20.0, wage_before + .5)
+            grant = min(5.0, max(0.0, cash_before) * .02)
+            employer.wage = wage_after
             employer.cash -= grant
             payments += grant
+            cash_after = float(employer.cash)
+            employer_currency = (getattr(tile, 'home_currency', None)
+                                 or getattr(nation, 'currency', None)
+                                 or 'local_currency')
+            source_legs.append({
+                'employer_id': str(employer.id), 'currency': employer_currency,
+                'account': account_ref(
+                    'agent_cash', str(employer.id), employer_currency,
+                    balance_before=cash_before, balance_after=cash_after,
+                    balance_scope='cash'),
+                'amount': float(grant), 'cash_before': cash_before,
+                'cash_after': cash_after, 'wage_before': wage_before,
+                'wage_after': wage_after,
+                'grant_rule': 'min(5.0, max(0.0, cash_before) * 0.02)'})
+            from run_trace import emit
+            wage_event_id = emit(
+                tile, kind='district_bargain_wage_offer',
+                record_class='outcome', phase='scenario_action',
+                subject={'type': 'tile/firm', 'id': str(employer.id),
+                         'tile': tile.name,
+                         'firm_name': (getattr(employer, 'company_name', None)
+                                       or str(employer.id))},
+                metric_id='labor.firm_wage',
+                unit=(getattr(tile, 'home_currency', None)
+                      or getattr(nation, 'currency', None) or 'local_currency'),
+                before=wage_before, after=wage_after,
+                formula_id='scenario.district_bargain_wage_offer.v1',
+                inputs={'operation_id': operation_id, 'turn': turn,
+                        'action_id': 'district_bargain_workers',
+                        'employer_cash_before': cash_before,
+                        'employer_cash_after': cash_after,
+                        'grant': float(grant),
+                        'grant_rule': 'min(5.0, max(0.0, cash_before) * 0.02)',
+                        'wage_increment': .5, 'wage_cap': 20.0})
+            if wage_event_id is not None:
+                wage_event_ids.append(wage_event_id)
         recipients = strikers or people[:max(1, min(len(people), collective['petitioners']))]
+        currency = (getattr(tile, 'home_currency', None)
+                    or getattr(nation, 'currency', None) or 'local_currency')
+        recipient_allocations = []
         for agent in recipients:
-            agent.cash += payments / len(recipients)
+            cash_before = float(agent.cash)
+            amount = payments / len(recipients)
+            agent.cash += amount
             agent.is_striking = False
+            recipient_allocations.append({
+                'agent_id': str(agent.id), 'amount': float(amount),
+                'cash_before': cash_before, 'cash_after': float(agent.cash),
+                'was_striking': bool(getattr(agent, 'is_striking', False)
+                                     or agent in strikers)})
+        transfer_event_id = _trace_worker_bargain_transfer(
+            tile, operation_id=operation_id, turn=turn, currency=currency,
+            total=float(payments), source_legs=source_legs,
+            recipients=recipient_allocations)
         collective['strikers'] = 0
         collective['petitioners'] = max(0, collective['petitioners'] // 2)
-        collective['settlement_until_turn'] = int(world['turn']) + 3
+        collective['settlement_until_turn'] = turn + 3
         econ['scenario_strikers_by_tile'][tile.name] = []
         tile.unrest_level *= exp(-.12)
         nation.legitimacy = min(1.0, float(nation.legitimacy) + .02)
+        outcome_inputs = {
+            'active_striker_ids': [str(a.id) for a in strikers],
+            'strikers_reported_before': recorded_strikers_before,
+            'strikers_after': int(collective['strikers']),
+            'petitioners_before': petitioners_before,
+            'petitioners_after': int(collective['petitioners']),
+            'employer_ids_considered': [str(a.id) for a in employers],
+            'employer_contributions': source_legs,
+            'wage_event_ids': wage_event_ids,
+            'wage_rule': 'min(20.0, wage_before + 0.5)',
+            'grant_rule': 'min(5.0, max(0.0, cash_before) * 0.02)',
+            'recipient_basis': ('active_strikers' if strikers
+                                else 'petitioners_household_fallback'),
+            'recipient_allocations': recipient_allocations,
+            'cash_pool_total': float(payments),
+            'cash_transfer_event_id': transfer_event_id,
+            'cash_transfer_status': (
+                'zero_employer_contribution' if transfer_event_id is None else
+                'transferred_to_selected_households' if recipient_allocations else
+                'employer_debit_without_household_receipt'),
+            'settlement_until_turn_before': settlement_until_before,
+            'settlement_until_turn_after': turn + 3,
+            'scenario_striker_ids_before': recorded_scenario_strikers_before,
+            'scenario_striker_ids_after': [],
+            'unrest_before': unrest_before,
+            'unrest_after': float(tile.unrest_level),
+            'unrest_multiplier': exp(-.12),
+            'legitimacy_before': legitimacy_before,
+            'legitimacy_after': float(nation.legitimacy),
+            'legitimacy_increase': float(nation.legitimacy) - legitimacy_before}
+        causes = wage_event_ids + ([transfer_event_id]
+                                   if transfer_event_id is not None else [])
+        _trace_worker_bargain(
+            tile, nation, operation_id=operation_id, turn=turn, success=True,
+            reason='strike_or_petition_settled', inputs=outcome_inputs,
+            cause_event_ids=causes or None)
         return True, f'Owners in {_name(tile)} raised offered wages by 0.5 and paid {payments:.1f} to petitioners; the local strike ended.'
     if action_id == 'district_break_strike':
         from unrest import apply_repression

@@ -1281,3 +1281,22 @@ missing payees, and unaffordable suspension; trace-on/off balances and RNG state
 match. The metric-catalog audit and imperialism, coercion, phase-4, and
 hired-agent conservation tests passed (13 distinct tests). Compilation and
 `git diff --check` passed.
+
+Phase 3 follow-up, 2026-10-18: Egypt district worker bargaining now records its
+strike/petition and employer eligibility gates; each employer's 0.5 wage offer,
+20.0 cap, exact cash contribution, and resulting balances; and the equal split
+to each selected worker. The transfer uses an explicitly virtual employer pool
+with itemized source legs, not a fabricated pooled wallet. The linked outcome
+records recipient selection, zero-funding settlements, strike and petition
+state, settlement duration, unrest, and legitimacy. Rejected gates are visible
+as well. No bargaining rule or simulation state transition changed.
+If a stale petition resolves with no eligible household members, the existing
+employer debit is recorded as uncredited with an explicit missing-recipient
+status rather than shown as a worker transfer.
+
+Verification: seven focused tests cover compact-trace serialization and
+verification, transfer-leg reconciliation, zero-contribution and both
+rejection gates, missing household receipts, and traced/untraced state parity.
+The bargaining, district, metric-catalog, and run-trace suites passed (45
+tests); the Egypt food-repair campaign playthrough also passed and reaches this
+bargaining action. Compilation and `git diff --check` passed.

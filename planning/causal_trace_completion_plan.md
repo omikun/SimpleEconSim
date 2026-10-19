@@ -215,6 +215,33 @@ Gate: every displayed field has an explicit coverage classification and tested
 definition. Every supported deterministic fixture has zero unexplained changes;
 unsupported paths remain visibly unavailable, with an itemized remaining list.
 
+### Phase 3 follow-up — Trace Egypt district worker bargaining (implemented)
+
+Record rejection gates for missing collective action or living employers. On a
+settlement, capture each employer's wage before/after the existing 0.5 increase
+and 20.0 cap, plus the exact grant computed from `min(5, max(0, cash) * 0.02)`.
+Represent the pooled payment as a virtual account with itemized employer debits;
+record each selected worker's exact equal-share receipt. Link those records to
+the strike/petition reset, settlement duration, unrest reduction and legitimacy
+increase. Record a successful settlement with no available employer cash as a
+zero contribution without creating a zero-value transfer. Preserve the current
+selection and settlement rules. If the current logic debits employers while a
+stale petition has no eligible household, mark the debit as uncredited with a
+missing-recipient status instead of implying that workers received it.
+
+Verification: seven focused tests cover the full transfer and causal chain,
+zero-contribution, missing-recipient, both rejected-gate paths, trace-on/off
+state parity, and a serialized `.ctr` trace that verifies successfully. The
+bargaining, district, metric-catalog, and run-trace suites passed (45 tests).
+The Egypt food-repair campaign playthrough passed and exercises this action.
+Compilation and `git diff --check` passed.
+
+Next Phase 3 audit target: `scenario_political_economy.apply_action` still has
+untraced direct social-state effects in district arrears relief and strike
+repression. Trace their actual eligibility, fiscal/writeoff evidence, force
+use, injuries, strike clearing, unrest, and legitimacy without changing those
+rules.
+
 ## Phase 5 — Deliver explanations in web, desktop and CLI
 
 Files: `web_client/client.js`, `web_client/chart_renderer.js`,
