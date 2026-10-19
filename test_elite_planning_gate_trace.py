@@ -608,6 +608,110 @@ class ElitePlanningGateTraceTests(unittest.TestCase):
         self.assertEqual(gate['inputs']['feasibility_reason'],
                          'Planner cash threshold $60.0 not met')
 
+    def _lord_transformation_case(self, traced, candidate_returns=(8.0, 94.0)):
+        planner = EliteCapitalistPlanner()
+        lord = Actor(67, lord=True, inventory={Goods.food: 2})
+        lord.cash = 100.0
+        commoner = Actor(68, lord=False)
+        region, _, trace = self.make_region(
+            goods=[Goods.cotton], actor=lord, traced=traced)
+        region.agents = [lord, commoner]
+        region.recipes = {
+            Goods.cotton: {'price': 8.0, 'production': 10.0, 'numInput': 0}}
+        region.neighbors = {}
+        region.economic_events = []
+        region.home_currency = 'crown'
+        planner._elite_candidate_snapshot = lambda *_args: []
+        planner.get_market_luxuries = lambda *_args: []
+        planner.evaluate_triangular_trade_voyage = lambda *_args: None
+        planner.evaluate_spatial_trade = lambda *_args: None
+        planner.evaluate_class_legislation = lambda *_args: None
+
+        def make_operator(op_id, category, feasible, reason, return_value,
+                          *, output=None, execute=None, cash_cost=0.0):
+            return SimpleNamespace(
+                id=op_id, name=op_id.replace('_', ' ').title(), category=category,
+                cash_cost=cash_cost, input_goods={}, output_goods=output or {},
+                estimate_return_hook=None,
+                can_agent_execute=lambda _agent, _region: (feasible, reason),
+                estimate_net_return=lambda _agent, _region, _shadow: return_value,
+                on_execute=execute)
+
+        operators = [
+            make_operator('enclose_candidate', 'enclosure', True,
+                          'feudal plot available', candidate_returns[0]),
+            make_operator('corvee_cotton_plantation', 'corvee', True,
+                          'warm climate and lord status', candidate_returns[1],
+                          output={Goods.cotton: 12.0},
+                          cash_cost=2.0,
+                          execute=lambda agent, _region, _turn: (
+                              agent.inv_add(Goods.cotton, 12),
+                              {'success': True, 'yield': 12})[1]),
+            make_operator('excluded_candidate', 'political', True,
+                          'eligible but not a conversion category', 999.0),
+            make_operator('blocked_candidate', 'corvee', False,
+                          'requires customary tenure', 1000.0),
+        ]
+        with patch.object(TransformationGraph, 'all_operators', return_value=operators), \
+                patch('economy.actor_accounts.record', return_value=None):
+            result = planner.plan_and_execute_elite(lord, region, 7)
+        return result, lord, region, trace
+
+    def test_lord_transformation_scan_records_actual_rank_and_selected_action(self):
+        traced = self._lord_transformation_case(True)
+        plain = self._lord_transformation_case(False)
+        result, lord, _region, trace = traced
+        plain_result, plain_lord, _plain_region, _ = plain
+        self.assertEqual(result['action_taken'],
+                         'OPERATOR_EXECUTED_CORVEE_COTTON_PLANTATION')
+        self.assertEqual(plain_result['action_taken'], result['action_taken'])
+        self.assertEqual(lord.inv_get(Goods.cotton, 0), 12)
+        self.assertEqual(plain_lord.inv_get(Goods.cotton, 0), 12)
+
+        evaluation = next(row for row in trace.rows
+                          if row['kind'] == 'elite_lord_transformation_evaluation')
+        candidates = evaluation['inputs']['candidate_evaluations']
+        self.assertEqual([row['operator_id'] for row in candidates], [
+            'enclose_candidate', 'corvee_cotton_plantation',
+            'excluded_candidate', 'blocked_candidate'])
+        self.assertEqual(candidates[0]['best_return_before'], -999.0)
+        self.assertTrue(candidates[0]['selected_as_best'])
+        self.assertEqual(candidates[1]['best_return_before'], 8.0)
+        self.assertTrue(candidates[1]['selected_as_best'])
+        self.assertFalse(candidates[2]['category_eligible_for_lord_planning'])
+        self.assertIsNone(candidates[2]['estimated_net_return'])
+        self.assertFalse(candidates[3]['can_execute'])
+        self.assertEqual(evaluation['inputs']['best_operator_id'],
+                         'corvee_cotton_plantation')
+        self.assertEqual(evaluation['inputs']['strict_execution_threshold'], 5.0)
+        self.assertEqual(evaluation['inputs']['best_net_return'], 94.0)
+        self.assertEqual(candidates[1]['return_basis']['outputs'][0]
+                         ['value_contribution'], 96.0)
+        self.assertEqual(candidates[1]['return_basis']['cash_cost_contribution'], 2.0)
+        execution = next(row for row in trace.rows
+                         if row['kind'] == 'elite_operator_execution')
+        self.assertEqual(execution['inputs']['execution_result']['yield'], 12)
+        self.assertEqual(execution['inputs']['state_after']['tracked_inventory']['cotton'], 12.0)
+        decision = next(row for row in trace.rows
+                        if row['kind'] == 'corporation_ai_decision')
+        self.assertEqual(decision['cause_event_ids'], [evaluation['event_id']])
+
+    def test_lord_transformation_return_equal_to_cutoff_does_not_execute(self):
+        traced = self._lord_transformation_case(True, candidate_returns=(5.0, 4.0))
+        plain = self._lord_transformation_case(False, candidate_returns=(5.0, 4.0))
+        result, lord, _region, trace = traced
+        plain_result, plain_lord, _plain_region, _ = plain
+        self.assertIsNone(result['action_taken'])
+        self.assertEqual(plain_result['action_taken'], result['action_taken'])
+        self.assertEqual(lord.inv_get(Goods.cotton, 0), 0)
+        self.assertEqual(plain_lord.inv_get(Goods.cotton, 0), 0)
+        evaluation = next(row for row in trace.rows
+                          if row['kind'] == 'elite_lord_transformation_evaluation')
+        self.assertEqual(evaluation['inputs']['best_net_return'], 5.0)
+        self.assertFalse(evaluation['inputs']['selected_for_execution'])
+        self.assertEqual(evaluation['inputs']['selection_reason'],
+                         'best_return_not_above_strict_threshold')
+
 
 if __name__ == '__main__':
     unittest.main()

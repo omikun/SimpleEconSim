@@ -2450,3 +2450,22 @@ separate below-threshold case confirms the recorded planner gate and unchanged
 no-action result. The elite-planner, capitalist, supply-control,
 metric-catalog, and trace-reader suites passed (110 tests); Python compilation
 and `git diff --check` passed.
+
+## Phase 4 follow-up — Trace actual lord transformation ranking (implemented)
+
+The lord's live operator scan now records every operator in its true iteration
+order, including rejected feasibility checks and operators whose category is
+excluded from the lord planner. Eligible conversion candidates include their
+return estimate, replayable price/prestige/cost basis, best-return value before
+comparison, and whether they replaced the current best. The aggregate gate
+records the winning operator, strict $5 cutoff, state and tenure context, and
+selection reason. Selected execution is linked to the evaluation and records
+the operation result and relevant inventory, tenure, and recipient balances.
+
+Verification: trace-on/off fixture confirms the same corvée choice and output;
+the trace covers a lower-return candidate, excluded category, ineligible
+operator, strict ranking order, formula components, linked execution, and a
+return exactly at the $5 cutoff that does not execute. The
+elite-planner, capitalist, supply-control, metric-catalog, and trace-reader
+suites passed (112 tests); Python compilation and `git diff --check` passed.
+Spatial routing and preflight purity/RNG neutrality remain open.

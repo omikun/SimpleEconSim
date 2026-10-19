@@ -672,6 +672,13 @@ class EliteCapitalistPlanner:
         trace_enabled = (getattr(region, '_run_trace', None) is not None
                          and getattr(region, '_collective_trace_clock', None) is not None)
 
+        def trace_number(value):
+            try:
+                number = float(value)
+                return number if math.isfinite(number) else str(number)
+            except (TypeError, ValueError, OverflowError):
+                return str(value)
+
         def operator_return_basis(operator):
             operator_id = str(operator.id)
             if operator_id == 'mandate_plantation_labor_gang':
@@ -716,7 +723,48 @@ class EliteCapitalistPlanner:
                     'fixed_utility_bonus': 20.0}
             if operator_id == 'construct_machinery':
                 return {'formula': '35 * shadow_price_cash', 'fixed_return': 35.0}
-            return None
+            return_hook = getattr(operator, 'estimate_return_hook', None)
+            if return_hook is not None:
+                return {'estimator_hook': getattr(return_hook, '__name__',
+                                                  type(return_hook).__name__),
+                        'formula': 'specialized operator return hook'}
+            output_components = []
+            for good, quantity in getattr(operator, 'output_goods', {}).items():
+                quantity = float(quantity)
+                expected_price = TransformationGraph.compute_expected_price(region, good)
+                spec = TransformationGraph.get_commodity_spec(good)
+                prestige = float(spec.prestige_rating) if spec is not None else 0.0
+                if prestige > 0:
+                    value_basis = 'prestige'
+                    contribution = prestige * quantity
+                else:
+                    value_basis = 'expected_price_times_shadow_cash'
+                    contribution = expected_price * quantity * float(shadow_cash)
+                output_components.append({
+                    'good': getattr(good, 'name', str(good)),
+                    'quantity': quantity,
+                    'expected_unit_price': expected_price,
+                    'prestige_rating': prestige,
+                    'value_basis': value_basis,
+                    'value_contribution': contribution})
+            input_components = []
+            recipes = getattr(region, 'recipes', {})
+            for good, quantity in getattr(operator, 'input_goods', {}).items():
+                unit_price = float(recipes.get(good, {}).get('price', 1.0))
+                quantity = float(quantity)
+                input_components.append({
+                    'good': getattr(good, 'name', str(good)),
+                    'quantity': quantity,
+                    'unit_price': unit_price,
+                    'cost_contribution': unit_price * quantity * float(shadow_cash)})
+            cash_cost = float(getattr(operator, 'cash_cost', 0.0))
+            return {
+                'formula': 'sum(output contributions) - shadow_cash * (cash_cost + input costs)',
+                'shadow_price_cash': float(shadow_cash),
+                'cash_cost': cash_cost,
+                'cash_cost_contribution': cash_cost * float(shadow_cash),
+                'outputs': output_components,
+                'inputs': input_components}
 
         def operator_prerequisite_basis(operator):
             operator_id = str(operator.id)
@@ -831,12 +879,13 @@ class EliteCapitalistPlanner:
                 inputs={'stage': stage, 'operator_id': str(operator.id),
                         'execution_result': execution_result,
                         'state_before': state_before,
-                        'state_after': operator_state_snapshot()})
+                        'state_after': add_recipient_accounts(operator_state_snapshot(
+                            operator, include_tenure=(stage == 'lord_transformation')))})
             if event_id is not None:
                 result['execution_event_ids'].append(event_id)
             return event_id
 
-        def operator_state_snapshot():
+        def operator_state_snapshot(operator=None, *, include_tenure=False):
             commoners = [
                 person for person in getattr(region, 'agents', [])
                 if getattr(person, 'alive', True)
@@ -845,9 +894,14 @@ class EliteCapitalistPlanner:
                 and not getattr(person, 'is_government', False)
                 and not getattr(person, 'is_trader', False)]
             gov_agent = getattr(getattr(region, 'gov', None), 'agent', None)
-            tracked_goods = (Goods.rum, Goods.cloth, Goods.cotton,
+            tracked_goods = [Goods.rum, Goods.cloth, Goods.cotton,
                              Goods.tobacco, Goods.iron_ore, Goods.iron,
-                             Goods.coal, Goods.wood)
+                             Goods.coal, Goods.wood, Goods.sugar, Goods.wool]
+            if operator is not None:
+                for good in (*getattr(operator, 'input_goods', {}).keys(),
+                             *getattr(operator, 'output_goods', {}).keys()):
+                    if good not in tracked_goods:
+                        tracked_goods.append(good)
             firms = [person for person in getattr(region, 'agents', [])
                      if getattr(person, 'is_corporation', False)]
             owner_company = getattr(agent, 'company_owned', None)
@@ -858,7 +912,7 @@ class EliteCapitalistPlanner:
             return {
                 'cash': float(agent.cash),
                 'tracked_inventory': {
-                    good.name: float(agent.inv_get(good, 0))
+                    getattr(good, 'name', str(good)): float(agent.inv_get(good, 0))
                     for good in tracked_goods},
                 'frontier_estates': [
                     {'target_region': str(estate.get('target_region', '')),
@@ -875,12 +929,37 @@ class EliteCapitalistPlanner:
                      'iron_inventory': float(firm.inv_get(Goods.iron, 0)),
                      'coal_inventory': float(firm.inv_get(Goods.coal, 0))}
                     for firm in firms],
-                'commoner_cash': [
-                    {'agent_id': str(getattr(person, 'id', 'unknown')),
-                     'cash': float(getattr(person, 'cash', 0.0))}
-                    for person in commoners],
+                'lord_tenure_plots': ([
+                    {'plot_id': str(getattr(plot, 'plot_id', '')),
+                     'lord_id': str(getattr(plot, 'lord_id', '')),
+                     'tenure': str(getattr(getattr(plot, 'tenure', None), 'value',
+                                           getattr(plot, 'tenure', ''))),
+                     'production_type': str(getattr(plot, 'production_type', ''))}
+                    for plot in getattr(getattr(region, 'tenure', None), 'plots', [])
+                    if getattr(plot, 'lord_id', None) == agent.id]
+                    if include_tenure or (operator is not None
+                       and str(getattr(operator, 'id', '')) == 'enclose_plot_for_pasture')
+                    else []),
+                'commoner_cash_summary': {
+                    'recipient_count': len(commoners),
+                    'aggregate_cash': sum(float(getattr(person, 'cash', 0.0))
+                                          for person in commoners)},
                 'government_cash': (float(gov_agent.cash)
                                     if gov_agent is not None else None)}
+
+        def add_recipient_accounts(snapshot):
+            commoners = [
+                person for person in getattr(region, 'agents', [])
+                if getattr(person, 'alive', True)
+                and not getattr(person, 'is_lord', False)
+                and not getattr(person, 'is_corporation', False)
+                and not getattr(person, 'is_government', False)
+                and not getattr(person, 'is_trader', False)]
+            snapshot['commoner_cash'] = [
+                {'agent_id': str(getattr(person, 'id', 'unknown')),
+                 'cash': float(getattr(person, 'cash', 0.0))}
+                for person in commoners]
+            return snapshot
 
         # ---------------------------------------------------------------------
         # 1. Luxury Purchase Check: If elite has enough cash, buy luxury!
@@ -939,19 +1018,91 @@ class EliteCapitalistPlanner:
             all_ops = TransformationGraph.all_operators()
             best_op = None
             best_roc = -999.0
+            lord_evaluation_state = (operator_state_snapshot(include_tenure=True)
+                                     if trace_enabled else None)
 
-            for op in all_ops:
-                can_run, _ = op.can_agent_execute(agent, region)
-                if can_run and op.category in ('enclosure', 'corvee', 'artisan', 'war_capitalism'):
+            eligible_categories = ('enclosure', 'corvee', 'artisan', 'war_capitalism')
+            candidate_evaluations = [] if trace_enabled else None
+            for index, op in enumerate(all_ops):
+                best_roc_before = best_roc
+                can_run, feasibility_reason = op.can_agent_execute(agent, region)
+                category_eligible = op.category in eligible_categories
+                net_return = None
+                selected_as_best = False
+                if can_run and category_eligible:
                     net_return = op.estimate_net_return(agent, region, shadow_cash)
-                    if net_return > best_roc:
+                    selected_as_best = net_return > best_roc
+                    if selected_as_best:
                         best_roc = net_return
                         best_op = op
+                if trace_enabled:
+                    trace_net_return = None
+                    if net_return is not None:
+                        trace_net_return = trace_number(net_return)
+                    candidate_evaluations.append({
+                        'consideration_index': index,
+                        'operator_id': str(op.id),
+                        'operator_name': str(op.name),
+                        'category': str(op.category),
+                        'category_eligible_for_lord_planning': category_eligible,
+                        'can_execute': bool(can_run),
+                        'feasibility_reason': str(feasibility_reason),
+                        'estimated_net_return': trace_net_return,
+                        'return_basis': (operator_return_basis(op)
+                                         if trace_net_return is not None
+                                         and isinstance(trace_net_return, (int, float)) else None),
+                        'best_return_before': trace_number(best_roc_before),
+                        'selected_as_best': selected_as_best,
+                        'not_evaluated_reason': (
+                            'ineligible' if not can_run else
+                            'operator_category_not_used_by_lord_planner'
+                            if not category_eligible else None)})
+
+            execute_best_operator = best_op is not None and best_roc > 5.0
+            lord_evaluation_id = None
+            if trace_enabled:
+                lord_evaluation_id = emit(
+                    region, kind='elite_lord_transformation_evaluation',
+                    record_class='decision', phase='local',
+                    subject={'type': 'agent', 'id': agent.id,
+                             'tile': getattr(region, 'name', 'default')},
+                    metric_id='ai.elite_economic_decision', unit='operator_candidates',
+                    after=(str(best_op.id) if execute_best_operator else
+                           'best_candidate_below_strict_threshold'
+                           if best_op is not None else 'no_eligible_category_candidate'),
+                    formula_id='elite.lord_transformation_selection.v1',
+                    inputs={'turn': int(t),
+                            'considered_categories': list(eligible_categories),
+                            'candidate_evaluations': candidate_evaluations,
+                            'best_operator_id': (str(best_op.id)
+                                                 if best_op is not None else None),
+                            'best_net_return': trace_number(best_roc),
+                            'strict_execution_threshold': 5.0,
+                            'state_before': lord_evaluation_state,
+                            'selected_for_execution': bool(execute_best_operator),
+                            'selection_reason': (
+                                'best_return_strictly_above_threshold'
+                                if execute_best_operator else
+                                'best_return_not_above_strict_threshold'
+                                if best_op is not None else
+                                'no_feasible_operator_in_considered_categories')})
+                if lord_evaluation_id is not None:
+                    result['evaluation_event_ids'].append(lord_evaluation_id)
 
             # If an enclosure, corvée, or war capitalism operator yields positive net return, execute it!
-            if best_op and best_roc > 5.0:
+            if execute_best_operator:
+                lord_state_before = (
+                    add_recipient_accounts(operator_state_snapshot(
+                        best_op, include_tenure=True)) if trace_enabled else None)
+                lord_cash_before = float(agent.cash) if trace_enabled else None
                 if best_op.on_execute:
                     exec_res = best_op.on_execute(agent, region, t)
+                    record_operator_execution(
+                        best_op, stage='lord_transformation',
+                        evaluation_event_id=lord_evaluation_id,
+                        execution_result=exec_res,
+                        cash_before=lord_cash_before,
+                        state_before=lord_state_before)
                     result['action_taken'] = f'OPERATOR_EXECUTED_{best_op.id.upper()}'
                     result['details'] = {'operator': best_op.name, 'execution_result': exec_res}
                     return result
@@ -961,10 +1112,17 @@ class EliteCapitalistPlanner:
                         # Generic cash costs are local permit and service
                         # fees. Keep the payment in the monetary system.
                         if getattr(region, 'gov', None) is None:
+                            record_operator_execution(
+                                best_op, stage='lord_transformation',
+                                evaluation_event_id=lord_evaluation_id,
+                                execution_result={
+                                    'success': False,
+                                    'reason': 'operator_fee_requires_government_recipient'},
+                                cash_before=lord_cash_before,
+                                state_before=lord_state_before)
                             return result
                         agent.cash -= best_op.cash_cost
                         region.gov.agent.cash += best_op.cash_cost
-                        from run_trace import emit
                         emit(region, kind='elite_operator_fee',
                              record_class='transfer', phase='labor',
                              subject={'type': 'agent', 'id': agent.id},
@@ -972,9 +1130,20 @@ class EliteCapitalistPlanner:
                              unit=region.home_currency,
                              after=best_op.cash_cost,
                              inputs={'operator': best_op.id,
-                                     'recipient_id': region.gov.agent.id})
+                                     'recipient_id': region.gov.agent.id},
+                             cause_event_ids=([lord_evaluation_id]
+                                              if lord_evaluation_id is not None else None))
                     for g, q in best_op.output_goods.items():
                         agent.inv_add(g, int(q))
+                    record_operator_execution(
+                        best_op, stage='lord_transformation',
+                        evaluation_event_id=lord_evaluation_id,
+                        execution_result={
+                            'success': True,
+                            'yield': {getattr(g, 'name', str(g)): int(q)
+                                      for g, q in best_op.output_goods.items()}},
+                        cash_before=lord_cash_before,
+                        state_before=lord_state_before)
                     result['action_taken'] = f'OPERATOR_EXECUTED_{best_op.id.upper()}'
                     result['details'] = {'operator': best_op.name, 'yield': best_op.output_goods}
                     return result
@@ -985,21 +1154,25 @@ class EliteCapitalistPlanner:
         repair_op = TransformationGraph.get_operator('maintain_repair_machinery')
         if repair_op:
             can_repair, repair_reason = repair_op.can_agent_execute(agent, region)
-            repair_state_before = operator_state_snapshot() if trace_enabled else None
-            repair_cash_before = float(agent.cash) if trace_enabled else None
+            repair_state_before = operator_state_snapshot(repair_op) if trace_enabled else None
             repair_evaluation_id = record_operator_gate(
                 repair_op, stage='machinery_repair',
                 can_execute=can_repair, reason=repair_reason,
                 selected_for_execution=can_repair,
                 state_before=repair_state_before)
             if can_repair:
+                repair_execution_state_before = (
+                    add_recipient_accounts(operator_state_snapshot(
+                        repair_op))
+                    if trace_enabled else None)
+                repair_execution_cash_before = float(agent.cash) if trace_enabled else None
                 exec_res = repair_op.on_execute(agent, region, t)
                 record_operator_execution(
                     repair_op, stage='machinery_repair',
                     evaluation_event_id=repair_evaluation_id,
                     execution_result=exec_res,
-                    cash_before=repair_cash_before,
-                    state_before=repair_state_before)
+                    cash_before=repair_execution_cash_before,
+                    state_before=repair_execution_state_before)
                 if exec_res.get('success'):
                     result['action_taken'] = 'REPAIR_MACHINERY'
                     result['details'] = exec_res
@@ -1019,8 +1192,7 @@ class EliteCapitalistPlanner:
                     construct_ret = construct_op.estimate_net_return(
                         agent, region, shadow_cash)
                     execute_construct = construct_ret > 15.0
-            construct_state_before = operator_state_snapshot() if trace_enabled else None
-            construct_cash_before = float(agent.cash) if trace_enabled else None
+            construct_state_before = operator_state_snapshot(construct_op) if trace_enabled else None
             construction_evaluation_id = record_operator_gate(
                 construct_op, stage='machinery_construction',
                 can_execute=bool(construct_cash_gate and can_construct),
@@ -1031,13 +1203,18 @@ class EliteCapitalistPlanner:
                 planner_cash_gate_threshold=60.0,
                 planner_cash_gate_passed=bool(construct_cash_gate))
             if execute_construct:
+                construction_execution_state_before = (
+                    add_recipient_accounts(operator_state_snapshot(
+                        construct_op))
+                    if trace_enabled else None)
+                construction_execution_cash_before = float(agent.cash) if trace_enabled else None
                 exec_res = construct_op.on_execute(agent, region, t)
                 record_operator_execution(
                     construct_op, stage='machinery_construction',
                     evaluation_event_id=construction_evaluation_id,
                     execution_result=exec_res,
-                    cash_before=construct_cash_before,
-                    state_before=construct_state_before)
+                    cash_before=construction_execution_cash_before,
+                    state_before=construction_execution_state_before)
                 if exec_res.get('success'):
                     result['action_taken'] = 'CONSTRUCT_MACHINERY'
                     result['details'] = exec_res
@@ -1063,8 +1240,7 @@ class EliteCapitalistPlanner:
             if can_gang:
                 gang_ret = gang_op.estimate_net_return(agent, region, shadow_cash)
                 execute_gang = gang_ret > 10.0
-            gang_state_before = operator_state_snapshot() if trace_enabled else None
-            gang_cash_before = float(agent.cash) if trace_enabled else None
+            gang_state_before = operator_state_snapshot(gang_op) if trace_enabled else None
             gang_evaluation_id = record_operator_gate(
                 gang_op, stage='plantation_labor_gang',
                 can_execute=can_gang, reason=gang_reason,
@@ -1072,13 +1248,18 @@ class EliteCapitalistPlanner:
                 selected_for_execution=execute_gang,
                 state_before=gang_state_before)
             if execute_gang:
+                gang_execution_state_before = (
+                    add_recipient_accounts(operator_state_snapshot(
+                        gang_op))
+                    if trace_enabled else None)
+                gang_execution_cash_before = float(agent.cash) if trace_enabled else None
                 exec_res = gang_op.on_execute(agent, region, t)
                 record_operator_execution(
                     gang_op, stage='plantation_labor_gang',
                     evaluation_event_id=gang_evaluation_id,
                     execution_result=exec_res,
-                    cash_before=gang_cash_before,
-                    state_before=gang_state_before)
+                    cash_before=gang_execution_cash_before,
+                    state_before=gang_execution_state_before)
                 if exec_res.get('success'):
                     result['action_taken'] = 'MANDATE_PLANTATION_LABOR_GANG'
                     result['details'] = exec_res
@@ -1093,8 +1274,7 @@ class EliteCapitalistPlanner:
             if can_procure:
                 procure_ret = procure_op.estimate_net_return(agent, region, shadow_cash)
                 execute_procurement = procure_ret > 15.0
-            procure_state_before = operator_state_snapshot() if trace_enabled else None
-            procure_cash_before = float(agent.cash) if trace_enabled else None
+            procure_state_before = operator_state_snapshot(procure_op) if trace_enabled else None
             procurement_evaluation_id = record_operator_gate(
                 procure_op, stage='procure_captive_labor',
                 can_execute=can_procure, reason=procure_reason,
@@ -1102,13 +1282,18 @@ class EliteCapitalistPlanner:
                 selected_for_execution=execute_procurement,
                 state_before=procure_state_before)
             if execute_procurement:
+                procurement_execution_state_before = (
+                    add_recipient_accounts(operator_state_snapshot(
+                        procure_op))
+                    if trace_enabled else None)
+                procurement_execution_cash_before = float(agent.cash) if trace_enabled else None
                 exec_res = procure_op.on_execute(agent, region, t)
                 record_operator_execution(
                     procure_op, stage='procure_captive_labor',
                     evaluation_event_id=procurement_evaluation_id,
                     execution_result=exec_res,
-                    cash_before=procure_cash_before,
-                    state_before=procure_state_before)
+                    cash_before=procurement_execution_cash_before,
+                    state_before=procurement_execution_state_before)
                 if exec_res.get('success'):
                     result['action_taken'] = 'PROCURE_CAPTIVE_LABOR'
                     result['details'] = exec_res
@@ -1123,8 +1308,7 @@ class EliteCapitalistPlanner:
             if can_conquer:
                 conquer_ret = war_cap_op.estimate_net_return(agent, region, shadow_cash)
                 execute_conquest = conquer_ret > 20.0
-            conquest_state_before = operator_state_snapshot() if trace_enabled else None
-            conquest_cash_before = float(agent.cash) if trace_enabled else None
+            conquest_state_before = operator_state_snapshot(war_cap_op) if trace_enabled else None
             conquest_evaluation_id = record_operator_gate(
                 war_cap_op, stage='frontier_conquest',
                 can_execute=can_conquer, reason=conquer_reason,
@@ -1132,13 +1316,18 @@ class EliteCapitalistPlanner:
                 selected_for_execution=execute_conquest,
                 state_before=conquest_state_before)
             if execute_conquest:
+                conquest_execution_state_before = (
+                    add_recipient_accounts(operator_state_snapshot(
+                        war_cap_op))
+                    if trace_enabled else None)
+                conquest_execution_cash_before = float(agent.cash) if trace_enabled else None
                 exec_res = war_cap_op.on_execute(agent, region, t)
                 record_operator_execution(
                     war_cap_op, stage='frontier_conquest',
                     evaluation_event_id=conquest_evaluation_id,
                     execution_result=exec_res,
-                    cash_before=conquest_cash_before,
-                    state_before=conquest_state_before)
+                    cash_before=conquest_execution_cash_before,
+                    state_before=conquest_execution_state_before)
                 if exec_res.get('success'):
                     result['action_taken'] = 'WAR_CAPITALISM_FRONTIER_CONQUEST'
                     result['details'] = exec_res

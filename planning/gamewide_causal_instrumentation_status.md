@@ -188,8 +188,9 @@ evidence.
   linked execution state including labor attrition, displacement, inventory,
   and local cash recipients. Machinery repair/construction gates now record
   broken-capacity checks, material/cash requirements, return cutoffs, and firm
-  balance changes. Lord transformations, spatial routing, and preflight
-  purity/RNG neutrality remain open.
+  balance changes. Actual lord transformation scans now record candidate
+  order, eligibility, return ranking, thresholds, and selected outcomes.
+  Spatial routing and preflight purity/RNG neutrality remain open.
 
 ## Known gaps
 
@@ -1898,8 +1899,8 @@ match trace-on/off actions and state. The tests check zero-wage output, overseer
 cash distribution, rum payment, labor additions/attrition, conquest yield, and
 displaced population. The elite-planner, capitalist, supply-control,
 metric-catalog, and trace-reader suites passed (108 tests); compilation and
-`git diff --check` passed. Lord transformation candidates, spatial routing,
-and preflight purity/RNG neutrality remain open.
+`git diff --check` passed. Spatial routing and preflight purity/RNG neutrality
+remain open.
 
 Phase 4 follow-up, 2026-10-18: machinery repair and construction now record the
 actual operator eligibility checks and execution results. Repair records the
@@ -1915,3 +1916,18 @@ cash, stock, machinery, and workforce state; a separate fixture verifies the
 construction cash-gate explanation. The elite-planner, capitalist,
 supply-control, metric-catalog, and trace-reader suites passed (110 tests);
 Python compilation and `git diff --check` passed.
+
+Phase 4 follow-up, 2026-10-18: the lord's actual transformation scan now
+records every operator considered in iteration order, including feasibility
+reasons, category exclusions, return formulas and component values, the best
+candidate comparison, and the strict $5 execution cutoff. The selected
+operator's execution is linked and records the action result with relevant
+inventory, tenure, and recipient-account state.
+
+Verification: trace-on/off tests produce the same selected corvée action and
+state. The trace test also covers runner-up ranking, an excluded category, an
+ineligible candidate, execution links, and an exact-threshold candidate that
+does not execute. The elite-planner, capitalist, supply-control,
+metric-catalog, and trace-reader suites passed (112 tests); Python compilation
+and `git diff --check` passed. Spatial routing and preflight purity/RNG
+neutrality remain open.
