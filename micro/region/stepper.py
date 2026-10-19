@@ -500,13 +500,51 @@ def step_economy(region: Any, t: int):
              inputs={'agent_food_units': agent_food_units,
                      'agent_count': len(region.agents),
                      'contributor_count': len(agent_food_units)})
-    region.bank_cash_log.append(region.bank.equity)
+    bank = region.bank
+    bank_equity = float(bank.equity)
+    bank_equity_before = (float(region.bank_cash_log[-1])
+                          if region.bank_cash_log else None)
+    region.bank_cash_log.append(bank_equity)
+    emit(region, kind='bank_equity_calculation', record_class='calculation',
+         phase='finance', subject={'type': 'tile', 'id': region.name},
+         metric_id='finance.bank_equity',
+         unit=getattr(region, 'home_currency', None) or 'local_currency',
+         before=bank_equity_before, after=bank_equity,
+         formula_id='finance.bank_equity_balance_sheet.v1',
+         inputs={'capital': float(bank.capital),
+                 'deposits': float(bank.total_deposits),
+                 'liabilities': float(bank.total_liabilities),
+                 'equity_formula': 'capital + deposits - liabilities'})
     if getattr(region.bank, 'is_frozen', False):
         region.bank.frozen_turns += 1
         for a, dep in list(getattr(region.bank, 'deposits', {}).items()):
             if dep > 0 and hasattr(a, 'despair'):
                 a.despair = min(1.0, getattr(a, 'despair', 0.0) + 0.02)
-    region.total_cash_log.append(total_cash(region))
+    cash_by_role = {}
+    for agent in region.agents:
+        role = ('government' if getattr(agent, 'is_government', False) else
+                'corporation' if getattr(agent, 'is_corporation', False) else
+                'trader' if getattr(agent, 'is_trader', False) else 'resident')
+        cash_by_role[role] = cash_by_role.get(role, 0.0) + float(agent.cash)
+    agent_cash_total = sum(float(agent.cash) for agent in region.agents)
+    charity_cash = float(region.charity.agent.cash)
+    total_cash_before = (float(region.total_cash_log[-1])
+                         if region.total_cash_log else None)
+    total_cash_value = total_cash(region)
+    region.total_cash_log.append(total_cash_value)
+    emit(region, kind='total_cash_calculation', record_class='calculation',
+         phase='finance', subject={'type': 'tile', 'id': region.name},
+         metric_id='finance.total_cash',
+         unit=getattr(region, 'home_currency', None) or 'local_currency',
+         before=total_cash_before, after=total_cash_value,
+         formula_id='finance.total_cash_from_components.v1',
+         inputs={'agent_cash_total': agent_cash_total,
+                 'agent_cash_by_role': cash_by_role,
+                 'agent_count': len(region.agents),
+                 'bank_equity': bank_equity,
+                 'charity_hand_cash': charity_cash,
+                 'included_components': ['agent_wallets', 'bank_equity',
+                                         'charity_hand_cash']})
     log_population_rate(region)
 
     for p in region.goods:

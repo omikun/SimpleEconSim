@@ -1074,7 +1074,10 @@ class RunTraceTests(unittest.TestCase):
         from metric_catalog import inventory_region_histories
         inventory = {row['field']: row for row in inventory_region_histories(server.tiles[0])}
         self.assertEqual(inventory['gdp_log']['coverage'], 'instrumented')
-        self.assertEqual(inventory['bank_cash_log']['coverage'], 'untraced')
+        for field in ('bank_cash_log', 'total_cash_log', 'demand_ratio_log',
+                      'market_demand_ratio_chart_log', 'population_log',
+                      'collective_log', 'grievance_sources_log', 'trade_flow_log'):
+            self.assertEqual(inventory[field]['coverage'], 'instrumented', field)
         self.assertEqual(inventory['surplus_value_log']['coverage'], 'instrumented')
         server.step()
         rows = server.run_trace.query(turn=1, limit=10000)['events']
@@ -1105,6 +1108,22 @@ class RunTraceTests(unittest.TestCase):
                                and firm.get('source_event_id') is not None]
             self.assertEqual(row.get('cause_event_ids', []), expected_causes)
             self.assertTrue(set(expected_causes).issubset(firm_surplus_ids))
+        bank_equity_rows = [row for row in rows
+                            if row.get('kind') == 'bank_equity_calculation']
+        total_cash_rows = [row for row in rows
+                           if row.get('kind') == 'total_cash_calculation']
+        self.assertTrue(bank_equity_rows)
+        self.assertTrue(total_cash_rows)
+        self.assertTrue(all(row['formula_replay']['matches']
+                            for row in bank_equity_rows + total_cash_rows))
+        for row in bank_equity_rows:
+            tile = next(tile for tile in server.tiles
+                        if tile.name == row['subject']['id'])
+            self.assertEqual(row['value_after'], tile.bank_cash_log[-1])
+        for row in total_cash_rows:
+            tile = next(tile for tile in server.tiles
+                        if tile.name == row['subject']['id'])
+            self.assertEqual(row['value_after'], tile.total_cash_log[-1])
         buyer_orders = [row for row in rows
                         if row['kind'] == 'market_buyer_order_submitted']
         seller_orders = [row for row in rows

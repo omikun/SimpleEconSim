@@ -49,6 +49,22 @@ class MetricCatalogTraceCoverageTests(unittest.TestCase):
         self.assertIn('labor.surplus_value', METRICS)
         self.assertIn('labor.firm_surplus_value', METRICS)
 
+    def test_existing_histories_with_live_trace_sources_are_mapped(self):
+        expected = {
+            'bank_cash_log': 'finance.bank_equity',
+            'total_cash_log': 'finance.total_cash',
+            'demand_ratio_log': 'goods.demand_ratio',
+            'market_demand_ratio_chart_log': 'goods.demand_ratio',
+            'population_log': 'people.profession_population',
+            'collective_log': 'labor.collective_action',
+            'grievance_sources_log': 'politics.grievance',
+            'trade_flow_log': 'trade.net_value',
+        }
+        for field, metric_id in expected.items():
+            with self.subTest(field=field):
+                self.assertEqual(LEGACY_HISTORY_TO_METRIC[field], metric_id)
+                self.assertIn(metric_id, TRACE_INSTRUMENTED)
+
 
 if __name__ == '__main__':
     unittest.main()

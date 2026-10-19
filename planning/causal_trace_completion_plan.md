@@ -2571,3 +2571,18 @@ a live trace run verifies linked firm calculations plus replay of firm surplus,
 exploitation rate, and tile total. The labor aggregate, metric catalog, full
 run-trace, and true-cost suites passed (52 tests); compilation and
 `git diff --check` passed.
+
+## Phase 5 follow-up — Close explainable history-coverage gaps (implemented)
+
+Mapped demand-ratio histories, profession-population histories,
+collective-action journals, grievance-source totals, and net trade-flow
+histories to the trace metrics already emitted for those values. Added replayable
+calculations at the finance history writer for bank equity (capital plus
+deposits less liabilities) and total cash (agent wallets plus bank equity plus
+charity hand cash). The total-cash inputs include wallet subtotals by actor role.
+
+Verification: the history inventory marks the fields instrumented, and a live
+turn matches bank-equity and total-cash history points to calculation records
+whose formulas replay. The full run-trace and metric-catalog suites passed (39
+tests); banking, trade-accounting, and true-cost suites passed (19 tests);
+Python compilation and `git diff --check` passed.

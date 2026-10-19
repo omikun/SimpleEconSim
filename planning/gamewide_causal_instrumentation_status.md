@@ -2098,3 +2098,18 @@ Verification: current-turn fixtures prove stale firms are excluded; a live
 trace run verifies firm-to-production/price links and replays firm, exploitation,
 and tile totals. The labor aggregate, metric catalog, full run-trace, and true
 cost suites passed (52 tests); Python compilation and `git diff --check` passed.
+
+## Phase 5 follow-up — Close explainable history-coverage gaps (implemented)
+
+Mapped existing market demand-ratio histories, profession populations,
+collective-action events, grievance-source totals, and net trade flows to their
+already recorded metrics. At the legacy finance-history writer, bank equity is
+now calculated from capital, deposits, and liabilities; logged total cash is
+calculated from agent wallets, bank equity, and charity hand cash, with wallet
+cash subtotals by actor role. Both formulas replay from captured inputs.
+
+Verification: the history inventory marks these fields instrumented, and a live
+server turn matches the bank-equity and total-cash history values to replayable
+calculation events. The full run-trace and metric-catalog suites passed (39
+tests); banking, trade-accounting, and true-cost suites passed (19 tests).
+Python compilation and `git diff --check` passed.

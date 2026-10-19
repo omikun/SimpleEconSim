@@ -207,6 +207,15 @@ def replay_event(row):
         variable_capital = float(inputs['total_variable_capital'])
         expected = (float(inputs['total_surplus_value']) / variable_capital
                     if variable_capital > 0.0 else 0.0)
+    elif formula == 'finance.bank_equity_balance_sheet.v1':
+        inputs = row['inputs']
+        expected = (float(inputs['capital']) + float(inputs['deposits'])
+                    - float(inputs['liabilities']))
+    elif formula == 'finance.total_cash_from_components.v1':
+        inputs = row['inputs']
+        expected = (float(inputs['agent_cash_total'])
+                    + float(inputs['bank_equity'])
+                    + float(inputs['charity_hand_cash']))
     elif formula == 'econsim.market_price.v1':
         expected = replay_econsim_market_price(row['inputs'])
     else:
