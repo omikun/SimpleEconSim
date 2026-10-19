@@ -338,6 +338,32 @@ def step_economy(region: Any, t: int):
     # Dynamic social class evaluation (P1.4)
     class_dist = _sclass.update_tile_social_classes(region)
     region.social_class_log.append(class_dist)
+    from run_trace import emit
+    class_groups = {
+        'serf': ('serf',),
+        'tenant': ('tenant',),
+        'worker': ('proletarian',),
+        'dispossessed': ('dispossessed',),
+        'gentry': ('lord', 'landlord'),
+        'artisan': ('petty_bourgeois', 'industrialist'),
+    }
+    previous_classes = (region.social_class_log[-2]
+                        if len(region.social_class_log) > 1 else {})
+    for group, members in class_groups.items():
+        member_class_counts = {
+            name: int(class_dist.get(name, 0)) for name in members}
+        count = sum(member_class_counts.values())
+        before = sum(int(previous_classes.get(name, 0)) for name in members)
+        emit(region, kind='social_class_population_calculation',
+             record_class='calculation', phase='local',
+             subject={'type': 'tile', 'id': region.name,
+                      'class_group': group},
+             metric_id='society.class_population', unit='people',
+             before=before, after=count,
+             formula_id='social_class.group_population.v1',
+             inputs={'class_group': group, 'member_classes': list(members),
+                     'member_class_counts': member_class_counts,
+                     'counting_rule': 'sum living agents assigned to member classes'})
 
     # Parish Workhouse & Vagrancy Enforcement (Phase 1)
     from workhouse import step_workhouse, get_workhouse_inmates
@@ -396,8 +422,41 @@ def step_economy(region: Any, t: int):
                                    for g, history in region.population_log.items() if history}})
     region.cost_of_living_log.append(region.cost_of_living)
     region.tenure_log.append(region.tenure.commons_access)
-    region.food_foraged_log.append(sum(getattr(a, 'food_foraged', 0) for a in region.agents))
-    region.food_purchased_log.append(sum(getattr(a, 'food_purchased', 0) for a in region.agents))
+    plot_composition = [
+        {'plot_id': str(plot.plot_id), 'fraction': float(plot.fraction),
+         'tenure': getattr(plot.tenure, 'value', str(plot.tenure))}
+        for plot in getattr(region.tenure, 'plots', [])]
+    commons_access = float(region.tenure.commons_access)
+    emit(region, kind='commons_access_calculation', record_class='calculation',
+         phase='local', subject={'type': 'tile', 'id': region.name},
+         metric_id='land.commons_access', unit='ratio',
+         before=region.tenure_log[-2] if len(region.tenure_log) > 1 else None,
+         after=commons_access, formula_id='tenure.commons_access_from_plots.v1',
+         inputs={'plots': plot_composition, 'no_plot_default': 1.0,
+                 'feudal_weight': 1.0, 'leasehold_weight': 0.5,
+                 'commons_weight': 1.0, 'enclosed_weight': 0.0,
+                 'upper_bound': 1.0})
+    for history_name, attr_name, metric_id, kind in (
+            ('food_foraged_log', 'food_foraged', 'food.foraged',
+             'foraged_food_total'),
+            ('food_purchased_log', 'food_purchased', 'food.purchased',
+             'purchased_food_total')):
+        agent_food_units = [
+            {'agent_id': str(agent.id), 'food_units': int(
+                getattr(agent, attr_name, 0))}
+            for agent in region.agents
+            if int(getattr(agent, attr_name, 0)) != 0]
+        total_food = sum(row['food_units'] for row in agent_food_units)
+        history = getattr(region, history_name)
+        history.append(total_food)
+        emit(region, kind=kind, record_class='calculation', phase='local',
+             subject={'type': 'tile', 'id': region.name}, metric_id=metric_id,
+             unit='food_units',
+             before=history[-2] if len(history) > 1 else None,
+             after=total_food, formula_id='food.source_total.v1',
+             inputs={'agent_food_units': agent_food_units,
+                     'agent_count': len(region.agents),
+                     'contributor_count': len(agent_food_units)})
     region.bank_cash_log.append(region.bank.equity)
     if getattr(region.bank, 'is_frozen', False):
         region.bank.frozen_turns += 1

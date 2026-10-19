@@ -63,7 +63,16 @@ for (const [chartId, metricId] of Object.entries({
   exploitation: 'labor.exploitation_rate',
   alienation: 'labor.average_alienation',
   consciousness: 'labor.average_class_consciousness',
-  strikes: 'labor.strikers'
+  strikes: 'labor.strikers',
+  class_serf: 'society.class_population',
+  class_tenant: 'society.class_population',
+  class_worker: 'society.class_population',
+  class_dispossessed: 'society.class_population',
+  class_gentry: 'society.class_population',
+  class_artisan: 'society.class_population',
+  food_foraged: 'food.foraged', food_purchased: 'food.purchased',
+  commons_access: 'land.commons_access', rent_collected: 'finance.rent_collected',
+  rent_arrears: 'finance.rent_arrears'
 })) {
   assert.equal(globalThis.CoCCharts.getTraceBinding(chartId).metricId, metricId);
 }
@@ -74,6 +83,9 @@ assert.equal(globalThis.CoCCharts.getTraceBinding('gini').good, 'food');
 assert.equal(globalThis.CoCCharts.getTraceBinding('gini').chartScale, 100);
 assert.equal(globalThis.CoCCharts.getTraceBinding('soil').chartScale, 100);
 assert.equal(globalThis.CoCCharts.getTraceBinding('bodily_wear').chartScale, 100);
+assert.equal(globalThis.CoCCharts.getTraceBinding('class_worker').classGroup, 'worker');
+assert.equal(globalThis.CoCCharts.getTraceBinding('commons_access').chartScale, 100);
+assert.equal(globalThis.CoCCharts.getChartCatalog().citizens.length, 11);
 assert.deepEqual(globalThis.CoCCharts.getTraceBinding('soil_pollution').tilePath,
   ['ecological', 'pollution', 'soil']);
 assert.deepEqual(globalThis.CoCCharts.getTraceBinding('nutrition').tilePath,

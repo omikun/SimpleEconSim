@@ -387,6 +387,97 @@ class TestWebServerEndpoints(unittest.TestCase):
         displayed = charts['ecological']['health_attrition'][-1]
         self.assertAlmostEqual(displayed, wear['value_after'] * 100, places=1)
 
+    def test_citizen_and_tenure_charts_match_turn_calculations(self):
+        self.sim.step()
+        tile = self.sim.nations[0].tiles[0]
+        charts = self.sim.serialize_tile(tile, turn=self.sim.turn)['charts']
+
+        for chart_key, class_group, member_classes in (
+                ('serf', 'serf', ('serf',)),
+                ('tenant', 'tenant', ('tenant',)),
+                ('worker', 'worker', ('proletarian',)),
+                ('dispossessed', 'dispossessed', ('dispossessed',)),
+                ('gentry', 'gentry', ('lord', 'landlord')),
+                ('artisan', 'artisan', ('petty_bourgeois', 'industrialist'))):
+            query = urllib.parse.urlencode({
+                'turn': 1, 'entity': f'tile:{tile.name}',
+                'metric': 'society.class_population',
+                'class_group': class_group, 'limit': 200})
+            payload = json.loads(MockHttpRequestHandler(
+                self.mock_server, 'GET', f'/api/trace?{query}').get_body())
+            calculations = [row for row in payload['events']
+                            if row['kind'] ==
+                            'social_class_population_calculation']
+            self.assertEqual(len(calculations), 1, class_group)
+            calculation = calculations[0]
+            self.assertEqual(calculation['subject']['class_group'], class_group)
+            self.assertEqual(
+                calculation['inputs']['member_classes'], list(member_classes))
+            replay = sum(calculation['inputs']['member_class_counts'].values())
+            self.assertEqual(replay, calculation['value_after'])
+            self.assertEqual(charts['citizens']['classes'][chart_key][-1],
+                             calculation['value_after'])
+
+        for chart_key, metric, event_kind, series_key in (
+                ('foraged', 'food.foraged', 'foraged_food_total', 'foraged'),
+                ('market', 'food.purchased', 'purchased_food_total', 'market')):
+            query = urllib.parse.urlencode({
+                'turn': 1, 'entity': f'tile:{tile.name}',
+                'metric': metric, 'limit': 200})
+            payload = json.loads(MockHttpRequestHandler(
+                self.mock_server, 'GET', f'/api/trace?{query}').get_body())
+            calculations = [row for row in payload['events']
+                            if row['kind'] == event_kind]
+            self.assertEqual(len(calculations), 1, metric)
+            calculation = calculations[0]
+            replay = sum(row['food_units']
+                         for row in calculation['inputs']['agent_food_units'])
+            self.assertEqual(
+                len(calculation['inputs']['agent_food_units']),
+                calculation['inputs']['contributor_count'])
+            self.assertEqual(replay, calculation['value_after'])
+            self.assertEqual(charts['citizens']['food_source'][series_key][-1],
+                             calculation['value_after'])
+
+        commons_query = urllib.parse.urlencode({
+            'turn': 1, 'entity': f'tile:{tile.name}',
+            'metric': 'land.commons_access', 'limit': 200})
+        commons_payload = json.loads(MockHttpRequestHandler(
+            self.mock_server, 'GET', f'/api/trace?{commons_query}').get_body())
+        commons_rows = [row for row in commons_payload['events']
+                        if row['kind'] == 'commons_access_calculation']
+        self.assertEqual(len(commons_rows), 1)
+        commons = commons_rows[0]
+        plot_rows = commons['inputs']['plots']
+        if plot_rows:
+            replay = min(commons['inputs']['upper_bound'], sum(
+                row['fraction'] * {
+                    'feudal': commons['inputs']['feudal_weight'],
+                    'leasehold': commons['inputs']['leasehold_weight'],
+                    'commons': commons['inputs']['commons_weight'],
+                    'enclosed': commons['inputs']['enclosed_weight'],
+                }.get(row['tenure'], 0.0) for row in plot_rows))
+        else:
+            replay = commons['inputs']['no_plot_default']
+        self.assertAlmostEqual(replay, commons['value_after'])
+        self.assertAlmostEqual(
+            charts['citizens']['commons_rent']['commons'][-1],
+            commons['value_after'] * 100, places=1)
+
+        for metric, event_kind, series_key in (
+                ('finance.rent_collected', 'rent_collection_summary', 'rent'),
+                ('finance.rent_arrears', 'rent_arrears_summary', 'arrears')):
+            query = urllib.parse.urlencode({
+                'turn': 1, 'entity': f'tile:{tile.name}',
+                'metric': metric, 'limit': 200})
+            payload = json.loads(MockHttpRequestHandler(
+                self.mock_server, 'GET', f'/api/trace?{query}').get_body())
+            calculation = next(row for row in payload['events']
+                               if row['kind'] == event_kind)
+            self.assertAlmostEqual(
+                charts['citizens']['commons_rent'][series_key][-1],
+                calculation['value_after'], places=1)
+
     def test_government_revenue_chart_point_has_trace_record(self):
         self.sim.step()
         tile = self.sim.nations[0].tiles[0]

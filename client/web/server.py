@@ -135,6 +135,10 @@ class CoCHTTPRequestHandler(BaseHTTPRequestHandler):
                 if disease:
                     subject = dict(subject or {})
                     subject['disease'] = disease
+                class_group = query.get('class_group', [None])[0]
+                if class_group:
+                    subject = dict(subject or {})
+                    subject['class_group'] = class_group
                 with sim._lock:
                     result = sim.run_trace.query(turn=turn, subject=subject,
                                                  metric_id=metric_id,

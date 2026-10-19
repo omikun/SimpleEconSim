@@ -2982,6 +2982,7 @@
   }
 
   function openChartTraceInspector({ metric, entity, turn, value, label, good, disease,
+    classGroup,
     chartScale, displayUnit, container }) {
     if (!container) return;
     const old = document.getElementById('market-price-trace-detail');
@@ -3012,6 +3013,7 @@
         const filters = { turn: String(selected), entity, metric, limit: '200' };
         if (good) filters.good = good;
         if (disease) filters.disease = disease;
+        if (classGroup) filters.class_group = classGroup;
         const params = eventId
           ? new URLSearchParams({ event_id: eventId, limit: '1' })
           : new URLSearchParams(filters);
@@ -3097,6 +3099,7 @@
     let traceMetric = null;
     let traceGood = null;
     let traceDisease = null;
+    let traceClassGroup = null;
     let traceIsPrice = false;
     if (selectedTileDetail && selectedTileDetail.charts) {
       if (traceBinding?.tilePath || traceBinding?.seriesPaths) {
@@ -3105,6 +3108,7 @@
         traceMetric = activeChartMetric === 'food_price' ? 'goods.price' : traceBinding.metricId;
         traceGood = traceBinding.good || (activeChartMetric === 'food_price' ? 'food' : null);
         traceDisease = traceBinding.disease || null;
+        traceClassGroup = traceBinding.classGroup || null;
         traceIsPrice = activeChartMetric === 'food_price';
       }
     } else if (traceBinding?.historyKey) {
@@ -3138,7 +3142,7 @@
           openChartTraceInspector({
             metric: traceMetric, entity: traceEntity, turn: point.turn,
             value: point.value, label: traceBinding.label, good: traceGood,
-            disease: traceDisease,
+            disease: traceDisease, classGroup: traceClassGroup,
             chartScale: traceBinding.chartScale,
             displayUnit: traceBinding.displayUnit, container
           });

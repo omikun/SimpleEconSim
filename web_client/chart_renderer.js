@@ -31,6 +31,19 @@
       { id: 'alienation', name: 'Average Alienation' },
       { id: 'consciousness', name: 'Average Class Consciousness' },
       { id: 'strikes', name: 'Active Strikers' }
+    ],
+    citizens: [
+      { id: 'class_serf', name: 'Commoners' },
+      { id: 'class_tenant', name: 'Tenants' },
+      { id: 'class_worker', name: 'Wage Workers' },
+      { id: 'class_dispossessed', name: 'Dispossessed' },
+      { id: 'class_gentry', name: 'Gentry' },
+      { id: 'class_artisan', name: 'Artisans and Industrialists' },
+      { id: 'food_foraged', name: 'Foraged Food' },
+      { id: 'food_purchased', name: 'Purchased Food' },
+      { id: 'commons_access', name: 'Effective Commons Access' },
+      { id: 'rent_collected', name: 'Rent Collected' },
+      { id: 'rent_arrears', name: 'Rent Arrears' }
     ]
   });
 
@@ -123,7 +136,38 @@
       chartScale: 100, displayUnit: '%', label: 'Average class consciousness' }),
     strikes: Object.freeze({ metricId: 'labor.strikers',
       tilePath: ['labor', 'workplace_resistance', 'strikers'],
-      label: 'Active strikers' })
+      label: 'Active strikers' }),
+    class_serf: Object.freeze({ metricId: 'society.class_population',
+      tilePath: ['citizens', 'classes', 'serf'], classGroup: 'serf',
+      label: 'Commoners' }),
+    class_tenant: Object.freeze({ metricId: 'society.class_population',
+      tilePath: ['citizens', 'classes', 'tenant'], classGroup: 'tenant',
+      label: 'Tenants' }),
+    class_worker: Object.freeze({ metricId: 'society.class_population',
+      tilePath: ['citizens', 'classes', 'worker'], classGroup: 'worker',
+      label: 'Wage workers' }),
+    class_dispossessed: Object.freeze({ metricId: 'society.class_population',
+      tilePath: ['citizens', 'classes', 'dispossessed'], classGroup: 'dispossessed',
+      label: 'Dispossessed' }),
+    class_gentry: Object.freeze({ metricId: 'society.class_population',
+      tilePath: ['citizens', 'classes', 'gentry'], classGroup: 'gentry',
+      label: 'Gentry' }),
+    class_artisan: Object.freeze({ metricId: 'society.class_population',
+      tilePath: ['citizens', 'classes', 'artisan'], classGroup: 'artisan',
+      label: 'Artisans and industrialists' }),
+    food_foraged: Object.freeze({ metricId: 'food.foraged',
+      tilePath: ['citizens', 'food_source', 'foraged'],
+      label: 'Foraged food units' }),
+    food_purchased: Object.freeze({ metricId: 'food.purchased',
+      tilePath: ['citizens', 'food_source', 'market'],
+      label: 'Purchased food units' }),
+    commons_access: Object.freeze({ metricId: 'land.commons_access',
+      tilePath: ['citizens', 'commons_rent', 'commons'], chartScale: 100,
+      displayUnit: '%', label: 'Effective commons access' }),
+    rent_collected: Object.freeze({ metricId: 'finance.rent_collected',
+      tilePath: ['citizens', 'commons_rent', 'rent'], label: 'Rent collected' }),
+    rent_arrears: Object.freeze({ metricId: 'finance.rent_arrears',
+      tilePath: ['citizens', 'commons_rent', 'arrears'], label: 'Rent arrears' })
   });
 
   function getChartCatalog() {

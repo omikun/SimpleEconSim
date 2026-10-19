@@ -2212,3 +2212,21 @@ calculation events and replay the average from the recorded inputs. Metric
 catalog coverage, Node UI tests, syntax checks, and `git diff --check` passed.
 Desktop chart drilldown and the remaining labor/citizen history panels are
 still open.
+
+## Phase 5 follow-up — Trace citizen and tenure histories (implemented)
+
+Added selectable web charts for class composition, food obtained by foraging or
+purchase, effective commons access, rent collected, and rent arrears. The
+class-population metric filters on the displayed class group and records the
+underlying social-class counts. Foraged and purchased food totals record each
+contributing household and quantity. Commons access records plot tenure and
+fraction with the model's access weights and wilderness default. Rent charts
+link to their existing settlement and active-claim calculations. These series
+make changes in subsistence access, reliance on the market, and landlord claims
+visible over time.
+
+Verification: the web endpoint test replays the grouped class, food, and
+commons-access formulas, checks class-group filtering, and compares the
+displayed class, food, commons, and rent points to turn/tile records. The
+metric-catalog, UI, syntax, and `git diff --check` checks pass. Desktop chart
+drilldown and other remaining chart histories are still open.

@@ -1626,3 +1626,16 @@ Verification: a web endpoint integration test matches the soil and bodily-wear
 chart points to their turn/tile calculation records and replays the average
 from its recorded values. Focused web endpoint and metric-catalog coverage
 tests passed, alongside the Node UI checks and JavaScript/Python syntax checks.
+
+Phase 5 follow-up, 2026-10-18: added a People & Tenure chart group for class
+composition, foraged and purchased food, effective commons access, rent
+collected, and rent arrears. Each class series filters to its group in the trace
+API; grouped classes disclose the exact underlying class counts. Food-source
+records list contributing households and quantities, while commons-access
+records include each plot's tenure and fraction. Rent charts use the existing
+collection and arrears calculations.
+
+Verification: the web integration test replays class groups, food totals, and
+commons access from the turn-scoped inputs, applies the class-group trace filter,
+and matches all displayed series to their calculation records. Metric-catalog,
+Node UI, JavaScript/Python syntax, and whitespace checks passed.
