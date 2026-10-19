@@ -13,7 +13,11 @@
     ecological: [
       { id: 'soil', name: 'Soil Fertility' }, { id: 'nutrition', name: 'Nutrition Density' },
       { id: 'smog', name: 'Smog Particulate' },
-      { id: 'effluent', name: 'Water Effluent' }, { id: 'epidemics', name: 'Epidemic Cases' },
+      { id: 'effluent', name: 'Water Effluent' },
+      { id: 'malnutrition_cases', name: 'Malnutrition Cases' },
+      { id: 'waterborne_cases', name: 'Waterborne Cases' },
+      { id: 'respiratory_cases', name: 'Respiratory Cases' },
+      { id: 'chemical_cases', name: 'Chemical Exposure Cases' },
       { id: 'health_outlays', name: 'Healthcare Outlays' }, { id: 'illness_deaths', name: 'Illness Fatalities' }
     ],
     labor: [
@@ -58,7 +62,23 @@
       tilePath: ['ecological', 'pollution', 'water'], label: 'Water pollution' }),
     illness_deaths: Object.freeze({ metricId: 'health.fatalities',
       tilePath: ['ecological', 'untreated_fatalities', 'fatalities'],
-      label: 'Disease fatalities' })
+      label: 'Disease fatalities' }),
+    malnutrition_cases: Object.freeze({ metricId: 'health.disease_cases',
+      tilePath: ['ecological', 'epidemics', 'malnutrition'], disease: 'malnutrition',
+      label: 'Malnutrition cases' }),
+    waterborne_cases: Object.freeze({ metricId: 'health.disease_cases',
+      tilePath: ['ecological', 'epidemics', 'cholera'], disease: 'waterborne',
+      label: 'Waterborne cases' }),
+    respiratory_cases: Object.freeze({ metricId: 'health.disease_cases',
+      tilePath: ['ecological', 'epidemics', 'bronchitis'], disease: 'respiratory',
+      label: 'Respiratory cases' }),
+    chemical_cases: Object.freeze({ metricId: 'health.disease_cases',
+      tilePath: ['ecological', 'epidemics', 'toxic'], disease: 'chemical',
+      label: 'Chemical exposure cases' }),
+    health_outlays: Object.freeze({ metricId: 'health.medical_spending',
+      seriesPaths: [['ecological', 'healthcare_outlay', 'private'],
+        ['ecological', 'healthcare_outlay', 'public']],
+      label: 'Healthcare outlays' })
   });
 
   function getChartCatalog() {
@@ -67,7 +87,24 @@
 
   function getTraceBinding(metric) {
     const binding = traceBindings[metric];
-    return binding ? { ...binding, tilePath: binding.tilePath && [...binding.tilePath] } : null;
+    return binding ? {
+      ...binding,
+      tilePath: binding.tilePath && [...binding.tilePath],
+      seriesPaths: binding.seriesPaths && binding.seriesPaths.map(path => [...path])
+    } : null;
+  }
+
+  function getTileSeries(charts, binding) {
+    const read = path => path.reduce((value, key) => value?.[key], charts);
+    if (Array.isArray(binding?.tilePath)) {
+      const series = read(binding.tilePath);
+      return Array.isArray(series) ? series : [];
+    }
+    const arrays = (binding?.seriesPaths || []).map(read).filter(Array.isArray);
+    if (!arrays.length) return [];
+    const length = Math.min(...arrays.map(series => series.length));
+    return Array.from({ length }, (_unused, index) => arrays.reduce(
+      (sum, series) => sum + Number(series[series.length - length + index] || 0), 0));
   }
 
   function drawHistoricalChart(canvas, values, metric, dpr = 1, options = {}) {
@@ -170,6 +207,8 @@
     return `${String(metric).toUpperCase()}: Historical Trend over Turns (Min ${minVal.toFixed(1)} | Max ${maxVal.toFixed(1)})`;
   }
 
-  const CoCCharts = Object.freeze({ getChartCatalog, getTraceBinding, drawHistoricalChart });
+  const CoCCharts = Object.freeze({
+    getChartCatalog, getTraceBinding, getTileSeries, drawHistoricalChart
+  });
   root.CoCCharts = CoCCharts;
 })(typeof globalThis !== 'undefined' ? globalThis : window);

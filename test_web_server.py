@@ -266,6 +266,16 @@ class TestWebServerEndpoints(unittest.TestCase):
                                 and row['subject']['id'] == tile
                                 and row['subject']['good'] == 'food'
                                 for row in payload['events']), (tile, metric))
+        for disease in ('malnutrition', 'waterborne', 'respiratory', 'chemical'):
+            query = urllib.parse.urlencode({
+                'turn': 1, 'entity': f'tile:{tile}',
+                'metric': 'health.disease_cases', 'disease': disease, 'limit': 200})
+            handler = MockHttpRequestHandler(
+                self.mock_server, 'GET', f'/api/trace?{query}')
+            payload = json.loads(handler.get_body())
+            self.assertGreater(payload['total'], 0, disease)
+            self.assertTrue(all(row['subject']['disease'] == disease
+                                for row in payload['events']), disease)
 
     def test_api_world_state(self):
         handler = MockHttpRequestHandler(self.mock_server, 'GET', '/api/state')

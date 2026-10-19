@@ -2092,3 +2092,17 @@ filters, ratio scaling, and unsupported charts. The web endpoint test confirms
 the exact turn/tile/good records for production and inventory. JavaScript
 syntax, UI utility, chart renderer, and focused API checks passed (2 Python
 tests and the UI utility test).
+
+## Phase 5 follow-up — Bind disease and healthcare charts (implemented)
+
+Split the ecological disease chart into four accurately labeled series:
+malnutrition, waterborne, respiratory, and chemical exposure cases. The trace
+API now accepts a disease filter so each point opens records for its own case
+count. Healthcare outlays combine the chart's private and public series into
+the same total used by `health.medical_spending`. Fatalities remain a separate
+chart and metric.
+
+Verification: chart-binding tests cover all four disease IDs and the private
+plus public series sum. The web API tests verify each disease filter returns
+only the selected tile's case events. The focused API, renderer, JavaScript
+syntax, and UI utility checks passed (3 Python tests and the UI utility test).

@@ -2981,7 +2981,7 @@
     load();
   }
 
-  function openChartTraceInspector({ metric, entity, turn, value, label, good,
+  function openChartTraceInspector({ metric, entity, turn, value, label, good, disease,
     chartScale, displayUnit, container }) {
     if (!container) return;
     const old = document.getElementById('market-price-trace-detail');
@@ -3011,6 +3011,7 @@
       try {
         const filters = { turn: String(selected), entity, metric, limit: '200' };
         if (good) filters.good = good;
+        if (disease) filters.disease = disease;
         const params = eventId
           ? new URLSearchParams({ event_id: eventId, limit: '1' })
           : new URLSearchParams(filters);
@@ -3095,13 +3096,15 @@
     let traceEntity = null;
     let traceMetric = null;
     let traceGood = null;
+    let traceDisease = null;
     let traceIsPrice = false;
     if (selectedTileDetail && selectedTileDetail.charts) {
-      if (traceBinding?.tilePath) {
-        values = traceBinding.tilePath.reduce((value, key) => value?.[key], selectedTileDetail.charts) || [];
+      if (traceBinding?.tilePath || traceBinding?.seriesPaths) {
+        values = charts.getTileSeries(selectedTileDetail.charts, traceBinding);
         traceEntity = `tile:${selectedTileDetail.name}`;
         traceMetric = activeChartMetric === 'food_price' ? 'goods.price' : traceBinding.metricId;
         traceGood = traceBinding.good || (activeChartMetric === 'food_price' ? 'food' : null);
+        traceDisease = traceBinding.disease || null;
         traceIsPrice = activeChartMetric === 'food_price';
       }
     } else if (traceBinding?.historyKey) {
@@ -3112,7 +3115,7 @@
       traceIsPrice = activeChartMetric === 'food_price';
     }
     if (!values.length && selectedTileDetail && selectedTileDetail.charts
-        && !traceBinding?.tilePath) {
+        && !traceBinding?.tilePath && !traceBinding?.seriesPaths) {
       const mode = selectedTileDetail.charts[activeChartMode];
       if (mode && mode[activeChartMetric]) values = mode[activeChartMetric];
     }
@@ -3135,6 +3138,7 @@
           openChartTraceInspector({
             metric: traceMetric, entity: traceEntity, turn: point.turn,
             value: point.value, label: traceBinding.label, good: traceGood,
+            disease: traceDisease,
             chartScale: traceBinding.chartScale,
             displayUnit: traceBinding.displayUnit, container
           });

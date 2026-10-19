@@ -50,7 +50,10 @@ for (const [chartId, metricId] of Object.entries({
   unrest: 'politics.protest_energy', production: 'goods.production',
   inventories: 'goods.producer_inventory', soil: 'ecology.soil_fertility',
   nutrition: 'ecology.nutrition_density', smog: 'ecology.pollution_air',
-  effluent: 'ecology.pollution_water', illness_deaths: 'health.fatalities'
+  effluent: 'ecology.pollution_water', illness_deaths: 'health.fatalities',
+  malnutrition_cases: 'health.disease_cases', waterborne_cases: 'health.disease_cases',
+  respiratory_cases: 'health.disease_cases', chemical_cases: 'health.disease_cases',
+  health_outlays: 'health.medical_spending'
 })) {
   assert.equal(globalThis.CoCCharts.getTraceBinding(chartId).metricId, metricId);
 }
@@ -60,6 +63,10 @@ assert.equal(globalThis.CoCCharts.getTraceBinding('inventories').good, 'food');
 assert.equal(globalThis.CoCCharts.getTraceBinding('soil').chartScale, 100);
 assert.deepEqual(globalThis.CoCCharts.getTraceBinding('nutrition').tilePath,
   ['ecological', 'soil_nutrition', 'nutrition']);
+assert.equal(globalThis.CoCCharts.getTraceBinding('waterborne_cases').disease, 'waterborne');
+assert.deepEqual(globalThis.CoCCharts.getTileSeries({ ecological: { healthcare_outlay: {
+  private: [2, 3, 4], public: [5, 7, 11]
+} } }, globalThis.CoCCharts.getTraceBinding('health_outlays')), [7, 10, 15]);
 assert.equal(globalThis.CoCCharts.getTraceBinding('strikes'), null);
 
 const listeners = {};
