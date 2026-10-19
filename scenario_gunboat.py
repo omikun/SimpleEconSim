@@ -308,28 +308,61 @@ def advance_naval_crisis(world: dict) -> None:
     if stage not in ('mobilizing', 'ultimatum', 'blockaded', 'mediation') or world.get('scenario_warning_modal'):
         return
     turn = int(world['turn'])
+    operation_id = _naval_crisis_operation_id(world, stage, turn)
+    before_step = _naval_crisis_state(world)
+    trace_ids_before = _naval_response_trace_ids(world)
+
+    def finish(status, reason, **details):
+        _trace_naval_crisis_step(
+            world, operation_id=operation_id, status=status, reason=reason,
+            before=before_step, after=_naval_crisis_state(world),
+            details=details,
+            cause_event_ids=_naval_response_causes(world, trace_ids_before))
+
     rules = situation_template()['naval_crisis']
     egypt, britain, france = (_nation(world, name) for name in ('Egypt', 'Britain', 'France'))
     alexandria = _alexandria(egypt) if egypt else None
     if not egypt or not britain or not alexandria or not getattr(alexandria, 'is_coast', False):
         withdraw(world, 'No enforceable coastal approach exists at Alexandria; the naval claim lapses.', cause='no_access')
+        finish('withdrawn', 'coastal_access_unavailable',
+               egypt_available=egypt is not None,
+               britain_available=britain is not None,
+               alexandria_available=alexandria is not None,
+               alexandria_is_coast=bool(getattr(alexandria, 'is_coast', False)))
         return
     if state.get('payment_status') in ('paid', 'restructured'):
         withdraw(world, 'The debt settlement ends the naval confrontation.', cause='settlement')
+        finish('withdrawn', 'debt_settlement_already_completed',
+               payment_status=state.get('payment_status'))
         return
     british_unrest = _protest(world, 'Britain')
     decisions = foreign_decisions(world)
     if british_unrest >= float(rules['max_british_protest_energy']):
         withdraw(world, 'Domestic unrest in Britain makes the Alexandria expedition untenable.', cause='unsustainable')
+        finish('withdrawn', 'british_domestic_protest_above_limit',
+               british_protest_energy=british_unrest,
+               maximum_british_protest_energy=float(rules['max_british_protest_energy']),
+               foreign_decisions=decisions)
         return
     if stage == 'mobilizing':
         if turn < int(crisis['due_turn']):
+            finish('waiting', 'mobilization_not_yet_due',
+                   due_turn=int(crisis['due_turn']),
+                   foreign_decisions=decisions)
             return
         if decisions['Britain'] != 'intervene':
             withdraw(world, 'London declines an expedition after reviewing its claim, treasury, and domestic unrest.', cause='unsustainable')
+            finish('withdrawn', 'british_ai_declined_intervention',
+                   foreign_decisions=decisions,
+                   british_protest_energy=british_unrest)
             return
-        if _force_ratio(world) < float(rules['minimum_force_ratio']):
+        force_ratio = _force_ratio(world)
+        minimum_force_ratio = float(rules['minimum_force_ratio'])
+        if force_ratio < minimum_force_ratio:
             withdraw(world, 'Egyptian coastal defenses make the British naval threat a bluff.', cause='deterrence')
+            finish('withdrawn', 'coastal_defense_force_gate_failed',
+                   foreign_decisions=decisions, force_ratio=force_ratio,
+                   minimum_force_ratio=minimum_force_ratio)
             return
         from scenario_diplomacy import mobilization_cost
         british_cost = mobilization_cost(decisions['France'])
@@ -340,21 +373,35 @@ def advance_naval_crisis(world: dict) -> None:
             withdraw(world, 'Britain cannot finance and supply a squadron for Alexandria.',
                      cause='unsustainable',
                      cause_event_ids=british_payment_event_ids or None)
+            finish('withdrawn', 'british_mobilization_funding_failed',
+                   foreign_decisions=decisions, force_ratio=force_ratio,
+                   minimum_force_ratio=minimum_force_ratio,
+                   british_mobilization_cost=float(british_cost),
+                   british_funding_event_ids=british_payment_event_ids)
             return
         fleet = create_fleet(world, 'Britain', guns=rules['british_squadron_strength'])
         if not move_fleet(world, 'Britain', 'Alexandria'):
             withdraw(world, 'The British squadron lacks coal for the Alexandria passage.',
                      cause='unsustainable',
                      cause_event_ids=british_payment_event_ids or None)
+            finish('withdrawn', 'british_fleet_could_not_reach_alexandria',
+                   foreign_decisions=decisions,
+                   british_mobilization_cost=float(british_cost),
+                   british_funding_event_ids=british_payment_event_ids,
+                   british_fleet_after_failed_move=dict(fleet))
             return
         french_joined = False
+        french_funding_succeeded = None
+        french_movement_succeeded = None
         french_payment_event_ids = []
         if decisions['France'] == 'join_enforcement' and france is not None:
-            if _transfer_to_households(
+            french_funding_succeeded = _transfer_to_households(
                     world, france, 30.0, source='french_squadron_mobilization',
-                    trace_event_ids=french_payment_event_ids):
+                    trace_event_ids=french_payment_event_ids)
+            if french_funding_succeeded:
                 create_fleet(world, 'France', ships=2, guns=35, coal=5, transports=0)
-                french_joined = move_fleet(world, 'France', 'Alexandria')
+                french_movement_succeeded = move_fleet(world, 'France', 'Alexandria')
+                french_joined = french_movement_succeeded
                 if not french_joined:
                     state['geography']['fleets'].pop('France', None)
         if not state.get('diplomatic_crisis', {}).get('policy_lock'):
@@ -386,6 +433,18 @@ def advance_naval_crisis(world: dict) -> None:
         _record(world, f'A British squadron reaches Alexandria; {partner}. London demands Cairo yield customs or disarm the coastal batteries.')
         world['scenario_warning_modal'] = {'kind': 'naval_ultimatum'}
         world['playing'] = False
+        finish('ultimatum_issued', 'british_intervention_funded_and_fleet_arrived',
+               foreign_decisions=decisions,
+               british_protest_energy=british_unrest,
+               force_ratio=force_ratio,
+               minimum_force_ratio=minimum_force_ratio,
+               british_mobilization_cost=float(british_cost),
+               british_funding_event_ids=british_payment_event_ids,
+               french_funding_succeeded=french_funding_succeeded,
+               french_movement_succeeded=french_movement_succeeded,
+               french_payment_event_ids=french_payment_event_ids,
+               french_fleet_joined=bool(french_joined),
+               policy_lock=state['diplomatic_crisis'].get('policy_lock'))
         return
     upkeep = float(rules['upkeep_per_turn']) + (4.0 if decisions['France'] == 'oppose' else 0.0)
     british_upkeep_event_ids = []
@@ -395,12 +454,18 @@ def advance_naval_crisis(world: dict) -> None:
         withdraw(world, 'Britain cannot pay the fleet’s continuing supply costs; the squadron withdraws.',
                  cause='unsustainable',
                  cause_event_ids=british_upkeep_event_ids or None)
+        finish('withdrawn', 'british_fleet_upkeep_unaffordable',
+               foreign_decisions=decisions,
+               british_upkeep_requested=float(upkeep),
+               british_upkeep_event_ids=british_upkeep_event_ids)
         return
+    french_funding_succeeded = None
+    french_upkeep_event_ids = []
     if fleet_at(world, 'France', 'Alexandria'):
-        french_upkeep_event_ids = []
-        if not _transfer_to_households(
+        french_funding_succeeded = _transfer_to_households(
                 world, france, 6.0, source='french_fleet_upkeep',
-                trace_event_ids=french_upkeep_event_ids):
+                trace_event_ids=french_upkeep_event_ids)
+        if not french_funding_succeeded:
             french_fleet_before = dict(state['geography']['fleets'].get('France', {}))
             state['geography']['fleets'].pop('France', None)
             crisis['french_fleet_joined'] = False
@@ -418,50 +483,135 @@ def advance_naval_crisis(world: dict) -> None:
                         'british_fleet_remains': True,
                         'funding_event_ids': french_upkeep_event_ids},
                 cause_event_ids=french_upkeep_event_ids or None)
+    british_fleet_before_resupply = dict(
+        state['geography']['fleets'].get('Britain', {}))
     resupply(world, 'Britain', 1)
     if not fleet_at(world, 'Britain', 'Alexandria'):
         withdraw(world, 'The British squadron is absent or unsupplied; the Alexandria blockade ends.', cause='unsustainable')
+        finish('withdrawn', 'british_squadron_failed_resupply_or_presence_gate',
+               foreign_decisions=decisions,
+               british_upkeep_requested=float(upkeep),
+               british_upkeep_event_ids=british_upkeep_event_ids,
+               french_funding_succeeded=french_funding_succeeded,
+               french_upkeep_event_ids=french_upkeep_event_ids,
+               british_fleet_before_resupply=british_fleet_before_resupply,
+               resupply_quantity=1)
         return
     if stage == 'ultimatum':
         world['scenario_warning_modal'] = {'kind': 'naval_ultimatum'}
         world['playing'] = False
+        finish('ultimatum_waiting_for_player', 'ultimatum_remains_active',
+               foreign_decisions=decisions,
+               british_upkeep_requested=float(upkeep),
+               british_upkeep_event_ids=british_upkeep_event_ids,
+               french_funding_succeeded=french_funding_succeeded,
+               french_upkeep_event_ids=french_upkeep_event_ids,
+               british_fleet_before_resupply=british_fleet_before_resupply,
+               british_fleet_after_resupply=dict(state['geography']['fleets']['Britain']),
+               resupply_quantity=1)
         return
     if stage == 'mediation':
         if turn < int(crisis['mediation_due_turn']):
+            finish('waiting', 'ottoman_mediation_not_yet_due',
+                   mediation_due_turn=int(crisis['mediation_due_turn']),
+                   foreign_decisions=decisions,
+                   british_upkeep_requested=float(upkeep),
+                   british_upkeep_event_ids=british_upkeep_event_ids,
+                   french_funding_succeeded=french_funding_succeeded,
+                   french_upkeep_event_ids=french_upkeep_event_ids)
             return
         from scenario_diplomacy import _record as record_diplomacy
         french_policy = state.get('diplomatic_crisis', {}).get('french_policy')
         britain_accepts = french_policy != 'join_enforcement' or _protest(world, 'Britain') >= 3.0
         from scenario_debt import outstanding
-        claim = outstanding(world)
-        if (britain_accepts and claim > 0
-                and egypt.government.agent.cash >= claim * 0.5):
+        claim = float(outstanding(world))
+        required_payment = claim * 0.5
+        egypt_cash = float(egypt.government.agent.cash)
+        mediation_rejection_reason = (
+            'britain_rejected_due_to_funded_french_coalition'
+            if not britain_accepts else 'no_claim_outstanding'
+            if claim <= 0 else 'egypt_treasury_below_half_claim'
+            if egypt_cash < required_payment else None)
+        payment_failure_reason = None
+        if mediation_rejection_reason is None:
             from scenario_debt import pay as pay_debt
-            amount = claim * 0.5
-            ok, _ = pay_debt(world, amount, kind='ottoman_mediation', forgive_remainder=True)
+            amount = required_payment
+            ok, payment_failure_reason = pay_debt(
+                world, amount, kind='ottoman_mediation', forgive_remainder=True)
             if ok:
                 state['payment_status'] = 'restructured'
                 state['settlement_path'] = 'ottoman_mediation'
                 state['diplomatic_crisis']['ottoman_offer']['status'] = 'accepted'
                 record_diplomacy(world, 'Britain', 'accept_ottoman_terms', 'Britain accepts half the claim rather than prolonging an expensive expedition.')
                 withdraw(world, f'Ottoman mediation secures a {amount:,.0f}-unit settlement; the fleet withdraws.', cause='settlement')
+                finish('mediation_accepted', 'britain_accepted_and_egypt_paid_half_claim',
+                       french_policy=french_policy,
+                       britain_accepts_mediation=britain_accepts,
+                       british_protest_energy=_protest(world, 'Britain'),
+                       claim_before=claim,
+                       required_payment=required_payment,
+                       egypt_treasury_before=egypt_cash,
+                       settlement_amount=amount,
+                       british_upkeep_requested=float(upkeep),
+                       british_upkeep_event_ids=british_upkeep_event_ids,
+                       french_upkeep_event_ids=french_upkeep_event_ids)
                 return
+            mediation_rejection_reason = 'debt_payment_failed'
         record_diplomacy(world, 'Britain', 'reject_ottoman_terms', 'A funded coalition or inadequate Egyptian payment prevents a mediated settlement.')
         state['diplomatic_crisis']['ottoman_offer']['status'] = 'rejected'
         crisis['stage'] = 'ultimatum'
         _record(world, 'Ottoman mediation fails to secure terms. The British ultimatum resumes.')
         world['scenario_warning_modal'] = {'kind': 'naval_ultimatum'}
         world['playing'] = False
+        finish('mediation_rejected', mediation_rejection_reason,
+               french_policy=french_policy,
+               britain_accepts_mediation=britain_accepts,
+               british_protest_energy=_protest(world, 'Britain'),
+               claim_before=claim,
+               required_payment=required_payment,
+               egypt_treasury_before=egypt_cash,
+               payment_failure_reason=payment_failure_reason,
+               british_upkeep_requested=float(upkeep),
+               british_upkeep_event_ids=british_upkeep_event_ids,
+               french_upkeep_event_ids=french_upkeep_event_ids)
         return
     if stage == 'blockaded' and crisis.get('last_offer_turn') != turn:
         from scenario_campaign import advance_expedition
         if advance_expedition(world):
+            finish('expedition_advanced', 'blockade_stage_advanced_the_landing_campaign',
+                   foreign_decisions=decisions,
+                   british_upkeep_requested=float(upkeep),
+                   british_upkeep_event_ids=british_upkeep_event_ids,
+                   french_funding_succeeded=french_funding_succeeded,
+                   french_upkeep_event_ids=french_upkeep_event_ids,
+                   expedition_stage=state.get('campaign', {}).get('expedition', {}).get('stage'))
             return
         if state.get('campaign', {}).get('expedition', {}).get('stage') == 'foothold':
+            finish('foothold_active', 'landing_force_already_holds_a_foothold',
+                   foreign_decisions=decisions,
+                   british_upkeep_requested=float(upkeep),
+                   british_upkeep_event_ids=british_upkeep_event_ids,
+                   french_funding_succeeded=french_funding_succeeded,
+                   french_upkeep_event_ids=french_upkeep_event_ids)
             return
         _record(world, 'The blockade of Alexandria continues to interrupt its coastal routes. Cairo may settle or hold out.')
         world['scenario_warning_modal'] = {'kind': 'naval_blockade'}
         world['playing'] = False
+        finish('blockade_warning_opened', 'blockade_remains_active',
+               foreign_decisions=decisions,
+               british_upkeep_requested=float(upkeep),
+               british_upkeep_event_ids=british_upkeep_event_ids,
+               french_funding_succeeded=french_funding_succeeded,
+               french_upkeep_event_ids=french_upkeep_event_ids,
+               expedition_stage=state.get('campaign', {}).get('expedition', {}).get('stage'))
+    elif stage == 'blockaded':
+        finish('waiting', 'blockade_response_already_recorded_this_turn',
+               last_offer_turn=crisis.get('last_offer_turn'),
+               foreign_decisions=decisions,
+               british_upkeep_requested=float(upkeep),
+               british_upkeep_event_ids=british_upkeep_event_ids,
+               french_funding_succeeded=french_funding_succeeded,
+               french_upkeep_event_ids=french_upkeep_event_ids)
 
 
 def naval_response_options(world: dict, kind: str) -> list[dict]:
@@ -556,6 +706,28 @@ def _naval_response_state(world):
     }
 
 
+def _naval_crisis_state(world):
+    result = _naval_response_state(world)
+    state = world.get('scenario_state', {})
+    campaign = state.get('campaign', {})
+    expedition = campaign.get('expedition', {})
+    britain = _nation(world, 'Britain')
+    france = _nation(world, 'France')
+    result.update({
+        'britain_treasury_cash': (float(britain.government.agent.cash)
+                                  if britain is not None else None),
+        'france_treasury_cash': (float(france.government.agent.cash)
+                                 if france is not None else None),
+        'british_protest_energy': _protest(world, 'Britain'),
+        'french_protest_energy': _protest(world, 'France'),
+        'expedition_stage': expedition.get('stage'),
+        'expedition_landing_due_turn': expedition.get('landing_due_turn'),
+        'battle_count': len(campaign.get('battles', [])),
+        'territorial_control': dict(campaign.get('territorial_control', {})),
+    })
+    return result
+
+
 def _naval_response_operation_id(world, response_id):
     region = _trace_region(world, _nation(world, 'Egypt'))
     clock = getattr(region, '_collective_trace_clock', None) if region else None
@@ -599,6 +771,32 @@ def _trace_naval_response(world, *, operation_id, response_id, success, reason,
         before=0, after=int(bool(success)),
         inputs={'operation_id': operation_id, 'response_id': response_id,
                 'turn': int(world.get('turn', 0)), 'success': bool(success),
+                'reason': reason, 'state_before': before, 'state_after': after,
+                **(details or {})},
+        cause_event_ids=cause_event_ids)
+
+
+def _naval_crisis_operation_id(world, stage, turn):
+    region = _trace_region(world)
+    clock = getattr(region, '_collective_trace_clock', None) if region else None
+    ordinal = int(clock.get('next', 1)) if clock is not None else int(turn)
+    return f'naval-crisis-step:{stage}:{int(turn)}:{ordinal}'
+
+
+def _trace_naval_crisis_step(world, *, operation_id, status, reason,
+                             before, after, details=None, cause_event_ids=None):
+    stage_before = before.get('naval_crisis_stage')
+    stage_after = after.get('naval_crisis_stage')
+    return _emit_naval_trace(
+        world, kind='naval_crisis_step_resolved',
+        record_class='decision' if status in ('waiting', 'gate_blocked')
+        and before == after else 'outcome',
+        phase='naval_crisis',
+        subject={'type': 'scenario/operation', 'id': operation_id},
+        metric_id='scenario.naval_crisis_step', unit='stage',
+        before=stage_before, after=stage_after,
+        inputs={'operation_id': operation_id,
+                'turn': int(world.get('turn', 0)), 'status': status,
                 'reason': reason, 'state_before': before, 'state_after': after,
                 **(details or {})},
         cause_event_ids=cause_event_ids)

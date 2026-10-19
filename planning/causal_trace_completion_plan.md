@@ -297,10 +297,28 @@ campaign, diplomacy, coercion, geography and metric-catalog regression suites
 passed (37 tests), as did the payment-path playthrough. Compilation and
 `git diff --check` passed.
 
-Next Phase 3 audit target: review `scenario_gunboat.advance_naval_crisis` for
-mobilization AI and force gates, upkeep and resupply failures, French support,
-and Ottoman mediation acceptance or rejection, including links to fleet,
-withdrawal, debt, and campaign events.
+### Phase 3 follow-up — Trace Egyptian naval-crisis transitions (implemented)
+
+`scenario_gunboat.advance_naval_crisis` now records coastal-access, paid-debt,
+and British-protest gates; the British intervention decision and force-ratio
+threshold; mobilization funding and fleet arrival; French support funding and
+movement; recurring British and French upkeep; British resupply and withdrawal;
+and Ottoman mediation timing, acceptance, or reason-specific rejection.
+Blockade-turn records link to expedition steps, while mediation outcomes link
+to debt payment and withdrawal. Each summary includes pre/post fleet, treasury,
+debt, protest, and campaign state. Idle stages and warning-modal pauses remain
+silent to avoid repetitive trace noise. No crisis decision or timing rules
+changed.
+
+Verification: ten dedicated naval-crisis tests passed, covering mobilization,
+upkeep, protest and force gates, French support and supply failure, blockade to
+expedition links, mediation gates, and compact `.ctr` verification. The
+geography, diplomacy and naval-response suites passed (20 tests). Compilation
+and `git diff --check` passed.
+
+Next Phase 3 audit target: review the Guided Egypt escalation trigger in
+`scenario_gunboat.begin_escalation` and related crisis state initialization for
+entry-condition, chapter-transition, and repeated-trigger trace gaps.
 
 ## Phase 5 — Deliver explanations in web, desktop and CLI
 

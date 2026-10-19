@@ -1396,3 +1396,16 @@ all player choices, defense exits, exact transfer and withdrawal links,
 trace-on/off parity, and compact `.ctr` serialization. Campaign, diplomacy,
 coercion, geography and metric-catalog regression suites passed (37 tests), as
 did the payment-path playthrough. Compilation and `git diff --check` passed.
+
+Phase 3 follow-up, 2026-10-18: Egyptian autonomous naval-crisis turns now trace
+coastal-access, payment, and domestic-protest gates; British intervention and
+coastal-force decisions; squadron funding and arrival; French support funding
+and fleet movement; recurring upkeep, French supply failure, resupply and
+withdrawal; and Ottoman mediation timing, acceptance, and reason-specific
+rejection. Blockade turns link to the expedition summary, and mediated
+settlements link to their debt and withdrawal events. Warning-modal and idle
+crisis pauses remain silent. No naval-crisis behavior changed.
+
+Verification: ten dedicated naval-crisis tests passed, including compact
+`.ctr` serialization; geography, diplomacy and naval-response suites passed
+(20 tests). Compilation and `git diff --check` passed.
