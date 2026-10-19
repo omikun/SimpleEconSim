@@ -147,22 +147,25 @@ def _firms(world):
             and str(a.company_name).endswith('Textile Mill')]
 
 
-def _cotton_ask(field, grower, purpose='sale_offer'):
+def _cotton_ask(field, grower, purpose='sale_offer', trace_event_ids=None):
     ask = (1.5 + 0.12 * grower.wage if grower.is_corporation
            else field.recipes[Goods.cotton]['price'])
     from run_trace import emit
-    emit(field, kind='scenario_cotton_ask', record_class='calculation',
-         phase='scenario_market',
-         subject={'type': 'tile', 'id': field.name, 'good': 'cotton',
-                  'seller_id': grower.id},
-         metric_id='goods.seller_ask', unit='local_currency_per_unit',
-         after=ask, formula_id='scenario.cotton_ask.v1',
-         inputs={'purpose': purpose, 'corporation': grower.is_corporation,
-                 'wage': grower.wage if grower.is_corporation else None,
-                 'base': 1.5 if grower.is_corporation else None,
-                 'wage_coefficient': 0.12 if grower.is_corporation else None,
-                 'recipe_reference': field.recipes[Goods.cotton]['price'],
-                 'currency': field.home_currency})
+    event_id = emit(
+        field, kind='scenario_cotton_ask', record_class='calculation',
+        phase='scenario_market',
+        subject={'type': 'tile', 'id': field.name, 'good': 'cotton',
+                 'seller_id': grower.id},
+        metric_id='goods.seller_ask', unit='local_currency_per_unit',
+        after=ask, formula_id='scenario.cotton_ask.v1',
+        inputs={'purpose': purpose, 'corporation': grower.is_corporation,
+                'wage': grower.wage if grower.is_corporation else None,
+                'base': 1.5 if grower.is_corporation else None,
+                'wage_coefficient': 0.12 if grower.is_corporation else None,
+                'recipe_reference': field.recipes[Goods.cotton]['price'],
+                'currency': field.home_currency})
+    if event_id is not None and trace_event_ids is not None:
+        trace_event_ids.append(event_id)
     return ask
 
 
@@ -182,24 +185,31 @@ def _buy_cotton(world, turn):
                 freight = FREIGHT_PER_EDGE * (len(path) - 1)
                 for grower in field.agents:
                     if grower.alive and grower.output == Goods.cotton and grower.inv_get(Goods.cotton, 0) > 0:
-                        ask = _cotton_ask(field, grower)
+                        ask_event_ids = []
+                        ask = _cotton_ask(field, grower,
+                                          trace_event_ids=ask_event_ids)
                         from run_trace import emit
-                        emit(field, kind='scenario_cotton_delivered_quote',
-                             record_class='calculation', phase='scenario_market',
-                             subject={'type': 'tile', 'id': field.name,
-                                      'good': 'cotton', 'seller_id': grower.id,
-                                      'buyer_id': firm.id},
-                             metric_id='goods.delivered_quote',
-                             unit='local_currency_per_unit', after=ask + freight,
-                             formula_id='scenario.delivered_quote.v1',
-                             inputs={'ask': ask, 'freight': freight,
-                                     'buyer_cash': firm.cash,
-                                     'currency': field.home_currency})
+                        delivered_quote_event_id = emit(
+                            field, kind='scenario_cotton_delivered_quote',
+                            record_class='calculation', phase='scenario_market',
+                            subject={'type': 'tile', 'id': field.name,
+                                     'good': 'cotton', 'seller_id': grower.id,
+                                     'buyer_id': firm.id},
+                            metric_id='goods.delivered_quote',
+                            unit='local_currency_per_unit', after=ask + freight,
+                            formula_id='scenario.delivered_quote.v1',
+                            inputs={'ask': ask, 'freight': freight,
+                                    'buyer_cash': firm.cash,
+                                    'price_basis': 'delivered_to_mill',
+                                    'currency': field.home_currency},
+                            cause_event_ids=ask_event_ids or None)
                         offers.append((ask + freight, field.name, grower.id,
-                                       field, grower, freight))
+                                       field, grower, freight,
+                                       delivered_quote_event_id))
             if not offers:
                 break
-            delivered, _, _, field, grower, freight = min(offers, key=lambda row: row[:3])
+            (delivered, _, _, field, grower, freight,
+             selected_quote_event_id) = min(offers, key=lambda row: row[:3])
             if firm.cash + 1e-9 < delivered:
                 break
             carrier = _freight_recipient(field)
@@ -219,7 +229,9 @@ def _buy_cotton(world, turn):
                  after=tax,
                  inputs={'tile': field.name, 'grower_id': grower.id,
                          'firm_id': firm.id, 'cotton_price': price,
-                         'freight': freight, 'tax_rate': COTTON_TAX_RATE})
+                         'freight': freight, 'tax_rate': COTTON_TAX_RATE},
+                 cause_event_ids=([selected_quote_event_id]
+                                  if selected_quote_event_id else None))
             if carrier is not None:
                 carrier.cash += freight
             grower.inv_add(Goods.cotton, -1)
@@ -235,7 +247,11 @@ def _buy_cotton(world, turn):
                  metric_id='goods.transaction_price',
                  unit='local_currency_per_unit', after=delivered,
                  inputs={'seller_receipt_before_tax': price, 'freight': freight,
-                         'quantity': 1, 'currency': field.home_currency})
+                         'quantity': 1, 'price_basis': 'delivered_to_mill',
+                         'quote_turn': int(turn), 'currency': field.home_currency,
+                         'selected_quote_event_id': selected_quote_event_id},
+                 cause_event_ids=([selected_quote_event_id]
+                                  if selected_quote_event_id else None))
             wanted -= 1
             from collective_trace_clock import stamp
             purchases.append(stamp(field, {'turn': turn, 'mill': mill_region.name,
@@ -245,7 +261,7 @@ def _buy_cotton(world, turn):
     return purchases
 
 
-def _cloth_ask(region, firm):
+def _cloth_ask(region, firm, trace_event_ids=None):
     recipe = region.recipes[Goods.cloth]
     # Posted terms derive from the real wage offer and productive recipe.
     productive_slots = float(recipe['production']) * (
@@ -264,19 +280,22 @@ def _cloth_ask(region, firm):
                 + (2.0 * cotton_cost)
                 / max(1.0, productive_slots), 3)
     from run_trace import emit
-    emit(region, kind='scenario_cloth_ask', record_class='calculation',
-         phase='scenario_market',
-         subject={'type': 'tile', 'id': region.name, 'good': 'cloth',
-                  'seller_id': firm.id},
-         metric_id='goods.seller_ask', unit='local_currency_per_unit',
-         after=ask, formula_id='scenario.cloth_ask.v1',
-         inputs={'base': 8.0, 'wage': float(firm.wage),
-                 'wage_coefficient': 0.7, 'cotton_cost': cotton_cost,
-                 'cotton_quantity': 2.0, 'productive_slots': productive_slots,
-                 'machinery_level': firm.machinery_level,
-                 'broken_machinery': firm.broken_machinery,
-                 'local_offer_count': len(local_offers),
-                 'round_digits': 3, 'currency': region.home_currency})
+    event_id = emit(
+        region, kind='scenario_cloth_ask', record_class='calculation',
+        phase='scenario_market',
+        subject={'type': 'tile', 'id': region.name, 'good': 'cloth',
+                 'seller_id': firm.id},
+        metric_id='goods.seller_ask', unit='local_currency_per_unit',
+        after=ask, formula_id='scenario.cloth_ask.v1',
+        inputs={'base': 8.0, 'wage': float(firm.wage),
+                'wage_coefficient': 0.7, 'cotton_cost': cotton_cost,
+                'cotton_quantity': 2.0, 'productive_slots': productive_slots,
+                'machinery_level': firm.machinery_level,
+                'broken_machinery': firm.broken_machinery,
+                'local_offer_count': len(local_offers),
+                'round_digits': 3, 'currency': region.home_currency})
+    if event_id is not None and trace_event_ids is not None:
+        trace_event_ids.append(event_id)
     return ask
 
 
@@ -299,10 +318,12 @@ def _sell_cloth(world, turn):
                 freight = FREIGHT_PER_EDGE * (len(path) - 1)
                 if freight and _freight_recipient(source) is None:
                     continue
-                ask = _cloth_ask(source, firm)
+                ask_event_ids = []
+                ask = _cloth_ask(source, firm, trace_event_ids=ask_event_ids)
                 delivered = ask + freight
                 from run_trace import emit
-                emit(source, kind='scenario_cloth_delivered_quote',
+                delivered_quote_event_id = emit(
+                     source, kind='scenario_cloth_delivered_quote',
                      record_class='calculation', phase='scenario_market',
                      subject={'type': 'tile', 'id': source.name, 'good': 'cloth',
                               'seller_id': firm.id, 'buyer_id': buyer.id},
@@ -314,12 +335,16 @@ def _sell_cloth(world, turn):
                              'ceiling': MAX_DELIVERED_CLOTH_PRICE,
                              'affordable': delivered <= min(MAX_DELIVERED_CLOTH_PRICE,
                                                             buyer.cash),
-                             'currency': source.home_currency})
+                             'price_basis': 'delivered_to_household',
+                             'currency': source.home_currency},
+                     cause_event_ids=ask_event_ids or None)
                 if delivered <= min(MAX_DELIVERED_CLOTH_PRICE, buyer.cash):
-                    offers.append((delivered, firm.id, source, firm, ask, freight))
+                    offers.append((delivered, firm.id, source, firm, ask, freight,
+                                   delivered_quote_event_id))
             if not offers:
                 continue
-            delivered, _, source, firm, ask, freight = min(offers, key=lambda row: row[:2])
+            (delivered, _, source, firm, ask, freight,
+             selected_quote_event_id) = min(offers, key=lambda row: row[:2])
             buyer.cash -= delivered
             firm.cash += ask
             carrier = _freight_recipient(source)
@@ -327,14 +352,19 @@ def _sell_cloth(world, turn):
                 carrier.cash += freight
             firm.inv_add(Goods.cloth, -1)
             buyer.inv_add(Goods.cloth, 1)
-            emit(source, kind='scenario_cloth_paid_price',
-                 record_class='observation', phase='scenario_market',
-                 subject={'type': 'tile', 'id': source.name, 'good': 'cloth',
-                          'seller_id': firm.id, 'buyer_id': buyer.id},
-                 metric_id='goods.transaction_price',
-                 unit='local_currency_per_unit', after=delivered,
-                 inputs={'seller_receipt_before_tax': ask, 'freight': freight,
-                         'quantity': 1, 'currency': source.home_currency})
+            paid_event_id = emit(
+                source, kind='scenario_cloth_paid_price',
+                record_class='observation', phase='scenario_market',
+                subject={'type': 'tile', 'id': source.name, 'good': 'cloth',
+                         'seller_id': firm.id, 'buyer_id': buyer.id},
+                metric_id='goods.transaction_price',
+                unit='local_currency_per_unit', after=delivered,
+                inputs={'seller_receipt_before_tax': ask, 'freight': freight,
+                        'quantity': 1, 'price_basis': 'delivered_to_household',
+                        'quote_turn': int(turn), 'currency': source.home_currency,
+                        'selected_quote_event_id': selected_quote_event_id},
+                cause_event_ids=([selected_quote_event_id]
+                                 if selected_quote_event_id else None))
             tax = round(ask * CLOTH_TAX_RATE, 6)
             firm.cash -= tax
             source.gov.agent.cash += tax
@@ -347,7 +377,8 @@ def _sell_cloth(world, turn):
                  after=tax,
                  inputs={'tile': source.name, 'firm_id': firm.id,
                          'buyer_id': buyer.id, 'cloth_price': ask,
-                         'freight': freight, 'tax_rate': CLOTH_TAX_RATE})
+                         'freight': freight, 'tax_rate': CLOTH_TAX_RATE},
+                 cause_event_ids=[paid_event_id] if paid_event_id else None)
             from collective_trace_clock import stamp
             sales.append(stamp(source, {'turn': turn, 'origin': source.name,
                           'seller_nation': source.owner_nation.name,

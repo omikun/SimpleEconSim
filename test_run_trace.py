@@ -713,6 +713,44 @@ class RunTraceTests(unittest.TestCase):
                                       limit=10000)['events']
         self.assertTrue(paid)
         self.assertTrue(all(row['value_after'] > 0 for row in paid))
+        all_rows = server.run_trace.query(limit=100000)['events']
+        rows_by_id = {row['event_id']: row for row in all_rows}
+        scenario_delivered = [row for row in delivered
+                              if row['kind'] in (
+                                  'scenario_cotton_delivered_quote',
+                                  'scenario_cloth_delivered_quote')]
+        scenario_paid = [row for row in paid
+                         if row['kind'] in ('scenario_cotton_paid_price',
+                                            'scenario_cloth_paid_price')]
+        self.assertTrue(scenario_delivered)
+        self.assertTrue(scenario_paid)
+        for quote in scenario_delivered:
+            self.assertEqual(quote['turn'], 1)
+            self.assertIn('currency', quote['inputs'])
+            self.assertEqual(len(quote['cause_event_ids']), 1)
+            ask = rows_by_id[quote['cause_event_ids'][0]]
+            self.assertEqual(ask['metric_id'], 'goods.seller_ask')
+            self.assertEqual(ask['subject']['good'], quote['subject']['good'])
+            self.assertEqual(ask['turn'], quote['turn'])
+            self.assertEqual(ask['inputs']['currency'], quote['inputs']['currency'])
+        self.assertTrue(all(row.get('inputs', {}).get('selected_quote_event_id')
+                            for row in scenario_paid))
+        for transaction in scenario_paid:
+            quote_id = transaction['inputs']['selected_quote_event_id']
+            self.assertEqual(transaction['cause_event_ids'], [quote_id])
+            quote = rows_by_id[quote_id]
+            self.assertEqual(quote['metric_id'], 'goods.delivered_quote')
+            self.assertEqual(quote['subject']['good'], transaction['subject']['good'])
+            self.assertEqual(quote['subject']['seller_id'],
+                             transaction['subject']['seller_id'])
+            self.assertEqual(quote['subject']['buyer_id'],
+                             transaction['subject']['buyer_id'])
+            self.assertLess(quote['sequence'], transaction['sequence'])
+            self.assertEqual(quote['turn'], transaction['turn'])
+            self.assertEqual(transaction['inputs']['quote_turn'], transaction['turn'])
+            self.assertEqual(quote['inputs']['currency'],
+                             transaction['inputs']['currency'])
+            self.assertEqual(quote['value_after'], transaction['value_after'])
 
     def test_fx_formula_records_reserves_and_ppp(self):
         from forex import ForexDesk

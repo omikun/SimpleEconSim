@@ -1508,3 +1508,18 @@ regressions passed in focused suites (65 tests). A combined test invocation
 failed only when the Nile food-outcome fixture ran after the run-trace module;
 that fixture and the run-trace tests pass separately. Compilation and
 `git diff --check` passed.
+
+Phase 2 follow-up, 2026-10-18: each labor-frontier cotton and cloth delivered
+quote now links to the seller ask used to construct it. Each paid scenario
+transaction links to the exact delivered quote selected before settlement and
+records its quote turn, currency, and delivered-price basis. This distinguishes
+buyer cost from seller receipt and makes quote-to-settlement ordering explicit.
+No market rule changed.
+
+Verification: two scenario quote tests pass, covering quote replay and
+seller-ask → delivered-quote → selected-transaction links with matching good,
+buyer, seller, turn, currency, and price. Two focused labor-frontier market
+tests and four market-affordability/codec tests passed. The complete
+labor-frontier behavior suite still reports six failures in petition/protection
+action state and timing tests; the quote-focused tests pass. Compilation and
+`git diff --check` passed.

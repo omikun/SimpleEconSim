@@ -431,10 +431,27 @@ focused suites. One combined invocation exposed an existing test-order issue:
 the Nile food-outcome fixture fails after the run-trace module because a
 generated `Region` lacks `centroid`; the Nile test passes by itself.
 
-Next Phase 2 audit target: finish scenario quote history coverage, including
-turn membership and currency decomposition, then verify each scenario quote
-against the corresponding paid transaction without attributing stale or
-post-settlement inputs to the quote.
+### Phase 2 follow-up — Link scenario quotes to exact settlements (implemented)
+
+Scenario cotton and cloth delivered quotes now link to their seller-ask
+calculation. A paid transaction links to the exact delivered quote selected
+before settlement and records its quote turn, currency, and delivered-price
+basis. This preserves the distinction between the seller's receipt and the
+buyer's delivered price and makes the quote's event order visible. No price,
+selection, freight, or payment rule changed.
+
+Verification: quote replay tests check each scenario delivered quote's ask
+event, each paid cotton/cloth transaction's selected quote ID, matching buyer,
+seller, good, turn, currency, and price, and that the quote precedes settlement.
+Two scenario quote tests, two focused labor-frontier market tests, and four
+market-affordability/codec tests passed. The full labor-frontier behavior suite
+still has six action-state/timing failures outside these quote assertions.
+Compilation and `git diff --check` passed.
+
+Next Phase 2 audit target: capture scenario history series with their
+turn-specific territory membership and currency semantics, then decompose
+changes into continuing-member price changes and territory-composition
+effects.
 
 ## Phase 5 — Deliver explanations in web, desktop and CLI
 
