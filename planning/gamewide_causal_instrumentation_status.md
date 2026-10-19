@@ -202,10 +202,11 @@ air and water pollution, disease fatalities, individual
 malnutrition/waterborne/respiratory/chemical case counts, and combined
 healthcare outlays. Every selectable web tile chart now has a metric/source
 binding, including dynamic goods. The web client's Nation-wide chart histories
-now include the Citizen and Labor series backed by the same per-turn Nation
-aggregates used by the trace. Other Nation-wide chart histories remain limited
-to GDP, treasury, population, average food price, and protest energy; expanding
-that set needs explicit aggregation and trace evidence.
+now include per-good reference prices and the Citizen and Labor series backed by
+the same per-turn Nation aggregates used by the trace. Available Nation-wide
+histories now cover GDP, treasury, population, legacy average food price,
+protest energy, per-good reference prices, Citizen, and Labor. Other economic
+and ecological series need explicit aggregation and trace evidence.
 Desktop point-to-trace drilldown currently covers tile Economic, Ecology,
 Citizen Class & Tenure, and Labor charts, plus Nation Citizen and Labor charts.
 Nation selections replay the chart's sum or equal-tile mean from member-tile
@@ -219,7 +220,10 @@ and shows missing-turn coverage rather than treating gaps as zero. Government
 revenue charts replay the selected tax, tariff, or inheritance component from
 the calculation inputs instead of confusing the component with the total. The
 web Labor chart now uses the recorded effective workday cap history, rather
-than repeating the current statutory maximum over historical turns.
+than repeating the current statutory maximum over historical turns. Nation
+market charts use the covered-member reference-price mean for the selected
+good, with turn-time membership and currency details in the aggregate trace;
+unavailable turns remain chart gaps.
 
 The coverage checker reports a changed snapshot as unexplained when its final
 value does not match a recorded calculation. Per-profession headcount snapshots
@@ -1819,12 +1823,25 @@ series reads the effective history. The complete web server and client parity
 suites passed (69 tests), along with Python compilation and `git diff --check`.
 
 Phase 5 follow-up, 2026-10-18: exposed Nation-wide Citizen and Labor histories
-in the web chart panel. The server derives them from the same current-territory
-sum/mean rows emitted as `nation_chart_history_aggregate` trace events. Web
-chart bindings route point selection to those Nation records and retain class
-and good filters for the matching calculation.
+in the web chart panel. The server derives them from the same turn-time
+territory sum/mean rows emitted as `nation_chart_history_aggregate` trace
+events. Web chart bindings route point selection to those Nation records and
+retain class and good filters for the matching calculation.
 
 Verification: Nation worker-count, effective-cap, commons-access, and food-Gini
 history points matched the corresponding Nation trace aggregates. All 36
 Nation aggregation, trace-reader, and metric-catalog tests passed, all 9
 frontend tests passed, and compilation plus `git diff --check` passed.
+
+Phase 5 follow-up, 2026-10-18: added Nation-wide reference-price histories for
+every priced good. Wood and furniture price charts now use the same nation
+reference-price aggregate as the other dynamic goods; their inspectors query
+`goods.national_reference_price` with the selected good. Price histories keep
+one value or `null` gap per turn. The chart draws disjoint segments around
+unavailable turns and point selection retains the original turn index.
+
+Verification: Nation wood and wool chart points matched their price aggregate
+records, including the reference basis and no-conversion currency flag. All 37
+Nation aggregation, trace-reader, and metric-catalog tests passed, all 10
+frontend tests passed (including gap rendering and turn selection), and Python
+and JavaScript syntax checks plus `git diff --check` passed.

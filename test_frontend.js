@@ -317,6 +317,41 @@ test('every historical chart has a trace binding, including effective workday ca
   assert.deepEqual(Array.from(charts.getTileSeries({
     labor: { shifts_exploitation: { caps: [16, 10] } }
   }, binding)), [16, 10]);
+
+  const market = charts.getTraceBinding('market_price', 'wool');
+  assert.equal(market.historyKey, 'market_price_wool');
+  assert.equal(market.nationMetricId, 'goods.national_reference_price');
+});
+
+test('historical chart leaves unavailable turns as gaps and keeps their turn indices', () => {
+  const ctx = createBrowserSandbox();
+  loadScript('web_client/chart_renderer.js', ctx);
+  const pathCalls = [];
+  const listeners = {};
+  const drawing = {
+    save() {}, scale() {}, clearRect() {}, beginPath() {}, stroke() {}, fill() {},
+    fillText() {}, arc() {}, restore() {},
+    moveTo(x, y) { pathCalls.push(['moveTo', x, y]); },
+    lineTo(x, y) { pathCalls.push(['lineTo', x, y]); }
+  };
+  const canvas = {
+    clientWidth: 400, clientHeight: 230, style: {},
+    getContext: () => drawing,
+    getBoundingClientRect: () => ({ left: 0, top: 0 }),
+    addEventListener(name, callback) { listeners[name] = callback; },
+    removeEventListener(name) { delete listeners[name]; }
+  };
+  let selected = null;
+  ctx.window.CoCCharts.drawHistoricalChart(
+    canvas, [null, 1, 2, null, 4], 'market_price', 1,
+    { turns: [0, 1, 2, 3, 4], onPointSelect: point => { selected = point; } });
+
+  // Five grid lines plus the one valid data segment; the gap must not be joined.
+  assert.equal(pathCalls.filter(([kind]) => kind === 'lineTo').length, 6);
+  listeners.click({ clientX: 386, clientY: 18 });
+  assert.equal(selected.index, 4);
+  assert.equal(selected.turn, 4);
+  assert.equal(selected.value, 4);
 });
 
 test('Voronoi Geometry Module (voronoi_geometry.js)', (t) => {

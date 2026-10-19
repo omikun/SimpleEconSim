@@ -85,10 +85,14 @@
       historyKey: 'food_price', tilePath: ['economic', 'prices', 'food'],
       tileMetricId: 'goods.price', good: 'food', priceChart: true,
       label: 'Food price' }),
-    wood_price: Object.freeze({ metricId: 'goods.price', good: 'wood',
+    wood_price: Object.freeze({ metricId: 'goods.price',
+      nationMetricId: 'goods.national_reference_price',
+      historyKey: 'market_price_wood', good: 'wood',
       tilePath: ['economic', 'prices', 'wood'], priceChart: true,
       label: 'Wood price' }),
-    furniture_price: Object.freeze({ metricId: 'goods.price', good: 'furniture',
+    furniture_price: Object.freeze({ metricId: 'goods.price',
+      nationMetricId: 'goods.national_reference_price',
+      historyKey: 'market_price_furniture', good: 'furniture',
       tilePath: ['economic', 'prices', 'furniture'], priceChart: true,
       label: 'Furniture price' }),
     pop: Object.freeze({ metricId: 'people.population', historyKey: 'pop',
@@ -286,6 +290,11 @@
     const binding = traceBindings[metric];
     return binding ? {
       ...binding,
+      historyKey: binding.dynamicGood
+        ? `market_price_${String(selectedGood || '').toLowerCase()}`
+        : binding.historyKey,
+      nationMetricId: binding.dynamicGood
+        ? 'goods.national_reference_price' : binding.nationMetricId,
       tilePath: binding.dynamicGood
         ? [...binding.pathPrefix, String(selectedGood || '').toLowerCase()]
         : binding.tilePath && [...binding.tilePath],
@@ -328,8 +337,10 @@
       canvas._cocChartPointSelect = null;
     }
 
-    const hasSeries = Array.isArray(values) && values.length > 0;
-    if (!hasSeries) {
+    const series = Array.isArray(values) ? values : [];
+    const validPoints = series.map((value, index) => ({ value, index }))
+      .filter(point => Number.isFinite(point.value));
+    if (!validPoints.length) {
       if (canvas.style) canvas.style.cursor = '';
       ctx.fillStyle = '#94a3b8';
       ctx.font = '12px sans-serif';
@@ -338,15 +349,14 @@
       ctx.restore();
       return `${String(metricLabel).toUpperCase()}: No data series available`;
     }
-    const series = values;
     const padL = 44;
     const padR = 14;
     const padT = 18;
     const padB = 24;
     const plotW = width - padL - padR;
     const plotH = height - padT - padB;
-    let minVal = Math.min(...series);
-    let maxVal = Math.max(...series);
+    let minVal = Math.min(...validPoints.map(point => point.value));
+    let maxVal = Math.max(...validPoints.map(point => point.value));
     if (minVal === maxVal) { minVal -= 1; maxVal += 1; }
     const valSpan = maxVal - minVal;
 
@@ -373,20 +383,27 @@
     ctx.beginPath();
     ctx.strokeStyle = strokeColor;
     ctx.lineWidth = 2.5;
+    let drawingSegment = false;
     series.forEach((value, index) => {
+      if (!Number.isFinite(value)) {
+        drawingSegment = false;
+        return;
+      }
       const { x, y } = point(value, index);
-      if (index === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
+      if (drawingSegment) ctx.lineTo(x, y);
+      else ctx.moveTo(x, y);
+      drawingSegment = true;
     });
     ctx.stroke();
     ctx.fillStyle = strokeColor;
     series.forEach((value, index) => {
+      if (!Number.isFinite(value)) return;
       const { x, y } = point(value, index);
       ctx.beginPath();
       ctx.arc(x, y, 2.5, 0, Math.PI * 2);
       ctx.fill();
     });
-    if (hasSeries && typeof options.onPointSelect === 'function'
+    if (typeof options.onPointSelect === 'function'
         && typeof canvas.addEventListener === 'function') {
       const selectPoint = event => {
         const rect = canvas.getBoundingClientRect();
@@ -394,7 +411,7 @@
         const y = event.clientY - rect.top;
         let nearest = -1;
         let nearestDistance = Infinity;
-        series.forEach((value, index) => {
+        validPoints.forEach(({ value, index }) => {
           const plotted = point(value, index);
           const distance = Math.hypot(plotted.x - x, plotted.y - y);
           if (distance < nearestDistance) {

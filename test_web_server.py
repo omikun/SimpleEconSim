@@ -413,6 +413,32 @@ class TestWebServerEndpoints(unittest.TestCase):
                     history[history_key][-1],
                     round(rows[0]['value_after'] * scale, 1), places=1)
 
+    def test_nation_good_price_histories_match_reference_price_aggregates(self):
+        self.sim.step()
+        nation = self.sim.nations[0]
+        history = self.sim.serialize_world()['history']
+        for good in ('wood', 'wool'):
+            with self.subTest(good=good):
+                history_key = f'market_price_{good}'
+                self.assertTrue(history[history_key])
+                query = urllib.parse.urlencode({
+                    'turn': self.sim.turn, 'entity': f'nation:{nation.name}',
+                    'metric': 'goods.national_reference_price',
+                    'good': good, 'limit': 200})
+                payload = json.loads(MockHttpRequestHandler(
+                    self.mock_server, 'GET', f'/api/trace?{query}').get_body())
+                rows = [row for row in payload['events']
+                        if row['kind'] == 'national_reference_price_aggregate']
+                self.assertEqual(len(rows), 1)
+                self.assertAlmostEqual(
+                    history[history_key][-1],
+                    round(rows[0]['value_after'], 2), places=2)
+                self.assertEqual(
+                    rows[0]['inputs']['price_basis'],
+                    'displayed_recipe_reference')
+                self.assertFalse(
+                    rows[0]['inputs']['currency_conversion_applied'])
+
     def test_workplace_condition_charts_replay_from_trace_inputs(self):
         self.sim.step()
         tile = self.sim.nations[0].tiles[0]

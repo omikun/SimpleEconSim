@@ -300,6 +300,25 @@ class SimServer:
                 series = hist.setdefault(history_key, [])
                 series.append(round(float(aggregate['after']) * display_scale, 1))
 
+            # Keep Nation-wide reference-price histories on the same covered-
+            # member mean used by goods.national_reference_price trace rows.
+            prices_by_good = {}
+            for tile in tiles:
+                for good, recipe in getattr(tile, 'recipes', {}).items():
+                    if (isinstance(good, Goods) and recipe is not None
+                            and 'price' in recipe):
+                        prices_by_good.setdefault(good, []).append(
+                            float(recipe['price']))
+            for good in Goods:
+                if good in (Goods.gov, Goods.none):
+                    continue
+                history_key = f"market_price_{good.name.lower()}"
+                prices = prices_by_good.get(good, ())
+                series = hist.setdefault(
+                    history_key, [None] * (len(hist['turns']) - 1))
+                series.append(round(sum(prices) / len(prices), 2)
+                              if prices else None)
+
             if len(hist['turns']) > 50:
                 for k in hist:
                     del hist[k][:len(hist[k]) - 50]

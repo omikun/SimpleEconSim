@@ -2908,7 +2908,7 @@
     const hint = document.getElementById('market-good-hint');
     if (hint) hint.textContent = selectedTileDetail
       ? `Local histories for ${selectedTileDetail.name}`
-      : 'Select a tile on the map to inspect its local market.';
+      : 'Nation-wide reference-price history; select a tile for its local market.';
   }
 
   // ---------------- 20 Charts Engine ----------------
@@ -2961,7 +2961,7 @@
         ['goods.delivered_quote', 'Delivered quotes'],
         ['goods.transaction_price', 'Paid'],
         ['goods.transaction_vwap', 'Paid average']]
-      : [[metric, 'National food price']];
+      : [[metric, `National ${String(good || 'goods').replaceAll('_', ' ')} reference price`]];
     const optionsHtml = options.map(([value, label]) =>
       `<option value="${escapeHtml(value)}"${value === metric ? ' selected' : ''}>${escapeHtml(label)}</option>`
     ).join('');
@@ -3218,7 +3218,7 @@
     } else if (traceBinding?.historyKey) {
       values = worldState.history?.[traceBinding.historyKey] || [];
       traceEntity = `nation:${worldState.player_nation}`;
-      traceMetric = traceBinding.metricId;
+      traceMetric = traceBinding.nationMetricId || traceBinding.metricId;
       traceGood = traceBinding.good || (activeChartMetric === 'food_price' ? 'food' : null);
       traceIsPrice = Boolean(traceBinding.priceChart)
         || activeChartMetric === 'food_price';
