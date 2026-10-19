@@ -411,7 +411,9 @@ class ElitePlanningGateTraceTests(unittest.TestCase):
                          (80.0, 4.0, 0.0, 5))
 
         gates = [row for row in trace.rows
-                 if row['kind'] == 'elite_operator_evaluation']
+                 if row['kind'] == 'elite_operator_evaluation'
+                 and row['inputs']['stage'] in ('plantation_labor_gang',
+                                                'procure_captive_labor')]
         self.assertEqual([row['inputs']['stage'] for row in gates],
                          ['plantation_labor_gang', 'procure_captive_labor'])
         self.assertFalse(gates[0]['inputs']['can_execute'])
@@ -424,7 +426,10 @@ class ElitePlanningGateTraceTests(unittest.TestCase):
         self.assertEqual(procurement_execution['inputs']['state_after']['tracked_inventory']['rum'], 0.0)
         decision = next(row for row in trace.rows
                         if row['kind'] == 'corporation_ai_decision')
-        self.assertEqual(decision['cause_event_ids'], [row['event_id'] for row in gates])
+        all_operator_gates = [row for row in trace.rows
+                              if row['kind'] == 'elite_operator_evaluation']
+        self.assertEqual(decision['cause_event_ids'],
+                         [row['event_id'] for row in all_operator_gates])
         outcome = next(row for row in trace.rows
                        if row['kind'] == 'corporation_ai_outcome')
         self.assertIn(procurement_execution['event_id'], outcome['cause_event_ids'])
@@ -447,7 +452,10 @@ class ElitePlanningGateTraceTests(unittest.TestCase):
                           region.neighbors['Frontier'].wilderness_pop),
                          (45.0, 39.0, 10.0, 0))
         gates = [row for row in trace.rows
-                 if row['kind'] == 'elite_operator_evaluation']
+                 if row['kind'] == 'elite_operator_evaluation'
+                 and row['inputs']['stage'] in ('plantation_labor_gang',
+                                                'procure_captive_labor',
+                                                'frontier_conquest')]
         self.assertEqual([row['inputs']['stage'] for row in gates],
                          ['plantation_labor_gang', 'procure_captive_labor',
                           'frontier_conquest'])
@@ -461,6 +469,144 @@ class ElitePlanningGateTraceTests(unittest.TestCase):
         self.assertEqual(conquest_execution['inputs']['execution_result']['displaced_pop'], 15)
         self.assertEqual(conquest_execution['inputs']['state_after']['frontier_estates'][0]
                          ['primary_commodity'], 'cotton')
+
+    def _machinery_case(self, *, repair, traced):
+        planner = EliteCapitalistPlanner()
+        owner_inventory = ({Goods.iron: 1} if repair else
+                           {Goods.iron: 2, Goods.coal: 1})
+        owner = Actor(47, lord=False, inventory=owner_inventory)
+        owner.cash = 80.0
+        company_inventory = ({Goods.iron: 1} if repair else
+                             {Goods.iron: 2, Goods.coal: 1})
+        company = Actor(48, lord=False, inventory=company_inventory)
+        company.is_corporation = True
+        company.cash = 100.0 if repair else 50.0
+        company.output = Goods.furniture
+        company.machinery_level = 0 if repair else 1
+        company.broken_machinery = 1 if repair else 0
+        company.max_employees = 10
+        owner.company_owned = company
+        artisan = Actor(49, lord=False)
+        artisan.cash = 5.0
+        artisan.output = Goods.iron if repair else Goods.wood
+        region, _, trace = self.make_region(actor=owner, traced=traced)
+        region.agents = [owner, company, artisan]
+        region.recipes = {
+            Goods.iron: {'price': 5.0, 'production': 1.0, 'numInput': 0},
+            Goods.coal: {'price': 3.0, 'production': 1.0, 'numInput': 0}}
+        region.neighbors = {}
+        region.economic_events = []
+        region.home_currency = 'crown'
+        planner._elite_candidate_snapshot = lambda *_args: []
+        planner.get_market_luxuries = lambda *_args: []
+        planner.evaluate_triangular_trade_voyage = lambda *_args: None
+        planner.evaluate_spatial_trade = lambda *_args: None
+        planner.evaluate_class_legislation = lambda *_args: None
+        planner._execute_input_control = lambda *_args: None
+        with patch('economy.actor_accounts.record', return_value=None):
+            result = planner.plan_and_execute_elite(owner, region, 7)
+        return result, owner, company, artisan, trace
+
+    def test_actual_machinery_gates_and_execution_state_are_linked(self):
+        repair_traced = self._machinery_case(repair=True, traced=True)
+        repair_plain = self._machinery_case(repair=True, traced=False)
+        result, owner, company, artisan, trace = repair_traced
+        plain_result, plain_owner, plain_company, plain_artisan, _ = repair_plain
+        self.assertEqual(result['action_taken'], 'REPAIR_MACHINERY')
+        self.assertEqual(plain_result['action_taken'], result['action_taken'])
+        self.assertEqual((owner.cash, company.cash, artisan.cash,
+                          company.inv_get(Goods.iron, 0),
+                          company.broken_machinery, company.machinery_level),
+                         (plain_owner.cash, plain_company.cash, plain_artisan.cash,
+                          plain_company.inv_get(Goods.iron, 0),
+                          plain_company.broken_machinery, plain_company.machinery_level))
+        self.assertEqual((company.cash, artisan.cash,
+                          company.inv_get(Goods.iron, 0),
+                          company.broken_machinery, company.machinery_level),
+                         (90.0, 15.0, 0, 0, 1))
+        repair_gate = next(row for row in trace.rows
+                           if row['kind'] == 'elite_operator_evaluation'
+                           and row['inputs']['stage'] == 'machinery_repair')
+        self.assertTrue(repair_gate['inputs']['can_execute'])
+        self.assertIsNone(repair_gate['inputs']['return_gate_passed'])
+        self.assertEqual(repair_gate['inputs']['prerequisite_basis']
+                         ['broken_machinery'], 1)
+        repair_execution = next(row for row in trace.rows
+                                if row['kind'] == 'elite_operator_execution')
+        self.assertEqual(repair_execution['inputs']['state_before']['firm_state'][0]
+                         ['broken_machinery'], 1)
+        self.assertEqual(repair_execution['inputs']['state_after']['firm_state'][0]
+                         ['broken_machinery'], 0)
+
+        construction_traced = self._machinery_case(repair=False, traced=True)
+        construction_plain = self._machinery_case(repair=False, traced=False)
+        result, owner, company, artisan, trace = construction_traced
+        plain_result, plain_owner, plain_company, plain_artisan, _ = construction_plain
+        self.assertEqual(result['action_taken'], 'CONSTRUCT_MACHINERY')
+        self.assertEqual(plain_result['action_taken'], result['action_taken'])
+        self.assertEqual((owner.cash, company.cash, artisan.cash,
+                          company.inv_get(Goods.iron, 0), company.inv_get(Goods.coal, 0),
+                          company.machinery_level, company.max_employees),
+                         (plain_owner.cash, plain_company.cash, plain_artisan.cash,
+                          plain_company.inv_get(Goods.iron, 0),
+                          plain_company.inv_get(Goods.coal, 0),
+                          plain_company.machinery_level, plain_company.max_employees))
+        self.assertEqual((company.cash, artisan.cash,
+                          company.inv_get(Goods.iron, 0), company.inv_get(Goods.coal, 0),
+                          company.machinery_level, company.max_employees),
+                         (25.0, 30.0, 0, 0, 2, 15))
+        gates = [row for row in trace.rows
+                 if row['kind'] == 'elite_operator_evaluation'
+                 and row['inputs']['stage'] in ('machinery_repair',
+                                                'machinery_construction')]
+        self.assertEqual([row['inputs']['stage'] for row in gates],
+                         ['machinery_repair', 'machinery_construction'])
+        self.assertFalse(gates[0]['inputs']['can_execute'])
+        self.assertTrue(gates[1]['inputs']['can_execute'])
+        self.assertTrue(gates[1]['inputs']['planner_cash_gate_passed'])
+        self.assertEqual(gates[1]['inputs']['prerequisite_basis']
+                         ['required_cash_before_inventory_credit'], 38.0)
+        self.assertEqual(gates[1]['inputs']['return_basis']['formula'],
+                         '35 * shadow_price_cash')
+        self.assertEqual(gates[1]['inputs']['estimated_net_return'], 35.0)
+        construction_execution = next(row for row in trace.rows
+                                      if row['kind'] == 'elite_operator_execution')
+        self.assertEqual(construction_execution['inputs']['execution_result']
+                         ['new_machinery_level'], 2)
+
+    def test_construction_cash_gate_is_logged_when_not_met(self):
+        def run_case(traced):
+            planner = EliteCapitalistPlanner()
+            owner = Actor(57, lord=False)
+            owner.cash = 50.0
+            region, _, trace = self.make_region(actor=owner, traced=traced)
+            region.recipes = {}
+            region.neighbors = {}
+            region.economic_events = []
+            region.home_currency = 'crown'
+            planner._elite_candidate_snapshot = lambda *_args: []
+            planner.get_market_luxuries = lambda *_args: []
+            planner.evaluate_triangular_trade_voyage = lambda *_args: None
+            planner.evaluate_spatial_trade = lambda *_args: None
+            planner.evaluate_class_legislation = lambda *_args: None
+            planner._execute_input_control = lambda *_args: None
+            with patch('economy.actor_accounts.record', return_value=None):
+                result = planner.plan_and_execute_elite(owner, region, 7)
+            return result, owner, trace
+
+        result, owner, trace = run_case(True)
+        plain_result, plain_owner, _ = run_case(False)
+
+        gate = next(row for row in trace.rows
+                    if row['kind'] == 'elite_operator_evaluation'
+                    and row['inputs']['stage'] == 'machinery_construction')
+        self.assertIsNone(result['action_taken'])
+        self.assertEqual(plain_result['action_taken'], result['action_taken'])
+        self.assertEqual(plain_owner.cash, owner.cash)
+        self.assertFalse(gate['inputs']['planner_cash_gate_passed'])
+        self.assertEqual(gate['inputs']['planner_cash_gate_threshold'], 60.0)
+        self.assertEqual(gate['inputs']['feasibility_reason'],
+                         'Planner cash threshold $60.0 not met')
 
 
 if __name__ == '__main__':

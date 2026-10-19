@@ -186,8 +186,10 @@ evidence.
   Plantation gang labor, captive-labor procurement, and frontier-conquest
   gates now record eligibility reasons, return formulas and thresholds, and
   linked execution state including labor attrition, displacement, inventory,
-  and local cash recipients. Lord transformations, machinery decisions,
-  spatial routing, and preflight purity/RNG neutrality remain open.
+  and local cash recipients. Machinery repair/construction gates now record
+  broken-capacity checks, material/cash requirements, return cutoffs, and firm
+  balance changes. Lord transformations, spatial routing, and preflight
+  purity/RNG neutrality remain open.
 
 ## Known gaps
 
@@ -1896,5 +1898,20 @@ match trace-on/off actions and state. The tests check zero-wage output, overseer
 cash distribution, rum payment, labor additions/attrition, conquest yield, and
 displaced population. The elite-planner, capitalist, supply-control,
 metric-catalog, and trace-reader suites passed (108 tests); compilation and
-`git diff --check` passed. Lord transformation candidates, machinery gates,
-spatial routing, and preflight purity/RNG neutrality remain open.
+`git diff --check` passed. Lord transformation candidates, spatial routing,
+and preflight purity/RNG neutrality remain open.
+
+Phase 4 follow-up, 2026-10-18: machinery repair and construction now record the
+actual operator eligibility checks and execution results. Repair records the
+damaged-capacity prerequisite and resulting iron, cash, machinery, and workforce
+changes. Construction records the planner's separate $60 cash gate, the
+firm-plus-owner liquidity and material-price basis for operator eligibility,
+the estimated return and strict $15 cutoff, and the resulting company cash,
+inventory, machinery, and employee-cap changes. A missed planner cash gate is
+logged without running the operator prerequisite or return estimate.
+
+Verification: repair and construction fixtures match trace-on/off action,
+cash, stock, machinery, and workforce state; a separate fixture verifies the
+construction cash-gate explanation. The elite-planner, capitalist,
+supply-control, metric-catalog, and trace-reader suites passed (110 tests);
+Python compilation and `git diff --check` passed.

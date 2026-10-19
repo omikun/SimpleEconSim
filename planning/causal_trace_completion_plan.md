@@ -2429,5 +2429,24 @@ and conquest, including zero-wage extraction, overseer pay distribution, rum
 payment, captive-labor changes, commodity output, and displaced population.
 The elite-planner, capitalist, supply-control, metric-catalog, and trace-reader
 suites passed (108 tests); compilation and `git diff --check` passed. Lord
-transformation candidates, machinery gates, spatial routing, and preflight
-purity/RNG neutrality remain open.
+transformation candidates, spatial routing, and preflight purity/RNG neutrality
+remain open.
+
+## Phase 4 follow-up — Trace machinery repair and construction (implemented)
+
+The actual repair gate now records damaged machinery eligibility and links a
+successful repair to before/after firm cash, iron stock, broken machinery,
+machinery level, and workforce capacity. The construction gate separately
+records the planner's $60 owner-cash cutoff, the operator's combined owner/firm
+liquidity and iron/coal price requirements, and the estimated return against
+the strict $15 threshold. Its execution outcome records company cash,
+materials, machinery, workforce, and local cash recipients. Below $60, the
+planner records the skipped gate without running the operator feasibility or
+return calculation.
+
+Verification: trace-on/off repair and construction fixtures match actions,
+cash, material stocks, machinery condition/level, and workforce caps. A
+separate below-threshold case confirms the recorded planner gate and unchanged
+no-action result. The elite-planner, capitalist, supply-control,
+metric-catalog, and trace-reader suites passed (110 tests); Python compilation
+and `git diff --check` passed.
