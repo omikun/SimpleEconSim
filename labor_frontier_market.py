@@ -163,6 +163,9 @@ def _cotton_ask(field, grower, purpose='sale_offer', trace_event_ids=None):
                 'base': 1.5 if grower.is_corporation else None,
                 'wage_coefficient': 0.12 if grower.is_corporation else None,
                 'recipe_reference': field.recipes[Goods.cotton]['price'],
+                'seller_nation_at_quote': getattr(
+                    getattr(field, 'owner_nation', None), 'name', None),
+                'seller_tile_at_quote': field.name,
                 'currency': field.home_currency})
     if event_id is not None and trace_event_ids is not None:
         trace_event_ids.append(event_id)
@@ -185,9 +188,15 @@ def _buy_cotton(world, turn):
                 freight = FREIGHT_PER_EDGE * (len(path) - 1)
                 for grower in field.agents:
                     if grower.alive and grower.output == Goods.cotton and grower.inv_get(Goods.cotton, 0) > 0:
+                        seller_currency = field.home_currency
+                        buyer_currency = mill_region.home_currency
+                        seller_nation = getattr(
+                            getattr(field, 'owner_nation', None), 'name', None)
+                        buyer_nation = getattr(
+                            getattr(mill_region, 'owner_nation', None), 'name', None)
                         ask_event_ids = []
-                        ask = _cotton_ask(field, grower,
-                                          trace_event_ids=ask_event_ids)
+                        ask = _cotton_ask(
+                            field, grower, trace_event_ids=ask_event_ids)
                         from run_trace import emit
                         delivered_quote_event_id = emit(
                             field, kind='scenario_cotton_delivered_quote',
@@ -201,7 +210,16 @@ def _buy_cotton(world, turn):
                             inputs={'ask': ask, 'freight': freight,
                                     'buyer_cash': firm.cash,
                                     'price_basis': 'delivered_to_mill',
-                                    'currency': field.home_currency},
+                                    'origin_tile': field.name,
+                                    'destination_tile': mill_region.name,
+                                    'seller_nation_at_quote': seller_nation,
+                                    'buyer_nation_at_quote': buyer_nation,
+                                    'seller_currency': seller_currency,
+                                    'buyer_currency': buyer_currency,
+                                    'counterparty_currency_mismatch': (
+                                        seller_currency != buyer_currency),
+                                    'currency_conversion_applied': False,
+                                    'currency': seller_currency},
                             cause_event_ids=ask_event_ids or None)
                         offers.append((ask + freight, field.name, grower.id,
                                        field, grower, freight,
@@ -248,7 +266,17 @@ def _buy_cotton(world, turn):
                  unit='local_currency_per_unit', after=delivered,
                  inputs={'seller_receipt_before_tax': price, 'freight': freight,
                          'quantity': 1, 'price_basis': 'delivered_to_mill',
-                         'quote_turn': int(turn), 'currency': field.home_currency,
+                         'quote_turn': int(turn),
+                         'origin_tile': field.name,
+                         'destination_tile': mill_region.name,
+                         'seller_nation_at_quote': seller_nation,
+                         'buyer_nation_at_quote': buyer_nation,
+                         'seller_currency': seller_currency,
+                         'buyer_currency': buyer_currency,
+                         'counterparty_currency_mismatch': (
+                             seller_currency != buyer_currency),
+                         'currency_conversion_applied': False,
+                         'currency': seller_currency,
                          'selected_quote_event_id': selected_quote_event_id},
                  cause_event_ids=([selected_quote_event_id]
                                   if selected_quote_event_id else None))
@@ -293,7 +321,11 @@ def _cloth_ask(region, firm, trace_event_ids=None):
                 'machinery_level': firm.machinery_level,
                 'broken_machinery': firm.broken_machinery,
                 'local_offer_count': len(local_offers),
-                'round_digits': 3, 'currency': region.home_currency})
+                'round_digits': 3,
+                'seller_nation_at_quote': getattr(
+                    getattr(region, 'owner_nation', None), 'name', None),
+                'seller_tile_at_quote': region.name,
+                'currency': region.home_currency})
     if event_id is not None and trace_event_ids is not None:
         trace_event_ids.append(event_id)
     return ask
@@ -322,6 +354,12 @@ def _sell_cloth(world, turn):
                 ask = _cloth_ask(source, firm, trace_event_ids=ask_event_ids)
                 delivered = ask + freight
                 from run_trace import emit
+                seller_currency = source.home_currency
+                buyer_currency = market.home_currency
+                seller_nation = getattr(
+                    getattr(source, 'owner_nation', None), 'name', None)
+                buyer_nation = getattr(
+                    getattr(market, 'owner_nation', None), 'name', None)
                 delivered_quote_event_id = emit(
                      source, kind='scenario_cloth_delivered_quote',
                      record_class='calculation', phase='scenario_market',
@@ -336,7 +374,16 @@ def _sell_cloth(world, turn):
                              'affordable': delivered <= min(MAX_DELIVERED_CLOTH_PRICE,
                                                             buyer.cash),
                              'price_basis': 'delivered_to_household',
-                             'currency': source.home_currency},
+                             'origin_tile': source.name,
+                             'destination_tile': market.name,
+                             'seller_nation_at_quote': seller_nation,
+                             'buyer_nation_at_quote': buyer_nation,
+                             'seller_currency': seller_currency,
+                             'buyer_currency': buyer_currency,
+                             'counterparty_currency_mismatch': (
+                                 seller_currency != buyer_currency),
+                             'currency_conversion_applied': False,
+                             'currency': seller_currency},
                      cause_event_ids=ask_event_ids or None)
                 if delivered <= min(MAX_DELIVERED_CLOTH_PRICE, buyer.cash):
                     offers.append((delivered, firm.id, source, firm, ask, freight,
@@ -361,7 +408,17 @@ def _sell_cloth(world, turn):
                 unit='local_currency_per_unit', after=delivered,
                 inputs={'seller_receipt_before_tax': ask, 'freight': freight,
                         'quantity': 1, 'price_basis': 'delivered_to_household',
-                        'quote_turn': int(turn), 'currency': source.home_currency,
+                        'quote_turn': int(turn),
+                        'origin_tile': source.name,
+                        'destination_tile': market.name,
+                        'seller_nation_at_quote': seller_nation,
+                        'buyer_nation_at_quote': buyer_nation,
+                        'seller_currency': seller_currency,
+                        'buyer_currency': buyer_currency,
+                        'counterparty_currency_mismatch': (
+                            seller_currency != buyer_currency),
+                        'currency_conversion_applied': False,
+                        'currency': seller_currency,
                         'selected_quote_event_id': selected_quote_event_id},
                 cause_event_ids=([selected_quote_event_id]
                                  if selected_quote_event_id else None))

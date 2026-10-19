@@ -715,6 +715,7 @@ class RunTraceTests(unittest.TestCase):
         self.assertTrue(all(row['value_after'] > 0 for row in paid))
         all_rows = server.run_trace.query(limit=100000)['events']
         rows_by_id = {row['event_id']: row for row in all_rows}
+        tiles_by_name = {tile.name: tile for tile in server.tiles}
         scenario_delivered = [row for row in delivered
                               if row['kind'] in (
                                   'scenario_cotton_delivered_quote',
@@ -726,13 +727,27 @@ class RunTraceTests(unittest.TestCase):
         self.assertTrue(scenario_paid)
         for quote in scenario_delivered:
             self.assertEqual(quote['turn'], 1)
-            self.assertIn('currency', quote['inputs'])
+            inputs = quote['inputs']
+            self.assertFalse(inputs['currency_conversion_applied'])
+            self.assertIn('currency', inputs)
+            origin = tiles_by_name[inputs['origin_tile']]
+            destination = tiles_by_name[inputs['destination_tile']]
+            self.assertEqual(inputs['seller_nation_at_quote'],
+                             origin.owner_nation.name)
+            self.assertEqual(inputs['buyer_nation_at_quote'],
+                             destination.owner_nation.name)
+            self.assertEqual(inputs['seller_currency'], origin.home_currency)
+            self.assertEqual(inputs['buyer_currency'], destination.home_currency)
+            self.assertEqual(inputs['counterparty_currency_mismatch'],
+                             origin.home_currency != destination.home_currency)
             self.assertEqual(len(quote['cause_event_ids']), 1)
             ask = rows_by_id[quote['cause_event_ids'][0]]
             self.assertEqual(ask['metric_id'], 'goods.seller_ask')
             self.assertEqual(ask['subject']['good'], quote['subject']['good'])
             self.assertEqual(ask['turn'], quote['turn'])
             self.assertEqual(ask['inputs']['currency'], quote['inputs']['currency'])
+            self.assertEqual(ask['inputs']['seller_nation_at_quote'],
+                             inputs['seller_nation_at_quote'])
         self.assertTrue(all(row.get('inputs', {}).get('selected_quote_event_id')
                             for row in scenario_paid))
         for transaction in scenario_paid:
@@ -751,6 +766,24 @@ class RunTraceTests(unittest.TestCase):
             self.assertEqual(quote['inputs']['currency'],
                              transaction['inputs']['currency'])
             self.assertEqual(quote['value_after'], transaction['value_after'])
+            self.assertFalse(transaction['inputs']['currency_conversion_applied'])
+            origin = tiles_by_name[transaction['inputs']['origin_tile']]
+            destination = tiles_by_name[transaction['inputs']['destination_tile']]
+            self.assertEqual(transaction['inputs']['seller_nation_at_quote'],
+                             origin.owner_nation.name)
+            self.assertEqual(transaction['inputs']['buyer_nation_at_quote'],
+                             destination.owner_nation.name)
+            self.assertEqual(transaction['inputs']['seller_currency'],
+                             origin.home_currency)
+            self.assertEqual(transaction['inputs']['buyer_currency'],
+                             destination.home_currency)
+            for field in ('origin_tile', 'destination_tile',
+                          'seller_nation_at_quote', 'buyer_nation_at_quote',
+                          'seller_currency', 'buyer_currency',
+                          'counterparty_currency_mismatch',
+                          'currency_conversion_applied'):
+                self.assertEqual(transaction['inputs'][field],
+                                 quote['inputs'][field])
 
     def test_fx_formula_records_reserves_and_ppp(self):
         from forex import ForexDesk

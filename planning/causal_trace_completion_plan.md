@@ -448,10 +448,25 @@ market-affordability/codec tests passed. The full labor-frontier behavior suite
 still has six action-state/timing failures outside these quote assertions.
 Compilation and `git diff --check` passed.
 
-Next Phase 2 audit target: capture scenario history series with their
-turn-specific territory membership and currency semantics, then decompose
-changes into continuing-member price changes and territory-composition
-effects.
+### Phase 2 follow-up — Capture scenario quote territory and currencies (implemented)
+
+Scenario seller-ask, delivered-quote, and paid-price events now retain the
+seller's and buyer's tile and nation at evaluation, their separate currencies,
+whether those currencies differ, and the fact that no conversion is applied.
+The fields are captured on the quote and copied to its selected settlement, so
+later border changes cannot rewrite the historical counterparty context. This
+complements the nation-wide reference-price and food-price aggregates, which
+already retain territory membership and unconverted-currency semantics.
+
+Verification: the scenario quote test compares recorded owner, tile, and
+currency fields with the world at quote time, checks the no-conversion marker,
+and verifies that the selected quote's settlement retains those exact values.
+The scenario quote, historical cloth quote, and focused cloth-market tests
+passed. Compilation and `git diff --check` passed.
+
+Next target: finish the player-facing history path so a selected scenario
+market event opens its exact quote and settlement evidence, including no-sale
+quotes and the source tile's ownership at that turn.
 
 ## Phase 5 — Deliver explanations in web, desktop and CLI
 

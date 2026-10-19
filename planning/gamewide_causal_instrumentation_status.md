@@ -1523,3 +1523,16 @@ tests and four market-affordability/codec tests passed. The complete
 labor-frontier behavior suite still reports six failures in petition/protection
 action state and timing tests; the quote-focused tests pass. Compilation and
 `git diff --check` passed.
+
+Phase 2 follow-up, 2026-10-18: labor-frontier quote and settlement records now
+capture origin/destination tiles, seller/buyer nations, seller/buyer currencies,
+currency mismatch, and an explicit no-conversion flag at evaluation time.
+Paid-price records carry the selected quote's same membership and currency
+context, preserving the state that existed before any later border change.
+National reference-price and food-history aggregates already retain their
+turn-specific territory membership and unconverted currency semantics.
+
+Verification: scenario quote replay and ownership/currency assertions, the
+historical cloth quote test, and the focused cloth market test passed. The full
+labor-frontier behavior suite still has six petition/protection action timing
+and state failures recorded above. Compilation and `git diff --check` passed.
