@@ -1466,16 +1466,122 @@ def record_food_results(world: dict) -> None:
             'underfed': sum(deficit_fraction(agent) > 0 for agent in people),
             'households': len(people),
         }
-        if not any(row['turn'] == turn and row['project'] == project['id'] for row in reports):
+        is_new_report = not any(
+            row['turn'] == turn and row['project'] == project['id'] for row in reports)
+        if is_new_report:
             reports.append(report)
         purchases = [row for row in world['scenario_state']['political_economy']['grain_transactions']
                      if row['turn'] == turn and row['tile'] == tile.name
                      and row['kind'] == 'private_purchase']
+        purchase_operation_ids = [operation_id for purchase in purchases
+                                  for operation_id in purchase.get('operation_ids', ())]
+        purchase_event_ids, unresolved_purchase_operations = (
+            _trace_events_for_operations(tile, purchase_operation_ids))
+        owner_response_event_ids = []
         for purchase in purchases:
-            record_owner_response(world, project['site'], purchase['units'], purchase['owner_id'])
+            event_id = record_owner_response(
+                world, project['site'], purchase['units'], purchase['owner_id'],
+                operation_ids=purchase.get('operation_ids', ()),
+                cause_event_ids=_trace_events_for_operations(
+                    tile, purchase.get('operation_ids', ()))[0])
+            if event_id is not None:
+                owner_response_event_ids.append(event_id)
+        if not is_new_report:
+            continue
+        production_event_id = _turn_tile_production_event_id(tile, Goods.food)
+        project_event_id = _turn_project_advance_event_id(
+            tile, project['id'], turn)
+        cause_event_ids = [event_id for event_id in
+                           (project_event_id, production_event_id,
+                            *purchase_event_ids)
+                           if event_id is not None]
+        from run_trace import emit
+        emit(
+            tile, kind='nile_repair_food_outcome', record_class='outcome',
+            phase='scenario_projects',
+            subject={'type': 'nation/project', 'id': project['id'],
+                     'nation': 'Egypt', 'site': project['site'],
+                     'tile': tile.name, 'good': Goods.food.name},
+            metric_id='scenario.nile_repair_outcome', unit='food_units',
+            after=int(report['food_produced']),
+            formula_id='scenario_projects.nile_repair_food_report.v1',
+            inputs={'turn': turn, 'sampling_stage':
+                    'post_production_pre_political_economy',
+                    'project_id': project['id'],
+                    'project_status': report['status'],
+                    'project_effectiveness': effectiveness(
+                        world, 'nile_repair', project['site']),
+                    'yield_applied_this_turn': report['yield_applied'],
+                    'realized_yield_factor': report['yield_factor'],
+                    'soil_fertility': report['soil_fertility'],
+                    'food_produced': report['food_produced'],
+                    'production_event_id': production_event_id,
+                    'production_event_missing': production_event_id is None,
+                    'private_reserved_food': report['private_reserved'],
+                    'strikers': report['strikers'],
+                    'underfed_households': report['underfed'],
+                    'households': report['households'],
+                    'private_purchase_transactions': purchases,
+                    'private_purchase_operation_ids': purchase_operation_ids,
+                    'private_purchase_event_ids': purchase_event_ids,
+                    'unresolved_purchase_operation_ids':
+                    unresolved_purchase_operations,
+                    'owner_response_event_ids': owner_response_event_ids,
+                    'project_advance_event_id': project_event_id},
+            cause_event_ids=cause_event_ids or None)
 
 
-def record_owner_response(world: dict, site: str, units: int, owner_id: int) -> None:
+def _turn_tile_production_event_id(tile, good):
+    recorder = getattr(tile, '_run_trace', None)
+    lookup = getattr(recorder, 'turn_tile_production_event_id', None)
+    if callable(lookup):
+        return lookup(tile.name, good.name)
+    rows = getattr(recorder, 'recent', None)
+    if rows is None:
+        rows = getattr(recorder, 'rows', ())
+    return next((row.get('event_id') for row in reversed(list(rows))
+                 if row.get('metric_id') == 'goods.production'
+                 and row.get('kind') == 'tile_production_total'
+                 and (row.get('subject') or {}).get('id') == tile.name
+                 and (row.get('subject') or {}).get('good') == good.name), None)
+
+
+def _turn_project_advance_event_id(tile, project_id, turn):
+    recorder = getattr(tile, '_run_trace', None)
+    rows = getattr(recorder, 'recent', None)
+    if rows is None:
+        rows = getattr(recorder, 'rows', ())
+    return next((row.get('event_id') for row in reversed(list(rows))
+                 if row.get('metric_id') == 'scenario.project_lifecycle'
+                 and row.get('kind') == 'scenario_project_advance'
+                 and (row.get('subject') or {}).get('id') == project_id
+                 and int((row.get('inputs') or {}).get('turn', -1)) == int(turn)), None)
+
+
+def _trace_events_for_operations(tile, operation_ids):
+    wanted = set(str(operation_id) for operation_id in operation_ids)
+    if not wanted:
+        return [], []
+    recorder = getattr(tile, '_run_trace', None)
+    rows = getattr(recorder, 'recent', None)
+    if rows is None:
+        rows = getattr(recorder, 'rows', ())
+    found = []
+    matched = set()
+    for row in rows:
+        inputs = row.get('inputs') or {}
+        operation_id = inputs.get('operation_id')
+        contract_id = (inputs.get('transfer_contract') or {}).get('operation_id')
+        resolved_operation_id = operation_id or contract_id
+        if resolved_operation_id is not None and str(resolved_operation_id) in wanted:
+            found.append(row.get('event_id'))
+            matched.add(str(resolved_operation_id))
+    return ([event_id for event_id in found if event_id is not None],
+            sorted(wanted - matched))
+
+
+def record_owner_response(world: dict, site: str, units: int, owner_id: int,
+                          *, operation_ids=(), cause_event_ids=None) -> str | None:
     project = get_project(world, 'nile_repair', site)
     if project is None or effectiveness(world, 'nile_repair', site) <= 0 or units <= 0:
         return
@@ -1486,6 +1592,26 @@ def record_owner_response(world: dict, site: str, units: int, owner_id: int) -> 
         return
     project['events'].append(event)
     _state(world)['events'].append(event)
+    tile = _tile(world, site)
+    operation_event_ids, unresolved_operations = _trace_events_for_operations(
+        tile, operation_ids)
+    from run_trace import emit
+    return emit(
+        tile, kind='nile_repair_owner_purchase_response', record_class='outcome',
+        phase='scenario_projects',
+        subject={'type': 'nation/project', 'id': project['id'],
+                 'nation': 'Egypt', 'site': site, 'owner_id': owner_id},
+        metric_id='scenario.nile_owner_response', unit='food_units',
+        after=int(units),
+        formula_id='scenario_projects.nile_owner_response.v1',
+        inputs={'operation_id':
+                f'nile-owner-response:{int(world["turn"])}:{project["id"]}:{owner_id}',
+                'turn': int(world['turn']), 'project_id': project['id'],
+                'owner_id': owner_id, 'purchased_food_units': int(units),
+                'purchase_operation_ids': list(operation_ids),
+                'purchase_event_ids': operation_event_ids,
+                'unresolved_purchase_operation_ids': unresolved_operations},
+        cause_event_ids=(cause_event_ids or operation_event_ids or None))
 
 
 def draw_map_overlay(surface, world: dict) -> None:

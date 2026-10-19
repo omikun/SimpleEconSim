@@ -1462,3 +1462,18 @@ social/food blockers, wage and meal transfer linkage, battle damage, parity,
 and compact `.ctr` validation. Strategic-project, metric-catalog, and two
 focused playthroughs passed (15 tests). Campaign and campaign-trace suites
 passed (18 tests). Compilation and `git diff --check` passed.
+
+Phase 3 follow-up, 2026-10-18: Nile repair food reports now connect the
+post-production harvest snapshot to a turn-scoped tile/good production event,
+the repaired project's advance, and recent private harvest purchases. The
+report labels the yield factor as realized and marks its sampling stage before
+political-economy releases; it also records reserves, strikers, and underfed
+households. Owner purchase-response events link to the transaction's cash and
+food legs. Missing recent purchase events remain visible alongside their
+operation IDs. Repeated same-turn reporting does not duplicate outcomes or
+state records; no trace IDs were added to scenario state.
+
+Verification: project, catalog, food-outcome, and current-turn production-index
+regressions passed (15 tests). The Nile-repair debt-tradeoff playthrough passed.
+The compact trace verified successfully. Compilation and `git diff --check`
+passed.

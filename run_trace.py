@@ -31,6 +31,7 @@ class RunTrace:
         self._person_flow_events = {}
         self._previous_person_flow_events = {}
         self._turn_production_events = {}
+        self._turn_tile_production_events = {}
         self._turn_temporary_activity_events = {}
         self._turn_living_cost_events = {}
         self._latest_food_intake_events = {}
@@ -73,6 +74,7 @@ class RunTrace:
             self._previous_person_flow_events = self._person_flow_events
             self._person_flow_events = {}
             self._turn_production_events = {}
+            self._turn_tile_production_events = {}
             self._turn_temporary_activity_events = {}
             self._turn_living_cost_events = {}
             self._latest_food_intake_events = {}
@@ -246,6 +248,12 @@ class RunTrace:
                 and row.get('subject', {}).get('good') is not None):
             key = (str(row['subject'].get('id')), str(row['subject']['good']))
             self._turn_production_events[key] = row['event_id']
+        if (self.write_error is None and metric_id == 'goods.production'
+                and kind == 'tile_production_total'
+                and row.get('subject', {}).get('type') == 'tile'
+                and row.get('subject', {}).get('good') is not None):
+            key = (str(row['subject'].get('id')), str(row['subject']['good']))
+            self._turn_tile_production_events[key] = row['event_id']
         if (self.write_error is None and metric_id == 'labor.temporary_activity'
                 and row.get('subject', {}).get('type') == 'agent'):
             self._turn_temporary_activity_events[
@@ -288,6 +296,10 @@ class RunTrace:
     def food_intake_event_id(self, agent_id):
         """Return the current-turn food-intake calculation for one person."""
         return self._latest_food_intake_events.get(str(agent_id))
+
+    def turn_tile_production_event_id(self, tile_id, good_name):
+        """Return the current-turn aggregate production event for a tile good."""
+        return self._turn_tile_production_events.get((str(tile_id), str(good_name)))
 
     def snapshot(self, clock, *, subject, metric_id, unit, before, after):
         key = (metric_id, json.dumps(subject, sort_keys=True))

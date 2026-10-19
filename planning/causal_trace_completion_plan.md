@@ -373,10 +373,31 @@ metric-catalog, and two focused campaign playthroughs passed (15 tests).
 Campaign and campaign-trace regressions passed (18 tests). Compilation and
 `git diff --check` passed.
 
-Next Phase 3 audit target: trace `scenario_projects.record_food_results` from
-the repaired Nile district's real harvest and grain transactions into household
-food access, hunger, and owner purchase responses, preserving the distinction
-between a yield forecast and realized production.
+### Phase 3 follow-up — Trace realized Nile repair and harvest outcomes (implemented)
+
+`RunTrace` now keeps the current-turn aggregate production event for each tile
+and good in a turn-scoped index. `scenario_projects.record_food_results`
+records an idempotent post-production, pre-political-economy outcome with the
+project's effectiveness, whether its yield modifier applied, the realized
+yield factor, soil fertility, actual food produced, private reserves, strikers,
+and underfed households. The outcome links to the current-turn aggregate food
+production event, project advance, and recent private-harvest purchase events.
+Unresolved purchase operation IDs stay explicit when a transfer event is no
+longer available in the recent trace. Owner purchase-response events link to
+their exact food and cash transfers. No production, market, or reporting rules
+changed, and trace event IDs are not stored in scenario state.
+
+Verification: project, metric-catalog, food-outcome, and current-turn production
+index regressions passed (15 tests). The Nile-repair debt-tradeoff playthrough
+passed. Outcome logging is idempotent within a turn, trace-on/off project state
+parity remains covered, and the compact `.ctr` passed verification.
+Compilation and `git diff --check` passed.
+
+Next Phase 2 audit target: trace private warehouse releases in
+`scenario_political_economy._sell_to_households` and the `open_private_grain_market`
+policy from posted grain stock through each buyer's cash affordability and
+food-inventory/deficit change, then compare the post-release result with the
+earlier pre-political-economy Nile harvest sample.
 
 ## Phase 5 — Deliver explanations in web, desktop and CLI
 

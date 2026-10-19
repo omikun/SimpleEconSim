@@ -16,6 +16,25 @@ from trace_report import report, render, diff_snapshots
 
 
 class RunTraceTests(unittest.TestCase):
+    def test_current_turn_tile_production_event_index(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            trace = RunTrace(Path(tmp) / 'production-index.ctr',
+                             'production-index')
+            clock = {'next': 1, 'turn': 3, 'phase': 'production'}
+            event_id = trace.emit(
+                clock, kind='tile_production_total', record_class='calculation',
+                subject={'type': 'tile', 'id': 'Nile Delta', 'good': 'food'},
+                metric_id='goods.production', unit='units_per_turn', after=12,
+                inputs={'producer_count': 4})
+
+            self.assertEqual(
+                trace.turn_tile_production_event_id('Nile Delta', 'food'), event_id)
+            trace.emit(clock, kind='later_turn_event', record_class='observation')
+            clock['turn'] = 4
+            trace.emit(clock, kind='turn_marker', record_class='observation')
+            self.assertIsNone(
+                trace.turn_tile_production_event_id('Nile Delta', 'food'))
+
     def test_bank_balance_sheet_is_snapshotted(self):
         from econsim_trade_money import Bank
         from trace_snapshots import sample
