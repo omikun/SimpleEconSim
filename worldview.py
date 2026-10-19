@@ -736,11 +736,13 @@ def main():
                         if mode_tgt and mode_tgt.target_id == 'chart_mode_econ':
                             world['tile_chart_mode'] = 'econ'
                             world['view'] = 0
+                            world['_chart_trace_selection'] = None
                             _mark_dirty(world)
                             continue
                         elif mode_tgt and mode_tgt.target_id == 'chart_mode_eco':
                             world['tile_chart_mode'] = 'eco'
                             world['view'] = 0
+                            world['_chart_trace_selection'] = None
                             _mark_dirty(world)
                             continue
 
@@ -749,11 +751,13 @@ def main():
                         if ec_rect and ec_rect.collidepoint(event.pos):
                             world['tile_chart_mode'] = 'econ'
                             world['view'] = 0
+                            world['_chart_trace_selection'] = None
                             _mark_dirty(world)
                             continue
                         elif eco_rect and eco_rect.collidepoint(event.pos):
                             world['tile_chart_mode'] = 'eco'
                             world['view'] = 0
+                            world['_chart_trace_selection'] = None
                             _mark_dirty(world)
                             continue
 
@@ -765,15 +769,34 @@ def main():
                             clicked_chart = chart_at_pixel(event.pos, grid_top, grid_bottom, num_charts=num_c)
                             if clicked_chart is not None:
                                 world['view'] = clicked_chart
+                                world['_chart_trace_selection'] = None
                             else:
                                 # 4. Check Hex tile picking
                                 clicked = tile_at(world, *event.pos)
                                 if clicked is not None:
                                     select_tile(world, clicked)
                         else:
-                            # Click in zoom view returns to grid view (or pins a tile)
+                            # Click a plotted point to inspect trace evidence; click outside the plot to return.
                             if event.pos[0] >= PANEL_LEFT:
-                                world['view'] = 0
+                                info = world.get('_chart_zoom_trace_info') or {}
+                                region = world.get('selected_region')
+                                selection = None
+                                if (region is not None
+                                        and world.get('scope', 'tile') != 'nation'
+                                        and info.get('chart') is not None
+                                        and info.get('plot_rect') is not None):
+                                    from desktop_chart_trace import select_chart_trace
+                                    selection = select_chart_trace(
+                                        region, info.get('chart_mode', 'econ'),
+                                        info.get('chart_idx') or world.get('view'),
+                                        info['chart'], info.get('plot_rect'),
+                                        event.pos, info.get('window', world.get('window', 100)),
+                                        fallback_turn=world.get('turn', 0))
+                                if selection is not None:
+                                    world['_chart_trace_selection'] = selection
+                                else:
+                                    world['view'] = 0
+                                    world['_chart_trace_selection'] = None
                             else:
                                 clicked = tile_at(world, *event.pos)
                                 if clicked is not None:
@@ -927,6 +950,7 @@ def main():
                         world['citizen_chart_view'] = 0
                     elif world.get('view', 0) != 0:
                         world['view'] = 0
+                        world['_chart_trace_selection'] = None
                     elif not world.get('layers_collapsed', True):
                         world['layers_collapsed'] = True
                     elif is_any_left_panel_open(world):
@@ -993,6 +1017,7 @@ def main():
                         world['panel_tab'] = 'charts'
                     else:
                         world['view'] = 0
+                        world['_chart_trace_selection'] = None
                 elif event.key == pygame.K_v:
                     world['scope'] = 'nation' if world.get('scope', 'tile') == 'tile' else 'tile'
                     curr_sc = world.get('policy_scope', 'tile')
@@ -1033,6 +1058,7 @@ def main():
                     _mark_dirty(world)
                 elif event.key == pygame.K_0:
                     world['view'] = 10 if world.get('view') != 10 else 0
+                    world['_chart_trace_selection'] = None
                     _mark_dirty(world)
                 elif event.key in (pygame.K_r, pygame.K_HOME):
                     reset_cam(world)

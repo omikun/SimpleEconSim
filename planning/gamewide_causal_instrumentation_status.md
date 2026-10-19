@@ -20,7 +20,10 @@ The web client queries `/api/trace?turn=12&entity=tile:Delta&metric=goods.price`
 with `offset` and `limit` for paging. `/api/trace/download` exports the live
 JSONL. In the Comparison view, the tile Goods tab has a **Why?** button for
 food prices; the national Macro tab has **Why AI?** and **Why $** buttons;
-the FX matrix has a **Why?** button for each quoted currency pair.
+the FX matrix has a **Why?** button for each quoted currency pair. In the desktop
+client, open a selected tile's Economic or Ecology chart and click a plotted
+point to inspect its turn, metric, plotted value, and matching calculation
+evidence.
 
 ## Recorded with exact calculation or operation inputs
 
@@ -197,8 +200,9 @@ selected-tile food price, GDP, population, protest energy, food production,
 food producer inventory, food-cash Gini, soil fertility, nutrition density,
 air and water pollution, disease fatalities, individual
 malnutrition/waterborne/respiratory/chemical case counts, and combined
-healthcare outlays. Other chart series still need explicit source mappings;
-desktop charts do not yet open the trace inspector.
+healthcare outlays. Other chart series still need explicit source mappings.
+Desktop point-to-trace drilldown currently covers the tile Economic and Ecology
+charts; Nation-scope and Citizen/Labor panel charts remain open.
 
 The coverage checker reports a changed snapshot as unexplained when its final
 value does not match a recorded calculation. Per-profession headcount snapshots
@@ -246,9 +250,9 @@ catalog does not yet cover every displayed field;
 untraced so a missing probe is visible during development.
 The UI shows unavailable comparison placeholders as such. Web charts show an
 empty-state message when a series has no data instead of drawing a sample
-curve. Desktop charts do not yet have a trace drilldown, and save/rebranch and
-a persistent query index are not implemented. The compact source trace is
-queried by scanning events.
+curve. Nation-scope and Citizen/Labor panel charts do not yet have a trace
+drilldown. Save/rebranch and a persistent query index are not implemented. The
+compact source trace is queried by scanning events.
 
 The first 20-turn labor scenario coverage run recorded 9,043 rows in 5.3 MB,
 with 20 valid checkpoints and no currency-audit violations. Tracing on and off
@@ -1699,3 +1703,21 @@ Verification: endpoint tests match hunger and untreated chart points to their
 trace calculations; a low-cash patient fixture verifies the case-to-refusal
 event link. Metric-catalog coverage, Node UI, syntax, and whitespace checks
 passed. Desktop chart-to-trace selection remains open.
+
+Phase 5 follow-up, 2026-10-18: desktop zoomed tile Economic and Ecology charts
+now let the player click a plotted line point, grouped bar, or stacked segment to
+inspect the matching turn and trace calculations. All series in those chart
+groups have explicit metric and good/disease filters. The compact evidence panel
+distinguishes the displayed point from the trace event and labels the 10-turn
+averages and ×5/×100 display scales. Escape returns to the grid. Bar charts now
+use the same trailing window as line charts, and empty line series retain their
+correct label/color positions.
+
+Verification: five focused desktop tests cover every tile Economic/Ecology
+series binding, plotted point coordinates for lines/grouped bars/stacked bars,
+turn resolution, trace filtering, and selection of calculation rows over
+snapshots. The chart endpoint, trace query/download, active-good, revenue-chart,
+and metric-catalog tests passed (12 tests total). Python compilation and
+`git diff --check` passed. Desktop Nation-scope and Citizen/Labor panel charts
+remain open; transformed points identify their display transform, while the
+current selection shows the underlying trace at the selected turn.

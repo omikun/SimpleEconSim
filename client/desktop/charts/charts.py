@@ -200,7 +200,7 @@ def plot_line_chart(surface, rect, series_list, colors, labels, window, font):
     """Axes box + one normalized polyline per series (last *window* turns)."""
     x0, y0, w, h = rect
     pygame.draw.rect(surface, CHART_BOX, rect, 1)
-    data = [s[-window:] for s in series_list if s]
+    data = [s[-window:] for s in series_list]
     if not any(data):
         chart_labels(surface, labels, colors, font, rect)
         return
@@ -242,7 +242,8 @@ def plot_bar_pairs(surface, rect, series_list, colors, labels, window, font):
     if n_show <= 0:
         chart_labels(surface, labels, colors, font, rect)
         return
-    vals = [v for s in series_list for v in s[-n_show:]]
+    data = [s[-n_show:] for s in series_list]
+    vals = [v for s in data for v in s]
     actual_max = max(vals, default=0.0)
     actual_min = min([0.0] + vals)
     vmax = max(actual_max, 1.0)
@@ -254,7 +255,7 @@ def plot_bar_pairs(surface, rect, series_list, colors, labels, window, font):
         if i % stride:
             continue
         bw = max(2, iw * 0.85 / nser)
-        for k, (s, color) in enumerate(zip(series_list, colors)):
+        for k, (s, color) in enumerate(zip(data, colors)):
             v = s[i] if i < len(s) else 0.0
             bh = (v / vmax) * max(5, h - label_h - 8)
             bx = x0 + 6 + i * iw + k * bw
@@ -274,7 +275,8 @@ def plot_stacked_bars(surface, rect, series_list, colors, labels, window, font):
     if n_show <= 0:
         chart_labels(surface, labels, colors, font, rect)
         return
-    totals = [sum(s[i] for s in series_list if i < len(s))
+    data = [s[-n_show:] for s in series_list]
+    totals = [sum(s[i] for s in data if i < len(s))
               for i in range(n_show)]
     actual_max = max(totals, default=0.0)
     actual_min = min([0.0] + totals)
@@ -288,7 +290,7 @@ def plot_stacked_bars(surface, rect, series_list, colors, labels, window, font):
         bw = max(2, iw * 0.85)
         bx = x0 + 6 + i * iw
         y = y0 + h - 6
-        for s, color in zip(series_list, colors):
+        for s, color in zip(data, colors):
             v = s[i] if i < len(s) else 0.0
             bh = (v / vmax) * max(5, h - label_h - 8)
             if bh > 0.5:
@@ -410,3 +412,16 @@ def draw_chart_large(surface, chart, font, font_small, window, y0, y1, mouse_pos
         plot_bar_pairs(surface, plot_rect, series, colors, labels, window, font_small)
     elif kind == 'stack':
         plot_stacked_bars(surface, plot_rect, series, colors, labels, window, font_small)
+    if world is not None:
+        world['_chart_zoom_trace_info'] = {
+            'chart': chart, 'plot_rect': plot_rect, 'window': window,
+            'chart_idx': chart_idx,
+            'chart_mode': world.get('tile_chart_mode', 'econ'),
+            'tile': getattr(region, 'name', None),
+        }
+        selection = world.get('_chart_trace_selection')
+        if (selection and selection.get('tile') == getattr(region, 'name', None)
+                and selection.get('chart_idx') == chart_idx
+                and selection.get('chart_mode') == world.get('tile_chart_mode', 'econ')):
+            from desktop_chart_trace import draw_trace_selection
+            draw_trace_selection(surface, selection, rect, font_small)

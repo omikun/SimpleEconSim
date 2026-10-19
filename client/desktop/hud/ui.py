@@ -1353,7 +1353,7 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
             draw_chart_large(surface, charts[idx], font, font_small,
                              world['window'], chart_top + chart_y_offset, chart_bottom, mouse_pos=mouse_pos, world=world, region=region, chart_idx=view)
             hint = font_small.render(
-                f"{charts[idx][0]}  (Click or Tab/Esc = Grid)", True, DIM)
+                f"{charts[idx][0]}  Click point: trace · Esc: Grid", True, DIM)
             surface.blit(hint, (PANEL_LEFT, chart_bottom + 6))
         draw_regime_readout(surface, region, font_small, chart_bottom + 24)
     else:

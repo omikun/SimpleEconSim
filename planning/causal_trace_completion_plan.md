@@ -2306,3 +2306,22 @@ Verification: the chart endpoint test matches both displayed series to their
 turn calculations; a poor-patient fixture verifies the untreated case links to
 its specific unaffordable-treatment record. Metric-catalog, Node UI, syntax,
 and whitespace checks passed. Desktop chart-to-trace selection remains open.
+
+## Phase 5 follow-up — Add desktop tile chart drilldown (implemented)
+
+The desktop tile Economic and Ecology zoom charts now allow point selection for
+lines, grouped bars, and stacked bars. Selection resolves the point's turn and
+queries the selected tile trace with the mapped metric and good/disease filter.
+The overlay shows the plotted point separately from the trace calculation,
+including formula and input summaries where available. It labels the 10-turn
+revenue/GDP smoothing and ×5/×100 plot scales. Escape returns to the chart grid.
+Bar charts now render the latest selected window, and empty line series no
+longer shift the colors away from their labels. Simulation behavior is unchanged.
+
+Verification: five focused desktop tests cover all tile Economic/Ecology
+bindings, line/grouped-bar/stacked-bar hit testing, selected-turn calculation,
+and filtered trace evidence. The related trace endpoint, market chart, dynamic
+good, government revenue, and metric-catalog tests passed (12 tests total).
+Compilation and `git diff --check` passed. Nation-scope and Citizen/Labor panel
+chart drilldowns remain open. For moving-average chart points, the UI identifies
+the transform but currently shows source trace rows only for the selected turn.

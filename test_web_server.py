@@ -638,8 +638,9 @@ class TestWebServerEndpoints(unittest.TestCase):
                           if inputs['total_asks'] else
                           inputs['zero_supply_ratio'])
                 self.assertAlmostEqual(replay, calculation['value_after'])
-                self.assertAlmostEqual(points[index], calculation['value_after'],
-                                       places=2, msg=(good, turn))
+                self.assertEqual(round(points[index], 2),
+                                 round(calculation['value_after'], 2),
+                                 msg=(good, turn))
 
     def test_additional_active_good_is_exposed_to_dynamic_market_charts(self):
         from goods import Goods
