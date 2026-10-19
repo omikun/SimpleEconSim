@@ -1354,3 +1354,14 @@ Verification: campaign, occupation, metric-catalog and geography suites passed
 (25 tests), covering evacuation, linked battle causes, rejected responses,
 canal funding and rerouting choices, trace-on/off state parity, and compact
 trace decoding. Compilation and `git diff --check` passed.
+
+Phase 3 follow-up, 2026-10-18: Alexandria bombardment now explains its supplied
+fleet gate, battery ammunition and fleet damage, British and French gun power,
+strike formula, fort and port damage, selected civilian injuries and exact
+health-attrition changes, unrest and next landing turn. Trace records distinguish
+missing fleet, wrong location, depleted ships/coal, and unsupplied fleet. No
+bombardment or injury rules changed.
+
+Verification: campaign, occupation, metric-catalog and geography suites passed
+(27 tests), including bombardment gate, casualty/attrition caps, trace-on/off
+parity, and compact trace decoding. Compilation and `git diff --check` passed.

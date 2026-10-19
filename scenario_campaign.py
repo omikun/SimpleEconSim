@@ -26,20 +26,92 @@ def _tile(world, location):
     return next((tile for tile in world['tiles'] if tile.name == tile_name), None)
 
 
+def _bombardment_state(world, tile):
+    campaign = world['scenario_state']['campaign']
+    fort = campaign['forts']['Alexandria']
+    fleet = world['scenario_state']['geography']['fleets'].get('Britain', {})
+    households = [agent for agent in tile.agents
+                  if getattr(agent, 'alive', True)
+                  and not getattr(agent, 'is_government', False)
+                  and not getattr(agent, 'is_corporation', False)]
+    return {
+        'fort_integrity': float(fort['integrity']),
+        'fort_ammunition': int(fort['ammunition']),
+        'british_fleet_damage': float(fleet.get('damage', 0.0)),
+        'civilian_casualty_counter': int(campaign['civilian_casualties']),
+        'infrastructure_damage': float(
+            campaign['infrastructure_damage'].get('Alexandria', 0.0)),
+        'tile_unrest': float(getattr(tile, 'unrest_level', 0.0)),
+        'landing_due_turn': campaign['expedition'].get('landing_due_turn'),
+        'eligible_households': [
+            {'agent_id': str(getattr(agent, 'id', 'unknown')),
+             'health_attrition': float(getattr(agent, 'health_attrition', 0.0))}
+            for agent in households],
+    }
+
+
+def _trace_bombardment(world, tile, *, operation_id, success, reason,
+                       before, after, details=None):
+    from run_trace import emit
+    return emit(
+        tile, kind=('alexandria_bombardment_resolved' if success else
+                    'alexandria_bombardment_rejected'),
+        record_class='outcome' if success else 'decision', phase='campaign',
+        subject={'type': 'nation/action', 'id': 'Britain:bombard_Alexandria',
+                 'nation': 'Britain', 'action_id': 'bombard_Alexandria'},
+        metric_id='scenario.bombardment', unit='success',
+        before=0, after=int(bool(success)),
+        formula_id='campaign.alexandria_bombardment.v1',
+        inputs={'operation_id': operation_id, 'turn': int(world['turn']),
+                'success': bool(success), 'reason': reason,
+                'state_before': before, 'state_after': after,
+                **(details or {})})
+
+
 def bombard_alexandria(world):
+    tile = _tile(world, 'Alexandria')
+    turn = int(world['turn'])
+    clock = getattr(tile, '_collective_trace_clock', None)
+    ordinal = int(clock.get('next', 1)) if clock is not None else turn
+    operation_id = f'alexandria-bombardment:{turn}:{ordinal}'
+    before = _bombardment_state(world, tile)
     if not fleet_at(world, 'Britain', 'Alexandria'):
+        fleet = world['scenario_state']['geography']['fleets'].get('Britain')
+        if fleet is None:
+            reason = 'british_fleet_missing'
+        elif fleet.get('location') != 'Alexandria':
+            reason = 'british_fleet_not_at_alexandria'
+        elif int(fleet.get('ships', 0)) <= 0:
+            reason = 'british_fleet_has_no_ships'
+        elif int(fleet.get('coal', 0)) <= 0:
+            reason = 'british_fleet_out_of_coal'
+        else:
+            reason = 'british_fleet_unsupplied'
+        _trace_bombardment(
+            world, tile, operation_id=operation_id, success=False,
+            reason=reason, before=before, after=before,
+            details={'british_fleet_state': dict(fleet) if fleet else None})
         return False, 'No supplied British fleet is off Alexandria.'
     state = world['scenario_state']['campaign']
     fort = state['forts']['Alexandria']
     fleet = world['scenario_state']['geography']['fleets']['Britain']
+    fort_integrity_before = float(fort['integrity'])
+    fort_ammunition_before = int(fort['ammunition'])
+    fleet_damage_before = float(fleet['damage'])
     france = world['scenario_state']['geography']['fleets'].get('France')
-    french_fire = bool(france and fleet_at(world, 'France', 'Alexandria')
-                       and world['scenario_state'].get('diplomatic_crisis', {}).get('french_authorization', {}).get('bombard'))
-    if fort['ammunition'] > 0 and fort['integrity'] > 0:
+    french_fleet_present = bool(
+        france and fleet_at(world, 'France', 'Alexandria'))
+    french_authorized = bool(
+        world['scenario_state'].get('diplomatic_crisis', {})
+        .get('french_authorization', {}).get('bombard'))
+    french_fire = bool(france and french_fleet_present and french_authorized)
+    battery_active = fort['ammunition'] > 0 and fort['integrity'] > 0
+    if battery_active:
         fleet['damage'] = min(0.95, fleet['damage'] + 0.05 * fort['integrity'] / 100)
         fort['ammunition'] = max(0, fort['ammunition'] - 3)
     french_guns = france['guns'] * (1 - france['damage']) if french_fire else 0.0
-    strike = max(8.0, (fleet['guns'] * (1 - fleet['damage']) + french_guns) * 0.70)
+    british_effective_guns = fleet['guns'] * (1 - fleet['damage'])
+    strike = max(8.0, (british_effective_guns + french_guns) * 0.70)
     fort['integrity'] = max(0.0, fort['integrity'] - strike)
     alexandria = _tile(world, 'Alexandria')
     damage = min(1.0, state['infrastructure_damage'].get('Alexandria', 0.0) + strike / 300)
@@ -49,13 +121,52 @@ def bombard_alexandria(world):
                   and not getattr(agent, 'is_government', False)
                   and not getattr(agent, 'is_corporation', False)]
     casualties = min(len(households), max(1, int(strike / 24)))
+    injured_households = []
     for agent in households[:casualties]:
-        agent.health_attrition = min(2.5, float(getattr(agent, 'health_attrition', 0.0)) + 0.50)
+        attrition_before = float(getattr(agent, 'health_attrition', 0.0))
+        agent.health_attrition = min(2.5, attrition_before + 0.50)
+        injured_households.append({
+            'agent_id': str(getattr(agent, 'id', 'unknown')),
+            'health_attrition_before': attrition_before,
+            'health_attrition_after': float(agent.health_attrition),
+        })
     state['civilian_casualties'] += casualties
     alexandria.unrest_level = min(1.0, float(getattr(alexandria, 'unrest_level', 0)) + 0.20)
     state['expedition']['landing_due_turn'] = int(world['turn']) + 1
-    return True, (f'British guns damage Alexandria’s fort to {fort["integrity"]:.0f}% integrity; '
-                  f'{casualties} civilians are injured and port damage reaches {damage:.0%}.')
+    message = (f'British guns damage Alexandria’s fort to {fort["integrity"]:.0f}% integrity; '
+               f'{casualties} civilians are injured and port damage reaches {damage:.0%}.')
+    after = _bombardment_state(world, alexandria)
+    _trace_bombardment(
+        world, alexandria, operation_id=operation_id, success=True,
+        reason='supplied_british_fleet_at_alexandria', before=before, after=after,
+        details={
+            'fort_battery_active': battery_active,
+            'fort_integrity_before': fort_integrity_before,
+            'fort_ammunition_before': fort_ammunition_before,
+            'fort_ammunition_spent': (fort_ammunition_before
+                                      - int(fort['ammunition'])),
+            'fleet_damage_before': fleet_damage_before,
+            'fleet_damage_after': float(fleet['damage']),
+            'british_guns': float(fleet['guns']),
+            'british_effective_guns_after_battery_hit': float(british_effective_guns),
+            'french_fleet_present': french_fleet_present,
+            'french_bombardment_authorized': french_authorized,
+            'french_fire_authorized': french_fire,
+            'french_effective_guns': float(french_guns),
+            'strike': float(strike),
+            'strike_rule': 'max(8.0, (british_effective_guns + french_guns) * 0.70)',
+            'fort_integrity_rule': 'max(0.0, integrity_before - strike)',
+            'infrastructure_damage_rule': 'min(1.0, previous_damage + strike / 300)',
+            'eligible_household_count': len(households),
+            'casualty_rule': 'min(eligible_households, max(1, int(strike / 24)))',
+            'casualties': int(casualties),
+            'injured_households': injured_households,
+            'health_attrition_increment': 0.50,
+            'health_attrition_cap': 2.5,
+            'unrest_rule': 'min(1.0, unrest_before + 0.20)',
+            'landing_due_turn_rule': 'turn + 1',
+            'result_message': message})
+    return True, message
 
 
 def landing_options(world):

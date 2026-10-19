@@ -260,9 +260,9 @@ The remaining scenario-project gaps identified by this audit—reserve-recall
 social costs, grain-entitlement policy state, and per-turn delivery outcomes—
 are implemented in the latest progress entry below.
 
-Next Phase 3 audit target: review `scenario_campaign.bombard_alexandria` and
-`advance_expedition` for unexplained bombardment injuries/damage and expedition
-warning, transport, and supply-stop gates.
+Next Phase 3 audit target: review `scenario_campaign.advance_expedition` for
+landing-warning, transport-capacity and route/supply stop gates, including
+links between expedition upkeep, fleet movement, battle, and withdrawal.
 
 ## Phase 5 — Deliver explanations in web, desktop and CLI
 
@@ -1802,4 +1802,20 @@ pending-warning/unknown-order/unaffordable-settlement gates, funded and denied
 canal routes, and trace-on/off state parity. Campaign, occupation,
 metric-catalog and geography suites passed (25 tests), including compact trace
 decoding. Compilation and
+`git diff --check` passed.
+
+## Phase 3 follow-up — Explain Alexandria bombardment consequences (implemented)
+
+Trace the supplied-fleet gate and explain why it fails (missing fleet, wrong
+location, no ships, no coal, or unsupplied). A successful bombardment records
+battery ammunition use and its fleet-damage effect, the effective British and
+authorized French gun contributions, strike power, fort and infrastructure
+damage, the selected eligible civilians and their exact health-attrition
+changes, civilian-casualty counter, unrest increase, and next landing turn.
+The trace records existing formulas and outcomes without changing them.
+
+Verification: bombardment tests cover the no-fleet gate, exact damage and injury
+effects, attrition cap behavior, and trace-on/off state parity. Campaign,
+occupation, metric-catalog and geography suites passed (27 tests), including
+compact trace decoding for bombardment and landing responses. Compilation and
 `git diff --check` passed.

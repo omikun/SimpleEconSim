@@ -1,9 +1,10 @@
-import unittest
 import tempfile
+import unittest
+import copy
 from pathlib import Path
 
 from run_trace import RunTrace, verify
-from scenario_campaign import resolve_landing
+from scenario_campaign import bombard_alexandria, resolve_landing
 from scenario_geography import create_fleet, move_fleet
 from worldview_engine import build_world_view
 
@@ -19,10 +20,11 @@ class MemoryTrace:
         return event_id
 
 
-def _fixture(*, traced=True, landing_warning=True):
+def _fixture(*, traced=True, landing_warning=True, fleet=True):
     world = build_world_view(scenario_id='egypt_1877')
-    create_fleet(world, 'Britain')
-    move_fleet(world, 'Britain', 'Alexandria')
+    if fleet:
+        create_fleet(world, 'Britain')
+        move_fleet(world, 'Britain', 'Alexandria')
     world['scenario_warning_modal'] = (
         {'kind': 'landing_warning'} if landing_warning else None)
     tile_name = world['scenario_state']['geography']['sites']['Alexandria']['tile']
@@ -173,13 +175,73 @@ class ScenarioCampaignTraceTests(unittest.TestCase):
             tile._collective_trace_clock = {
                 'turn': int(world['turn']), 'phase': 'campaign', 'next': 1}
 
+            self.assertTrue(bombard_alexandria(world)[0])
             self.assertTrue(resolve_landing(world, 'evacuate_port')[0])
 
             result = recorder.query(metric_id='scenario.landing_response')
             self.assertEqual(result['total'], 1)
             self.assertEqual(result['events'][0]['inputs']['result_message'],
                              world['scenario_feedback'])
+            self.assertEqual(
+                recorder.query(metric_id='scenario.bombardment')['total'], 1)
             self.assertEqual(verify(trace_path)['checkpoints'], 0)
+
+    def test_bombardment_explains_guns_battery_injuries_and_port_damage(self):
+        world, tile, trace = _fixture()
+        households = [agent for agent in tile.agents
+                      if getattr(agent, 'alive', True)
+                      and not getattr(agent, 'is_government', False)
+                      and not getattr(agent, 'is_corporation', False)]
+        households[0].health_attrition = 2.4
+        households[1].health_attrition = 0.1
+
+        ok, _ = bombard_alexandria(world)
+
+        self.assertTrue(ok)
+        rows = [row for row in trace.rows
+                if row.get('metric_id') == 'scenario.bombardment']
+        self.assertEqual(len(rows), 1)
+        row = rows[0]
+        inputs = row['inputs']
+        self.assertTrue(inputs['fort_battery_active'])
+        self.assertEqual(inputs['fort_ammunition_spent'], 3)
+        self.assertGreater(inputs['british_effective_guns_after_battery_hit'], 0)
+        self.assertFalse(inputs['french_fire_authorized'])
+        self.assertEqual(inputs['casualties'],
+                         min(inputs['eligible_household_count'],
+                             max(1, int(inputs['strike'] / 24))))
+        injured = inputs['injured_households']
+        self.assertEqual(injured[0]['health_attrition_before'], 2.4)
+        self.assertEqual(injured[0]['health_attrition_after'], 2.5)
+        self.assertEqual(inputs['state_after']['civilian_casualty_counter'],
+                         inputs['casualties'])
+        self.assertGreater(inputs['state_after']['infrastructure_damage'], 0)
+        self.assertAlmostEqual(inputs['state_after']['tile_unrest'], 0.2)
+
+    def test_bombardment_gate_and_trace_off_state_parity(self):
+        missing, _tile, missing_trace = _fixture(fleet=False)
+        state_before = copy.deepcopy(missing['scenario_state']['campaign'])
+
+        self.assertFalse(bombard_alexandria(missing)[0])
+
+        event = next(row for row in missing_trace.rows
+                     if row.get('metric_id') == 'scenario.bombardment')
+        self.assertEqual(event['inputs']['reason'], 'british_fleet_missing')
+        self.assertEqual(missing['scenario_state']['campaign']['forts'],
+                         state_before['forts'])
+
+        traced, traced_tile, _trace = _fixture(traced=True)
+        plain, plain_tile, _plain_trace = _fixture(traced=False)
+        self.assertEqual(bombard_alexandria(traced),
+                         bombard_alexandria(plain))
+        self.assertEqual(traced['scenario_state']['campaign'],
+                         plain['scenario_state']['campaign'])
+        traced_fleet = traced['scenario_state']['geography']['fleets']['Britain']
+        plain_fleet = plain['scenario_state']['geography']['fleets']['Britain']
+        self.assertEqual(traced_fleet, plain_fleet)
+        self.assertEqual(
+            [getattr(agent, 'health_attrition', 0.0) for agent in traced_tile.agents],
+            [getattr(agent, 'health_attrition', 0.0) for agent in plain_tile.agents])
 
 
 if __name__ == '__main__':
