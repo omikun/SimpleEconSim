@@ -2045,3 +2045,12 @@ counted once. The web endpoint test compares the Nation chart point with its
 aggregate and checks all member calculation links, the shared-government
 deduplication flags, and the no-conversion label. Metric-catalog, chart
 parity, syntax, whitespace, and all 10 frontend checks passed.
+
+Phase 5 follow-up, 2026-10-18: connected the fixed food, wood, and furniture
+production, inventory, and demand/supply charts to the same Nation histories as
+the dynamic-good market view. Nation chart clicks now query the selected good's
+own trace metric while tile chart behavior stays unchanged.
+
+Verification: frontend binding tests check all nine fixed chart-to-good/history
+mappings, and the web history parity test confirms those backing series remain
+turn-aligned. JavaScript syntax and all 10 frontend tests passed.

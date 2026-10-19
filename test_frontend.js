@@ -314,6 +314,22 @@ test('every historical chart has a trace binding, including effective workday ca
     assert.ok(binding.historyKey, `missing Nation trade history for ${id}`);
     assert.ok(binding.metricId.startsWith('trade.'));
   }
+  for (const [chart, key, metric, good] of [
+    ['production', 'market_production_food', 'goods.production', 'food'],
+    ['wood_production', 'market_production_wood', 'goods.production', 'wood'],
+    ['furniture_production', 'market_production_furniture', 'goods.production', 'furniture'],
+    ['food_demand_ratio', 'market_demand_ratio_food', 'goods.demand_ratio', 'food'],
+    ['wood_demand_ratio', 'market_demand_ratio_wood', 'goods.demand_ratio', 'wood'],
+    ['furniture_demand_ratio', 'market_demand_ratio_furniture', 'goods.demand_ratio', 'furniture'],
+    ['inventories', 'market_inventory_food', 'goods.producer_inventory', 'food'],
+    ['wood_inventories', 'market_inventory_wood', 'goods.producer_inventory', 'wood'],
+    ['furniture_inventories', 'market_inventory_furniture', 'goods.producer_inventory', 'furniture']
+  ]) {
+    const binding = charts.getTraceBinding(chart);
+    assert.equal(binding.historyKey, key);
+    assert.equal(binding.metricId, metric);
+    assert.equal(binding.good, good);
+  }
   for (const id of ['soil', 'nutrition', 'smog', 'effluent',
     'soil_pollution', 'bodily_wear', 'illness_deaths', 'untreated_cases',
     'malnutrition_cases', 'waterborne_cases', 'respiratory_cases',
