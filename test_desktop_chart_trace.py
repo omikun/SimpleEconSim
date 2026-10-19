@@ -41,7 +41,8 @@ class DesktopChartTraceTests(unittest.TestCase):
             chart_trace_binding('econ', 5, 'inherit'),
             {'metric_id': 'finance.government_income',
              'component': 'inheritance',
-             'plot_transform': '10-turn moving average'})
+             'plot_transform': '10-turn moving average',
+             'moving_average_window': 10})
         self.assertEqual(
             chart_trace_binding('eco', 1, 'soil %'),
             {'metric_id': 'ecology.soil_fertility',
@@ -304,6 +305,89 @@ class DesktopChartTraceTests(unittest.TestCase):
                          {'type': 'tile', 'id': 'Delta', 'good': 'food'})
         self.assertEqual(trace.query_args['metric_id'], 'goods.price')
         self.assertEqual(trace.query_args['limit'], 200)
+
+    def test_moving_average_trace_replays_all_source_turns(self):
+        class HistoryTrace:
+            def __init__(self, missing_turn=None):
+                self.missing_turn = missing_turn
+                self.queries = []
+
+            def query(self, **kwargs):
+                self.queries.append(kwargs)
+                turn = kwargs['turn']
+                if turn == self.missing_turn:
+                    return {'events': [], 'total': 0}
+                return {'events': [{
+                    'kind': 'nominal_gdp_calculation',
+                    'record_class': 'calculation',
+                    'value_after': float(turn - 13),
+                    'event_id': f'gdp-{turn}'}], 'total': 1}
+
+        smoothed = [1.0, 1.5, 2.0, 2.5, 3.0, 3.5,
+                    4.0, 4.5, 5.0, 5.5, 6.5, 7.5]
+        chart = ('GDP Output', 'line', [smoothed], ['green'], ['gdp/t'])
+        trace = HistoryTrace()
+        selection = select_chart_trace(
+            FakeRegion(trace), 'econ', 9, chart, (10, 20, 100, 100),
+            (104, 44), 12)
+
+        source_window = selection['source_window']
+        self.assertEqual(selection['turn'], 25)
+        self.assertEqual(source_window['first_turn'], 16)
+        self.assertEqual(source_window['last_turn'], 25)
+        self.assertEqual(source_window['coverage_count'], 10)
+        self.assertEqual(source_window['replayed_value'], 7.5)
+        self.assertTrue(source_window['matches_chart_point'])
+        self.assertEqual([query['turn'] for query in trace.queries[-10:]],
+                         list(range(16, 26)))
+
+    def test_moving_average_replay_keeps_missing_turns_as_gaps(self):
+        class HistoryTrace:
+            def query(self, **kwargs):
+                turn = kwargs['turn']
+                if turn == 20:
+                    return {'events': [], 'total': 0}
+                return {'events': [{
+                    'kind': 'nominal_gdp_calculation',
+                    'record_class': 'calculation',
+                    'value_after': float(turn - 13)}], 'total': 1}
+
+        smoothed = [1.0, 1.5, 2.0, 2.5, 3.0, 3.5,
+                    4.0, 4.5, 5.0, 5.5, 6.5, 7.5]
+        chart = ('GDP Output', 'line', [smoothed], ['green'], ['gdp/t'])
+        selection = select_chart_trace(
+            FakeRegion(HistoryTrace()), 'econ', 9, chart,
+            (10, 20, 100, 100), (104, 44), 12)
+
+        source_window = selection['source_window']
+        self.assertEqual(source_window['coverage_count'], 9)
+        self.assertFalse(source_window['coverage_complete'])
+        self.assertIsNone(source_window['replayed_value'])
+        self.assertFalse(source_window['matches_chart_point'])
+        missing = next(row for row in source_window['source_points']
+                       if row['turn'] == 20)
+        self.assertIsNone(missing['value'])
+        self.assertEqual(missing['evidence'], 'missing')
+
+    def test_revenue_moving_average_uses_component_not_total(self):
+        event = {
+            'kind': 'government_income_calculation',
+            'record_class': 'calculation', 'value_after': 20.0,
+            'inputs': {'components': {
+                'tax': 10.0, 'tariff': 4.0, 'inheritance': 6.0}},
+            'event_id': 'income-25'}
+        trace = FakeTrace([event])
+        chart = ('Government Revenue', 'stack', [[10.0], [4.0], [6.0]],
+                 ['red', 'blue', 'green'], ['tax', 'tariff', 'inherit'])
+        selection = select_chart_trace(
+            FakeRegion(trace), 'econ', 5, chart, (10, 20, 100, 100),
+            (60, 75), 1)
+
+        self.assertEqual(selection['series_label'], 'inherit')
+        self.assertEqual(selection['chart_value'], 6.0)
+        self.assertEqual(selection['source_window']['replayed_value'], 6.0)
+        self.assertTrue(selection['source_window']['matches_chart_point'])
+        self.assertEqual(selection['source_window']['component'], 'inheritance')
 
     def test_citizen_chart_query_filters_the_selected_class_group(self):
         trace = FakeTrace([{'kind': 'social_class_population_calculation',

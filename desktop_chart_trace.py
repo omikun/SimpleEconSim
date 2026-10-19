@@ -172,6 +172,7 @@ def chart_trace_binding(chart_mode: str, chart_idx: int, label: str,
     if chart_mode == 'econ' and int(chart_idx) in (5, 9):
         from worldview_charts import GDP_GOV_MA_WINDOW
         transform = f"{GDP_GOV_MA_WINDOW}-turn moving average"
+        binding['moving_average_window'] = GDP_GOV_MA_WINDOW
     if transform is not None:
         binding['plot_transform'] = transform
     return binding
@@ -399,6 +400,57 @@ def select_chart_trace(region, chart_mode, chart_idx, chart, plot_rect,
             rows = [row for row in rows if row.get('kind') != 'metric_snapshot']
     else:
         rows = [row for row in rows if row is not None]
+    source_window = None
+    moving_window = binding.get('moving_average_window')
+    if trace is not None and moving_window and chart_scope == 'tile':
+        first_index = max(0, point['point_index'] - moving_window + 1)
+        first_turn = turn - (point['point_index'] - first_index)
+        source_points = []
+        source_events = []
+        for source_turn in range(first_turn, turn + 1):
+            result = trace.query(turn=source_turn, subject=subject,
+                                 metric_id=binding['metric_id'], limit=200)
+            source_rows = result.get('events', [])
+            calculations = [row for row in source_rows
+                            if row.get('record_class') == 'calculation'
+                            and row.get('kind') != 'metric_snapshot']
+            candidates = calculations or [
+                row for row in source_rows
+                if row.get('kind') == 'metric_snapshot']
+            source_row = candidates[-1] if candidates else None
+            source_value = None
+            if source_row is not None:
+                if binding.get('component'):
+                    components = (source_row.get('inputs') or {}).get(
+                        'components') or {}
+                    if binding['component'] in components:
+                        source_value = float(components[binding['component']])
+                elif source_row.get('value_after') is not None:
+                    source_value = float(source_row['value_after'])
+                if source_value is not None:
+                    source_events.append(source_row)
+            source_points.append({
+                'turn': source_turn, 'value': source_value,
+                'event_id': source_row.get('event_id') if source_row else None,
+                'evidence': ('calculation' if calculations else 'snapshot')
+                if source_row else 'missing'})
+        complete = all(row['value'] is not None for row in source_points)
+        replay = (sum(row['value'] for row in source_points) / len(source_points)
+                  if complete and source_points else None)
+        tolerance = max(1e-6, abs(point['value']) * 1e-6)
+        source_window = {
+            'window_turns': moving_window,
+            'first_turn': first_turn, 'last_turn': turn,
+            'expected_source_turns': len(source_points),
+            'source_points': source_points,
+            'coverage_count': sum(row['value'] is not None
+                                  for row in source_points),
+            'coverage_complete': complete,
+            'replayed_value': replay,
+            'matches_chart_point': (replay is not None and
+                                    abs(replay - point['value']) <= tolerance),
+            'component': binding.get('component'),
+        }
     return {
         'tile': region.name,
         'nation': nation_name if chart_scope == 'nation' else None,
@@ -411,6 +463,7 @@ def select_chart_trace(region, chart_mode, chart_idx, chart, plot_rect,
         'plot_transform': binding.get('plot_transform'),
         'events': rows[:4],
         'aggregation': aggregation,
+        'source_window': source_window,
         'has_trace': trace is not None,
         'chart_idx': int(chart_idx),
         'chart_mode': chart_mode,
@@ -440,7 +493,9 @@ def draw_trace_selection(surface, selection, rect, font):
         return
     x, y, width, height = rect
     aggregation = selection.get('aggregation')
-    panel_height = (min(200, max(150, height // 2)) if aggregation else
+    source_window = selection.get('source_window')
+    panel_height = (min(240, max(180, height // 2)) if source_window else
+                    min(200, max(150, height // 2)) if aggregation else
                     min(132, max(96, height // 2)))
     panel = (x + 8, y + height - panel_height - 8, width - 16, panel_height)
     import pygame
@@ -476,16 +531,39 @@ def draw_trace_selection(surface, selection, rect, font):
             lines.append(
                 f"Run record {membership} membership: "
                 f"{recorded} plotted point")
+    if source_window:
+        replay = source_window.get('replayed_value')
+        status = ('matches' if source_window.get('matches_chart_point') else
+                  'does not match' if replay is not None else 'unavailable')
+        lines.append(
+            f"Moving average: {source_window['coverage_count']}/"
+            f"{source_window['expected_source_turns']} turns; replay {status}")
+        source_points = source_window.get('source_points', ())
+        for start in range(0, len(source_points), 5):
+            group = source_points[start:start + 5]
+            values = [f"T{row['turn']}="
+                      f"{row['value']:,.3g}" if row.get('value') is not None
+                      else f"T{row['turn']}=missing" for row in group]
+            if values:
+                lines.append('Sources: ' + ', '.join(values))
     events = selection.get('events', [])
     if not selection.get('has_trace'):
         lines.append('No run trace is attached to this tile.')
     elif not events:
         lines.append('No matching records were captured for this point.')
     for row in events[:1]:
-        before = row.get('value_before')
-        after = row.get('value_after')
-        change = (f"{before} → {after}" if before is not None else str(after))
-        lines.append(f"{row.get('kind', 'record')}: {change} {row.get('unit', '')}".strip())
+        if source_window and source_window.get('component'):
+            component_value = next((item.get('value') for item in
+                                    source_window.get('source_points', ())
+                                    if item.get('turn') == selection['turn']), None)
+            shown_value = ('missing' if component_value is None
+                           else f"{component_value:,.3f}")
+            lines.append(f"Recorded {source_window['component']}: {shown_value}")
+        else:
+            before = row.get('value_before')
+            after = row.get('value_after')
+            change = (f"{before} → {after}" if before is not None else str(after))
+            lines.append(f"{row.get('kind', 'record')}: {change} {row.get('unit', '')}".strip())
         formula = row.get('formula_id')
         if formula:
             lines.append(f"Formula: {formula}")
@@ -500,6 +578,6 @@ def draw_trace_selection(surface, selection, rect, font):
                 break
         if simple:
             lines.append('Inputs: ' + ', '.join(simple))
-    for line in lines[:8]:
+    for line in lines[:10]:
         surface.blit(font.render(line[:115], True, (220, 225, 235)), (tx, ty))
         ty += 18

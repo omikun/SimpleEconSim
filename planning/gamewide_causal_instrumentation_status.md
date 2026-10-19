@@ -208,8 +208,11 @@ calculations, list missing member evidence, and compare that result with the
 Nation aggregation recorded for the turn. Historical Nation charts use the
 Nation's current tile membership; when it differs from the membership recorded
 at the selected turn, the reader labels both bases. For moving-average points,
-the UI identifies the transform but source trace rows still cover only the
-selected turn.
+the desktop reader queries every contributing source turn, replays the
+10-turn mean (including the shorter prefix windows at the start of a series),
+and shows missing-turn coverage rather than treating gaps as zero. Government
+revenue charts replay the selected tax, tariff, or inheritance component from
+the calculation inputs instead of confusing the component with the total.
 
 The coverage checker reports a changed snapshot as unexplained when its final
 value does not match a recorded calculation. Per-profession headcount snapshots
@@ -1759,7 +1762,8 @@ Nation aggregation itself is not yet traceable.
 Verification: 12 desktop point-selection tests, metric-catalog coverage, labor
 law/repeal, and labor aggregate tests passed (19 tests total). Python
 compilation and `git diff --check` passed. Nation-scope chart drilldown and the
-multi-turn evidence behind moving-average chart points remain open.
+multi-turn evidence behind moving-average chart points were then open; both are
+now covered by the follow-ups below.
 
 Phase 5 follow-up, 2026-10-18: connected Nation Citizen and Labor chart points
 in the main view and both inspection panels. Nation series now have explicit
@@ -1782,3 +1786,15 @@ reducer replay, and Citizen/Labor panel click dispatch. All 34 causal trace
 tests, metric-catalog coverage, Python compilation, and `git diff --check`
 passed. Multi-turn source evidence for moving-average chart points and chart
 bindings for the remaining web series remain open.
+
+Phase 5 follow-up, 2026-10-18: desktop GDP and government-revenue chart points
+now replay their moving averages from all contributing source turns. The
+beginning of a history uses the same shorter-prefix mean as the plotted chart;
+missing source turns remain visible gaps and make replay unavailable. Revenue
+detail extracts the selected component from the logged revenue calculation and
+shows all source values compactly in the chart overlay.
+
+Verification: all 18 desktop chart-trace tests passed, including a full 10-turn
+GDP replay, missing-turn coverage, and component-level government revenue.
+Python compilation and `git diff --check` passed. Bindings for the remaining web
+chart series are still open.
