@@ -181,9 +181,10 @@ evidence.
   diagnostic preflight, not the actual planner's evaluated alternatives. The
   actual inventory-liquidation gate now logs candidate stock, buyer checks,
   affordability, sale quantity, reference-price basis, and linked cash and
-  inventory balances. Spatial trade and other investment alternatives still
-  need evidence from their real evaluation paths; preflight purity and RNG
-  neutrality remain unverified.
+  inventory balances. Capital allocation now records the real sector scan,
+  input-stock penalty, best-sector choice, and expansion/incorporation gate.
+  Spatial routing, other operator evaluations, and preflight purity/RNG
+  neutrality remain open.
 
 ## Known gaps
 
@@ -1863,3 +1864,17 @@ identical action, cash, and inventory results; selected and unaffordable-buyer
 paths both recorded their decision evidence. Python compilation and
 `git diff --check` passed. Actual evaluation evidence for the planner's other
 stages remains open.
+
+Phase 4 follow-up, 2026-10-18: capital expansion and firm-incorporation planning
+now records the actual sector-margin scan rather than the separately computed
+preflight rankings. Each sector records output/input prices and quantities,
+gross value, raw margin, local input inventories and producers, the existing
+0.05 shortage penalty, and the strict best-margin comparison. The event also
+records the chosen expansion/incorporation/continue branch; the linked outcome
+includes owner/company cash, wage, and employee-cap changes.
+
+Verification: the test covers a high nominal-margin furniture recipe whose
+shortage penalty puts it below food, and confirms the exact company expansion
+cash/wage/cap changes. Trace-on/off states match. The elite, capitalist,
+actor-account, supply-control, metric-catalog, and trace-reader suites passed
+(107 tests); compilation and `git diff --check` passed.

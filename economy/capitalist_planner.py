@@ -844,47 +844,155 @@ class EliteCapitalistPlanner:
             recipes = getattr(region, 'recipes', {})
             best_sector = None
             best_profit_margin = 0.0
+            sector_evaluations = []
+            sector_exclusions = []
 
             for g, r in recipes.items():
                 if g in (Goods.gov, Goods.none, Goods.foreign_luxuries):
+                    sector_exclusions.append({
+                        'good': getattr(g, 'name', str(g)),
+                        'reason': 'government_none_or_foreign_luxury_output'})
                     continue
                 if r.get('is_luxury') and r.get('numInput', 0) == 0:
+                    sector_exclusions.append({
+                        'good': getattr(g, 'name', str(g)),
+                        'reason': 'zero_input_luxury_output'})
                     continue
                 if r.get('import_only'):
+                    sector_exclusions.append({
+                        'good': getattr(g, 'name', str(g)),
+                        'reason': 'import_only_output'})
                     continue
                 p_out = float(r.get('price', 1.0))
                 req_qty = float(r.get('numInput', 0))
                 in_good = r.get('input')
                 p_in = float(recipes.get(in_good, {}).get('price', 0.0)) if req_qty > 0 else 0.0
-                margin = (p_out * r.get('production', 1.0)) - (p_in * req_qty)
+                production = float(r.get('production', 1.0))
+                gross_output_value = p_out * production
+                input_cost = p_in * req_qty
+                raw_margin = gross_output_value - input_cost
+                margin = raw_margin
+                local_supply = None
+                input_inventory = []
+                input_producer_ids = []
                 if req_qty > 0 and in_good is not None:
-                    local_supply = (
-                        sum(p.inv_get(in_good, 0) for p in getattr(region, 'agents', []) if getattr(p, 'alive', True))
-                        + sum(1 for p in getattr(region, 'agents', []) if getattr(p, 'alive', True) and getattr(p, 'output', None) == in_good)
-                    )
+                    supplier_entries = []
+                    for supplier in getattr(region, 'agents', []):
+                        if not getattr(supplier, 'alive', True):
+                            continue
+                        held = supplier.inv_get(in_good, 0)
+                        supplier_entries.append((supplier, held))
+                        input_inventory.append({
+                            'agent_id': str(getattr(supplier, 'id', 'unknown')),
+                            'units': float(held)})
+                        if getattr(supplier, 'output', None) == in_good:
+                            input_producer_ids.append(
+                                str(getattr(supplier, 'id', 'unknown')))
+                    local_supply = (sum(held for _supplier, held in supplier_entries)
+                                    + len(input_producer_ids))
                     if local_supply < req_qty:
                         margin *= 0.05
-                if margin > best_profit_margin:
+                selected_as_best = margin > best_profit_margin
+                sector_evaluations.append({
+                    'good': getattr(g, 'name', str(g)),
+                    'output_price': p_out,
+                    'output_units_per_turn': production,
+                    'gross_output_value': gross_output_value,
+                    'input_good': getattr(in_good, 'name', str(in_good))
+                    if in_good is not None else None,
+                    'input_unit_price': p_in,
+                    'input_units': req_qty,
+                    'input_cost': input_cost,
+                    'raw_margin': raw_margin,
+                    'local_input_inventory': input_inventory,
+                    'local_input_producer_ids': input_producer_ids,
+                    'local_input_supply': local_supply,
+                    'input_shortage_penalty': (
+                        0.05 if local_supply is not None and local_supply < req_qty
+                        else 1.0 if local_supply is not None else None),
+                    'effective_margin': margin,
+                    'best_sector_threshold_before': best_profit_margin,
+                    'selected_as_best_sector': selected_as_best})
+                if selected_as_best:
                     best_profit_margin = margin
                     best_sector = g
 
             # Invest in existing firm or found new corporation
             company = getattr(agent, 'company_owned', None)
-            if (company and getattr(company, 'is_corporation', False) and company.alive
-                    and company in region.agents
-                    and company.home_currency == region.home_currency):
+            company_can_expand = bool(
+                company and getattr(company, 'is_corporation', False)
+                and company.alive and company in region.agents
+                and company.home_currency == region.home_currency)
+            can_incorporate = bool(
+                company is None and agent.cash >= 300.0
+                and not getattr(agent, 'employer', None) and best_sector)
+            investment_action = ('CAPITAL_EXPANSION' if company_can_expand else
+                                 'INCORPORATE_FIRM' if can_incorporate else 'continue')
+            if company_can_expand:
+                investment_reason = 'expand_existing_same_currency_company'
+            elif can_incorporate:
+                investment_reason = 'cash_gate_and_positive_best_sector_passed'
+            elif company is not None:
+                investment_reason = 'owned_company_not_expandable_in_this_currency_or_region'
+            elif agent.cash < 300.0:
+                investment_reason = 'incorporation_cash_below_300'
+            elif getattr(agent, 'employer', None):
+                investment_reason = 'owner_is_employed'
+            else:
+                investment_reason = 'no_sector_with_positive_effective_margin'
+            from run_trace import emit
+            investment_event_id = emit(
+                region, kind='elite_capital_allocation_evaluation',
+                record_class='decision', phase='local',
+                subject={'type': 'agent', 'id': agent.id,
+                         'tile': getattr(region, 'name', 'default')},
+                metric_id='ai.elite_economic_decision', unit='candidate',
+                after=investment_action,
+                formula_id='elite.capital_allocation_gate.v1',
+                inputs={'opening_cash': float(agent.cash),
+                        'investment_cash_threshold': 150.0,
+                        'incorporation_cash_threshold': 300.0,
+                        'eligible_sector_evaluations': sector_evaluations,
+                        'excluded_sectors': sector_exclusions,
+                        'best_sector': (getattr(best_sector, 'name', str(best_sector))
+                                        if best_sector is not None else None),
+                        'best_effective_margin': best_profit_margin,
+                        'owner_is_lord': bool(getattr(agent, 'is_lord', False)),
+                        'owner_has_employer': bool(getattr(agent, 'employer', None)),
+                        'owned_company_id': (str(company.id) if company else None),
+                        'company_can_expand': company_can_expand,
+                        'can_incorporate': can_incorporate,
+                        'selected_branch': investment_action,
+                        'reason': investment_reason})
+            if investment_event_id is not None:
+                result['evaluation_event_ids'].append(investment_event_id)
+
+            if company_can_expand:
                 # Capital injection to expand workforce & machinery
                 injection = min(agent.cash * 0.4, 50.0)
+                owner_cash_before = float(agent.cash)
+                company_cash_before = float(company.cash)
+                wage_before = float(company.wage)
+                employee_cap_before = int(company.max_employees)
                 agent.cash -= injection
                 company.cash += injection
                 # Raise offered wage to attract more workers
                 company.wage = round(max(company.wage * 1.10, company.wage + 0.5), 2)
                 company.max_employees = min(50, company.max_employees + 5)
                 result['action_taken'] = 'CAPITAL_EXPANSION'
-                result['details'] = {'company_id': company.id, 'injection': injection, 'new_wage': company.wage}
+                result['details'] = {
+                    'company_id': company.id, 'injection': injection,
+                    'new_wage': company.wage,
+                    'owner_cash_before': owner_cash_before,
+                    'owner_cash_after': float(agent.cash),
+                    'company_cash_before': company_cash_before,
+                    'company_cash_after': float(company.cash),
+                    'wage_before': wage_before,
+                    'wage_after': float(company.wage),
+                    'employee_cap_before': employee_cap_before,
+                    'employee_cap_after': int(company.max_employees)}
                 return result
-            elif (company is None and agent.cash >= 300.0
-                  and not getattr(agent, 'employer', None) and best_sector):
+            elif can_incorporate:
                 # Incorporate firm in highest-margin sector
                 from agent import Agent, seed_traits
                 comp = Agent(t)
@@ -896,6 +1004,7 @@ class EliteCapitalistPlanner:
                 comp.home_currency = getattr(region, 'home_currency', None)
                 comp.region = getattr(region, 'name', '')
                 agent.company_owned = comp
+                founder_cash_before = float(agent.cash)
                 equity = min(agent.cash * 0.5, agent.cash - 60.0)
                 agent.cash -= equity
                 comp.cash = equity
@@ -905,7 +1014,12 @@ class EliteCapitalistPlanner:
                 comp.max_employees = 15
                 region.agents.append(comp)
                 result['action_taken'] = 'INCORPORATE_FIRM'
-                result['details'] = {'company_id': comp.id, 'sector': best_sector.name, 'wage': comp.wage}
+                result['details'] = {
+                    'company_id': comp.id, 'sector': best_sector.name,
+                    'wage': comp.wage, 'owner_cash_before': founder_cash_before,
+                    'owner_cash_after': float(agent.cash),
+                    'company_equity': float(comp.cash),
+                    'initial_employee_cap': int(comp.max_employees)}
                 return result
 
         # ---------------------------------------------------------------------

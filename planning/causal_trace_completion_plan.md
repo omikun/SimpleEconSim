@@ -2396,3 +2396,19 @@ supply-control tests passed. Trace-on/off liquidation fixtures produced the
 same action and balances; both a selected buyer and an unaffordable buyer were
 checked. Python compilation and `git diff --check` passed. The planner's other
 real evaluation stages remain open.
+
+## Phase 4 follow-up — Trace real capital allocation (implemented)
+
+The actual expansion/incorporation path now records all eligible recipes it
+scans, excluded output reasons, output and input values, local input inventory
+and producing agents, the current 0.05 scarcity penalty, and the strict
+best-margin comparison. It records the actual existing-company expansion or
+incorporation gate and links that evaluation to the decision. The action outcome
+includes owner/company cash changes, and expansion also records wage and
+employee-cap changes.
+
+Verification: a fixture confirms the high-margin furniture sector is reduced
+by input scarcity and loses to food; trace-on/off state remains identical. The
+elite, capitalist, actor-account, supply-control, metric-catalog, and trace
+reader suites passed (107 tests), as did compilation and `git diff --check`.
+Other real planner stages and preflight purity/RNG neutrality remain open.

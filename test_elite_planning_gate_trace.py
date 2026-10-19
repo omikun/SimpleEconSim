@@ -259,6 +259,77 @@ class ElitePlanningGateTraceTests(unittest.TestCase):
                         if row['kind'] == 'corporation_ai_decision')
         self.assertEqual(decision['cause_event_ids'], [evaluation['event_id']])
 
+    def _investment_case(self, traced):
+        planner = EliteCapitalistPlanner()
+        owner = Actor(27, lord=False)
+        owner.cash = 400.0
+        company = Actor(28, lord=False)
+        company.is_corporation = True
+        company.home_currency = 'crown'
+        company.cash = 100.0
+        company.wage = 2.0
+        company.max_employees = 10
+        company.output = Goods.food
+        owner.company_owned = company
+        region, _, trace = self.make_region(
+            goods=[Goods.food, Goods.wood, Goods.furniture],
+            actor=owner, traced=traced)
+        region.agents = [owner, company]
+        region.recipes = {
+            Goods.food: {'price': 10.0, 'production': 1.0, 'numInput': 0},
+            Goods.wood: {'price': 3.0, 'production': 2.0, 'numInput': 0},
+            Goods.furniture: {'price': 100.0, 'production': 1.0,
+                              'input': Goods.wood, 'numInput': 5.0},
+        }
+        region.economic_events = []
+        region.neighbors = {}
+        region.trade_manager = None
+        region.home_currency = 'crown'
+        planner._elite_candidate_snapshot = lambda *_args: []
+        planner.get_market_luxuries = lambda *_args: []
+        planner.evaluate_triangular_trade_voyage = lambda *_args: None
+        planner.evaluate_spatial_trade = lambda *_args: None
+        planner.evaluate_class_legislation = lambda *_args: None
+        planner._execute_input_control = lambda *_args: None
+        with patch.object(TransformationGraph, 'get_operator', return_value=None), \
+                patch('economy.actor_accounts.record', return_value=None):
+            result = planner.plan_and_execute_elite(owner, region, 7)
+        return result, owner, company, trace
+
+    def test_capital_expansion_records_actual_sector_scan_and_balances(self):
+        traced = self._investment_case(True)
+        plain = self._investment_case(False)
+        result, owner, company, trace = traced
+        plain_result, plain_owner, plain_company, _ = plain
+
+        self.assertEqual(result['action_taken'], 'CAPITAL_EXPANSION')
+        self.assertEqual(plain_result['action_taken'], result['action_taken'])
+        self.assertEqual((owner.cash, company.cash, company.wage,
+                          company.max_employees),
+                         (plain_owner.cash, plain_company.cash,
+                          plain_company.wage, plain_company.max_employees))
+        self.assertEqual((owner.cash, company.cash, company.wage,
+                          company.max_employees), (350.0, 150.0, 2.5, 15))
+
+        evaluation = next(row for row in trace.rows
+                          if row['kind'] == 'elite_capital_allocation_evaluation')
+        inputs = evaluation['inputs']
+        self.assertEqual(evaluation['after'], 'CAPITAL_EXPANSION')
+        self.assertEqual(inputs['best_sector'], 'food')
+        furniture = next(row for row in inputs['eligible_sector_evaluations']
+                         if row['good'] == 'furniture')
+        self.assertEqual(furniture['raw_margin'], 85.0)
+        self.assertEqual(furniture['local_input_supply'], 0)
+        self.assertEqual(furniture['input_shortage_penalty'], 0.05)
+        self.assertEqual(furniture['effective_margin'], 4.25)
+        decision = next(row for row in trace.rows
+                        if row['kind'] == 'corporation_ai_decision')
+        self.assertEqual(decision['cause_event_ids'], [evaluation['event_id']])
+        outcome = next(row for row in trace.rows
+                       if row['kind'] == 'corporation_ai_outcome')
+        self.assertEqual(outcome['decision_id'], decision['event_id'])
+        self.assertEqual(outcome['inputs']['details']['company_cash_after'], 150.0)
+
 
 if __name__ == '__main__':
     unittest.main()
