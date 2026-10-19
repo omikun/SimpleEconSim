@@ -1477,3 +1477,15 @@ Verification: project, catalog, food-outcome, and current-turn production-index
 regressions passed (15 tests). The Nile-repair debt-tradeoff playthrough passed.
 The compact trace verified successfully. Compilation and `git diff --check`
 passed.
+
+Phase 2 follow-up, 2026-10-18: private warehouse releases now trace every
+household's food need and cash affordability at the posted price, actual
+purchase, and no-sale reason. District release outcomes link to the exact cash
+and food legs. Opening the private grain market records the policy transition,
+stock and release totals by district, and links to those outcomes; repeat
+requests show the already-open gate. Automatic open-market releases have their
+own trigger label. Trading behavior is unchanged.
+
+Verification: grain-transfer, private-release, project, and metric-catalog
+regressions passed (20 tests), including trace-on/off parity and compact `.ctr`
+verification. Compilation and `git diff --check` passed.

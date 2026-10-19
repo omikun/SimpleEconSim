@@ -222,7 +222,7 @@ def _emit_private_grain_trade(tile, *, operation_id, operation_type, turn,
                               goods_payer_id, goods_payee_id,
                               goods_payer_before, goods_payer_after,
                               goods_payee_before, goods_payee_after,
-                              details=None):
+                              details=None, trace_event_ids=None):
     currency = getattr(tile, 'home_currency', None) or 'local_currency'
     payer_cash = account_ref(
         'agent', payer.id, currency, balance_before=payer_cash_before,
@@ -250,11 +250,15 @@ def _emit_private_grain_trade(tile, *, operation_id, operation_type, turn,
         'agent_inventory', goods_payee_id, 'food_units',
         balance_before=int(goods_payee_before),
         balance_after=int(goods_payee_after), balance_scope='inventory.food')
-    _emit_grain_stock_transfer(
+    food_event_id = _emit_grain_stock_transfer(
         tile, operation_id=operation_id, operation_type=operation_type,
         units=units, payer_account=payer_goods, payee_account=payee_goods,
         turn=turn, cash_transfer_status='cash_transfer.v1',
         cash_event_id=cash_event_id, details=details)
+    if trace_event_ids is not None:
+        trace_event_ids.extend(event_id for event_id in
+                               (cash_event_id, food_event_id)
+                               if event_id is not None)
     return operation_id
 
 
@@ -334,12 +338,32 @@ def hold_after_harvest(tile, turn):
             tile.scenario_grain_offer_units = _reserved(world, tile)
 
 
-def _sell_to_households(world, tile, owner, limit=None):
+def _sell_to_households(world, tile, owner, limit=None, *, trigger='open_market',
+                        trace_operation_id=None, trace_event_ids=None):
     price = _price(tile)
     reserved_before = _reserved(world, tile)
     sold = 0
     operation_ids = []
+    sale_event_ids = []
     buyers = sorted(_households(tile), key=lambda a: (-deficit_fraction(a), a.cash))
+    buyer_decisions = []
+    for buyer in buyers:
+        food_before = int(buyer.inv_get(Goods.food, 0))
+        cash_before = float(buyer.cash)
+        need = max(0, 4 - food_before)
+        affordable = int(cash_before / price)
+        reason = ('no_food_need' if need <= 0 else
+                  'warehouse_empty' if reserved_before <= 0 else
+                  'unaffordable_at_posted_price' if affordable <= 0 else
+                  'eligible_not_yet_served')
+        buyer_decisions.append({
+            'buyer_id': buyer.id, 'food_inventory_before': food_before,
+            'cash_before': cash_before, 'food_need_units': need,
+            'cash_affordable_units': affordable,
+            'food_deficit_fraction_before': deficit_fraction(buyer),
+            'units_purchased': 0, 'food_inventory_after': food_before,
+            'cash_after': cash_before, 'decision_reason': reason})
+    decisions_by_buyer = {row['buyer_id']: row for row in buyer_decisions}
     for buyer in buyers:
         if owner.inv_get(Goods.food, 0) <= 0 or (limit is not None and sold >= limit):
             break
@@ -373,6 +397,7 @@ def _sell_to_households(world, tile, owner, limit=None):
             goods_payer_after=int(owner.inv_get(Goods.food, 0)),
             goods_payee_before=buyer_food_before,
             goods_payee_after=int(buyer.inv_get(Goods.food, 0)),
+            trace_event_ids=sale_event_ids,
             details={'owner_id': owner.id, 'buyer_id': buyer.id,
                      'unit_price': price, 'sale_reason': 'private_warehouse_release',
                      'buyer_need_units': need,
@@ -381,11 +406,64 @@ def _sell_to_households(world, tile, owner, limit=None):
                      'buyer_food_deficit_fraction': deficit_fraction(buyer),
                      'remaining_release_limit': (None if limit is None
                                                  else max(0, limit - sold))}))
+        decision = decisions_by_buyer[buyer.id]
+        decision.update(units_purchased=units,
+                        food_inventory_after=int(buyer.inv_get(Goods.food, 0)),
+                        cash_after=float(buyer.cash),
+                        decision_reason='purchased')
         sold += units
     if sold:
         _set_reserved(world, tile, max(0, reserved_before - sold))
         _record_grain(world, tile, 'market_sale', sold, sold * price,
                       owner.id, operation_ids=operation_ids)
+    reserved_after = _reserved(world, tile)
+    for decision in buyer_decisions:
+        if decision['decision_reason'] == 'eligible_not_yet_served':
+            decision['decision_reason'] = (
+                'warehouse_or_release_limit_exhausted'
+                if owner.inv_get(Goods.food, 0) <= 0
+                or (limit is not None and sold >= limit)
+                else 'eligible_but_no_sale_recorded')
+    if reserved_before <= 0:
+        reason = 'warehouse_empty'
+    elif limit is not None and limit <= 0:
+        reason = 'release_limit_zero'
+    elif sold:
+        reason = 'household_sales_completed'
+    elif not buyers or all(row['food_need_units'] <= 0 for row in buyer_decisions):
+        reason = 'no_household_food_need'
+    elif all(row['decision_reason'] == 'unaffordable_at_posted_price'
+             for row in buyer_decisions if row['food_need_units'] > 0):
+        reason = 'households_cannot_afford_posted_price'
+    else:
+        reason = 'no_household_sale_completed'
+    operation_id = trace_operation_id or (
+        f'grain-release:{tile.name}:{int(world["turn"])}:{trigger}:'
+        f'{owner.id}:{reserved_before}')
+    from run_trace import emit
+    release_event_id = emit(
+        tile, kind='private_grain_release_resolved',
+        record_class='outcome' if sold else 'decision',
+        phase='scenario_economy',
+        subject={'type': 'tile/agent', 'id': owner.id, 'tile': tile.name,
+                 'good': Goods.food.name},
+        metric_id='scenario.private_grain_release', unit='food_units',
+        before=reserved_before, after=reserved_after,
+        formula_id='scenario_political_economy.private_grain_release.v1',
+        inputs={'operation_id': operation_id, 'turn': int(world['turn']),
+                'trigger': trigger, 'reason': reason,
+                'owner_id': owner.id, 'posted_food_price': float(price),
+                'release_limit': limit, 'reserved_food_before': reserved_before,
+                'reserved_food_after': reserved_after,
+                'units_sold': int(sold),
+                'owner_food_inventory_after': int(owner.inv_get(Goods.food, 0)),
+                'owner_cash_after': float(owner.cash),
+                'buyer_decisions': buyer_decisions,
+                'grain_transaction_operation_ids': operation_ids,
+                'purchase_transfer_event_ids': sale_event_ids},
+        cause_event_ids=sale_event_ids or None)
+    if release_event_id is not None and trace_event_ids is not None:
+        trace_event_ids.append(release_event_id)
     return sold
 
 
@@ -1080,11 +1158,50 @@ def advance(world, nation, turn):
         if owner is not None:
             _reserved(world, tile)
             if econ['grain_policy'] == 'open':
-                _sell_to_households(world, tile, owner, limit=_reserved(world, tile))
+                _sell_to_households(
+                    world, tile, owner, limit=_reserved(world, tile),
+                    trigger='automatic_open_market',
+                    trace_operation_id=(
+                        f'grain-release:{nation.name}:{int(turn)}:{tile.name}:'
+                        'automatic_open_market'))
         _assess_arrears(world, tile, assessed_ids)
         _organize(world, tile)
     _resolve_collection_proposal(world, turn)
     _fiscal_report(world, nation, turn)
+
+
+def _private_grain_policy_operation_id(world, nation, action_id):
+    region = (getattr(nation, 'tiles', [None])[0]
+              if getattr(nation, 'tiles', None) else None)
+    clock = getattr(region, '_collective_trace_clock', None) if region else None
+    ordinal = int(clock.get('next', 1)) if clock is not None else int(world['turn'])
+    return (f'grain-policy:{nation.name}:{int(world["turn"])}:'
+            f'{action_id}:{ordinal}')
+
+
+def _trace_private_grain_policy(world, nation, *, operation_id, success,
+                                reason, before, after, details=None,
+                                cause_event_ids=None):
+    region = (getattr(nation, 'tiles', [None])[0]
+              if getattr(nation, 'tiles', None) else
+              next(iter(world.get('tiles', ())), None))
+    if region is None:
+        return None
+    from run_trace import emit
+    return emit(
+        region, kind='private_grain_policy_resolved',
+        record_class='outcome' if success else 'decision',
+        phase='scenario_action',
+        subject={'type': 'nation', 'id': nation.name},
+        metric_id='scenario.private_grain_policy', unit='policy',
+        before=before, after=after,
+        formula_id='scenario_political_economy.private_grain_policy.v1',
+        inputs={'operation_id': operation_id,
+                'action_id': 'open_private_grain_market',
+                'turn': int(world['turn']), 'success': bool(success),
+                'reason': reason, 'policy_before': before,
+                'policy_after': after, **(details or {})},
+        cause_event_ids=cause_event_ids)
 
 
 def _resolve_collection_proposal(world, turn):
@@ -1221,14 +1338,52 @@ def apply_action(world, nation, action_id, tile=None):
             return True, f'Proposed a {old:.1f}→{old * .5:.1f} collection cap for eight more inspection turns; the Caisse replies next turn.'
         total = stock(world, nation)
         if action_id == 'open_private_grain_market':
+            operation_id = _private_grain_policy_operation_id(
+                world, nation, action_id)
+            policy_before = econ['grain_policy']
             if econ['grain_policy'] == 'open':
+                _trace_private_grain_policy(
+                    world, nation, operation_id=operation_id, success=False,
+                    reason='grain_market_already_open', before=policy_before,
+                    after=policy_before,
+                    details={'private_stock_before': float(total),
+                             'sold_units': 0,
+                             'release_event_ids': []})
                 return False, 'Private grain sales are already open.'
             econ['grain_policy'] = 'open'
+            sold = 0
+            release_event_ids = []
+            tile_results = []
             for tile in nation.tiles:
                 tile.scenario_grain_policy = 'open'
-                tile.scenario_grain_offer_units = _reserved(world, tile)
-            sold = sum(_sell_to_households(world, tile, owner, limit=_reserved(world, tile))
-                       for tile in nation.tiles if (owner := _holder(world, tile)) is not None)
+                reserved_before = _reserved(world, tile)
+                tile.scenario_grain_offer_units = reserved_before
+                owner = _holder(world, tile)
+                if owner is None:
+                    continue
+                tile_sold = _sell_to_households(
+                    world, tile, owner, limit=reserved_before,
+                    trigger='open_private_grain_market',
+                    trace_operation_id=f'{operation_id}:{tile.name}',
+                    trace_event_ids=release_event_ids)
+                sold += tile_sold
+                tile_results.append({
+                    'tile': tile.name, 'owner_id': owner.id,
+                    'reserved_before': reserved_before,
+                    'reserved_after': _reserved(world, tile),
+                    'sold_units': int(tile_sold)})
+            stock_after = float(stock(world, nation))
+            _trace_private_grain_policy(
+                world, nation, operation_id=operation_id, success=True,
+                reason=('private_sales_opened' if total else
+                        'private_sales_opened_without_reserved_stock'),
+                before=policy_before, after=econ['grain_policy'],
+                details={'private_stock_before': float(total),
+                         'private_stock_after': stock_after,
+                         'sold_units': int(sold),
+                         'tile_release_results': tile_results,
+                         'release_event_ids': release_event_ids},
+                cause_event_ids=release_event_ids or None)
             return True, f'Allowed private grain sales: {sold} units reached households that could pay; holders continue to set the price.'
         if total <= 0:
             return False, 'No private warehouse maize is available.'

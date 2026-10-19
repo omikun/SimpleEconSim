@@ -393,11 +393,28 @@ passed. Outcome logging is idempotent within a turn, trace-on/off project state
 parity remains covered, and the compact `.ctr` passed verification.
 Compilation and `git diff --check` passed.
 
-Next Phase 2 audit target: trace private warehouse releases in
-`scenario_political_economy._sell_to_households` and the `open_private_grain_market`
-policy from posted grain stock through each buyer's cash affordability and
-food-inventory/deficit change, then compare the post-release result with the
-earlier pre-political-economy Nile harvest sample.
+### Phase 2 follow-up — Trace private warehouse releases to households (implemented)
+
+`scenario_political_economy._sell_to_households` now records the posted food
+price, reserved warehouse stock, each household's inventory need and cash
+affordability, actual purchase quantity, and the reason a household bought
+nothing. The district release event links to each buyer/owner cash and food
+transfer and distinguishes an empty warehouse, an unaffordable price, absent
+food need, and a completed sale. The national `open_private_grain_market`
+decision records its policy transition or already-open rejection, private
+stock before/after, district release results, and links to those release
+events. Automatic releases under an already-open policy are tagged separately.
+The existing buyer order and allocation rules did not change.
+
+Verification: grain-transfer, private-release, project, and metric-catalog
+regressions passed (20 tests). Tests cover paid and unaffordable buyers,
+transaction-to-release and policy-to-district causes, duplicate policy request,
+trace-on/off parity, and compact `.ctr` verification. Compilation and
+`git diff --check` passed.
+
+Next Phase 2 audit target: trace the released household food through the next
+consumption step so a sale can be distinguished from food actually eaten,
+including later food inventory, calorie-deficit, and hunger outcomes.
 
 ## Phase 5 — Deliver explanations in web, desktop and CLI
 
