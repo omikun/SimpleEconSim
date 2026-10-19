@@ -2111,3 +2111,17 @@ input[type="range"] {
 .vis-card.full-width canvas {
   height: 260px;
 }
+
+.trace-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin: 10px 0;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.trace-pagination span {
+  margin-right: auto;
+}

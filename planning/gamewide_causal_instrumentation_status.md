@@ -1665,3 +1665,13 @@ production, inventory, and demand-ratio series to cotton-filtered trace events.
 The trade-history chart, affordability, and world-trade accounting tests passed
 (5 Python tests); Node UI, Python/JavaScript syntax, and whitespace checks
 passed.
+
+Phase 5 follow-up, 2026-10-18: chart trace inspectors now have Previous/Next
+pagination controls over the trace API's 200-row pages. The displayed range
+lets players tell which matching evidence page they are viewing; the existing
+download remains available for full-run analysis.
+
+Verification: an endpoint test confirms offset pagination returns the expected
+next record with stable filtering. Trace UI JavaScript syntax, Node UI checks,
+trace query/download, and whitespace checks passed. Desktop chart-to-trace
+selection and remaining labor/citizen chart histories are still open.

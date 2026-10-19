@@ -2263,3 +2263,16 @@ against a cotton-filtered turn record. Trade chart alignment, market
 affordability, and world-trade accounting checks passed (5 Python tests); Node
 UI, JavaScript/Python syntax, and `git diff --check` passed. Desktop chart
 drilldown remains open.
+
+## Phase 5 follow-up — Page chart trace evidence (implemented)
+
+The chart and price inspectors now page through matching trace records in
+groups of 200 with Previous/Next controls and a visible record range. This uses
+the trace API's existing offset support, including exact event selection and
+good/disease/class filters. The fixed 200-row cap no longer strands evidence
+behind a download-only message.
+
+Verification: the web endpoint test compares offset page 2 with the matching
+row from page 1. JavaScript syntax, Node UI utility, trace query/download, and
+`git diff --check` checks passed. Desktop chart drilldown and other remaining
+labor/citizen series remain open.

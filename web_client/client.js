@@ -2913,6 +2913,41 @@
 
   // ---------------- 20 Charts Engine ----------------
 
+  const TRACE_PAGE_SIZE = 200;
+
+  function appendTracePagination(output, result, offset, onPage) {
+    const total = Number(result?.total) || 0;
+    const rows = result?.events || [];
+    if (total <= TRACE_PAGE_SIZE) return;
+
+    const navigation = document.createElement('div');
+    navigation.className = 'trace-pagination';
+    const first = rows.length ? offset + 1 : 0;
+    const last = offset + rows.length;
+    const status = document.createElement('span');
+    status.textContent = `Records ${first}–${last} of ${total}`;
+    navigation.appendChild(status);
+
+    const previous = document.createElement('button');
+    previous.type = 'button';
+    previous.className = 'btn btn-secondary btn-xs';
+    previous.textContent = 'Previous';
+    previous.disabled = offset <= 0;
+    previous.addEventListener('click', () =>
+      onPage(Math.max(0, offset - TRACE_PAGE_SIZE)));
+    navigation.appendChild(previous);
+
+    const next = document.createElement('button');
+    next.type = 'button';
+    next.className = 'btn btn-secondary btn-xs';
+    next.textContent = 'Next';
+    next.disabled = offset + rows.length >= total;
+    next.addEventListener('click', () =>
+      onPage(offset + TRACE_PAGE_SIZE));
+    navigation.appendChild(next);
+    output.appendChild(navigation);
+  }
+
   function openPriceTraceInspector({ good, entity, metric, turn, container }) {
     if (!container) return;
     const old = document.getElementById('market-price-trace-detail');
@@ -2938,6 +2973,7 @@
     const priceKind = detail.querySelector('.trace-price-kind');
     const eventIdInput = detail.querySelector('.trace-event-id');
     const output = detail.querySelector('.price-trace-result');
+    let pageOffset = 0;
     const load = async () => {
       const selected = Number(turnInput.value);
       const eventId = eventIdInput.value.trim();
@@ -2951,7 +2987,8 @@
         const params = eventId
           ? new URLSearchParams({ event_id: eventId, limit: '1' })
           : new URLSearchParams({ turn: String(selected), entity,
-            good, metric: priceKind.value, limit: '200' });
+            good, metric: priceKind.value, limit: String(TRACE_PAGE_SIZE),
+            offset: String(pageOffset) });
         const response = await fetch(`/api/trace?${params}`);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const result = await response.json();
@@ -3027,14 +3064,16 @@
             }
           }
         }
-        if (result.total > rows.length) {
-          const line = document.createElement('p');
-          line.textContent = `${result.total - rows.length} further records exist; use the trace download for the full history.`;
-          output.appendChild(line);
-        }
+        appendTracePagination(output, result, pageOffset, nextOffset => {
+          pageOffset = nextOffset;
+          load();
+        });
       } catch (error) { output.textContent = `Could not load price records: ${error.message}`; }
     };
-    detail.querySelector('.trace-load').addEventListener('click', load);
+    detail.querySelector('.trace-load').addEventListener('click', () => {
+      pageOffset = 0;
+      load();
+    });
     load();
   }
 
@@ -3057,6 +3096,7 @@
     const turnInput = detail.querySelector('.trace-turn');
     const eventIdInput = detail.querySelector('.trace-event-id');
     const output = detail.querySelector('.trace-record-result');
+    let pageOffset = 0;
     const load = async () => {
       const selected = Number(turnInput.value);
       const eventId = eventIdInput.value.trim();
@@ -3067,7 +3107,8 @@
       }
       output.textContent = eventId ? 'Loading exact event…' : 'Loading metric records…';
       try {
-        const filters = { turn: String(selected), entity, metric, limit: '200' };
+        const filters = { turn: String(selected), entity, metric,
+          limit: String(TRACE_PAGE_SIZE), offset: String(pageOffset) };
         if (good) filters.good = good;
         if (disease) filters.disease = disease;
         if (classGroup) filters.class_group = classGroup;
@@ -3127,6 +3168,7 @@
               inspect.textContent = causeId;
               inspect.addEventListener('click', () => {
                 eventIdInput.value = causeId;
+                pageOffset = 0;
                 load();
               });
               article.appendChild(inspect);
@@ -3134,14 +3176,16 @@
           }
           output.appendChild(article);
         }
-        if (result.total > rows.length) {
-          const more = document.createElement('p');
-          more.textContent = `${result.total - rows.length} further records exist; use the trace download for the full history.`;
-          output.appendChild(more);
-        }
+        appendTracePagination(output, result, pageOffset, nextOffset => {
+          pageOffset = nextOffset;
+          load();
+        });
       } catch (error) { output.textContent = `Could not load metric records: ${error.message}`; }
     };
-    detail.querySelector('.trace-load').addEventListener('click', load);
+    detail.querySelector('.trace-load').addEventListener('click', () => {
+      pageOffset = 0;
+      load();
+    });
     load();
   }
 

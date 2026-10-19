@@ -210,6 +210,16 @@ class TestWebServerEndpoints(unittest.TestCase):
         kind_payload = json.loads(handler.get_body())
         self.assertEqual(len(kind_payload['events']), 1)
         self.assertEqual(kind_payload['events'][0]['kind'], 'turn_checkpoint')
+        first_page_query = urllib.parse.urlencode({
+            'turn': 1, 'kind': 'metric_snapshot', 'limit': 2, 'offset': 0})
+        first_page = json.loads(MockHttpRequestHandler(
+            self.mock_server, 'GET', f'/api/trace?{first_page_query}').get_body())
+        self.assertGreaterEqual(first_page['total'], 2)
+        next_page_query = urllib.parse.urlencode({
+            'turn': 1, 'kind': 'metric_snapshot', 'limit': 1, 'offset': 1})
+        next_page = json.loads(MockHttpRequestHandler(
+            self.mock_server, 'GET', f'/api/trace?{next_page_query}').get_body())
+        self.assertEqual(next_page['events'], first_page['events'][1:2])
         handler = MockHttpRequestHandler(self.mock_server, 'GET', '/api/trace/download')
         self.assertEqual(handler.response_status, 200)
         self.assertIn(b'"run_id"', handler.get_body())
