@@ -24,6 +24,12 @@
       { id: 'furniture_inventories', name: 'Furniture Stocks' },
       { id: 'unrest', name: 'Protest Energy' }
     ],
+    market: [
+      { id: 'market_price', name: 'Reference Price' },
+      { id: 'market_production', name: 'Production' },
+      { id: 'market_demand_ratio', name: 'Demand / Supply' },
+      { id: 'market_inventory', name: 'Producer Stocks' }
+    ],
     ecological: [
       { id: 'soil', name: 'Soil Fertility' }, { id: 'nutrition', name: 'Nutrition Density' },
       { id: 'smog', name: 'Smog Particulate' },
@@ -206,18 +212,37 @@
     rent_collected: Object.freeze({ metricId: 'finance.rent_collected',
       tilePath: ['citizens', 'commons_rent', 'rent'], label: 'Rent collected' }),
     rent_arrears: Object.freeze({ metricId: 'finance.rent_arrears',
-      tilePath: ['citizens', 'commons_rent', 'arrears'], label: 'Rent arrears' })
+      tilePath: ['citizens', 'commons_rent', 'arrears'], label: 'Rent arrears' }),
+    market_price: Object.freeze({ metricId: 'goods.price',
+      tileMetricId: 'goods.price', priceChart: true, dynamicGood: true,
+      pathPrefix: ['economic', 'prices'], labelSuffix: 'price' }),
+    market_production: Object.freeze({ metricId: 'goods.production',
+      dynamicGood: true, pathPrefix: ['economic', 'production'],
+      labelSuffix: 'production' }),
+    market_demand_ratio: Object.freeze({ metricId: 'goods.demand_ratio',
+      dynamicGood: true, pathPrefix: ['economic', 'demand_ratio'],
+      labelSuffix: 'demand / supply ratio' }),
+    market_inventory: Object.freeze({ metricId: 'goods.producer_inventory',
+      dynamicGood: true, pathPrefix: ['economic', 'inventories'],
+      labelSuffix: 'producer stocks' })
   });
 
   function getChartCatalog() {
     return chartCatalog;
   }
 
-  function getTraceBinding(metric) {
+  function getTraceBinding(metric, selectedGood) {
     const binding = traceBindings[metric];
     return binding ? {
       ...binding,
-      tilePath: binding.tilePath && [...binding.tilePath],
+      tilePath: binding.dynamicGood
+        ? [...binding.pathPrefix, String(selectedGood || '').toLowerCase()]
+        : binding.tilePath && [...binding.tilePath],
+      good: binding.dynamicGood ? String(selectedGood || '').toLowerCase()
+        : binding.good,
+      label: binding.dynamicGood
+        ? `${String(selectedGood || 'Good').replaceAll('_', ' ')} ${binding.labelSuffix}`
+        : binding.label,
       seriesPaths: binding.seriesPaths && binding.seriesPaths.map(path => [...path])
     } : null;
   }
@@ -236,6 +261,7 @@
   }
 
   function drawHistoricalChart(canvas, values, metric, dpr = 1, options = {}) {
+    const metricLabel = options.label || metric;
     const ctx = canvas.getContext('2d');
     const width = canvas.clientWidth || 380;
     const height = canvas.clientHeight || 220;
@@ -259,7 +285,7 @@
       ctx.textAlign = 'center';
       ctx.fillText('No data series available', width / 2, height / 2);
       ctx.restore();
-      return `${String(metric).toUpperCase()}: No data series available`;
+      return `${String(metricLabel).toUpperCase()}: No data series available`;
     }
     const series = values;
     const padL = 44;
@@ -342,7 +368,7 @@
       canvas.style.cursor = '';
     }
     ctx.restore();
-    return `${String(metric).toUpperCase()}: Historical Trend over Turns (Min ${minVal.toFixed(1)} | Max ${maxVal.toFixed(1)})`;
+    return `${String(metricLabel).toUpperCase()}: Historical Trend over Turns (Min ${minVal.toFixed(1)} | Max ${maxVal.toFixed(1)})`;
   }
 
   const CoCCharts = Object.freeze({

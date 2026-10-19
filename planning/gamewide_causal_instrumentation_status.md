@@ -1651,3 +1651,17 @@ Verification: two-turn integration checks match price, production, inventory,
 and all three demand-ratio chart points to the selected good's turn-scoped trace
 records and replay demand divided by supply (or the recorded zero-supply case).
 Trade-chart integration, Node UI, syntax, and `git diff --check` passed.
+
+Phase 5 follow-up, 2026-10-18: added an Additional Goods chart mode with a
+commodity selector for other local market goods. Tile charts now include the
+active commodity's price, production, inventory, and demand ratio without
+adding a fixed chip for every commodity. Transport receives its own
+turn-aligned supply-pressure calculation. Once a commodity has entered local
+trade, later inactive turns are recorded as no-market observations so chart
+points continue to align with turn numbers.
+
+Verification: the cotton-market integration test matches the dynamic price,
+production, inventory, and demand-ratio series to cotton-filtered trace events.
+The trade-history chart, affordability, and world-trade accounting tests passed
+(5 Python tests); Node UI, Python/JavaScript syntax, and whitespace checks
+passed.

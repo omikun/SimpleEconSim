@@ -2246,3 +2246,20 @@ demand-ratio series by turn and replays bids divided by offers or the explicit
 zero-supply fallback. Trade charts, Node UI, JavaScript/Python syntax, and
 `git diff --check` passed. Additional active local goods and desktop chart
 drilldown remain open.
+
+## Phase 5 follow-up — Select additional local market goods (implemented)
+
+Added an Additional Goods chart mode with a commodity selector. It exposes
+turn histories for each tile's active non-core goods without filling the chart
+selector with a fixed chip per good. The selected commodity's reference price,
+production, inventory, and demand/supply ratio use the existing per-good trace
+metrics. Transport pressure now has a calculation record too. After a good has
+been active in a local market, later inactive turns receive an explicit
+no-market observation, keeping chart turns aligned without feeding fallback
+values into the AI's sparse market history.
+
+Verification: a cotton-producing tile test checks each dynamic chart series
+against a cotton-filtered turn record. Trade chart alignment, market
+affordability, and world-trade accounting checks passed (5 Python tests); Node
+UI, JavaScript/Python syntax, and `git diff --check` passed. Desktop chart
+drilldown remains open.

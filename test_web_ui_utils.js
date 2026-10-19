@@ -89,6 +89,16 @@ assert.equal(globalThis.CoCCharts.getTraceBinding('furniture_price').priceChart,
 assert.equal(globalThis.CoCCharts.getTraceBinding('wood_production').good, 'wood');
 assert.equal(globalThis.CoCCharts.getTraceBinding('furniture_demand_ratio').good,
   'furniture');
+const cottonPriceBinding = globalThis.CoCCharts.getTraceBinding('market_price', 'cotton');
+assert.equal(cottonPriceBinding.good, 'cotton');
+assert.equal(cottonPriceBinding.tileMetricId, 'goods.price');
+assert.equal(cottonPriceBinding.priceChart, true);
+assert.deepEqual(cottonPriceBinding.tilePath, ['economic', 'prices', 'cotton']);
+assert.equal(cottonPriceBinding.label, 'cotton price');
+assert.deepEqual(globalThis.CoCCharts.getTileSeries({ economic: { prices: {
+  cotton: [2.2, 2.4]
+} } }, cottonPriceBinding), [2.2, 2.4]);
+assert.equal(globalThis.CoCCharts.getChartCatalog().market.length, 4);
 assert.equal(globalThis.CoCCharts.getTraceBinding('inventories').good, 'food');
 assert.equal(globalThis.CoCCharts.getTraceBinding('gini').good, 'food');
 assert.equal(globalThis.CoCCharts.getTraceBinding('gini').chartScale, 100);

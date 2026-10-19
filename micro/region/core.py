@@ -214,6 +214,8 @@ class Region:
         # Turn-aligned chart copy; demand_ratio_log remains the sparse history
         # consumed by AI systems that only act when a market clears.
         self.market_demand_ratio_chart_log: dict = {}
+        self.market_chart_goods = {
+            Goods.food, Goods.wood, Goods.furniture, Goods.transport}
         self.supply_log: dict = {}
         self.demand_log: dict = {}
         self.per_capita_inventory: dict = {}

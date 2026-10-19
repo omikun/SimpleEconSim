@@ -68,8 +68,9 @@
   let activeDebtScope = 'domestic';  // 'domestic' | 'foreign'
   let activeScienceEra = 1;          // 1 | 2 | 3 | 4
   let activeBondDuration = 20;       // 20 | 50 | 100
-  let activeChartMode = 'economic';  // 'economic' | 'ecological' | 'labor'
+  let activeChartMode = 'economic';  // economic, market, ecology, labor, citizens
   let activeChartMetric = 'gdp';
+  let activeMarketGood = 'cotton';
   let activeCompareTab = '1';        // '1'..'6'
   let activeCompareDrilldown = 'country'; // 'country' | 'province' | 'tile'
   let activeCitizenSub = 'class';    // 'class' | 'labor'
@@ -2793,6 +2794,13 @@
         renderHistoricalChart();
       });
     });
+    const marketGoodSelect = document.getElementById('market-good-select');
+    if (marketGoodSelect) {
+      marketGoodSelect.addEventListener('change', () => {
+        activeMarketGood = marketGoodSelect.value;
+        renderHistoricalChart();
+      });
+    }
 
     // Citizen Subtabs
     document.querySelectorAll('.scope-btn[data-cit-sub]').forEach(btn => {
@@ -2834,6 +2842,7 @@
 
     const charts = window.CoCCharts;
     const chartCatalog = charts.getChartCatalog();
+    populateMarketGoodOptions();
 
     const chips = chartCatalog[activeChartMode] || chartCatalog.economic;
     if (!chips.find(c => c.id === activeChartMetric)) {
@@ -2852,6 +2861,54 @@
       });
       container.appendChild(btn);
     });
+  }
+
+  function populateMarketGoodOptions() {
+    const controls = document.getElementById('market-good-controls');
+    const selector = document.getElementById('market-good-select');
+    if (!controls || !selector) return;
+    controls.hidden = activeChartMode !== 'market';
+    if (activeChartMode !== 'market') return;
+
+    const coreGoods = new Set(['food', 'wood', 'furniture']);
+    const candidates = selectedTileDetail?.charts
+      ? [selectedTileDetail]
+      : (worldState?.tiles || []);
+    const available = new Set();
+    for (const tile of candidates) {
+      const prices = tile?.charts?.economic?.prices || {};
+      for (const good of Object.keys(prices)) {
+        if (!coreGoods.has(good)) available.add(good);
+      }
+    }
+    const fallback = ['wool', 'cloth', 'nitrates', 'cotton', 'iron_ore', 'iron',
+      'coal', 'tobacco', 'sugar', 'tea', 'fine_textiles', 'porcelain', 'rum',
+      'foreign_luxuries'];
+    const goods = [...available].sort();
+    if (!goods.length && !selectedTileDetail) goods.push(...fallback);
+    selector.replaceChildren();
+    if (!goods.length) {
+      const option = document.createElement('option');
+      option.value = '';
+      option.textContent = 'No additional goods on this tile';
+      selector.appendChild(option);
+      selector.disabled = true;
+      activeMarketGood = '';
+    } else {
+      selector.disabled = false;
+      for (const good of goods) {
+        const option = document.createElement('option');
+        option.value = good;
+        option.textContent = good.replaceAll('_', ' ');
+        selector.appendChild(option);
+      }
+      if (!goods.includes(activeMarketGood)) activeMarketGood = goods[0];
+      selector.value = activeMarketGood;
+    }
+    const hint = document.getElementById('market-good-hint');
+    if (hint) hint.textContent = selectedTileDetail
+      ? `Local histories for ${selectedTileDetail.name}`
+      : 'Select a tile on the map to inspect its local market.';
   }
 
   // ---------------- 20 Charts Engine ----------------
@@ -3094,7 +3151,8 @@
 
     let values = [];
     const charts = window.CoCCharts;
-    const traceBinding = charts.getTraceBinding(activeChartMetric);
+    if (activeChartMode === 'market') populateMarketGoodOptions();
+    const traceBinding = charts.getTraceBinding(activeChartMetric, activeMarketGood);
     let traceEntity = null;
     let traceMetric = null;
     let traceGood = null;
@@ -3135,7 +3193,7 @@
       ? point => {
         const container = chartCanvas.parentElement;
         const title = document.getElementById('chart-legend-text');
-        if (title) title.textContent = `${activeChartMetric}: Turn ${point.turn} selected`;
+        if (title) title.textContent = `${traceBinding.label || activeChartMetric}: Turn ${point.turn} selected`;
         if (traceIsPrice) {
           openPriceTraceInspector({
             good: traceGood, entity: traceEntity, metric: traceMetric,
@@ -3154,7 +3212,7 @@
       : null;
     const legend = charts.drawHistoricalChart(
       chartCanvas, values, activeChartMetric, window.devicePixelRatio || 1,
-      { onPointSelect, turns }
+      { onPointSelect, turns, label: traceBinding?.label || activeChartMetric }
     );
     const legendText = document.getElementById('chart-legend-text');
     if (legendText) legendText.textContent = onPointSelect

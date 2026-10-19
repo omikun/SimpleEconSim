@@ -545,6 +545,39 @@ class TestWebServerEndpoints(unittest.TestCase):
                 self.assertAlmostEqual(points[index], calculation['value_after'],
                                        places=2, msg=(good, turn))
 
+    def test_additional_active_good_is_exposed_to_dynamic_market_charts(self):
+        from goods import Goods
+        tile = self.sim.nations[0].tiles[0]
+        cotton_worker = next(agent for agent in tile.agents
+                             if agent.alive and not agent.is_corporation
+                             and not agent.is_government and not agent.is_trader)
+        cotton_worker.output = Goods.cotton
+        self.sim.step()
+        charts = self.sim.serialize_tile(tile, turn=self.sim.turn)['charts']
+        economic = charts['economic']
+        self.assertIn('cotton', economic['prices'])
+        self.assertIn('cotton', economic['production'])
+        self.assertIn('cotton', economic['inventories'])
+        self.assertEqual(len(economic['demand_ratio']['cotton']), 1)
+
+        for metric, kind, series in (
+                ('goods.price', 'price_bridge', 'prices'),
+                ('goods.production', 'tile_production_total', 'production'),
+                ('goods.producer_inventory', 'producer_inventory_total',
+                 'inventories'),
+                ('goods.demand_ratio', 'market_demand_supply_ratio',
+                 'demand_ratio')):
+            query = urllib.parse.urlencode({
+                'turn': 1, 'entity': f'tile:{tile.name}', 'metric': metric,
+                'good': 'cotton', 'limit': 200})
+            payload = json.loads(MockHttpRequestHandler(
+                self.mock_server, 'GET', f'/api/trace?{query}').get_body())
+            calculation = next(row for row in payload['events']
+                               if row['kind'] == kind)
+            displayed = economic[series]['cotton'][-1]
+            self.assertAlmostEqual(displayed, calculation['value_after'],
+                                   places=2, msg=metric)
+
     def test_government_revenue_chart_point_has_trace_record(self):
         self.sim.step()
         tile = self.sim.nations[0].tiles[0]

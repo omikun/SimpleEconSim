@@ -1509,11 +1509,26 @@ class SimServer:
         g_inv = lambda gd: [round(float(p), 1) for p in tile.inventory_log.get(gd, [])[-30:]]
         def g_dem(good):
             chart_log = getattr(tile, 'market_demand_ratio_chart_log', {}) or {}
-            points = chart_log.get(good, [])
-            if points:
+            if good in chart_log:
+                points = chart_log[good]
                 return [round(float(row['value']), 2) for row in points[-30:]]
             return [round(float(value), 2)
                     for value in tile.demand_ratio_log.get(good, [])[-30:]]
+
+        chart_goods = sorted(
+            (good for good in getattr(tile, 'market_chart_goods',
+                                      (Goods.food, Goods.wood, Goods.furniture,
+                                       Goods.transport))
+             if good not in (Goods.gov, Goods.none)),
+            key=lambda good: good.name)
+        market_price_series = {
+            good.name: g_price(good) for good in chart_goods}
+        market_production_series = {
+            good.name: g_prod(good) for good in chart_goods}
+        market_demand_ratio_series = {
+            good.name: g_dem(good) for good in chart_goods}
+        market_inventory_series = {
+            good.name: g_inv(good) for good in chart_goods}
 
         pop_series = (tile.total_population or [])[-30:]
         hs = [tile.hungry_log.get(gd, []) for gd in (Goods.food, Goods.wood, Goods.furniture)]
@@ -1725,17 +1740,17 @@ class SimServer:
             },
             'charts': {
                 'economic': {
-                    'prices': {'food': g_price(Goods.food), 'wood': g_price(Goods.wood), 'furniture': g_price(Goods.furniture)},
+                    'prices': market_price_series,
                     'pop_hunger': {'pop': pop_series, 'hungry': hungry_series},
-                    'production': {'food': g_prod(Goods.food), 'wood': g_prod(Goods.wood), 'furniture': g_prod(Goods.furniture)},
+                    'production': market_production_series,
                     'trade_flow': {'export': tot_exp, 'import': tot_imp,
                                    'balance': trade_balance_series},
                     'gov_income': {'tax': tax_series, 'tariff': tariff_series, 'inheritance': inherit_series},
                     'gini_migration': {'gini': gini_series, 'migration': migr_series},
-                    'inventories': {'food': g_inv(Goods.food), 'wood': g_inv(Goods.wood), 'furniture': g_inv(Goods.furniture)},
+                    'inventories': market_inventory_series,
                     'protest_commons': {'protest': protest_series, 'commons': commons_series},
                     'gdp': gdp_series,
-                    'demand_ratio': {'food': g_dem(Goods.food), 'wood': g_dem(Goods.wood), 'furniture': g_dem(Goods.furniture)},
+                    'demand_ratio': market_demand_ratio_series,
                 },
                 'ecological': {
                     'soil_nutrition': {'soil': fert_series, 'nutrition': nutr_series},

@@ -1311,6 +1311,9 @@ def trade(region, t):
         region._trade_fee_mult = dest.gov.get_trade_fee_multiplier()
     else:
         region._trade_fee_mult = 0.95
+    if not hasattr(region, 'market_chart_goods'):
+        region.market_chart_goods = {
+            Goods.food, Goods.wood, Goods.furniture, Goods.transport}
 
     decide_borrow_deposit(region, region.agents, all_goods_price, food_price, t)
 
@@ -1352,6 +1355,8 @@ def trade(region, t):
             region.demand_log.setdefault(g, [])
             region.supply_log.setdefault(g, [])
             region.sold_log.setdefault(g, [])
+    region.market_chart_goods.update(goods_goods)
+    region.market_chart_goods.add(Goods.transport)
 
     desired_food = 16
     desired_wood = 10
@@ -2035,20 +2040,43 @@ def trade(region, t):
         tr_ask = calculate_ask(region, a, Goods.transport, transport_price, a.employer is not None)
         a.ask_transport = tr_ask
         tr_asks += tr_ask
+    transport_subject = {'type': 'tile', 'id': region.name,
+                         'good': Goods.transport.name}
     if tr_asks == 0 and tr_bids == 0:
+        pressure_event_id = emit(
+            region, kind='market_demand_supply_ratio', record_class='calculation',
+            subject=transport_subject, metric_id='goods.demand_ratio',
+            unit='ratio', after=5.0,
+            formula_id='market.transport_demand_supply_ratio.v1',
+            inputs={'bids': 0, 'asks': 0, 'zero_supply_ratio': 5.0,
+                    'market_kind': 'transport_service'})
+        record_chart_demand_ratio(Goods.transport, 5.0, pressure_event_id)
         price_decay(region, Goods.transport)
     else:
         dr = 5.0 if tr_asks == 0 else tr_bids / tr_asks
         region.demand_ratio_log[Goods.transport].append(dr)
         region.demand_log[Goods.transport].append(tr_bids)
         region.supply_log[Goods.transport].append(tr_asks)
-        transport_subject = {'type': 'tile', 'id': region.name, 'good': Goods.transport.name}
-        emit(region, kind='transport_demand_total', record_class='calculation',
+        demand_event_id = emit(region, kind='transport_demand_total', record_class='calculation',
              subject=transport_subject, metric_id='goods.demand',
-             unit='units_offered', after=tr_bids, formula_id='market.sum_transport_bids.v1')
-        emit(region, kind='transport_supply_total', record_class='calculation',
+             unit='units_offered', after=tr_bids, formula_id='market.sum_transport_bids.v1',
+             inputs={'transport_bid_units': tr_bids})
+        supply_event_id = emit(region, kind='transport_supply_total', record_class='calculation',
              subject=transport_subject, metric_id='goods.supply',
-             unit='units_offered', after=tr_asks, formula_id='market.sum_transport_asks.v1')
+             unit='units_offered', after=tr_asks, formula_id='market.sum_transport_asks.v1',
+             inputs={'transport_ask_units': tr_asks})
+        pressure_event_id = emit(
+            region, kind='market_demand_supply_ratio', record_class='calculation',
+            subject=transport_subject, metric_id='goods.demand_ratio',
+            unit='ratio', after=dr,
+            formula_id='market.transport_demand_supply_ratio.v1',
+            cause_event_ids=[event_id for event_id in
+                             (demand_event_id, supply_event_id)
+                             if event_id is not None],
+            inputs={'bids': tr_bids, 'asks': tr_asks,
+                    'zero_supply_ratio': 5.0,
+                    'market_kind': 'transport_service'})
+        record_chart_demand_ratio(Goods.transport, dr, pressure_event_id)
         if max_demand_ratio < dr and tr_bids > 0:
             max_demand_ratio = dr
         price = set_price(region, dr, Goods.transport)
@@ -2065,5 +2093,18 @@ def trade(region, t):
              after=region.sold_log[Goods.transport][-1],
              formula_id='market.legacy_transport_clear.v1',
              inputs={'bids': tr_bids, 'asks': tr_asks})
+
+    recorded_chart_goods = set(goods_goods) | {Goods.transport}
+    for good in getattr(region, 'market_chart_goods', set()) - recorded_chart_goods:
+        pressure_event_id = emit(
+            region, kind='market_demand_supply_ratio', record_class='calculation',
+            subject={'type': 'tile', 'id': region.name, 'good': good.name},
+            metric_id='goods.demand_ratio', unit='ratio', after=5.0,
+            formula_id='market.demand_supply_ratio.v1',
+            inputs={'bids': 0, 'local_asks': 0, 'imported_asks': 0,
+                    'total_asks': 0, 'zero_supply_ratio': 5.0,
+                    'market_activity': False,
+                    'reason': 'no active buyers, producers, or pending imports'})
+        record_chart_demand_ratio(good, 5.0, pressure_event_id)
 
     region.most_demand = most_demand_good
