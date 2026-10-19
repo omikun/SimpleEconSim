@@ -381,7 +381,10 @@ def step_economy(region: Any, t: int):
     ev = step_unrest(region, t)
     region.unrest_flag = ev['stage'] != 'calm'
     if legacy:
-        region.gov.seal_income(t)
+        income_snapshot = region.gov.seal_income(t)
+        from government import trace_income_snapshot
+        trace_income_snapshot(region.gov, region, income_snapshot, t,
+                              scope='tile', member_tiles=[region.name])
 
     region.total_population.append(sum(v[-1] for v in region.population_log.values()))
     emit(region, kind='population_count_calculation', record_class='calculation',

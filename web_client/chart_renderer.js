@@ -7,7 +7,7 @@
       { id: 'gdp', name: 'Nominal GDP' }, { id: 'treasury', name: 'Treasury' },
       { id: 'food_price', name: 'Food Price' }, { id: 'pop', name: 'Pop/Hunger' },
       { id: 'production', name: 'Food Production' }, { id: 'trade', name: 'Trade Flow' },
-      { id: 'gov_income', name: 'Gov Revenue' }, { id: 'gini', name: 'Food Cash Inequality' },
+      { id: 'gov_income', name: 'Government Revenue' }, { id: 'gini', name: 'Food Cash Inequality' },
       { id: 'inventories', name: 'Food Stocks' }, { id: 'unrest', name: 'Protest Energy' }
     ],
     ecological: [
@@ -85,6 +85,11 @@
       seriesPaths: [['ecological', 'healthcare_outlay', 'private'],
         ['ecological', 'healthcare_outlay', 'public']],
       label: 'Healthcare outlays' }),
+    gov_income: Object.freeze({ metricId: 'finance.government_income',
+      seriesPaths: [['economic', 'gov_income', 'tax'],
+        ['economic', 'gov_income', 'tariff'],
+        ['economic', 'gov_income', 'inheritance']],
+      label: 'Government revenue (tile or shared province)' }),
     shift_hours: Object.freeze({ metricId: 'labor.average_shift_hours',
       tilePath: ['labor', 'shifts_exploitation', 'shifts'],
       label: 'Average shift hours' }),

@@ -727,7 +727,6 @@ class Government:
         self.income_log.append(snapshot)
         self._income_pending = {}
         return snapshot
-
     # ==================================================================
     #  Food Purchasing (called by region._trade, like charity)
     # ==================================================================
@@ -1151,6 +1150,34 @@ class Government:
         logdebug(t, f"Government({self.name}) distributed ${total_distributed:.2f} welfare "
                     f"to {len(starving_agents)} agents")
         return total_distributed
+
+
+def trace_income_snapshot(government, region, snapshot, t, *, scope,
+                          member_tiles=None):
+    """Explain the retained revenue snapshot shown in government charts."""
+    from run_trace import emit
+    categories = ('tax', 'tariff', 'inheritance')
+    components = {key: float(snapshot.get(key, 0.0)) for key in categories}
+    total = sum(components.values())
+    history = getattr(government, 'income_log', ())
+    previous = history[-2] if len(history) > 1 else None
+    before = (sum(float(previous.get(key, 0.0)) for key in categories)
+              if previous is not None else None)
+    return emit(
+        region, kind='government_income_calculation',
+        record_class='calculation', phase='local',
+        subject={'type': 'tile', 'id': region.name},
+        metric_id='finance.government_income',
+        unit=getattr(region, 'home_currency', None) or 'local_currency',
+        before=before, after=total,
+        formula_id='government.income_components.v1',
+        inputs={'government_id': government.name,
+                'scope': scope,
+                'member_tiles': list(member_tiles or (region.name,)),
+                'snapshot_turn': int(snapshot.get('turn', t)),
+                'components': components,
+                'component_basis': 'retained_income_after_revenue_interceptions',
+                'formula_result': total})
 
 
 def create_default_government(t, initial_cash=200):

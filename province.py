@@ -155,7 +155,13 @@ class Province:
         if charity is not None:
             charity.distribute_food(t, all_agents, regions=self.tiles)
         if gov is not None:
-            gov.seal_income(t)
+            income_snapshot = gov.seal_income(t)
+            from government import trace_income_snapshot
+            member_tiles = [region.name for region in self.tiles]
+            for region in self.tiles:
+                trace_income_snapshot(
+                    gov, region, income_snapshot, t, scope='shared_province',
+                    member_tiles=member_tiles)
         from economy.actor_accounts import seal_turn
         for region in self.tiles:
             region._audit_cash(t, 'province_settlement_done')

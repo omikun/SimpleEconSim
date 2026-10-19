@@ -347,6 +347,31 @@ class TestWebServerEndpoints(unittest.TestCase):
                 self.assertEqual(len(inputs['striking_agent_ids']),
                                  calculation['value_after'])
 
+    def test_government_revenue_chart_point_has_trace_record(self):
+        self.sim.step()
+        tile = self.sim.nations[0].tiles[0]
+        query = urllib.parse.urlencode({
+            'turn': 1, 'entity': f'tile:{tile.name}',
+            'metric': 'finance.government_income', 'limit': 200})
+        handler = MockHttpRequestHandler(
+            self.mock_server, 'GET', f'/api/trace?{query}')
+        payload = json.loads(handler.get_body())
+        calculations = [row for row in payload['events']
+                        if row['kind'] == 'government_income_calculation']
+        self.assertEqual(len(calculations), 1)
+        calculation = calculations[0]
+        components = calculation['inputs']['components']
+        self.assertAlmostEqual(sum(components.values()),
+                               calculation['value_after'])
+        self.assertIn(calculation['inputs']['scope'],
+                      ('tile', 'shared_province'))
+        self.assertIn(tile.name, calculation['inputs']['member_tiles'])
+        chart = self.sim.serialize_tile(tile, turn=self.sim.turn)['charts']
+        revenue = chart['economic']['gov_income']
+        displayed = sum(revenue[key][-1]
+                        for key in ('tax', 'tariff', 'inheritance'))
+        self.assertAlmostEqual(displayed, calculation['value_after'], places=1)
+
     def test_api_world_state(self):
         handler = MockHttpRequestHandler(self.mock_server, 'GET', '/api/state')
         self.assertEqual(handler.response_status, 200)

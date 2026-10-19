@@ -1584,3 +1584,15 @@ aggregate formula tests (6 Python tests), as did the Node UI utility test,
 JavaScript syntax checks, and `git diff --check`.
 Desktop chart-to-trace selection and the remaining labor chart histories are
 still open.
+
+Phase 5 follow-up, 2026-10-18: Government Revenue now opens a turn-scoped
+calculation of tax, tariff, and inheritance retained by the tile or shared
+provincial government. The event identifies the government, its scope, member
+tiles, category amounts, and revenue-interception basis. The chart shows the
+same three components it sums for trace inspection.
+
+Verification: the focused endpoint test confirms the displayed component sum
+matches its calculation record and identifies the chart's tile in the shared
+government membership when applicable. Metric-catalog and Node UI checks pass.
+The trade chart's old histories require partner-currency and turn-index
+correction before a reliable trace binding can be added.

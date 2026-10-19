@@ -325,6 +325,15 @@ def sample(tiles, nations):
             tile_subject, 'people_per_turn', int(getattr(tile, 'deaths_this_turn', 0)))
         values[('people.births', tile.name)] = (
             tile_subject, 'people_per_turn', int(getattr(tile, 'births_this_turn', 0)))
+        government = getattr(tile, 'gov', None)
+        income_history = getattr(government, 'income_log', ()) if government else ()
+        if income_history:
+            income = income_history[-1]
+            values[('finance.government_income', tile.name)] = (
+                tile_subject,
+                getattr(tile, 'home_currency', None) or 'local_currency',
+                sum(float(income.get(key, 0.0))
+                    for key in ('tax', 'tariff', 'inheritance')))
         for metric_id, field, unit in (
                 ('labor.average_shift_hours', 'avg_shift_hours_log', 'hours'),
                 ('labor.average_alienation', 'avg_alienation_log', 'ratio'),

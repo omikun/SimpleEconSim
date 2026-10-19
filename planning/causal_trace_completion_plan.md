@@ -2157,3 +2157,18 @@ metric-catalog coverage, JavaScript syntax and UI utility checks passed (4
 focused integration/catalog/parity Python tests plus 2 aggregate formula tests
 and the Node UI test). Desktop chart-to-trace selection and the other labor
 panel histories remain open work.
+
+## Phase 5 follow-up — Explain government revenue chart points (implemented)
+
+Government Revenue now has a chart binding to the sum of the recorded tax,
+tariff, and inheritance series. Each turn has a calculation event for that sum,
+including the government identity and whether its log belongs to one tile or
+a shared province. Shared provincial revenue is exposed under each member tile
+because each tile's chart displays that same government history. Inputs state
+that values are retained after revenue interceptions. No fiscal rules changed.
+
+Verification: the web endpoint test matches the displayed categories to the
+selected tile's turn-scoped calculation and checks shared-scope membership.
+The metric-catalog test and Node UI suite pass. Trade-flow charts remain
+unmapped pending a correction to their partner-currency and per-turn history
+semantics.

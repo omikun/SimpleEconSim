@@ -55,6 +55,7 @@ for (const [chartId, metricId] of Object.entries({
   malnutrition_cases: 'health.disease_cases', waterborne_cases: 'health.disease_cases',
   respiratory_cases: 'health.disease_cases', chemical_cases: 'health.disease_cases',
   health_outlays: 'health.medical_spending',
+  gov_income: 'finance.government_income',
   shift_hours: 'labor.average_shift_hours',
   exploitation: 'labor.exploitation_rate',
   alienation: 'labor.average_alienation',
@@ -82,6 +83,9 @@ assert.deepEqual(globalThis.CoCCharts.getTraceBinding('strikes').tilePath,
 assert.deepEqual(globalThis.CoCCharts.getTileSeries({ ecological: { healthcare_outlay: {
   private: [2, 3, 4], public: [5, 7, 11]
 } } }, globalThis.CoCCharts.getTraceBinding('health_outlays')), [7, 10, 15]);
+assert.deepEqual(globalThis.CoCCharts.getTileSeries({ economic: { gov_income: {
+  tax: [2, 3], tariff: [5, 7], inheritance: [1, 4]
+} } }, globalThis.CoCCharts.getTraceBinding('gov_income')), [8, 14]);
 
 const listeners = {};
 const selectedPoints = [];
