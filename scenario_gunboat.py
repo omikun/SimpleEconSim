@@ -507,26 +507,183 @@ def naval_response_options(world: dict, kind: str) -> list[dict]:
     ]
 
 
+def _naval_response_state(world):
+    state = world.get('scenario_state', {})
+    crisis = state.get('naval_crisis', {})
+    geography = state.get('geography', {})
+    egypt = _nation(world, 'Egypt')
+    site = geography.get('sites', {}).get('Alexandria', {})
+    tile = next((candidate for candidate in world.get('tiles', [])
+                 if candidate.name == site.get('tile')), None)
+    from scenario_debt import outstanding
+    manager = get_imperialism_manager()
+    tile_name = site.get('tile')
+    try:
+        debt = float(outstanding(world))
+    except (KeyError, TypeError, ValueError):
+        debt = None
+    return {
+        'turn': int(world.get('turn', 0)),
+        'naval_crisis_stage': crisis.get('stage'),
+        'naval_withdrawal_cause': state.get('naval_withdrawal_cause'),
+        'payment_status': state.get('payment_status'),
+        'settlement_path': state.get('settlement_path'),
+        'debt_outstanding': debt,
+        'egypt_treasury_cash': (float(egypt.government.agent.cash)
+                                if egypt is not None else None),
+        'fiscal_autonomy': float(state.get('fiscal_autonomy', 0.0)),
+        'creditor_confidence': float(state.get('creditor_confidence', 0.0)),
+        'egypt_legitimacy': (float(egypt.legitimacy)
+                             if egypt is not None else None),
+        'battery_strength': crisis.get('battery_strength'),
+        'batteries_disarmed': bool(state.get('disarmed_batteries', False)),
+        'creditor_levy_per_turn': float(state.get('creditor_levy_per_turn', 0.0)),
+        'creditor_levy_remaining': float(state.get('creditor_levy_remaining', 0.0)),
+        'collection_assignment': dict(state['collection_assignment'])
+        if isinstance(state.get('collection_assignment'), dict) else None,
+        'ottoman_offer': dict(state['diplomatic_crisis']['ottoman_offer'])
+        if isinstance(state.get('diplomatic_crisis', {}).get('ottoman_offer'), dict)
+        else None,
+        'fleets': {name: dict(fleet) for name, fleet in
+                   geography.get('fleets', {}).items()},
+        'alexandria_blockaded': bool(
+            tile_name and manager.is_tile_blockaded(tile_name)),
+        'alexandria_unrest': (float(getattr(tile, 'unrest_level', 0.0))
+                              if tile is not None else None),
+        'warning_modal': dict(world['scenario_warning_modal'])
+        if isinstance(world.get('scenario_warning_modal'), dict) else None,
+        'playing': world.get('playing'),
+    }
+
+
+def _naval_response_operation_id(world, response_id):
+    region = _trace_region(world, _nation(world, 'Egypt'))
+    clock = getattr(region, '_collective_trace_clock', None) if region else None
+    ordinal = int(clock.get('next', 1)) if clock is not None else int(world.get('turn', 0))
+    return f'naval-response:{response_id}:{int(world.get("turn", 0))}:{ordinal}'
+
+
+def _naval_response_trace_ids(world):
+    region = _trace_region(world, _nation(world, 'Egypt'))
+    recorder = getattr(region, '_run_trace', None) if region is not None else None
+    rows = getattr(recorder, 'recent', None)
+    if rows is None:
+        rows = getattr(recorder, 'rows', None)
+    if rows is None:
+        return None
+    return {row.get('event_id') for row in rows
+            if isinstance(row, dict) and row.get('event_id') is not None}
+
+
+def _naval_response_causes(world, earlier_event_ids):
+    if earlier_event_ids is None:
+        return None
+    current = _naval_response_trace_ids(world)
+    if current is None:
+        return None
+    causes = sorted(current - earlier_event_ids)
+    return causes or None
+
+
+def _trace_naval_response(world, *, operation_id, response_id, success, reason,
+                          before, after, details=None, cause_event_ids=None):
+    changed = before != after
+    return _emit_naval_trace(
+        world, _nation(world, 'Egypt'),
+        kind='naval_response_resolved' if success else 'naval_response_rejected',
+        record_class='outcome' if success or changed else 'decision',
+        phase='naval_crisis',
+        subject={'type': 'nation/action', 'id': f'Egypt:{response_id}',
+                 'nation': 'Egypt', 'action_id': response_id},
+        metric_id='scenario.naval_response', unit='success',
+        before=0, after=int(bool(success)),
+        inputs={'operation_id': operation_id, 'response_id': response_id,
+                'turn': int(world.get('turn', 0)), 'success': bool(success),
+                'reason': reason, 'state_before': before, 'state_after': after,
+                **(details or {})},
+        cause_event_ids=cause_event_ids)
+
+
+def _naval_response_rejection_reason(world, kind, response_id, response):
+    if kind is None:
+        return 'no_naval_demand_awaiting_response'
+    if response is None:
+        return 'response_not_available_for_current_stage'
+    if response.get('enabled'):
+        return 'unspecified_response_rejection'
+    if response_id == 'naval_settle':
+        egypt = _nation(world, 'Egypt')
+        cash = (float(egypt.government.agent.cash) if egypt is not None else 0.0)
+        from scenario_debt import outstanding
+        amount = round(outstanding(world) * float(
+            situation_template()['naval_crisis']['settlement_fraction']), 2)
+        return ('settlement_treasury_unavailable' if egypt is None
+                else 'settlement_cash_below_required_amount'
+                if cash < amount else 'settlement_option_disabled')
+    politics = world.get('scenario_state', {}).get('politics', {})
+    if (response_id == 'naval_defend'
+            and politics.get('governing_coalition') == 'palace'
+            and float(politics.get('army_loyalty', 1.0)) < 0.35):
+        return 'garrison_command_unreliable'
+    return 'response_option_disabled'
+
+
 def resolve_naval_response(world: dict, response_id: str) -> tuple[bool, str]:
     state = world.get('scenario_state', {})
     crisis = state.get('naval_crisis', {})
     stage = crisis.get('stage')
     kind = 'naval_ultimatum' if stage == 'ultimatum' else 'naval_blockade' if stage == 'blockaded' else None
+    operation_id = _naval_response_operation_id(world, response_id)
+    before_response = _naval_response_state(world)
+    trace_ids_before = _naval_response_trace_ids(world)
     if kind is None:
+        _trace_naval_response(
+            world, operation_id=operation_id, response_id=response_id,
+            success=False, reason='no_naval_demand_awaiting_response',
+            before=before_response, after=before_response,
+            details={'current_stage': stage, 'accepted_response_ids': []})
         return False, 'There is no naval demand awaiting a response.'
     response = next((option for option in naval_response_options(world, kind)
                      if option['id'] == response_id), None)
     if response is None or not response['enabled']:
+        reason = _naval_response_rejection_reason(world, kind, response_id,
+                                                  response)
+        _trace_naval_response(
+            world, operation_id=operation_id, response_id=response_id,
+            success=False, reason=reason,
+            before=before_response, after=_naval_response_state(world),
+            details={'current_stage': stage,
+                     'available_response_ids': [option['id'] for option in
+                                                naval_response_options(world, kind)],
+                     'response_enabled': bool(response and response['enabled'])},
+            cause_event_ids=_naval_response_causes(world, trace_ids_before))
         return False, 'That naval response is unavailable.'
     egypt = _nation(world, 'Egypt')
     from scenario_status import snapshot, record_change
     before = snapshot(world)
+    response_details = {
+        'current_stage': stage,
+        'response_enabled': True,
+        'option_label': response['label'],
+    }
     if response_id == 'naval_settle':
         from scenario_debt import pay as pay_debt, outstanding
         rules = situation_template()['naval_crisis']
-        amount = round(outstanding(world) * float(rules['settlement_fraction']), 2)
+        debt_before = float(outstanding(world))
+        amount = round(debt_before * float(rules['settlement_fraction']), 2)
+        response_details.update({
+            'debt_before': debt_before,
+            'settlement_fraction': float(rules['settlement_fraction']),
+            'settlement_amount': amount,
+            'settlement_amount_rule': 'round(debt_before * settlement_fraction, 2)'})
         ok, reason = pay_debt(world, amount, kind='naval_settlement', forgive_remainder=True)
         if not ok:
+            _trace_naval_response(
+                world, operation_id=operation_id, response_id=response_id,
+                success=False, reason='debt_payment_failed',
+                before=before_response, after=_naval_response_state(world),
+                details={**response_details, 'payment_failure_reason': reason},
+                cause_event_ids=_naval_response_causes(world, trace_ids_before))
             return False, reason
         state['payment_status'] = 'restructured'
         state['settlement_path'] = 'naval_settlement'
@@ -536,29 +693,64 @@ def resolve_naval_response(world: dict, response_id: str) -> tuple[bool, str]:
         state['creditor_confidence'] = min(1.0, state['creditor_confidence'] + 0.15)
         withdraw(world, f'Cairo pays {amount:,.0f} and negotiates a settlement; the British squadron withdraws.', cause='settlement')
     elif response_id == 'naval_accept_control':
+        autonomy_before = float(state.get('fiscal_autonomy', 0.0))
+        confidence_before = float(state.get('creditor_confidence', 0.0))
         from scenario_debt import set_collection_assignment
         set_collection_assignment(world, 5.0, origin='naval_ultimatum')
         state['financial_control_origin'] = 'naval_ultimatum'
         state['fiscal_autonomy'] = max(0.0, state['fiscal_autonomy'] - 0.15)
         state['creditor_confidence'] = min(1.0, state['creditor_confidence'] + 0.05)
+        response_details.update({
+            'levy_per_turn': 5.0,
+            'assigned_revenue_sources': dict(state.get('assigned_revenues', {})),
+            'fiscal_autonomy_before': autonomy_before,
+            'fiscal_autonomy_after': float(state['fiscal_autonomy']),
+            'creditor_confidence_before': confidence_before,
+            'creditor_confidence_after': float(state['creditor_confidence'])})
         withdraw(world, 'Cairo accepts a customs levy under naval pressure; the squadron withdraws.', cause='concession')
     elif response_id == 'naval_disarm':
+        legitimacy_before = float(egypt.legitimacy)
+        autonomy_before = float(state.get('fiscal_autonomy', 0.0))
+        battery_before = float(crisis.get('battery_strength', 0.0))
         egypt.legitimacy = max(0.0, egypt.legitimacy - 0.08)
         state['fiscal_autonomy'] = max(0.0, state['fiscal_autonomy'] - 0.05)
         crisis['battery_strength'] = 0.0
         state['disarmed_batteries'] = True
+        response_details.update({
+            'legitimacy_before': legitimacy_before,
+            'legitimacy_rule': 'max(0.0, legitimacy_before - 0.08)',
+            'fiscal_autonomy_before': autonomy_before,
+            'fiscal_autonomy_rule': 'max(0.0, autonomy_before - 0.05)',
+            'battery_strength_before': battery_before,
+            'battery_strength_after': 0.0,
+            'debt_claim_survives': True})
         withdraw(world, 'Cairo disarms Alexandria’s batteries. The fleet withdraws, but the debt claim survives.', cause='disarmament')
     elif response_id == 'naval_seek_mediation':
         crisis['stage'] = 'mediation'
         crisis['mediation_due_turn'] = int(world['turn']) + 1
         state['diplomatic_crisis']['ottoman_offer'] = {'turn': int(world['turn']),
             'payment_fraction': .5, 'status': 'pending'}
+        response_details.update({
+            'mediation_due_turn': int(crisis['mediation_due_turn']),
+            'fleet_upkeep_continues_while_waiting': True,
+            'payment_fraction_requested': 0.5})
         _record(world, 'Cairo requests Ottoman mediation; the fleet remains supplied off Alexandria pending a reply.')
     elif response_id == 'naval_defend':
+        balance = coastal_balance(world)
+        force_threshold = float(situation_template()['naval_crisis']['minimum_force_ratio'])
+        response_details.update({
+            'british_fleet_at_alexandria': fleet_at(world, 'Britain', 'Alexandria'),
+            'british_force': float(balance['british_force']),
+            'egyptian_defense': float(balance['egyptian_defense']),
+            'force_ratio': float(balance['ratio']),
+            'minimum_force_ratio': force_threshold,
+            'force_ratio_rule': 'british_force / max(1.0, egyptian_defense)'})
         egypt.legitimacy = min(1.0, egypt.legitimacy + 0.03)
         if not fleet_at(world, 'Britain', 'Alexandria'):
+            response_details['defense_result'] = 'no_supplied_squadron'
             withdraw(world, 'No supplied squadron remains off Alexandria to enforce the ultimatum.', cause='unsustainable')
         elif _force_ratio(world) < float(situation_template()['naval_crisis']['minimum_force_ratio']):
+            response_details['defense_result'] = 'coastal_defenses_deterred_fleet'
             withdraw(world, 'Alexandria’s defenses deter the squadron; Britain abandons its ultimatum.', cause='deterrence')
         else:
             alexandria = _alexandria(egypt)
@@ -566,8 +758,11 @@ def resolve_naval_response(world: dict, response_id: str) -> tuple[bool, str]:
             ok, message = manager.impose_naval_blockade(_nation(world, 'Britain'), egypt,
                                                        alexandria, int(world['turn']), world)
             if not ok:
+                response_details.update({'defense_result': 'blockade_rejected',
+                                         'blockade_failure_reason': message})
                 withdraw(world, f'Britain cannot enforce the blockade: {message}', cause='unsustainable')
             else:
+                response_details['defense_result'] = 'blockade_imposed'
                 crisis['stage'] = 'blockaded'
                 from scenario_campaign import bombard_alexandria
                 _, bombardment = bombard_alexandria(world)
@@ -577,12 +772,34 @@ def resolve_naval_response(world: dict, response_id: str) -> tuple[bool, str]:
                 _record(world, bombardment + ' The port is blockaded; a landing may follow.', 'WAR')
                 world['scenario_warning_modal'] = {'kind': 'naval_blockade'}
                 world['playing'] = False
+                response_details.update({
+                    'bombardment_result': bombardment,
+                    'battery_strength_after_bombardment': float(crisis['battery_strength']),
+                    'legitimacy_after_bombardment': float(egypt.legitimacy),
+                    'blockade_enforcer': 'Britain'})
     elif response_id == 'naval_hold':
+        last_offer_before = crisis.get('last_offer_turn')
         crisis['last_offer_turn'] = int(world['turn'])
+        response_details.update({'last_offer_turn_before': last_offer_before,
+                                 'last_offer_turn_after': int(crisis['last_offer_turn']),
+                                 'blockade_continues': stage == 'blockaded'})
         _record(world, 'Cairo holds out. Britain must keep paying for the blockade.')
     else:
+        _trace_naval_response(
+            world, operation_id=operation_id, response_id=response_id,
+            success=False, reason='unknown_response_id',
+            before=before_response, after=_naval_response_state(world),
+            details={'current_stage': stage},
+            cause_event_ids=_naval_response_causes(world, trace_ids_before))
         return False, 'Unknown naval response.'
     record_change(world, response_id, before, snapshot(world))
     state.setdefault('actions_taken', []).append({'turn': int(world['turn']), 'action': response_id,
                                                    'message': world['scenario_feedback']})
+    after_response = _naval_response_state(world)
+    _trace_naval_response(
+        world, operation_id=operation_id, response_id=response_id,
+        success=True, reason=response_details.get('defense_result', response_id),
+        before=before_response, after=after_response,
+        details={**response_details, 'result_message': world['scenario_feedback']},
+        cause_event_ids=_naval_response_causes(world, trace_ids_before))
     return True, world['scenario_feedback']

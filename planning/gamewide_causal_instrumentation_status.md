@@ -1381,3 +1381,18 @@ gates, battle-to-withdrawal causality, compact trace verification, and
 trace-on/off state parity. Compilation and `git diff --check` passed. The
 separate all-endings audit was stopped inside its long integration subprocess
 and is not counted as a pass.
+
+Phase 3 follow-up, 2026-10-18: Guided Egypt's naval responses now record the
+pending-demand and response-stage gates, settlement affordability, unreliable
+palace command, debt settlement, customs levy, disarmament, mediation timing,
+hold-out timing, and naval defense result. Defense traces include the force
+ratio and threshold, missing or deterred fleet outcomes, blockade state,
+bombardment and its civilian/infrastructure effects. Each response summary
+links to the debt, withdrawal, and bombardment events emitted during that
+action. No response rules changed.
+
+Verification: nine dedicated naval-response tests passed, covering gates,
+all player choices, defense exits, exact transfer and withdrawal links,
+trace-on/off parity, and compact `.ctr` serialization. Campaign, diplomacy,
+coercion, geography and metric-catalog regression suites passed (37 tests), as
+did the payment-path playthrough. Compilation and `git diff --check` passed.

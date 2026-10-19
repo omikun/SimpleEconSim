@@ -279,10 +279,28 @@ trace-on/off state parity. Compilation and `git diff --check` passed. The
 separate all-endings audit was stopped while its long integration subprocess
 was still running and is not counted as a pass.
 
-Next Phase 3 audit target: review `scenario_gunboat.resolve_naval_response` and
-its supporting naval-crisis transitions for rejected response gates, mediation,
-defense/blockade, and hold-out outcomes that lack complete decision-to-effect
-causal links.
+### Phase 3 follow-up — Trace Egyptian naval responses (implemented)
+
+`scenario_gunboat.resolve_naval_response` now records pending-demand, stage,
+affordability, and unreliable-command gates. Successful response summaries
+capture debt settlement and customs assignment, disarmament costs, mediation
+timing, defense force comparison, blockade and bombardment, and hold-out timing.
+The action summary links to the exact debt, withdrawal, and bombardment events
+emitted during the response. Before/after state includes debt and treasury,
+autonomy, legitimacy, battery status, fleet presence, blockade and crisis stage.
+No response eligibility or outcome rules changed.
+
+Verification: nine focused naval-response tests passed, including compact
+trace verification, state parity, both disabled gates, settlement-transfer and
+withdrawal links, defense outcomes, mediation, and hold-out behavior. The
+campaign, diplomacy, coercion, geography and metric-catalog regression suites
+passed (37 tests), as did the payment-path playthrough. Compilation and
+`git diff --check` passed.
+
+Next Phase 3 audit target: review `scenario_gunboat.advance_naval_crisis` for
+mobilization AI and force gates, upkeep and resupply failures, French support,
+and Ottoman mediation acceptance or rejection, including links to fleet,
+withdrawal, debt, and campaign events.
 
 ## Phase 5 — Deliver explanations in web, desktop and CLI
 
