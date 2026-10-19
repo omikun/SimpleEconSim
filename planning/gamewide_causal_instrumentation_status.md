@@ -202,8 +202,10 @@ air and water pollution, disease fatalities, individual
 malnutrition/waterborne/respiratory/chemical case counts, and combined
 healthcare outlays. Every selectable web tile chart now has a metric/source
 binding, including dynamic goods. The web client's Nation-wide chart histories
-remain limited to GDP, treasury, population, average food price, and protest
-energy; other national series still need explicit history aggregation.
+now include the Citizen and Labor series backed by the same per-turn Nation
+aggregates used by the trace. Other Nation-wide chart histories remain limited
+to GDP, treasury, population, average food price, and protest energy; expanding
+that set needs explicit aggregation and trace evidence.
 Desktop point-to-trace drilldown currently covers tile Economic, Ecology,
 Citizen Class & Tenure, and Labor charts, plus Nation Citizen and Labor charts.
 Nation selections replay the chart's sum or equal-tile mean from member-tile
@@ -1815,3 +1817,14 @@ Verification: all 9 frontend module tests passed, including a catalog-wide
 assertion that each selectable chart has a trace binding and that the cap
 series reads the effective history. The complete web server and client parity
 suites passed (69 tests), along with Python compilation and `git diff --check`.
+
+Phase 5 follow-up, 2026-10-18: exposed Nation-wide Citizen and Labor histories
+in the web chart panel. The server derives them from the same current-territory
+sum/mean rows emitted as `nation_chart_history_aggregate` trace events. Web
+chart bindings route point selection to those Nation records and retain class
+and good filters for the matching calculation.
+
+Verification: Nation worker-count, effective-cap, commons-access, and food-Gini
+history points matched the corresponding Nation trace aggregates. All 36
+Nation aggregation, trace-reader, and metric-catalog tests passed, all 9
+frontend tests passed, and compilation plus `git diff --check` passed.

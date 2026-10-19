@@ -378,6 +378,41 @@ class TestWebServerEndpoints(unittest.TestCase):
         self.assertEqual(samples[0]['value_after'], effective_cap)
         self.assertEqual(samples[0]['inputs']['statute_display_value'], 16.0)
 
+    def test_nation_citizen_and_labor_chart_histories_match_trace_aggregates(self):
+        self.sim.step()
+        nation = self.sim.nations[0]
+        history = self.sim.serialize_world()['history']
+        cases = (
+            ('class_worker', 'society.class_population', 'worker', None,
+             'worker', 1.0),
+            ('workday_cap', 'labor.statutory_workday', None, None,
+             'avg effective cap', 1.0),
+            ('commons_access', 'land.commons_access', None, None,
+             'avg commons %', 100.0),
+            ('gini', 'economy.gini', None, 'food',
+             'avg gini (x100)', 100.0),
+        )
+        for history_key, metric, class_group, good, chart_series, scale in cases:
+            with self.subTest(history_key=history_key):
+                self.assertTrue(history[history_key])
+                params = {'turn': self.sim.turn,
+                          'entity': f'nation:{nation.name}',
+                          'metric': metric, 'limit': 200}
+                if class_group:
+                    params['class_group'] = class_group
+                if good:
+                    params['good'] = good
+                query = urllib.parse.urlencode(params)
+                payload = json.loads(MockHttpRequestHandler(
+                    self.mock_server, 'GET', f'/api/trace?{query}').get_body())
+                rows = [row for row in payload['events']
+                        if row['kind'] == 'nation_chart_history_aggregate'
+                        and row['inputs']['chart_series'] == chart_series]
+                self.assertEqual(len(rows), 1)
+                self.assertAlmostEqual(
+                    history[history_key][-1],
+                    round(rows[0]['value_after'] * scale, 1), places=1)
+
     def test_workplace_condition_charts_replay_from_trace_inputs(self):
         self.sim.step()
         tile = self.sim.nations[0].tiles[0]

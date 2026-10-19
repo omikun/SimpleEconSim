@@ -28,6 +28,36 @@ from run_trace import RunTrace
 from pathlib import Path
 
 
+# Web chart keys fed by the Nation Citizen/Labor reducers also written into the
+# causal trace. Scales mirror the tile chart serialization.
+_NATION_CHART_HISTORY_KEYS = {
+    ('citizen', 'serf'): ('class_serf', 1.0),
+    ('citizen', 'tenant'): ('class_tenant', 1.0),
+    ('citizen', 'worker'): ('class_worker', 1.0),
+    ('citizen', 'disposs'): ('class_dispossessed', 1.0),
+    ('citizen', 'gentry'): ('class_gentry', 1.0),
+    ('citizen', 'artisan'): ('class_artisan', 1.0),
+    ('citizen', 'foraged'): ('food_foraged', 1.0),
+    ('citizen', 'market food'): ('food_purchased', 1.0),
+    ('citizen', 'hungry'): ('hungry', 1.0),
+    ('citizen', 'avg commons %'): ('commons_access', 100.0),
+    ('citizen', 'rent ($)'): ('rent_collected', 1.0),
+    ('citizen', 'arrears ($)'): ('rent_arrears', 1.0),
+    ('citizen', 'avg gini (x100)'): ('gini', 100.0),
+    ('labor', 'avg shift hrs'): ('shift_hours', 1.0),
+    ('labor', 'avg effective cap'): ('workday_cap', 1.0),
+    ('labor', 'avg s/v rate (%)'): ('exploitation', 100.0),
+    ('labor', 'alienation (x100)'): ('alienation', 100.0),
+    ('labor', 'bodily wear (x100)'): ('bodily_wear', 100.0),
+    ('labor', 'accidents'): ('workplace_accidents', 1.0),
+    ('labor', 'consciousness (x100)'): ('consciousness', 100.0),
+    ('labor', 'entertainment (x100)'): ('entertainment', 100.0),
+    ('labor', 'strikers'): ('strikes', 1.0),
+    ('labor', 'broken stock'): ('broken_machinery', 1.0),
+    ('labor', 'sabotaged this turn'): ('machinery_sabotaged', 1.0),
+}
+
+
 class SimServer:
     """Authoritative headless simulation server for Call of Capital."""
 
@@ -241,6 +271,7 @@ class SimServer:
 
     def _record_history(self, t: int):
         """Record macro time series for charting."""
+        from trace_snapshots import nation_chart_aggregation_rows
         for n in self.nations:
             hist = self._nation_history.setdefault(n.name, {
                 'turns': [], 'treasury': [], 'gdp': [], 'pop': [], 'food_price': [], 'unrest': []
@@ -258,6 +289,16 @@ class SimServer:
             hist['pop'].append(int(pop))
             hist['food_price'].append(round(float(avg_food), 2))
             hist['unrest'].append(round(float(unrest), 2))
+
+            for aggregate in nation_chart_aggregation_rows(n):
+                key = _NATION_CHART_HISTORY_KEYS.get((
+                    aggregate['inputs']['chart_family'],
+                    aggregate['inputs']['chart_series']))
+                if key is None:
+                    continue
+                history_key, display_scale = key
+                series = hist.setdefault(history_key, [])
+                series.append(round(float(aggregate['after']) * display_scale, 1))
 
             if len(hist['turns']) > 50:
                 for k in hist:
