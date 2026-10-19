@@ -2195,3 +2195,20 @@ attribution test verifies that two neighbors receive only their own sales.
 Trade-route/accounting, labor and government chart, history parity, and metric
 catalog checks passed (21 Python tests); Node UI, JavaScript syntax, Python
 compilation, and `git diff --check` passed.
+
+## Phase 5 follow-up — Trace soil toxicity and bodily-wear charts (implemented)
+
+Soil toxicity now has a web chart binding to the existing pollution calculation
+for the selected tile and turn. Its inputs show pesticide runoff, scrubber
+sludge, raw emissions, biodegradation, and bounds. The average bodily-wear
+history now has its own `health.average_bodily_wear` metric and a calculation
+event listing the living population, each person's accumulated wear after the
+labor/environment phase, and the denominator. The chart exposes the ×100
+display scale. This history is measured before that turn's disease progression,
+matching when the legacy chart value is produced.
+
+Verification: focused endpoint tests match both displayed points to their
+calculation events and replay the average from the recorded inputs. Metric
+catalog coverage, Node UI tests, syntax checks, and `git diff --check` passed.
+Desktop chart drilldown and the remaining labor/citizen history panels are
+still open.

@@ -347,6 +347,46 @@ class TestWebServerEndpoints(unittest.TestCase):
                 self.assertEqual(len(inputs['striking_agent_ids']),
                                  calculation['value_after'])
 
+    def test_soil_toxicity_and_bodily_wear_chart_points_have_trace_records(self):
+        self.sim.step()
+        tile = self.sim.nations[0].tiles[0]
+        charts = self.sim.serialize_tile(tile, turn=self.sim.turn)['charts']
+
+        soil_query = urllib.parse.urlencode({
+            'turn': 1, 'entity': f'tile:{tile.name}',
+            'metric': 'ecology.pollution_soil', 'limit': 200})
+        soil_payload = json.loads(MockHttpRequestHandler(
+            self.mock_server, 'GET', f'/api/trace?{soil_query}').get_body())
+        soil_updates = [row for row in soil_payload['events']
+                        if row['kind'] == 'pollution_soil_update']
+        self.assertEqual(len(soil_updates), 1)
+        self.assertAlmostEqual(
+            charts['ecological']['pollution']['soil'][-1],
+            soil_updates[0]['value_after'], places=1)
+        soil_inputs = soil_updates[0]['inputs']
+        self.assertAlmostEqual(
+            soil_inputs['raw_soil_emission'],
+            soil_inputs['pesticide_runoff'] + soil_inputs['scrubber_sludge'])
+
+        wear_query = urllib.parse.urlencode({
+            'turn': 1, 'entity': f'tile:{tile.name}',
+            'metric': 'health.average_bodily_wear', 'limit': 200})
+        wear_payload = json.loads(MockHttpRequestHandler(
+            self.mock_server, 'GET', f'/api/trace?{wear_query}').get_body())
+        wear_calculations = [row for row in wear_payload['events']
+                             if row['kind'] ==
+                             'health_average_bodily_wear_calculation']
+        self.assertEqual(len(wear_calculations), 1)
+        wear = wear_calculations[0]
+        inputs = wear['inputs']
+        denominator = inputs['denominator']
+        replay = (sum(inputs['values']) / denominator if denominator
+                  else inputs['empty_population_value'])
+        self.assertAlmostEqual(replay, wear['value_after'])
+        self.assertEqual(len(inputs['agent_ids']), inputs['member_count'])
+        displayed = charts['ecological']['health_attrition'][-1]
+        self.assertAlmostEqual(displayed, wear['value_after'] * 100, places=1)
+
     def test_government_revenue_chart_point_has_trace_record(self):
         self.sim.step()
         tile = self.sim.nations[0].tiles[0]

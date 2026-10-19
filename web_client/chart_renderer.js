@@ -17,11 +17,13 @@
       { id: 'soil', name: 'Soil Fertility' }, { id: 'nutrition', name: 'Nutrition Density' },
       { id: 'smog', name: 'Smog Particulate' },
       { id: 'effluent', name: 'Water Effluent' },
+      { id: 'soil_pollution', name: 'Soil Toxicity' },
       { id: 'malnutrition_cases', name: 'Malnutrition Cases' },
       { id: 'waterborne_cases', name: 'Waterborne Cases' },
       { id: 'respiratory_cases', name: 'Respiratory Cases' },
       { id: 'chemical_cases', name: 'Chemical Exposure Cases' },
-      { id: 'health_outlays', name: 'Healthcare Outlays' }, { id: 'illness_deaths', name: 'Illness Fatalities' }
+      { id: 'health_outlays', name: 'Healthcare Outlays' }, { id: 'illness_deaths', name: 'Illness Fatalities' },
+      { id: 'bodily_wear', name: 'Average Bodily Wear' }
     ],
     labor: [
       { id: 'shift_hours', name: 'Average Shift Hours' },
@@ -78,6 +80,11 @@
       tilePath: ['ecological', 'pollution', 'smog'], label: 'Air pollution' }),
     effluent: Object.freeze({ metricId: 'ecology.pollution_water',
       tilePath: ['ecological', 'pollution', 'water'], label: 'Water pollution' }),
+    soil_pollution: Object.freeze({ metricId: 'ecology.pollution_soil',
+      tilePath: ['ecological', 'pollution', 'soil'], label: 'Soil toxicity' }),
+    bodily_wear: Object.freeze({ metricId: 'health.average_bodily_wear',
+      tilePath: ['ecological', 'health_attrition'], chartScale: 100,
+      label: 'Average accumulated bodily wear' }),
     illness_deaths: Object.freeze({ metricId: 'health.fatalities',
       tilePath: ['ecological', 'untreated_fatalities', 'fatalities'],
       label: 'Disease fatalities' }),

@@ -269,6 +269,9 @@ def step_tile_alienation(region, t: int):
                              'avg_alienation_log', 0.0, empty_inputs)
         _emit_average_metric(region, 'labor.average_class_consciousness',
                              'avg_consciousness_log', 0.0, empty_inputs)
+        _emit_average_metric(region, 'health.average_bodily_wear',
+                             'avg_health_attrition_log', 0.0, empty_inputs,
+                             unit='attrition_points')
         return
 
     ent_level = getattr(region, 'entertainment_level', 0.0)
@@ -282,6 +285,8 @@ def step_tile_alienation(region, t: int):
     alienation_values = []
     consciousness_ids = []
     consciousness_values = []
+    bodily_wear_ids = []
+    bodily_wear_values = []
 
     for a in agents:
         alien = compute_agent_alienation(a, region, t)
@@ -292,6 +297,8 @@ def step_tile_alienation(region, t: int):
 
         attr = step_health_attrition(a, region, t)
         total_attrition += attr
+        bodily_wear_ids.append(a.id)
+        bodily_wear_values.append(float(attr))
         if getattr(a, 'workplace_accident', False):
             total_accidents += 1
 
@@ -317,3 +324,9 @@ def step_tile_alienation(region, t: int):
         total_consciousness / n,
         {'member_count': n, 'agent_ids': consciousness_ids,
          'values': consciousness_values, 'denominator': n})
+    _emit_average_metric(
+        region, 'health.average_bodily_wear', 'avg_health_attrition_log',
+        total_attrition / n,
+        {'member_count': n, 'agent_ids': bodily_wear_ids,
+         'values': bodily_wear_values, 'denominator': n},
+        unit='attrition_points')

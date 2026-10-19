@@ -401,6 +401,11 @@ def sample(tiles, nations):
             if hasattr(tile, field):
                 values[(metric_id, tile.name)] = (
                     tile_subject, unit, float(getattr(tile, field)))
+        bodily_wear_history = getattr(tile, 'avg_health_attrition_log', ())
+        if bodily_wear_history:
+            values[('health.average_bodily_wear', tile.name)] = (
+                tile_subject, 'attrition_points',
+                float(bodily_wear_history[-1]))
         disease_cases = {disease: sum(
             1 for person in tile.agents
             if getattr(person, 'alive', True)

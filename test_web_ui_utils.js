@@ -51,7 +51,8 @@ for (const [chartId, metricId] of Object.entries({
   inventories: 'goods.producer_inventory', gini: 'economy.gini',
   soil: 'ecology.soil_fertility',
   nutrition: 'ecology.nutrition_density', smog: 'ecology.pollution_air',
-  effluent: 'ecology.pollution_water', illness_deaths: 'health.fatalities',
+  effluent: 'ecology.pollution_water', soil_pollution: 'ecology.pollution_soil',
+  bodily_wear: 'health.average_bodily_wear', illness_deaths: 'health.fatalities',
   malnutrition_cases: 'health.disease_cases', waterborne_cases: 'health.disease_cases',
   respiratory_cases: 'health.disease_cases', chemical_cases: 'health.disease_cases',
   health_outlays: 'health.medical_spending',
@@ -72,6 +73,9 @@ assert.equal(globalThis.CoCCharts.getTraceBinding('inventories').good, 'food');
 assert.equal(globalThis.CoCCharts.getTraceBinding('gini').good, 'food');
 assert.equal(globalThis.CoCCharts.getTraceBinding('gini').chartScale, 100);
 assert.equal(globalThis.CoCCharts.getTraceBinding('soil').chartScale, 100);
+assert.equal(globalThis.CoCCharts.getTraceBinding('bodily_wear').chartScale, 100);
+assert.deepEqual(globalThis.CoCCharts.getTraceBinding('soil_pollution').tilePath,
+  ['ecological', 'pollution', 'soil']);
 assert.deepEqual(globalThis.CoCCharts.getTraceBinding('nutrition').tilePath,
   ['ecological', 'soil_nutrition', 'nutrition']);
 assert.equal(globalThis.CoCCharts.getTraceBinding('waterborne_cases').disease, 'waterborne');

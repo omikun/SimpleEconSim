@@ -1613,3 +1613,16 @@ replays each calculation from trace inputs. Trade-route/accounting, labor and
 government chart, history parity, and metric-catalog checks passed (21 Python
 tests); Node UI, JavaScript syntax, Python compilation, and `git diff --check`
 passed.
+
+Phase 5 follow-up, 2026-10-18: connected the soil-toxicity chart to its
+turn-level pollution calculation, including pesticide runoff, scrubber sludge,
+biodegradation, and bounds. Added a traceable average bodily-wear series with
+the living agents, their post-labor/environment wear values, and the mean
+denominator. The existing chart's ×100 display scale is now identified in its
+trace binding. The measure is taken in the alienation phase, before that turn's
+disease progression.
+
+Verification: a web endpoint integration test matches the soil and bodily-wear
+chart points to their turn/tile calculation records and replays the average
+from its recorded values. Focused web endpoint and metric-catalog coverage
+tests passed, alongside the Node UI checks and JavaScript/Python syntax checks.
