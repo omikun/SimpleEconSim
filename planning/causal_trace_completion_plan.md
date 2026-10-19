@@ -2293,3 +2293,16 @@ checks the entertainment sample, and reconciles broken machinery to its firm
 rows. Metric-catalog coverage, labor aggregate, existing labor chart, Node UI,
 syntax, and `git diff --check` checks passed. Desktop chart drilldown and
 untreated-case/hunger chart coverage remain open.
+
+## Phase 5 follow-up — Trace hunger and untreated-case charts (implemented)
+
+Split Population and Hungry Residents into separate web charts. Hungry residents
+is calculated from the aligned food, wood, furniture, and trader cohort histories,
+with the per-cohort counts recorded for replay. Added a selectable Untreated
+Cases chart. Its aggregate calculation now lists each unaffordable patient's
+disease, cash, treatment price, available public funds, and linked refusal event.
+
+Verification: the chart endpoint test matches both displayed series to their
+turn calculations; a poor-patient fixture verifies the untreated case links to
+its specific unaffordable-treatment record. Metric-catalog, Node UI, syntax,
+and whitespace checks passed. Desktop chart-to-trace selection remains open.

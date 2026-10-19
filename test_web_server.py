@@ -409,6 +409,40 @@ class TestWebServerEndpoints(unittest.TestCase):
         self.assertEqual(charts['workplace_conditions']['broken'][-1],
                          broken['value_after'])
 
+    def test_hunger_and_untreated_case_chart_points_have_trace_records(self):
+        self.sim.step()
+        tile = self.sim.nations[0].tiles[0]
+        charts = self.sim.serialize_tile(tile, turn=self.sim.turn)['charts']
+
+        hunger_query = urllib.parse.urlencode({
+            'turn': self.sim.turn, 'entity': f'tile:{tile.name}',
+            'metric': 'people.hungry', 'limit': 200})
+        hunger_payload = json.loads(MockHttpRequestHandler(
+            self.mock_server, 'GET', f'/api/trace?{hunger_query}').get_body())
+        hunger_rows = [row for row in hunger_payload['events']
+                       if row['kind'] == 'population_hunger_count_calculation']
+        self.assertEqual(len(hunger_rows), 1)
+        hunger = hunger_rows[0]
+        self.assertEqual(hunger['value_after'],
+                         sum(hunger['inputs']['group_counts'].values()))
+        self.assertEqual(charts['economic']['pop_hunger']['hungry'][-1],
+                         hunger['value_after'])
+
+        untreated_query = urllib.parse.urlencode({
+            'turn': self.sim.turn, 'entity': f'tile:{tile.name}',
+            'metric': 'health.untreated_cases', 'limit': 200})
+        untreated_payload = json.loads(MockHttpRequestHandler(
+            self.mock_server, 'GET', f'/api/trace?{untreated_query}').get_body())
+        untreated_rows = [row for row in untreated_payload['events']
+                          if row['kind'] == 'disease_untreated_cases_observed']
+        self.assertEqual(len(untreated_rows), 1)
+        untreated = untreated_rows[0]
+        self.assertEqual(untreated['inputs']['replay_count'],
+                         len(untreated['inputs']['untreated_patients']))
+        self.assertTrue(untreated['inputs']['replay_matches'])
+        self.assertEqual(charts['ecological']['untreated_fatalities']['untreated'][-1],
+                         untreated['value_after'])
+
     def test_soil_toxicity_and_bodily_wear_chart_points_have_trace_records(self):
         self.sim.step()
         tile = self.sim.nations[0].tiles[0]

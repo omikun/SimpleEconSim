@@ -47,6 +47,7 @@ assert.equal(globalThis.CoCCharts.getChartCatalog().economic[0].name, 'Nominal G
 for (const [chartId, metricId] of Object.entries({
   gdp: 'economy.gdp_nominal', treasury: 'finance.treasury',
   food_price: 'goods.national_food_price', pop: 'people.population',
+  hungry: 'people.hungry',
   wood_price: 'goods.price', furniture_price: 'goods.price',
   unrest: 'politics.protest_energy', production: 'goods.production',
   wood_production: 'goods.production', furniture_production: 'goods.production',
@@ -59,6 +60,7 @@ for (const [chartId, metricId] of Object.entries({
   nutrition: 'ecology.nutrition_density', smog: 'ecology.pollution_air',
   effluent: 'ecology.pollution_water', soil_pollution: 'ecology.pollution_soil',
   bodily_wear: 'health.average_bodily_wear', illness_deaths: 'health.fatalities',
+  untreated_cases: 'health.untreated_cases',
   malnutrition_cases: 'health.disease_cases', waterborne_cases: 'health.disease_cases',
   respiratory_cases: 'health.disease_cases', chemical_cases: 'health.disease_cases',
   health_outlays: 'health.medical_spending',
@@ -108,8 +110,13 @@ assert.equal(globalThis.CoCCharts.getTraceBinding('gini').good, 'food');
 assert.equal(globalThis.CoCCharts.getTraceBinding('gini').chartScale, 100);
 assert.equal(globalThis.CoCCharts.getTraceBinding('soil').chartScale, 100);
 assert.equal(globalThis.CoCCharts.getTraceBinding('bodily_wear').chartScale, 100);
-assert.equal(globalThis.CoCCharts.getChartCatalog().economic.length, 21);
+assert.equal(globalThis.CoCCharts.getChartCatalog().economic.length, 22);
+assert.equal(globalThis.CoCCharts.getChartCatalog().ecological.length, 13);
 assert.equal(globalThis.CoCCharts.getChartCatalog().labor.length, 9);
+assert.deepEqual(globalThis.CoCCharts.getTraceBinding('hungry').tilePath,
+  ['economic', 'pop_hunger', 'hungry']);
+assert.deepEqual(globalThis.CoCCharts.getTraceBinding('untreated_cases').tilePath,
+  ['ecological', 'untreated_fatalities', 'untreated']);
 assert.equal(globalThis.CoCCharts.getTraceBinding('class_worker').classGroup, 'worker');
 assert.equal(globalThis.CoCCharts.getTraceBinding('commons_access').chartScale, 100);
 assert.equal(globalThis.CoCCharts.getChartCatalog().citizens.length, 11);

@@ -1531,8 +1531,14 @@ class SimServer:
             good.name: g_inv(good) for good in chart_goods}
 
         pop_series = (tile.total_population or [])[-30:]
-        hs = [tile.hungry_log.get(gd, []) for gd in (Goods.food, Goods.wood, Goods.furniture)]
-        hungry_series = [sum(row) for row in zip(*hs)][-30:] if any(hs) else []
+        hunger_keys = (Goods.food, Goods.wood, Goods.furniture, 'trader')
+        hunger_histories = [list((getattr(tile, 'hungry_log', {}) or {}).get(key, []))
+                            for key in hunger_keys]
+        hunger_length = max((len(history) for history in hunger_histories), default=0)
+        hungry_series = [
+            sum(int(history[index]) for history in hunger_histories
+                if index < len(history))
+            for index in range(max(0, hunger_length - 30), hunger_length)]
         tot_exp = [round(float(value), 1)
                    for value in getattr(tile, 'export_value_log', [])[-30:]]
         tot_imp = [round(float(value), 1)

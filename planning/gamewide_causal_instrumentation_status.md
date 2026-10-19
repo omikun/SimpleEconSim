@@ -1688,3 +1688,14 @@ Verification: focused chart tests replay accident/sabotage outcomes and confirm
 the broken-stock reconciliation. Metric-catalog coverage, labor aggregate and
 existing labor chart tests, Node UI, syntax, and whitespace checks passed.
 Desktop chart-to-trace selection and untreated-case/hunger histories remain.
+
+Phase 5 follow-up, 2026-10-18: the web chart panel now separates population
+from hungry residents and exposes untreated disease cases. Hunger evidence
+lists its producer and trader cohort counts. Untreated-case evidence lists
+unaffordable patients and links each case to the treatment affordability record,
+including patient cash, treatment cost, and public funds available.
+
+Verification: endpoint tests match hunger and untreated chart points to their
+trace calculations; a low-cash patient fixture verifies the case-to-refusal
+event link. Metric-catalog coverage, Node UI, syntax, and whitespace checks
+passed. Desktop chart-to-trace selection remains open.

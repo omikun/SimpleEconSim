@@ -767,6 +767,23 @@ def log_metrics(region: Any, t: int):
     region.gdp_by_profession_log['trader'].append(0)
 
     region.trader_cash_log.append(sum(a.cash for a in trader_agents))
+    hunger_groups = {}
+    for good in (Goods.food, Goods.wood, Goods.furniture):
+        history = region.hungry_log.get(good, ())
+        hunger_groups[good.name] = int(history[-1]) if history else 0
+    trader_hunger = region.hungry_log.get('trader', ())
+    hunger_groups['trader'] = int(trader_hunger[-1]) if trader_hunger else 0
+    from run_trace import emit
+    emit(region, kind='population_hunger_count_calculation',
+         record_class='calculation', phase='demographics',
+         subject={'type': 'tile', 'id': region.name},
+         metric_id='people.hungry', unit='people',
+         after=sum(hunger_groups.values()),
+         formula_id='population.sum_hungry_output_groups.v1',
+         inputs={'group_counts': hunger_groups,
+                 'included_groups': list(hunger_groups),
+                 'counting_rule': 'sum disjoint producer-output and trader cohorts',
+                 'source': 'Live hunger histories for this turn'})
     pipeline_qty = 0
     for rt in _logistics.all_routes(region):
         pipeline_qty += sum(

@@ -317,6 +317,8 @@ def step_medical_care(region, t: int, rand_gen=None) -> dict:
     non_transfer_treatments = 0
     public_transfer_event_ids = []
     medical_transfer_event_ids = []
+    untreated_case_rows = []
+    untreated_event_ids = []
 
     gov = getattr(region, 'gov', None)
     gov_agent = getattr(gov, 'agent', None) if gov else None
@@ -471,14 +473,31 @@ def step_medical_care(region, t: int, rand_gen=None) -> dict:
                 untreated_count += 1
                 a.health_attrition = min(2.5, getattr(a, 'health_attrition', 0.0) + 0.04)
                 a.despair = min(1.0, getattr(a, 'despair', 0.0) + 0.05)
-                emit(region, kind='medical_treatment_unaffordable', record_class='outcome',
-                     subject={'type': 'tile', 'id': region.name,
-                              'agent_id': getattr(a, 'id', None), 'disease': dis},
-                     metric_id='health.medical_treatment', unit='treatment',
-                     before=1, after=1,
-                     inputs={'treatment_cost': cost_per_cure, 'patient_cash': a.cash,
-                             'public_care_available': is_public_healthcare,
-                             'public_funds_available': gov_agent.cash if gov_agent else 0.0})
+                untreated_event_id = emit(
+                    region, kind='medical_treatment_unaffordable',
+                    record_class='outcome',
+                    subject={'type': 'tile', 'id': region.name,
+                             'agent_id': getattr(a, 'id', None), 'disease': dis},
+                    metric_id='health.medical_treatment', unit='treatment',
+                    before=1, after=1,
+                    inputs={'treatment_cost': cost_per_cure,
+                            'patient_cash': float(a.cash),
+                            'public_care_available': is_public_healthcare,
+                            'public_funds_available': float(
+                                gov_agent.cash if gov_agent else 0.0),
+                            'reason': 'patient_and_available_public_funds_below_cost'})
+                untreated_case_rows.append({
+                    'patient_id': getattr(a, 'id', None), 'disease': dis,
+                    'treatment_cost': float(cost_per_cure),
+                    'patient_cash': float(a.cash),
+                    'public_care_available': bool(is_public_healthcare),
+                    'public_funds_available': float(
+                        gov_agent.cash if gov_agent else 0.0),
+                    'reason': 'unaffordable',
+                    'event_id': untreated_event_id,
+                })
+                if untreated_event_id is not None:
+                    untreated_event_ids.append(untreated_event_id)
 
         for c in cured_this_turn:
             if c in a.diseases:
@@ -544,9 +563,14 @@ def step_medical_care(region, t: int, rand_gen=None) -> dict:
     emit(region, kind='disease_untreated_cases_observed', record_class='calculation',
          subject={'type': 'tile', 'id': region.name},
          metric_id='health.untreated_cases', unit='cases', after=untreated_count,
+         formula_id='health.untreated_case_rollup.v1',
          inputs={'public_healthcare': is_public_healthcare,
                  'cost_per_cure': cost_per_cure, 'public_funds_available':
-                 gov_agent.cash if gov_agent else 0.0})
+                 gov_agent.cash if gov_agent else 0.0,
+                 'untreated_patients': untreated_case_rows,
+                 'replay_count': len(untreated_case_rows),
+                 'replay_matches': len(untreated_case_rows) == untreated_count},
+         cause_event_ids=untreated_event_ids or None)
     if public_transfers and nation:
         emit(region, kind='public_healthcare_spending', record_class='transfer',
              subject={'type': 'nation', 'id': nation.name},

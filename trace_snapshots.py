@@ -321,6 +321,15 @@ def sample(tiles, nations):
         values[('people.population', tile.name)] = (
             tile_subject, 'people', tile.total_population[-1]
             if getattr(tile, 'total_population', None) else len(tile.agents))
+        hungry_history = getattr(tile, 'hungry_log', {}) or {}
+        hungry_groups = {
+            good.name: int(hungry_history.get(good, ())[-1])
+            if hungry_history.get(good, ()) else 0
+            for good in (Goods.food, Goods.wood, Goods.furniture)}
+        hungry_groups['trader'] = int(hungry_history.get('trader', ())[-1]) \
+            if hungry_history.get('trader', ()) else 0
+        values[('people.hungry', tile.name)] = (
+            tile_subject, 'people', sum(hungry_groups.values()))
         values[('people.deaths', tile.name)] = (
             tile_subject, 'people_per_turn', int(getattr(tile, 'deaths_this_turn', 0)))
         values[('people.births', tile.name)] = (
