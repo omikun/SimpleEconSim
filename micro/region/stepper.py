@@ -48,6 +48,31 @@ def _profession_population_members(region: Any) -> dict:
     return members
 
 
+def sample_effective_workday_cap(region: Any) -> float:
+    """Record the workday cap that governed this tile's production turn."""
+    cap = float(getattr(region, 'workday_cap',
+                        getattr(region, 'max_workday_hours', 16.0)))
+    history = getattr(region, 'workday_cap_log', None)
+    if history is None:
+        history = []
+        region.workday_cap_log = history
+    before = history[-1] if history else None
+    history.append(cap)
+    from run_trace import emit
+    emit(region, kind='effective_workday_cap_sample',
+         record_class='calculation', phase='local',
+         subject={'type': 'tile', 'id': region.name},
+         metric_id='labor.statutory_workday', unit='hours',
+         before=before, after=cap,
+         formula_id='labor.effective_workday_cap_sample.v1',
+         inputs={'effective_workday_cap': cap,
+                 'workday_cap_field': 'workday_cap',
+                 'statute_display_value': float(getattr(
+                     region, 'max_workday_hours', cap)),
+                 'sample_point': 'effective cap state recorded for this turn'})
+    return cap
+
+
 def step_economy(region: Any, t: int):
     """Per-tile economy and institutional flows."""
     legacy = getattr(region, 'province', None) is None
@@ -280,6 +305,7 @@ def step_economy(region: Any, t: int):
     # Surplus value & labor metrics (P2.1)
     from labor_contract import aggregate_tile_surplus
     surplus_stats = aggregate_tile_surplus(region)
+    sample_effective_workday_cap(region)
     region.avg_shift_hours_log.append(surplus_stats['avg_shift_hours'])
     region.surplus_value_log.append(surplus_stats['total_surplus_value'])
     region.rate_of_exploitation_log.append(surplus_stats['avg_rate_of_exploitation'])

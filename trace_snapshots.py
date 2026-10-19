@@ -355,6 +355,7 @@ def sample(tiles, nations):
                     float(history[-1]))
         for metric_id, field, unit in (
                 ('labor.average_shift_hours', 'avg_shift_hours_log', 'hours'),
+                ('labor.statutory_workday', 'workday_cap_log', 'hours'),
                 ('labor.average_alienation', 'avg_alienation_log', 'ratio'),
                 ('labor.average_class_consciousness', 'avg_consciousness_log', 'ratio'),
                 ('labor.exploitation_rate', 'rate_of_exploitation_log', 'ratio'),

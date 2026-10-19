@@ -6,16 +6,22 @@ from desktop_chart_trace import (
     chart_trace_binding,
     select_chart_trace,
 )
+from micro.region.stepper import sample_effective_workday_cap
 
 
 class FakeTrace:
     def __init__(self, events):
         self.events = events
         self.query_args = None
+        self.emitted = None
 
     def query(self, **kwargs):
         self.query_args = kwargs
         return {'events': self.events, 'total': len(self.events)}
+
+    def emit(self, clock, **kwargs):
+        self.emitted = (clock, kwargs)
+        return 'event-1'
 
 
 class FakeRegion:
@@ -54,6 +60,13 @@ class DesktopChartTraceTests(unittest.TestCase):
         self.assertEqual(
             chart_trace_binding('citizen', 3, 'commons %'),
             {'metric_id': 'land.commons_access',
+             'plot_transform': '×100 display scale'})
+        self.assertEqual(
+            chart_trace_binding('labor', 1, 'effective cap'),
+            {'metric_id': 'labor.statutory_workday'})
+        self.assertEqual(
+            chart_trace_binding('labor', 3, 'entertainment (x100)'),
+            {'metric_id': 'society.entertainment_level',
              'plot_transform': '×100 display scale'})
         self.assertIsNone(chart_trace_binding('econ', 1, 'not a series'))
 
@@ -187,6 +200,61 @@ class DesktopChartTraceTests(unittest.TestCase):
                          'society.class_population')
         self.assertEqual(world['_chart_trace_selection']['chart_family'],
                          'citizen')
+
+    def test_all_labor_chart_histories_have_trace_bindings(self):
+        from worldview_labor_ui import tile_labor_charts
+        region = SimpleNamespace(
+            avg_shift_hours_log=[8.0], rate_of_exploitation_log=[0.5],
+            workday_cap_log=[10.0], avg_alienation_log=[0.2],
+            avg_health_attrition_log=[0.1], workplace_accidents_log=[1],
+            avg_consciousness_log=[0.4], entertainment_log=[0.3],
+            protest_energy_log=[2.0], strikers_log=[3],
+            broken_machinery_log=[1], sabotage_log=[1])
+        for chart_idx, chart in enumerate(tile_labor_charts(region), start=1):
+            for label in chart[4]:
+                self.assertIsNotNone(chart_trace_binding('labor', chart_idx, label),
+                                     (chart_idx, label))
+
+    def test_workday_cap_chart_history_matches_effective_cap_trace(self):
+        recorder = FakeTrace([])
+        region = SimpleNamespace(
+            name='Delta', workday_cap=10.0, max_workday_hours=12.0,
+            workday_cap_log=[16.0], _run_trace=recorder,
+            _collective_trace_clock={'turn': 7})
+        self.assertEqual(sample_effective_workday_cap(region), 10.0)
+        self.assertEqual(region.workday_cap_log, [16.0, 10.0])
+        clock, event = recorder.emitted
+        self.assertEqual(clock, {'turn': 7})
+        self.assertEqual(event['metric_id'], 'labor.statutory_workday')
+        self.assertEqual(event['before'], 16.0)
+        self.assertEqual(event['after'], 10.0)
+        self.assertEqual(event['inputs']['statute_display_value'], 12.0)
+
+    def test_labor_panel_click_dispatches_point_to_trace_selection(self):
+        from worldview_camera import HEIGHT, TICKER_H, TOP_BAR_H
+        from worldview_labor_ui import PANEL_LEFT, labor_panel_hit
+        region = FakeRegion(FakeTrace([{
+            'kind': 'effective_workday_cap_sample',
+            'record_class': 'calculation', 'value_after': 10.0}]))
+        chart = ('Shift Hours', 'line', [[10.0, 12.0]], ['blue'],
+                 ['effective cap'])
+        chart_y0 = 180 + TOP_BAR_H + 52 + 60 + 30
+        plot_rect = (PANEL_LEFT + 10, chart_y0 + 20, 100, 100)
+        world = {
+            'selected_region': region, 'scope': 'tile', 'citizen_scope': 'tile',
+            'labor_sub_mode': 'charts', 'citizen_chart_view': 1,
+            'window': 2, 'turn': 25,
+            '_chart_zoom_trace_info': {
+                'chart_family': 'labor', 'chart_mode': 'labor',
+                'chart_idx': 1, 'chart': chart, 'plot_rect': plot_rect,
+                'window': 2},
+        }
+        point = (plot_rect[0] + 94, plot_rect[1] + 24)
+        self.assertLess(point[1], HEIGHT - TICKER_H - 24)
+        self.assertTrue(labor_panel_hit(point, world))
+        self.assertEqual(world['_chart_trace_selection']['metric_id'],
+                         'labor.statutory_workday')
+        self.assertEqual(world['_chart_trace_selection']['chart_family'], 'labor')
 
 
 if __name__ == '__main__':

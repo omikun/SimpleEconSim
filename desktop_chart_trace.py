@@ -66,12 +66,27 @@ _CITIZEN_BINDINGS = {
         'protest': ('politics.protest_energy', None)},
 }
 
+_LABOR_BINDINGS = {
+    1: {'shift hrs': ('labor.average_shift_hours', None),
+        'effective cap': ('labor.statutory_workday', None),
+        's/v rate (%)': ('labor.exploitation_rate', None)},
+    2: {'alienation (x100)': ('labor.average_alienation', None),
+        'bodily wear (x100)': ('health.average_bodily_wear', None),
+        'accidents': ('labor.workplace_accidents', None)},
+    3: {'consciousness (x100)': ('labor.average_class_consciousness', None),
+        'entertainment (x100)': ('society.entertainment_level', None),
+        'protest': ('politics.protest_energy', None)},
+    4: {'strikers': ('labor.strikers', None),
+        'broken stock': ('labor.broken_machinery', None),
+        'sabotaged this turn': ('labor.machinery_sabotaged', None)},
+}
+
 
 def chart_trace_binding(chart_mode: str, chart_idx: int, label: str) -> dict | None:
     """Return trace filters for one plotted series, if that series is mapped."""
     label_key = str(label).strip().lower()
-    mapping = {'eco': _ECO_BINDINGS, 'citizen': _CITIZEN_BINDINGS}.get(
-        chart_mode, _ECON_BINDINGS)
+    mapping = {'eco': _ECO_BINDINGS, 'citizen': _CITIZEN_BINDINGS,
+               'labor': _LABOR_BINDINGS}.get(chart_mode, _ECON_BINDINGS)
     row = mapping.get(int(chart_idx), {}).get(label_key)
     if row is None:
         return None
@@ -96,6 +111,11 @@ def chart_trace_binding(chart_mode: str, chart_idx: int, label: str) -> dict | N
         ('eco', 6): '×100 display scale',
         ('citizen', 3, 'commons %'): '×100 display scale',
         ('citizen', 4, 'gini (x100)'): '×100 display scale',
+        ('labor', 1, 's/v rate (%)'): '×100 display scale',
+        ('labor', 2, 'alienation (x100)'): '×100 display scale',
+        ('labor', 2, 'bodily wear (x100)'): '×100 display scale',
+        ('labor', 3, 'consciousness (x100)'): '×100 display scale',
+        ('labor', 3, 'entertainment (x100)'): '×100 display scale',
     }
     transform = transforms.get((chart_mode, int(chart_idx), label_key))
     if transform is None:
@@ -252,7 +272,8 @@ def select_chart_trace(region, chart_mode, chart_idx, chart, plot_rect,
         'has_trace': trace is not None,
         'chart_idx': int(chart_idx),
         'chart_mode': chart_mode,
-        'chart_family': 'citizen' if chart_mode == 'citizen' else 'tile',
+        'chart_family': (chart_mode if chart_mode in ('citizen', 'labor')
+                         else 'tile'),
     }
 
 

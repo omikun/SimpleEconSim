@@ -2338,3 +2338,21 @@ unavailable until its cross-tile aggregation evidence is connected.
 Verification: nine desktop tests cover chart point mapping, every Citizen tile
 series binding, trader hunger, class-group filtering, and click handling. Python
 compilation and `git diff --check` passed.
+
+## Phase 5 follow-up — Connect desktop Labor chart drilldown (implemented)
+
+Tile Labor chart points now select their plotted turn and query existing trace
+metrics for shift hours, effective workday cap, exploitation, alienation,
+bodily wear, workplace accidents, class consciousness, entertainment, protest,
+strikers, broken machinery, and sabotage. Corrected stale history field names
+in both desktop Labor panels and their summary cards. The effective workday
+cap is now sampled once per tile turn, including wilderness turns, and its
+calculation record distinguishes the applied cap from the statute display
+field. Nation Labor charts read the real histories, but their aggregated
+values do not yet have a Nation-level calculation record.
+
+Verification: 12 desktop point-selection tests, metric-catalog coverage, labor
+law/repeal, and labor aggregate tests passed (19 tests total). Python
+compilation and `git diff --check` passed. Nation-scope chart drilldown and
+evidence spanning all source turns behind moving-average chart points remain
+open.

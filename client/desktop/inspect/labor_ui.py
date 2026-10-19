@@ -37,42 +37,47 @@ def tile_labor_charts(region):
     if not region:
         return []
 
-    shifts = getattr(region, 'labor_shift_log', []) or []
-    sv_rates = [v * 100.0 for v in (getattr(region, 'labor_sv_log', []) or [])]
-    caps = [getattr(region, 'max_workday_hours', 16.0)] * len(shifts) if shifts else []
+    shifts = getattr(region, 'avg_shift_hours_log', []) or []
+    sv_rates = [v * 100.0 for v in
+                (getattr(region, 'rate_of_exploitation_log', []) or [])]
+    caps = getattr(region, 'workday_cap_log', []) or []
 
-    alienation = [a * 100.0 for a in (getattr(region, 'alienation_log', []) or [])]
-    health = [h * 1000.0 for h in (getattr(region, 'health_attrition_log', []) or [])]
-    vice = getattr(region, 'vice_spending_log', []) or []
+    alienation = [a * 100.0 for a in
+                  (getattr(region, 'avg_alienation_log', []) or [])]
+    health = [h * 100.0 for h in
+              (getattr(region, 'avg_health_attrition_log', []) or [])]
+    accidents = getattr(region, 'workplace_accidents_log', []) or []
 
-    consc = [c * 100.0 for c in (getattr(region, 'class_consciousness_log', []) or [])]
-    entertain = [e * 100.0 for e in (getattr(region, 'entertainment_level_log', []) or [])]
+    consc = [c * 100.0 for c in
+             (getattr(region, 'avg_consciousness_log', []) or [])]
+    entertain = [e * 100.0 for e in
+                 (getattr(region, 'entertainment_log', []) or [])]
     protest = getattr(region, 'protest_energy_log', []) or []
 
-    strikers = getattr(region, 'strikes_log', []) or []
-    broken = getattr(region, 'sabotage_log', []) or []
-    machines = getattr(region, 'machinery_stock_log', []) or []
+    strikers = getattr(region, 'strikers_log', []) or []
+    broken = getattr(region, 'broken_machinery_log', []) or []
+    sabotaged = getattr(region, 'sabotage_log', []) or []
 
     return [
         ("1. Shift Hours & Exploitation (s/v)", "line",
          [shifts, caps, sv_rates],
          [C_SHIFT, C_CAP, C_SV],
-         ["shift hrs", "legal cap", "s/v rate (%)"]),
+         ["shift hrs", "effective cap", "s/v rate (%)"]),
 
-        ("2. Alienation & Health Attrition", "line",
-         [alienation, health, vice],
+        ("2. Alienation, Bodily Wear & Accidents", "line",
+         [alienation, health, accidents],
          [C_ALIEN, C_HEALTH, C_VICE],
-         ["alienation (x100)", "health risk (x1k)", "vice spend ($)"]),
+         ["alienation (x100)", "bodily wear (x100)", "accidents"]),
 
         ("3. Consciousness vs Entertainment", "line",
          [consc, entertain, protest],
          [C_CONSC, C_ENTERTAIN, C_PROTEST],
-         ["consciousness", "entertainment", "protest"]),
+         ["consciousness (x100)", "entertainment (x100)", "protest"]),
 
-        ("4. Strikes & Machine Sabotage", "line",
-         [strikers, broken, machines],
+        ("4. Strikes, Broken Machinery & Sabotage", "line",
+         [strikers, broken, sabotaged],
          [C_STRIKE, C_SABOTAGE, C_MACHINES],
-         ["strikers", "broken machines", "active machines"]),
+         ["strikers", "broken stock", "sabotaged this turn"]),
     ]
 
 
@@ -82,7 +87,8 @@ def nation_labor_charts(nation):
     if not tiles:
         return []
 
-    max_len = max((len(getattr(r, 'labor_shift_log', []) or []) for r in tiles), default=0)
+    max_len = max((len(getattr(r, 'avg_shift_hours_log', []) or [])
+                   for r in tiles), default=0)
     if max_len == 0:
         return []
 
@@ -105,42 +111,42 @@ def nation_labor_charts(nation):
             out.append(tot)
         return out
 
-    shifts = _avg_tile_series('labor_shift_log')
-    sv_rates = _avg_tile_series('labor_sv_log', mult=100.0)
-    caps = [getattr(nation, 'max_workday_hours', 16.0)] * len(shifts) if shifts else []
+    shifts = _avg_tile_series('avg_shift_hours_log')
+    sv_rates = _avg_tile_series('rate_of_exploitation_log', mult=100.0)
+    caps = _avg_tile_series('workday_cap_log')
 
-    alienation = _avg_tile_series('alienation_log', mult=100.0)
-    health = _avg_tile_series('health_attrition_log', mult=1000.0)
-    vice = _sum_tile_series('vice_spending_log')
+    alienation = _avg_tile_series('avg_alienation_log', mult=100.0)
+    health = _avg_tile_series('avg_health_attrition_log', mult=100.0)
+    accidents = _sum_tile_series('workplace_accidents_log')
 
-    consc = _avg_tile_series('class_consciousness_log', mult=100.0)
-    entertain = _avg_tile_series('entertainment_level_log', mult=100.0)
+    consc = _avg_tile_series('avg_consciousness_log', mult=100.0)
+    entertain = _avg_tile_series('entertainment_log', mult=100.0)
     protest = _avg_tile_series('protest_energy_log')
 
-    strikers = _sum_tile_series('strikes_log')
-    broken = _sum_tile_series('sabotage_log')
-    machines = _sum_tile_series('machinery_stock_log')
+    strikers = _sum_tile_series('strikers_log')
+    broken = _sum_tile_series('broken_machinery_log')
+    sabotaged = _sum_tile_series('sabotage_log')
 
     return [
         ("1. Shift Hours & Exploitation (s/v)", "line",
          [shifts, caps, sv_rates],
          [C_SHIFT, C_CAP, C_SV],
-         ["avg shift hrs", "legal cap", "avg s/v rate (%)"]),
+         ["avg shift hrs", "avg effective cap", "avg s/v rate (%)"]),
 
-        ("2. Alienation & Health Attrition", "line",
-         [alienation, health, vice],
+        ("2. Alienation, Bodily Wear & Accidents", "line",
+         [alienation, health, accidents],
          [C_ALIEN, C_HEALTH, C_VICE],
-         ["alienation (x100)", "health risk (x1k)", "total vice ($)"]),
+         ["alienation (x100)", "bodily wear (x100)", "accidents"]),
 
         ("3. Consciousness vs Entertainment", "line",
          [consc, entertain, protest],
          [C_CONSC, C_ENTERTAIN, C_PROTEST],
-         ["consciousness", "entertainment", "protest"]),
+         ["consciousness (x100)", "entertainment (x100)", "protest"]),
 
         ("4. Workplace Strikes & Broken Capital", "line",
-         [strikers, broken, machines],
+         [strikers, broken, sabotaged],
          [C_STRIKE, C_SABOTAGE, C_MACHINES],
-         ["total strikers", "broken machines", "active machines"]),
+         ["strikers", "broken stock", "sabotaged this turn"]),
     ]
 
 
@@ -149,7 +155,7 @@ def draw_labor_dashboard(surface, world, region, font, font_small, mouse_pos=Non
     d = TOP_BAR_H
     panel_top = 180 + d
     panel_bottom = HEIGHT - TICKER_H - 24
-    scope = world.get('citizen_scope', 'tile')
+    scope = world.get('citizen_scope', world.get('scope', 'tile'))
     mx, my = mouse_pos if mouse_pos else (-1, -1)
 
     nation = None
@@ -171,10 +177,13 @@ def draw_labor_dashboard(surface, world, region, font, font_small, mouse_pos=Non
         has_ten = getattr(nation, 'ten_hour_act', False) or cap_val <= 10.0
         has_safe = getattr(nation, 'factory_safety_act', False)
         # Summary metrics
-        shifts = [r.labor_shift_log[-1] for r in nation.tiles if getattr(r, 'labor_shift_log', None)]
+        shifts = [r.avg_shift_hours_log[-1] for r in nation.tiles
+                  if getattr(r, 'avg_shift_hours_log', None)]
         avg_shift = (sum(shifts) / len(shifts)) if shifts else 12.0
         strikers_cnt = sum(sum(1 for a in r.agents if getattr(a, 'is_striking', False)) for r in nation.tiles)
-        broken_cnt = sum(getattr(r, 'sabotage_log', [0])[-1] for r in nation.tiles if getattr(r, 'sabotage_log', None))
+        broken_cnt = sum(getattr(r, 'broken_machinery_log', [0])[-1]
+                         for r in nation.tiles
+                         if getattr(r, 'broken_machinery_log', None))
         ent_vals = [getattr(r, 'entertainment_level', 0.0) for r in nation.tiles]
         avg_ent = (sum(ent_vals) / len(ent_vals)) * 100.0 if ent_vals else 0.0
         scrip_circ = sum(sum(getattr(a, 'scrip_wallet', 0.0) for a in getattr(r, 'agents', [])) for r in nation.tiles)
@@ -187,10 +196,12 @@ def draw_labor_dashboard(surface, world, region, font, font_small, mouse_pos=Non
         cap_val = getattr(region, 'max_workday_hours', 16.0)
         has_ten = getattr(region, 'ten_hour_act', False) or cap_val <= 10.0
         has_safe = getattr(region, 'factory_safety_act', False)
-        avg_shift = region.labor_shift_log[-1] if getattr(region, 'labor_shift_log', None) else 12.0
+        avg_shift = (region.avg_shift_hours_log[-1]
+                     if getattr(region, 'avg_shift_hours_log', None) else 12.0)
         reg_agents = getattr(region, 'agents', [])
         strikers_cnt = sum(1 for a in reg_agents if getattr(a, 'is_striking', False))
-        broken_cnt = getattr(region, 'sabotage_log', [0])[-1] if getattr(region, 'sabotage_log', None) else 0
+        broken_cnt = (getattr(region, 'broken_machinery_log', [0])[-1]
+                      if getattr(region, 'broken_machinery_log', None) else 0)
         avg_ent = getattr(region, 'entertainment_level', 0.0) * 100.0
         scrip_circ = sum(getattr(a, 'scrip_wallet', 0.0) for a in reg_agents)
         tommy_shops = sum(1 for a in reg_agents if getattr(a, 'is_corporation', False) and getattr(a, 'pay_mode', 'cash') == 'scrip')
@@ -318,7 +329,20 @@ def draw_labor_dashboard(surface, world, region, font, font_small, mouse_pos=Non
 
         draw_chart_large(surface, charts[idx], font, font_small,
                          world['window'], chart_y0, chart_y1, mouse_pos=mouse_pos, world=world, region=region, chart_idx=c_view)
-        hint = font_small.render(f"{charts[idx][0]} (Click/Esc = Grid)", True, DIM)
+        world['_chart_zoom_trace_info'].update({
+            'chart_family': 'labor', 'chart_mode': 'labor',
+            'chart_scope': scope})
+        selection = world.get('_chart_trace_selection')
+        if (selection and selection.get('chart_family') == 'labor'
+                and selection.get('chart_mode') == 'labor'
+                and selection.get('chart_idx') == c_view
+                and selection.get('tile') == getattr(region, 'name', None)):
+            from desktop_chart_trace import draw_trace_selection
+            draw_trace_selection(surface, selection, large_rect, font_small)
+        drilldown_hint = ("Click point: trace · Esc: Grid" if scope == 'tile'
+                          else "Nation trace unavailable · Esc: Grid")
+        hint = font_small.render(
+            f"{charts[idx][0]}  {drilldown_hint}", True, DIM)
         surface.blit(hint, (PANEL_LEFT + 6, chart_y1 + 4))
 
 
@@ -336,9 +360,11 @@ def labor_panel_hit(pos, world):
     btn_radar = (PANEL_LEFT + 10 + btn_w, card_y + card_h + 6, btn_w, 20)
     if btn_charts[0] <= mx <= btn_charts[0] + btn_w and btn_charts[1] <= my <= btn_charts[1] + 20:
         world['labor_sub_mode'] = 'charts'
+        world['_chart_trace_selection'] = None
         return True
     if btn_radar[0] <= mx <= btn_radar[0] + btn_w and btn_radar[1] <= my <= btn_radar[1] + 20:
         world['labor_sub_mode'] = 'radar'
+        world['_chart_trace_selection'] = None
         return True
 
     # Chart Zoom Hit (when in charts mode)
@@ -349,10 +375,33 @@ def labor_panel_hit(pos, world):
             hit_idx = chart_at_pixel(pos, chart_y0, chart_y1, num_charts=4)
             if hit_idx is not None:
                 world['citizen_chart_view'] = hit_idx
+                world['_chart_trace_selection'] = None
                 return True
         else:
             if PANEL_LEFT + 6 <= mx <= WIDTH - 8 and chart_y0 <= my <= chart_y1:
-                world['citizen_chart_view'] = 0
+                info = world.get('_chart_zoom_trace_info') or {}
+                region = world.get('selected_region') or world.get('hover_region')
+                if (region is None and world.get('nations')
+                        and getattr(world['nations'][0], 'tiles', None)):
+                    region = world['nations'][0].tiles[0]
+                scope = world.get('citizen_scope', world.get('scope', 'tile'))
+                selection = None
+                if (scope == 'tile' and region is not None
+                        and info.get('chart_family') == 'labor'
+                        and info.get('chart') is not None
+                        and info.get('plot_rect') is not None):
+                    from desktop_chart_trace import select_chart_trace
+                    selection = select_chart_trace(
+                        region, 'labor', info.get('chart_idx') or
+                        world.get('citizen_chart_view'), info['chart'],
+                        info['plot_rect'], pos,
+                        info.get('window', world.get('window', 100)),
+                        fallback_turn=world.get('turn', 0))
+                if selection is not None:
+                    world['_chart_trace_selection'] = selection
+                else:
+                    world['citizen_chart_view'] = 0
+                    world['_chart_trace_selection'] = None
                 return True
 
     return False

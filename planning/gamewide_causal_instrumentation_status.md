@@ -201,8 +201,10 @@ food producer inventory, food-cash Gini, soil fertility, nutrition density,
 air and water pollution, disease fatalities, individual
 malnutrition/waterborne/respiratory/chemical case counts, and combined
 healthcare outlays. Other chart series still need explicit source mappings.
-Desktop point-to-trace drilldown currently covers tile Economic, Ecology, and
-Citizen Class & Tenure charts; Nation-scope and Labor panel charts remain open.
+Desktop point-to-trace drilldown currently covers tile Economic, Ecology,
+Citizen Class & Tenure, and Labor charts. Nation-scope chart drilldown remains
+open. For moving-average chart points, the UI identifies the display transform
+but currently queries source trace rows only for the selected turn.
 
 The coverage checker reports a changed snapshot as unexplained when its final
 value does not match a recorded calculation. Per-profession headcount snapshots
@@ -250,7 +252,8 @@ catalog does not yet cover every displayed field;
 untraced so a missing probe is visible during development.
 The UI shows unavailable comparison placeholders as such. Web charts show an
 empty-state message when a series has no data instead of drawing a sample
-curve. Nation-scope and Labor panel charts do not yet have a trace drilldown.
+curve. Desktop Nation-scope chart drilldown and a trace explanation of all
+source turns behind moving-average points remain open.
 Save/rebranch and a persistent query index are not implemented. The compact
 source trace is queried by scanning events.
 
@@ -1735,3 +1738,18 @@ Verification: desktop chart tests cover every Citizen chart binding, the trader
 hunger contribution, class-group trace filtering, and click dispatch from the
 Citizen zoom view. Nine focused desktop tests, Python compilation, and
 `git diff --check` passed.
+
+Phase 5 follow-up, 2026-10-18: connected tile Labor chart points to the
+turn-level trace for shifts, effective workday cap, exploitation, alienation,
+bodily wear, accidents, consciousness, entertainment, protest, strikers,
+broken machinery, and sabotage. Replaced stale history names in the desktop
+charts and summary cards with histories that the simulation actually records.
+Added a turn-aligned effective-cap sample to both ordinary and wilderness
+tiles; the trace records the applied cap separately from the statute display
+field. Nation Labor charts now use those same populated histories, though the
+Nation aggregation itself is not yet traceable.
+
+Verification: 12 desktop point-selection tests, metric-catalog coverage, labor
+law/repeal, and labor aggregate tests passed (19 tests total). Python
+compilation and `git diff --check` passed. Nation-scope chart drilldown and the
+multi-turn evidence behind moving-average chart points remain open.

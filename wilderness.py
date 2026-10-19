@@ -183,6 +183,8 @@ def step_wilderness(region, t):
     region.rent_collected_log.append(0.0)
     region.rent_arrears_log.append(0.0)
     region.avg_shift_hours_log.append(8.0)
+    from micro.region.stepper import sample_effective_workday_cap
+    sample_effective_workday_cap(region)
     region.surplus_value_log.append(0.0)
     region.rate_of_exploitation_log.append(0.0)
     region.avg_alienation_log.append(0.0)

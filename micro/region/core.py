@@ -146,6 +146,7 @@ class Region:
         self.workday_cap: float = 16.0  # legal maximum shift hours (defaults to unrestricted)
         self.safety_mandate: float = 0.0  # legal minimum safety spend per worker
         self.avg_shift_hours_log: list = []  # time-series of avg shift hours
+        self.workday_cap_log: list = []  # effective legal workday cap used this turn
         self.surplus_value_log: list = []  # time-series of total surplus value extracted ($)
         self.rate_of_exploitation_log: list = []  # time-series of s/v exploitation rate
         self.entertainment_level: float = 0.0  # commercial/state entertainment pacifier
