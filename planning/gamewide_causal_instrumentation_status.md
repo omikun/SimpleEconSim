@@ -1434,3 +1434,17 @@ Verification: six dedicated fiscal-challenge tests passed, including compact
 `.ctr` verification and trace-on/off parity. Project, metric-catalog,
 creditor-situation and naval-crisis tests passed (31 tests). The fiscal-project
 campaign playthrough passed. Compilation and `git diff --check` passed.
+
+Phase 3 follow-up, 2026-10-18: Alexandria revenue-office reviews now record
+settled-claim and active-collection-assignment gates, or inspection-challenge
+creation. Review records include claim size, assignment provenance, creditor
+confidence delta, project site/timing, and recent revenue-report inputs. New
+challenges retain their source project and review turn, and the later player
+response links to that review before any refusal/default escalation. No
+gameplay rules changed.
+
+Verification: eight dedicated tests passed, including all review outcomes,
+causal linkage into refusal/escalation, trace-on/off parity and compact `.ctr`
+verification. Project and metric-catalog suites passed (13 tests). The Egypt
+fiscal-project campaign playthrough passed. Compilation and `git diff --check`
+passed.

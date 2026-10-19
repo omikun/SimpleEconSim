@@ -731,23 +731,87 @@ def _review_revenue_office(world: dict, project: dict) -> None:
     from scenario_debt import outstanding
 
     state = world['scenario_state']
+    review_turn = int(world['turn'])
+    review_due_turn_before = project.get('review_due_turn')
+    operation_id = _fiscal_challenge_operation_id(world)
+    before = _fiscal_challenge_trace_state(world)
     claim = outstanding(world)
     assignment = state.get('collection_assignment') or {}
     if claim <= .01:
+        review_status = 'claim_settled'
+        confidence_before = float(state.get('creditor_confidence', .6))
         message = 'The Caisse records that its claim is settled; Egyptian revenue offices remain under Cairo.'
     elif assignment.get('status') == 'active':
+        review_status = 'active_collection_assignment'
+        confidence_before = float(state.get('creditor_confidence', .6))
         message = ('The Caisse accepts the new Egyptian accounts while its signed assignment '
                    'continues to intercept its legal share of actual receipts.')
         state['creditor_confidence'] = min(1.0, state.get('creditor_confidence', .6) + .03)
     else:
+        review_status = 'inspection_challenge_created'
+        confidence_before = float(state.get('creditor_confidence', .6))
         message = ('The Caisse demands Alexandria revenue accounts before the next instalment. '
                    'Cairo may publish them or refuse inspection; neither answer pays the claim.')
-        _state(world)['fiscal_challenge'] = {'status': 'pending', 'due_turn': int(world['turn'])}
+        _state(world)['fiscal_challenge'] = {
+            'status': 'pending', 'due_turn': review_turn,
+            'source_project_id': project['id'],
+            'source_review_turn': review_turn,
+            'claim_at_review': float(claim),
+            'assignment_status_at_review': assignment.get('status'),
+        }
     state.setdefault('creditor_news', []).append({
-        'turn': int(world['turn']), 'headline': 'Caisse reviews Alexandria office', 'body': message,
+        'turn': review_turn, 'headline': 'Caisse reviews Alexandria office', 'body': message,
     })
     _event(world, project, message)
     project['review_due_turn'] = None
+    after = _fiscal_challenge_trace_state(world)
+    revenue_reports = [dict(row) for row in _state(world).get('revenue_reports', [])
+                       if int(row.get('turn', -1)) <= review_turn
+                       and int(row.get('turn', -1)) >= review_turn - 1]
+    _trace_revenue_office_review(
+        world, operation_id=operation_id, project=project,
+        status=review_status, before=before, after=after,
+        details={'claim_at_review': float(claim),
+                 'claim_settled_gate': claim <= .01,
+                 'collection_assignment_status': assignment.get('status'),
+                 'collection_assignment_origin': assignment.get('origin'),
+                 'confidence_before': confidence_before,
+                 'confidence_after': float(state.get('creditor_confidence', .6)),
+                 'creditor_confidence_delta': float(state.get('creditor_confidence', .6))
+                 - confidence_before,
+                 'challenge_created': review_status == 'inspection_challenge_created',
+                 'challenge_due_turn': (review_turn if review_status ==
+                                        'inspection_challenge_created' else None),
+                 'review_due_turn_before': review_due_turn_before,
+                 'revenue_report_operation_ids': [row.get('operation_id')
+                                                  for row in revenue_reports],
+                 'revenue_reports': revenue_reports,
+                 'review_message': message})
+
+
+def _trace_revenue_office_review(world, *, operation_id, project, status,
+                                 before, after, details=None):
+    region = _fiscal_challenge_trace_region(world)
+    if region is None:
+        return None
+    from run_trace import emit
+    return emit(
+        region, kind='revenue_office_review_resolved',
+        record_class='outcome', phase='scenario_projects',
+        subject={'type': 'nation/project', 'id': project['id'],
+                 'nation': 'Egypt', 'site': project.get('site')},
+        metric_id='scenario.revenue_office_review', unit='review_status',
+        before=before.get('challenge_status'),
+        after=after.get('challenge_status'),
+        formula_id='scenario_projects.revenue_office_review.v1',
+        inputs={'operation_id': operation_id,
+                'turn': int(world.get('turn', 0)), 'project_id': project['id'],
+                'project_site': project.get('site'),
+                'review_due_turn_before': (details or {}).get(
+                    'review_due_turn_before'),
+                'review_status': status,
+                'state_before': before, 'state_after': after,
+                **(details or {})})
 
 
 def _fiscal_challenge_trace_region(world):
@@ -776,6 +840,11 @@ def _fiscal_challenge_trace_state(world):
         'turn': int(world.get('turn', 0)),
         'challenge_status': challenge.get('status'),
         'challenge_due_turn': challenge.get('due_turn'),
+        'challenge_source_project_id': challenge.get('source_project_id'),
+        'challenge_source_review_turn': challenge.get('source_review_turn'),
+        'challenge_claim_at_review': challenge.get('claim_at_review'),
+        'challenge_assignment_status_at_review': challenge.get(
+            'assignment_status_at_review'),
         'creditor_confidence': float(state.get('creditor_confidence', 0.0)),
         'egypt_treasury_cash': (float(egypt.government.agent.cash)
                                 if egypt is not None else None),
@@ -818,10 +887,34 @@ def _trace_fiscal_challenge(world, *, operation_id, kind, publish, success,
         cause_event_ids=cause_event_ids)
 
 
+def _fiscal_challenge_review_event_id(world, challenge):
+    source_project_id = challenge.get('source_project_id')
+    review_turn = challenge.get('source_review_turn')
+    if source_project_id is None or review_turn is None:
+        return None
+    region = _fiscal_challenge_trace_region(world)
+    recorder = getattr(region, '_run_trace', None) if region is not None else None
+    rows = getattr(recorder, 'recent', None)
+    if rows is None:
+        rows = getattr(recorder, 'rows', None)
+    if rows is None:
+        return None
+    for row in reversed(list(rows)):
+        inputs = ((row.get('inputs') or {})
+                  if isinstance(row, dict) else {})
+        if (row.get('metric_id') == 'scenario.revenue_office_review'
+                and inputs.get('project_id') == source_project_id
+                and int(inputs.get('turn', -1)) == int(review_turn)
+                and inputs.get('challenge_created')):
+            return row.get('event_id')
+    return None
+
+
 def answer_fiscal_challenge(world: dict, publish: bool) -> tuple[bool, str]:
     operation_id = _fiscal_challenge_operation_id(world)
     before = _fiscal_challenge_trace_state(world)
     challenge = _state(world).get('fiscal_challenge') or {}
+    review_event_id = _fiscal_challenge_review_event_id(world, challenge)
     if challenge.get('status') != 'pending':
         _trace_fiscal_challenge(
             world, operation_id=operation_id,
@@ -860,6 +953,8 @@ def answer_fiscal_challenge(world: dict, publish: bool) -> tuple[bool, str]:
                          'crisis_stage_before': before['naval_crisis_stage'],
                          'escalation_gate_open': before['naval_crisis_stage']
                          in ('none', 'withdrawn')},
+                cause_event_ids=([review_event_id]
+                                 if review_event_id is not None else None),
                 metric_id='scenario.fiscal_challenge_escalation_decision')
             escalation_decision_event_id = decision_event_id
             from scenario_gunboat import begin_escalation
@@ -874,7 +969,8 @@ def answer_fiscal_challenge(world: dict, publish: bool) -> tuple[bool, str]:
         'turn': int(world['turn']), 'headline': 'Alexandria accounts', 'body': message,
     })
     cause_ids = [event_id for event_id in
-                 (escalation_decision_event_id, escalation_event_id)
+                 (review_event_id, escalation_decision_event_id,
+                  escalation_event_id)
                  if event_id is not None]
     _trace_fiscal_challenge(
         world, operation_id=operation_id,
@@ -888,6 +984,7 @@ def answer_fiscal_challenge(world: dict, publish: bool) -> tuple[bool, str]:
                  'escalation_gate_open': before['naval_crisis_stage']
                  in ('none', 'withdrawn') if defaulted_bond_ids else False,
                  'escalation_event_id': escalation_event_id,
+                 'revenue_office_review_event_id': review_event_id,
                  'message': message},
         cause_event_ids=cause_ids or None)
     return True, message

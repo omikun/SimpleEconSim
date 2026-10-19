@@ -6,8 +6,8 @@ import unittest
 from pathlib import Path
 
 from run_trace import RunTrace, verify
-from scenario_debt import bonds
-from scenario_projects import answer_fiscal_challenge
+from scenario_debt import bonds, set_collection_assignment
+from scenario_projects import _review_revenue_office, answer_fiscal_challenge
 from worldview_engine import build_world_view
 
 
@@ -45,6 +45,62 @@ class FiscalChallengeTraceTests(unittest.TestCase):
         return next(row for row in trace.rows
                     if row.get('metric_id') == metric_id
                     and (kind is None or row.get('kind') == kind))
+
+    @staticmethod
+    def _project(turn=6):
+        return {'id': 'revenue_office:Alexandria', 'kind': 'revenue_office',
+                'site': 'Alexandria', 'review_due_turn': turn,
+                'last_upkeep_turn': turn - 1, 'upkeep_paid': 3.0,
+                'events': []}
+
+    def test_revenue_review_settlement_and_assignment_gates(self):
+        settled, settled_trace = _fixture()
+        for bond in bonds(settled):
+            bond.principal = 0.0
+            bond.status = 'redeemed'
+        settled['scenario_state']['strategic_projects']['fiscal_challenge'] = None
+        _review_revenue_office(settled, self._project())
+        settled_row = self._row(settled_trace, 'scenario.revenue_office_review')
+        self.assertEqual(settled_row['inputs']['review_status'], 'claim_settled')
+        self.assertFalse(settled_row['inputs']['challenge_created'])
+        self.assertEqual(settled_row['inputs']['state_after']['challenge_status'], None)
+
+        assigned, assigned_trace = _fixture()
+        assigned['scenario_state']['strategic_projects']['fiscal_challenge'] = None
+        set_collection_assignment(assigned, 5.0, origin='test_assignment')
+        confidence_before = assigned['scenario_state']['creditor_confidence']
+        _review_revenue_office(assigned, self._project())
+        assigned_row = self._row(assigned_trace, 'scenario.revenue_office_review')
+        self.assertEqual(assigned_row['inputs']['review_status'],
+                         'active_collection_assignment')
+        self.assertEqual(assigned_row['inputs']['collection_assignment_origin'],
+                         'test_assignment')
+        self.assertAlmostEqual(
+            assigned['scenario_state']['creditor_confidence'] - confidence_before,
+            0.03)
+        self.assertFalse(assigned_row['inputs']['challenge_created'])
+
+    def test_review_created_challenge_links_to_later_refusal_and_escalation(self):
+        world, trace = _fixture()
+        for bond in bonds(world):
+            bond.status = 'defaulted'
+        project = self._project()
+
+        _review_revenue_office(world, project)
+        review = self._row(trace, 'scenario.revenue_office_review')
+        self.assertTrue(review['inputs']['challenge_created'])
+        self.assertEqual(review['inputs']['review_due_turn_before'], 6)
+        self.assertEqual(review['inputs']['state_after']['challenge_source_project_id'],
+                         project['id'])
+
+        self.assertTrue(answer_fiscal_challenge(world, publish=False)[0])
+        decision = self._row(trace, 'scenario.fiscal_challenge_escalation_decision')
+        escalation = self._row(trace, 'scenario.naval_escalation')
+        response = self._row(trace, 'scenario.fiscal_challenge_response')
+        self.assertIn(review['event_id'], decision['cause_event_ids'])
+        self.assertIn(decision['event_id'], escalation['cause_event_ids'])
+        self.assertIn(review['event_id'], response['cause_event_ids'])
+
 
     def test_missing_challenge_records_rejection_without_mutation(self):
         world, trace = _fixture()
@@ -150,9 +206,12 @@ class FiscalChallengeTraceTests(unittest.TestCase):
             for tile in world['tiles']:
                 tile._run_trace = recorder
                 tile._collective_trace_clock = clock
+            _review_revenue_office(world, self._project())
             answer_fiscal_challenge(world, publish=False)
             result = recorder.query(metric_id='scenario.fiscal_challenge_response')
             self.assertEqual(result['total'], 1)
+            review_result = recorder.query(metric_id='scenario.revenue_office_review')
+            self.assertEqual(review_result['total'], 1)
             self.assertGreater(verify(trace_path)['rows'], 1)
 
 

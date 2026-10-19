@@ -333,25 +333,32 @@ geography, diplomacy, creditor-situation and metric-catalog regression set
 passed (41 tests), including the trace-on/off checks. The funded-canal campaign
 playthrough passed. Compilation and `git diff --check` passed.
 
-### Phase 3 follow-up — Trace Alexandria revenue-inspection responses (implemented)
+### Phase 3 follow-up — Trace Alexandria revenue-office reviews and responses (implemented)
 
-`scenario_projects.answer_fiscal_challenge` now records the no-pending-demand
-gate, publication or refusal, creditor-confidence change, exact defaulted bond
-IDs, and the resulting naval escalation attempt. A decision event captures the
-refusal-with-default condition before escalation; the crisis entry links to
-that event, and the final project response links to both. If a crisis is already
-active, the rejected trigger remains visible. No project or crisis rules
-changed.
+`scenario_projects._review_revenue_office` now records whether the Caisse
+accepts reviewed accounts because the claim is settled or an active collection
+assignment is already in force, or creates an inspection challenge. The review
+captures claim size, assignment origin, creditor-confidence change, project
+site/timing, and recent Alexandria revenue reports. A created challenge keeps
+its originating project and review turn; the later answer links back to that
+review. `answer_fiscal_challenge` records the no-pending-demand gate,
+publication or refusal, exact defaulted bond IDs, and the resulting naval
+escalation attempt. The escalation entry links to the pre-escalation decision;
+an already-active crisis keeps its rejected trigger visible. No project or
+crisis rules changed.
 
-Verification: six dedicated tests cover rejection, publication, refusal with
-and without default, active-crisis rejection, causal links, trace-on/off parity,
-and compact trace verification. Project, catalog, situation and crisis suites
-passed (31 tests). The Egypt fiscal-project playthrough passed. Compilation and
-`git diff --check` passed.
+Verification: eight dedicated tests cover settled-claim and active-assignment
+review gates, challenge creation, response/escalation causal links, response
+rejection, publication/refusal, trace-on/off parity, and compact trace
+verification. Project and metric-catalog suites passed (13 tests). The Egypt
+fiscal-project campaign playthrough passed. Compilation and `git diff --check`
+passed.
 
-Next Phase 3 audit target: review `scenario_projects._review_revenue_office`
-for the claim and collection-assignment gates that create or suppress an
-inspection challenge, and link the project review to the later player response.
+Next Phase 3 audit target: trace strategic-project lifecycle transitions in
+`scenario_projects.start_project`, `advance`, `damage_project`,
+`repair_project`, and `cancel_project`, including rejected action gates,
+staffing/supply/upkeep reasons, status changes, and links to their wage and
+food transfers.
 
 ## Phase 5 — Deliver explanations in web, desktop and CLI
 
