@@ -2122,3 +2122,15 @@ point to its tile/good calculation record and confirms that the plotted value
 is the recorded ratio multiplied by 100. The metric-catalog, focused web and
 trace tests passed (3 Python tests), as did UI utility and JavaScript syntax
 checks.
+
+## Phase 5 follow-up — Show honest empty chart states (implemented)
+
+When a selected scope has no series, the chart now displays an explicit empty
+state instead of plotting a fabricated sample curve. It also clears a previous
+point-selection handler so a stale chart cannot open records for a different
+metric.
+
+Verification: the UI utility test draws a mapped chart, selects a point, then
+draws an empty metric and confirms the click handler is removed, the cursor is
+reset, and no line or sample points are rendered. JavaScript syntax, UI
+utility, and chart-renderer serving checks passed.

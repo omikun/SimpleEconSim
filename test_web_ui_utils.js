@@ -91,6 +91,16 @@ listeners.click({ clientX: 165, clientY: 18 });
 assert.deepEqual(selectedPoints, [{ index: 1, value: 20, turn: 4, metric: 'food_price' }]);
 listeners.click({ clientX: 150, clientY: 80 });
 assert.equal(selectedPoints.length, 1);
+chartCalls.length = 0;
+const emptyLegend = globalThis.CoCCharts.drawHistoricalChart(
+  interactiveCanvas, [], 'trade', 1,
+  { onPointSelect: point => selectedPoints.push(point) });
+assert.match(emptyLegend, /No data series available/);
+assert.equal(interactiveCanvas.style.cursor, '');
+assert.equal(listeners.click, undefined);
+assert.equal(chartCalls.some(call => call[0] === 'lineTo' || call[0] === 'arc'), false);
+assert.ok(chartCalls.some(call => call[0] === 'fillText'
+  && call[1] === 'No data series available'));
 
 assert.ok(globalThis.CoCHelpContent);
 const helpHtml = globalThis.CoCHelpContent.renderHelpPage('3', {

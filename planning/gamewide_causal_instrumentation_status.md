@@ -244,9 +244,11 @@ valuation. Other scenario and spatial AI candidate details remain partial. The c
 catalog does not yet cover every displayed field;
 `inventory_region_histories()` labels legacy series as instrumented or
 untraced so a missing probe is visible during development.
-The UI shows unavailable comparison placeholders as such. Desktop charts do
-not yet have a trace drilldown, and save/rebranch and a persistent query index
-are not implemented. The compact source trace is queried by scanning events.
+The UI shows unavailable comparison placeholders as such. Web charts show an
+empty-state message when a series has no data instead of drawing a sample
+curve. Desktop charts do not yet have a trace drilldown, and save/rebranch and
+a persistent query index are not implemented. The compact source trace is
+queried by scanning events.
 
 The first 20-turn labor scenario coverage run recorded 9,043 rows in 5.3 MB,
 with 20 valid checkpoints and no currency-audit violations. Tracing on and off

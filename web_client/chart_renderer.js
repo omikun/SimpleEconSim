@@ -121,8 +121,22 @@
     ctx.scale(scale, scale);
     ctx.clearRect(0, 0, width, height);
 
-    const hasSeries = Array.isArray(values) && values.length >= 2;
-    const series = hasSeries ? values : [50, 54, 52, 57, 56];
+    if (canvas._cocChartPointSelect && typeof canvas.removeEventListener === 'function') {
+      canvas.removeEventListener('click', canvas._cocChartPointSelect);
+      canvas._cocChartPointSelect = null;
+    }
+
+    const hasSeries = Array.isArray(values) && values.length > 0;
+    if (!hasSeries) {
+      if (canvas.style) canvas.style.cursor = '';
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '12px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('No data series available', width / 2, height / 2);
+      ctx.restore();
+      return `${String(metric).toUpperCase()}: No data series available`;
+    }
+    const series = values;
     const padL = 44;
     const padR = 14;
     const padT = 18;
@@ -170,10 +184,6 @@
       ctx.arc(x, y, 2.5, 0, Math.PI * 2);
       ctx.fill();
     });
-    if (canvas._cocChartPointSelect && typeof canvas.removeEventListener === 'function') {
-      canvas.removeEventListener('click', canvas._cocChartPointSelect);
-      canvas._cocChartPointSelect = null;
-    }
     if (hasSeries && typeof options.onPointSelect === 'function'
         && typeof canvas.addEventListener === 'function') {
       const selectPoint = event => {
