@@ -429,10 +429,12 @@ affordability, non-food consumption, and other household support channels remain
 Household intake now records source quantities from ration queues, local food,
 and trader foreign/export stocks, together with deficit, energy reserve, and
 hunger changes. Routine full meals with stable health state are omitted to keep
-trace volume down. Starvation deaths link to the same-turn intake event when
-present. Five fixtures cover shortage, trader stock, routine-noise suppression,
-death linkage, and trace-on/off parity; 69 food, nutrition, life-cycle, district,
-and trace tests passed. Compilation and `git diff --check` passed.
+trace volume down, except when local inventory consumption has a recent private
+grain purchase candidate to follow. Starvation deaths link to the same-turn
+intake event when present. Five fixtures cover shortage, trader stock,
+routine-noise suppression, death linkage, and trace-on/off parity; 69 food,
+nutrition, life-cycle, district, and trace tests passed. Compilation and
+`git diff --check` passed.
 
 Household cash affordability now records the units affordable from `remainingCash`
 at each market bid, its formula and basis, and any bank-withdrawal event that
@@ -1489,3 +1491,20 @@ own trigger label. Trading behavior is unchanged.
 Verification: grain-transfer, private-release, project, and metric-catalog
 regressions passed (20 tests), including trace-on/off parity and compact `.ctr`
 verification. Compilation and `git diff --check` passed.
+
+Phase 2 follow-up, 2026-10-18: a bounded, trace-only index now carries private
+household grain-sale events forward by buyer. When that household consumes
+local inventory on a later turn, the intake record includes actual local food
+units consumed and the recent sale events as candidate sources, alongside the
+calorie deficit, reserve, and hunger changes. Because household food inventory
+is fungible, source allocation remains explicitly unknown and purchase events
+are not claimed as direct causes. Trace IDs stay outside simulation state.
+
+Verification: the private-release integration test validates a paid sale,
+later inventory consumption, candidate event IDs, unknown source allocation,
+and compact `.ctr` verification. The private-release, grain-transfer, intake,
+nutrition, metric-catalog, run-trace, Nile food-outcome, and food-security
+regressions passed in focused suites (65 tests). A combined test invocation
+failed only when the Nile food-outcome fixture ran after the run-trace module;
+that fixture and the run-trace tests pass separately. Compilation and
+`git diff --check` passed.

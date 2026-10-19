@@ -412,9 +412,29 @@ transaction-to-release and policy-to-district causes, duplicate policy request,
 trace-on/off parity, and compact `.ctr` verification. Compilation and
 `git diff --check` passed.
 
-Next Phase 2 audit target: trace the released household food through the next
-consumption step so a sale can be distinguished from food actually eaten,
-including later food inventory, calorie-deficit, and hunger outcomes.
+### Phase 2 follow-up — Trace private grain purchases into later meals (implemented)
+
+Keep a bounded, trace-only index of private household grain-sale events by
+buyer. When a household later eats from its local inventory, record the number
+of local inventory units consumed and include recent purchases as candidate
+sources. The intake event also retains its calorie deficit, energy reserve, and
+hunger changes. Since inventory is fungible and the simulation does not track
+food lots, candidate purchases are explicitly not asserted as exact sources or
+linked as direct causes.
+
+Verification: the integration fixture opens a compact `.ctr`, sells grain to a
+household, consumes it on a later turn, and checks candidate event IDs, actual
+inventory consumption, unknown source allocation, and compact trace validity.
+The private-release, grain-transfer, intake, nutrition, metric-catalog,
+run-trace, Nile food-outcome, and food-security tests passed when run in their
+focused suites. One combined invocation exposed an existing test-order issue:
+the Nile food-outcome fixture fails after the run-trace module because a
+generated `Region` lacks `centroid`; the Nile test passes by itself.
+
+Next Phase 2 audit target: finish scenario quote history coverage, including
+turn membership and currency decomposition, then verify each scenario quote
+against the corresponding paid transaction without attributing stale or
+post-settlement inputs to the quote.
 
 ## Phase 5 — Deliver explanations in web, desktop and CLI
 

@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from demographics_consumption import consume_daily_food
 from goods import Goods
 from run_trace import RunTrace, verify
 from scenario_political_economy import (_households, _sell_to_households,
@@ -158,6 +159,46 @@ class PrivateGrainReleaseTraceTests(unittest.TestCase):
                 recorder.query(metric_id='scenario.private_grain_policy')['total'], 1)
             self.assertGreater(
                 recorder.query(metric_id='scenario.private_grain_release')['total'], 0)
+            self.assertGreater(verify(path)['rows'], 1)
+
+    def test_private_grain_purchase_is_candidate_source_for_later_meal(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'private-grain-consumption.ctr'
+            recorder = RunTrace(path, 'private-grain-consumption-test')
+            world, _, clock = _fixture(recorder=recorder)
+            tile = next(tile for tile in world['tiles']
+                        if getattr(tile, 'scenario_location', None) == 'Nile Delta')
+            owner, buyer, _ = _prepare_release(world, tile)
+
+            sold = _sell_to_households(
+                world, tile, owner, limit=10, trigger='test_release',
+                trace_operation_id='test:nile-release')
+            purchase = next(row for row in recorder.query(
+                metric_id='goods.grain_transfer')['events']
+                if row['inputs']['transfer_contract']['operation_type']
+                == 'private_household_grain_sale'
+                and str(row['inputs']['transfer_contract']['payee_account']['id'])
+                == str(buyer.id))
+            self.assertGreater(sold, 0)
+            self.assertEqual(buyer.inv_get(Goods.food, 0), sold)
+
+            clock['turn'] = 2
+            eaten = consume_daily_food(buyer, region=tile, turn=2)
+
+            intake = next(row for row in recorder.query(
+                turn=2, metric_id='health.calorie_deficit')['events']
+                if row.get('kind') == 'household_food_intake'
+                and str(row['inputs']['agent_id']) == str(buyer.id))
+            inputs = intake['inputs']
+            self.assertGreater(eaten, 0)
+            self.assertGreater(inputs['consumed_from_local_inventory_units'], 0)
+            self.assertEqual(inputs['household_food_inventory_before'], sold)
+            self.assertIn(purchase['event_id'], {
+                event['event_id']
+                for event in inputs['candidate_private_grain_purchase_events']})
+            self.assertEqual(inputs['private_grain_purchase_source_attribution'],
+                             'unknown_fungible_inventory')
+            self.assertNotIn(purchase['event_id'], intake.get('cause_event_ids', []))
             self.assertGreater(verify(path)['rows'], 1)
 
 

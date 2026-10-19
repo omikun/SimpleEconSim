@@ -40,6 +40,7 @@ class RunTrace:
         self._shipment_arrival_events = {}
         self._shipment_events_by_kind = {}
         self._latest_shipment_events = {}
+        self._recent_private_grain_purchase_events = deque(maxlen=2048)
         self._known_event_ids = set()
         self.path.parent.mkdir(parents=True, exist_ok=True)
         if self.path.exists():
@@ -254,6 +255,15 @@ class RunTrace:
                 and row.get('subject', {}).get('good') is not None):
             key = (str(row['subject'].get('id')), str(row['subject']['good']))
             self._turn_tile_production_events[key] = row['event_id']
+        if self.write_error is None and metric_id == 'goods.grain_transfer':
+            transfer = ((row.get('inputs') or {}).get('transfer_contract') or {})
+            payee = transfer.get('payee_account') or {}
+            if (transfer.get('operation_type') == 'private_household_grain_sale'
+                    and payee.get('id') is not None):
+                self._recent_private_grain_purchase_events.append({
+                    'agent_id': str(payee['id']), 'event_id': row['event_id'],
+                    'turn': int(row.get('turn', 0)),
+                    'food_units': int(transfer.get('amount', 0))})
         if (self.write_error is None and metric_id == 'labor.temporary_activity'
                 and row.get('subject', {}).get('type') == 'agent'):
             self._turn_temporary_activity_events[
@@ -300,6 +310,15 @@ class RunTrace:
     def turn_tile_production_event_id(self, tile_id, good_name):
         """Return the current-turn aggregate production event for a tile good."""
         return self._turn_tile_production_events.get((str(tile_id), str(good_name)))
+
+    def recent_private_grain_purchase_events(self, agent_id, *, before_turn=None,
+                                             limit=8):
+        """Return recent candidate inventory sources; this does not allocate consumed units."""
+        matches = [dict(row) for row in self._recent_private_grain_purchase_events
+                   if row['agent_id'] == str(agent_id)
+                   and (before_turn is None or row['turn'] <= int(before_turn))]
+        limit = max(0, int(limit))
+        return matches[-limit:] if limit else []
 
     def snapshot(self, clock, *, subject, metric_id, unit, before, after):
         key = (metric_id, json.dumps(subject, sort_keys=True))

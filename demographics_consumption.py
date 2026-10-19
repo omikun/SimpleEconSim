@@ -148,7 +148,8 @@ def _trace_food_intake(region, agent, *, turn, outcome, desired, eaten,
                        foreign_before, foreign_after, export_before, export_after,
                        deficit_before, deficit_after,
                        reserve_before, reserve_after, hunger_before,
-                       hunger_after, calorie_need, metabolic_factor):
+                       hunger_after, calorie_need, metabolic_factor,
+                       candidate_private_grain_purchase_events=()):
     if region is None:
         return None
     from run_trace import emit
@@ -172,6 +173,14 @@ def _trace_food_intake(region, agent, *, turn, outcome, desired, eaten,
                     'household_inventory': int(from_inventory),
                     'foreign_trader_inventory': int(from_foreign),
                     'export_trader_inventory': int(from_export)},
+                'consumed_from_local_inventory_units': int(from_inventory),
+                'candidate_private_grain_purchase_events': [
+                    {'event_id': row['event_id'], 'turn': int(row['turn']),
+                     'food_units': int(row['food_units'])}
+                    for row in candidate_private_grain_purchase_events],
+                'private_grain_purchase_source_attribution': (
+                    'unknown_fungible_inventory' if from_inventory > 0 else
+                    'not_applicable_no_local_inventory_consumed'),
                 'household_food_inventory_before': int(local_before),
                 'household_food_inventory_after': int(local_after),
                 'foreign_food_inventory_before': int(foreign_before),
@@ -238,11 +247,20 @@ def consume_daily_food(agent, *, region=None, turn=None):
     outcome = ('shortfall' if eaten < desired else
                'surplus_intake' if reserve_after > reserve_before else
                'needs_met')
+    trace_turn = (int(turn) if turn is not None
+                  else int(getattr(region, '_last_turn', 0)))
+    recorder = getattr(region, '_run_trace', None) if region is not None else None
+    candidate_private_grain_purchase_events = []
+    if from_inventory > 0 and recorder is not None:
+        recent_purchases = getattr(
+            recorder, 'recent_private_grain_purchase_events', None)
+        if callable(recent_purchases):
+            candidate_private_grain_purchase_events = recent_purchases(
+                agent.id, before_turn=trace_turn)
     if (eaten < desired or reserved > 0 or deficit_before > 0
             or deficit_after > 0 or reserve_after != reserve_before
-            or from_foreign > 0 or from_export > 0):
-        trace_turn = (int(turn) if turn is not None
-                      else int(getattr(region, '_last_turn', 0)))
+            or from_foreign > 0 or from_export > 0
+            or candidate_private_grain_purchase_events):
         _trace_food_intake(
             region, agent, turn=trace_turn, outcome=outcome,
             desired=desired, eaten=eaten, reserved_before=reserved,
@@ -254,7 +272,9 @@ def consume_daily_food(agent, *, region=None, turn=None):
             deficit_before=deficit_before, deficit_after=deficit_after,
             reserve_before=reserve_before, reserve_after=reserve_after,
             hunger_before=hunger_before, hunger_after=hunger_after,
-            calorie_need=need, metabolic_factor=metabolic_factor)
+            calorie_need=need, metabolic_factor=metabolic_factor,
+            candidate_private_grain_purchase_events=(
+                candidate_private_grain_purchase_events))
     return eaten
 
 
