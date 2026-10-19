@@ -1576,13 +1576,13 @@ class SimServer:
         sv_rates_series = [round(float(v) * 100.0, 1) for v in (getattr(tile, 'rate_of_exploitation_log', []) or [])][-30:]
         legal_caps = [round(float(getattr(tile, 'max_workday_hours', 16.0)), 1)] * len(shifts_series)
         alienation_series = [round(float(a) * 100.0, 1) for a in (getattr(tile, 'avg_alienation_log', []) or [])][-30:]
-        health_series = [round(float(h) * 1000.0, 1) for h in (getattr(tile, 'health_attrition_log', []) or [])][-30:]
-        vice_series = [round(float(v), 1) for v in (getattr(tile, 'vice_spending_log', []) or [])][-30:]
+        health_series = health_attr_series
         consc_series = [round(float(c) * 100.0, 1) for c in (getattr(tile, 'avg_consciousness_log', []) or [])][-30:]
-        entertain_series = [round(float(e) * 100.0, 1) for e in (getattr(tile, 'entertainment_level_log', []) or [])][-30:]
+        entertain_series = [round(float(e) * 100.0, 1) for e in (getattr(tile, 'entertainment_log', []) or [])][-30:]
         strikers_series = (getattr(tile, 'strikers_log', []) or [])[-30:]
         broken_series = (getattr(tile, 'sabotage_log', []) or [])[-30:]
-        machines_series = (getattr(tile, 'machinery_stock_log', []) or [])[-30:]
+        machines_series = (getattr(tile, 'broken_machinery_log', []) or [])[-30:]
+        accidents_series = (getattr(tile, 'workplace_accidents_log', []) or [])[-30:]
 
         # Social Class charts (4 series)
         clogs = (getattr(tile, 'social_class_log', []) or [])[-30:]
@@ -1762,9 +1762,13 @@ class SimServer:
                 },
                 'labor': {
                     'shifts_exploitation': {'shifts': shifts_series, 'caps': legal_caps, 'sv_rate': sv_rates_series},
-                    'alienation_health': {'alienation': alienation_series, 'health': health_series, 'vice': vice_series},
+                    'alienation_health': {'alienation': alienation_series, 'health': health_series},
                     'consciousness_pacification': {'consciousness': consc_series, 'entertainment': entertain_series, 'protest': protest_series},
-                    'workplace_resistance': {'strikers': strikers_series, 'sabotage': broken_series, 'machines': machines_series},
+                    'workplace_resistance': {'strikers': strikers_series, 'sabotage': broken_series, 'broken': machines_series},
+                    'workplace_conditions': {'accidents': accidents_series,
+                                             'entertainment': entertain_series,
+                                             'sabotage': broken_series,
+                                             'broken': machines_series},
                 },
                 'citizens': {
                     'classes': {'serf': serfs_series, 'tenant': tenants_series, 'worker': proles_series, 'dispossessed': disposs_series, 'gentry': gentry_series, 'artisan': bourg_series},

@@ -1675,3 +1675,16 @@ Verification: an endpoint test confirms offset pagination returns the expected
 next record with stable filtering. Trace UI JavaScript syntax, Node UI checks,
 trace query/download, and whitespace checks passed. Desktop chart-to-trace
 selection and remaining labor/citizen chart histories are still open.
+
+Phase 5 follow-up, 2026-10-18: extended the Labor panel with chart bindings for
+workplace accidents, pacification investment, machinery sabotage, and broken
+machinery. Accident records include safety conditions and the actual draw;
+sabotage records include employee conditions, risk, and the draw. Machinery
+stock traces reconcile the closing firm-level broken count against opening
+stock, sabotage, and affordable repairs. Corrected the serializer's stale
+entertainment and machinery history field names.
+
+Verification: focused chart tests replay accident/sabotage outcomes and confirm
+the broken-stock reconciliation. Metric-catalog coverage, labor aggregate and
+existing labor chart tests, Node UI, syntax, and whitespace checks passed.
+Desktop chart-to-trace selection and untreated-case/hunger histories remain.

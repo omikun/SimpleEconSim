@@ -70,6 +70,10 @@ for (const [chartId, metricId] of Object.entries({
   alienation: 'labor.average_alienation',
   consciousness: 'labor.average_class_consciousness',
   strikes: 'labor.strikers',
+  workplace_accidents: 'labor.workplace_accidents',
+  entertainment: 'society.entertainment_level',
+  machinery_sabotaged: 'labor.machinery_sabotaged',
+  broken_machinery: 'labor.broken_machinery',
   class_serf: 'society.class_population',
   class_tenant: 'society.class_population',
   class_worker: 'society.class_population',
@@ -105,6 +109,7 @@ assert.equal(globalThis.CoCCharts.getTraceBinding('gini').chartScale, 100);
 assert.equal(globalThis.CoCCharts.getTraceBinding('soil').chartScale, 100);
 assert.equal(globalThis.CoCCharts.getTraceBinding('bodily_wear').chartScale, 100);
 assert.equal(globalThis.CoCCharts.getChartCatalog().economic.length, 21);
+assert.equal(globalThis.CoCCharts.getChartCatalog().labor.length, 9);
 assert.equal(globalThis.CoCCharts.getTraceBinding('class_worker').classGroup, 'worker');
 assert.equal(globalThis.CoCCharts.getTraceBinding('commons_access').chartScale, 100);
 assert.equal(globalThis.CoCCharts.getChartCatalog().citizens.length, 11);
@@ -120,6 +125,13 @@ assert.equal(globalThis.CoCCharts.getTraceBinding('alienation').chartScale, 100)
 assert.equal(globalThis.CoCCharts.getTraceBinding('consciousness').chartScale, 100);
 assert.deepEqual(globalThis.CoCCharts.getTraceBinding('strikes').tilePath,
   ['labor', 'workplace_resistance', 'strikers']);
+assert.deepEqual(globalThis.CoCCharts.getTraceBinding('workplace_accidents').tilePath,
+  ['labor', 'workplace_conditions', 'accidents']);
+assert.equal(globalThis.CoCCharts.getTraceBinding('entertainment').chartScale, 100);
+assert.deepEqual(globalThis.CoCCharts.getTraceBinding('machinery_sabotaged').tilePath,
+  ['labor', 'workplace_conditions', 'sabotage']);
+assert.deepEqual(globalThis.CoCCharts.getTraceBinding('broken_machinery').tilePath,
+  ['labor', 'workplace_conditions', 'broken']);
 assert.deepEqual(globalThis.CoCCharts.getTraceBinding('trade').tilePath,
   ['economic', 'trade_flow', 'balance']);
 assert.deepEqual(globalThis.CoCCharts.getTileSeries({ ecological: { healthcare_outlay: {

@@ -2276,3 +2276,20 @@ Verification: the web endpoint test compares offset page 2 with the matching
 row from page 1. JavaScript syntax, Node UI utility, trace query/download, and
 `git diff --check` checks passed. Desktop chart drilldown and other remaining
 labor/citizen series remain open.
+
+## Phase 5 follow-up — Explain workplace injury and resistance charts (implemented)
+
+Expanded the web Labor chart group with accidents, pacification investment,
+machinery sabotage, and broken machinery. Accident evidence retains each
+employed person's safety inputs, probability, and random draw. Sabotage evidence
+retains firm worker conditions, risk gates, draws, and outcomes. Damaged-stock
+records reconcile opening equipment, sabotage, repairs, and closing equipment;
+repair evidence includes cash and replacement-material constraints. The
+serializer now reads the real entertainment and machinery histories instead of
+stale field names.
+
+Verification: the chart integration test replays accident and sabotage outcomes,
+checks the entertainment sample, and reconciles broken machinery to its firm
+rows. Metric-catalog coverage, labor aggregate, existing labor chart, Node UI,
+syntax, and `git diff --check` checks passed. Desktop chart drilldown and
+untreated-case/hunger chart coverage remain open.

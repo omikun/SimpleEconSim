@@ -349,7 +349,11 @@ def sample(tiles, nations):
                 ('labor.average_alienation', 'avg_alienation_log', 'ratio'),
                 ('labor.average_class_consciousness', 'avg_consciousness_log', 'ratio'),
                 ('labor.exploitation_rate', 'rate_of_exploitation_log', 'ratio'),
-                ('labor.strikers', 'strikers_log', 'people')):
+                ('labor.strikers', 'strikers_log', 'people'),
+                ('labor.workplace_accidents', 'workplace_accidents_log', 'incidents'),
+                ('society.entertainment_level', 'entertainment_log', 'ratio'),
+                ('labor.machinery_sabotaged', 'sabotage_log', 'units_per_turn'),
+                ('labor.broken_machinery', 'broken_machinery_log', 'units')):
             history = getattr(tile, field, ())
             if history:
                 values[(metric_id, tile.name)] = (

@@ -60,7 +60,8 @@ def compute_agent_alienation(agent, region, t: int) -> float:
     return max(0.0, min(1.0, score))
 
 
-def step_health_attrition(agent, region, t: int) -> float:
+def step_health_attrition(agent, region, t: int,
+                          accident_evidence: list | None = None) -> float:
     """Accumulate physiological bodily wear & tear and workplace casualties.
 
     High shift hours, toxic conditions, and skimping on safety inflict
@@ -88,7 +89,20 @@ def step_health_attrition(agent, region, t: int) -> float:
 
         # Roll for workplace accident (crushed fingers, mine cave-ins, lung rot)
         accident_prob = 0.015 * (shift_hours / 8.0) * max(0.1, 1.0 - min(1.0, safety_inv))
-        if rand.random() < accident_prob:
+        accident_draw = rand.random()
+        accident = accident_draw < accident_prob
+        if accident_evidence is not None:
+            accident_evidence.append({
+                'agent_id': getattr(agent, 'id', None),
+                'employer_id': getattr(getattr(agent, 'employer', None), 'id', None),
+                'shift_hours': float(shift_hours),
+                'safety_investment': float(safety_inv),
+                'factory_safety_act': bool(getattr(region, 'factory_safety_act', False)),
+                'probability': float(accident_prob),
+                'draw': float(accident_draw),
+                'accident': bool(accident),
+            })
+        if accident:
             agent.workplace_accident = True
             delta += 0.20
 
@@ -252,16 +266,25 @@ def _emit_average_metric(region, metric_id, history_name, value, inputs,
          after=float(value), formula_id='aggregate.mean.v1', inputs=inputs)
 
 
+def _emit_local_metric(region, metric_id, value, unit, formula_id, inputs,
+                       kind='labor_local_metric_calculation'):
+    from run_trace import emit
+    emit(region, kind=kind, record_class='calculation', phase='local',
+         subject={'type': 'tile', 'id': region.name}, metric_id=metric_id,
+         unit=unit, after=value, formula_id=formula_id, inputs=inputs)
+
+
 def step_tile_alienation(region, t: int):
     """Step psychology, health attrition, and mass entertainment across a tile."""
     agents = [a for a in getattr(region, 'agents', [])
               if getattr(a, 'alive', True) and not getattr(a, 'is_corporation', False)]
     if not agents:
+        ent_level = float(getattr(region, 'entertainment_level', 0.0))
         region.avg_alienation_log.append(0.0)
         region.avg_health_attrition_log.append(0.0)
         region.avg_consciousness_log.append(0.0)
         region.workplace_accidents_log.append(0)
-        region.entertainment_log.append(getattr(region, 'entertainment_level', 0.0))
+        region.entertainment_log.append(ent_level)
         empty_inputs = {'member_count': 0, 'agent_ids': [], 'values': [],
                         'denominator': 0,
                         'empty_population_value': 0.0}
@@ -272,6 +295,18 @@ def step_tile_alienation(region, t: int):
         _emit_average_metric(region, 'health.average_bodily_wear',
                              'avg_health_attrition_log', 0.0, empty_inputs,
                              unit='attrition_points')
+        _emit_local_metric(
+            region, 'labor.workplace_accidents', 0, 'incidents',
+            'labor.workplace_accident_rollup.v1',
+            {'eligible_worker_count': 0, 'accident_rolls': [],
+             'accident_agent_ids': [], 'empty_value': 0},
+            kind='labor_workplace_accidents_calculation')
+        _emit_local_metric(
+            region, 'society.entertainment_level', ent_level, 'ratio',
+            'society.entertainment_level_sample.v1',
+            {'configured_entertainment_level': ent_level,
+             'sample_phase': 'local_alienation', 'identity_sample': True},
+            kind='society_entertainment_level_sample')
         return
 
     ent_level = getattr(region, 'entertainment_level', 0.0)
@@ -287,6 +322,7 @@ def step_tile_alienation(region, t: int):
     consciousness_values = []
     bodily_wear_ids = []
     bodily_wear_values = []
+    accident_rolls = []
 
     for a in agents:
         alien = compute_agent_alienation(a, region, t)
@@ -295,7 +331,7 @@ def step_tile_alienation(region, t: int):
         alienation_ids.append(a.id)
         alienation_values.append(float(alien))
 
-        attr = step_health_attrition(a, region, t)
+        attr = step_health_attrition(a, region, t, accident_rolls)
         total_attrition += attr
         bodily_wear_ids.append(a.id)
         bodily_wear_values.append(float(attr))
@@ -330,3 +366,19 @@ def step_tile_alienation(region, t: int):
         {'member_count': n, 'agent_ids': bodily_wear_ids,
          'values': bodily_wear_values, 'denominator': n},
         unit='attrition_points')
+    accident_ids = [row['agent_id'] for row in accident_rolls
+                    if row['accident']]
+    _emit_local_metric(
+        region, 'labor.workplace_accidents', total_accidents, 'incidents',
+        'labor.workplace_accident_rollup.v1',
+        {'eligible_worker_count': len(accident_rolls),
+         'accident_rolls': accident_rolls,
+         'accident_agent_ids': accident_ids,
+         'replay_count': len(accident_ids)},
+        kind='labor_workplace_accidents_calculation')
+    _emit_local_metric(
+        region, 'society.entertainment_level', float(ent_level), 'ratio',
+        'society.entertainment_level_sample.v1',
+        {'configured_entertainment_level': float(ent_level),
+         'sample_phase': 'local_alienation', 'identity_sample': True},
+        kind='society_entertainment_level_sample')

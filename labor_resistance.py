@@ -21,7 +21,7 @@ def evaluate_strikes(region, t: int):
     step_collectives(region, t)
 
 
-def evaluate_sabotage(region, t: int) -> int:
+def evaluate_sabotage(region, t: int, evidence: list | None = None) -> int:
     """Evaluate nocturnal Luddite machine breaking in factories.
 
     When workers suffer extreme despair and alienation, or when strikes
@@ -37,15 +37,26 @@ def evaluate_sabotage(region, t: int) -> int:
     for firm in firms:
         employees = getattr(firm, 'employees', [])
         if not employees:
+            if evidence is not None:
+                evidence.append({'firm_id': firm.id, 'reason': 'no_employees',
+                                 'employees': [], 'risk': None,
+                                 'draw': None, 'smashed': 0})
             continue
 
-        avg_despair = sum(getattr(e, 'despair', 0.0) for e in employees) / len(employees)
-        avg_alien = sum(getattr(e, 'alienation', 0.0) for e in employees) / len(employees)
+        employee_inputs = [
+            {'agent_id': e.id, 'despair': float(getattr(e, 'despair', 0.0)),
+             'alienation': float(getattr(e, 'alienation', 0.0))}
+            for e in employees]
+        avg_despair = sum(row['despair'] for row in employee_inputs) / len(employees)
+        avg_alien = sum(row['alienation'] for row in employee_inputs) / len(employees)
         has_strikes = getattr(firm, 'is_on_strike', False)
 
         # Sabotage risk rises with acute despair and crushed labor conditions
         sabotage_risk = avg_despair * 0.4 + avg_alien * 0.3 + (0.2 if has_strikes else 0.0)
-        if sabotage_risk > 0.55 and rand.random() < (sabotage_risk * 0.30):
+        sabotage_draw = rand.random() if sabotage_risk > 0.55 else None
+        smashed = 0
+        reason = 'risk_below_threshold'
+        if sabotage_draw is not None and sabotage_draw < (sabotage_risk * 0.30):
             # Physical machinery is destroyed!
             current_machinery = getattr(firm, 'machinery_level', 1)
             if current_machinery > 0:
@@ -53,15 +64,32 @@ def evaluate_sabotage(region, t: int) -> int:
                 firm.machinery_level = max(0, current_machinery - smashed)
                 firm.broken_machinery = getattr(firm, 'broken_machinery', 0) + smashed
                 total_smashed += smashed
+                reason = 'sabotage_succeeded'
+        elif sabotage_draw is not None:
+            reason = 'roll_failed'
 
-                # Sabotage boosts local protest energy
-                if hasattr(region, 'protest_energy_log') and region.protest_energy_log:
-                    region.protest_energy_log[-1] = min(10.0, region.protest_energy_log[-1] + 1.2)
+        if evidence is not None:
+            evidence.append({
+                'firm_id': firm.id, 'reason': reason,
+                'employees': employee_inputs, 'average_despair': avg_despair,
+                'average_alienation': avg_alien, 'on_strike': bool(has_strikes),
+                'risk': float(sabotage_risk), 'threshold': 0.55,
+                'probability_after_gate': float(sabotage_risk * 0.30)
+                if sabotage_draw is not None else 0.0,
+                'draw': float(sabotage_draw) if sabotage_draw is not None else None,
+                'smashed': smashed,
+            })
+
+        if smashed:
+            # Sabotage boosts local protest energy
+            if hasattr(region, 'protest_energy_log') and region.protest_energy_log:
+                region.protest_energy_log[-1] = min(10.0, region.protest_energy_log[-1] + 1.2)
 
     return total_smashed
 
 
-def repair_and_replace_machinery(firm, region, t: int):
+def repair_and_replace_machinery(firm, region, t: int,
+                                 evidence: list | None = None):
     """Firms must physically replace and pay for broken machinery.
 
     Requires cash (MACHINERY_REPLACEMENT_CASH) + wood + furniture/tools.
@@ -69,7 +97,20 @@ def repair_and_replace_machinery(firm, region, t: int):
     """
     broken = getattr(firm, 'broken_machinery', 0)
     if broken <= 0:
+        if evidence is not None:
+            evidence.append({'firm_id': firm.id, 'broken_before': 0,
+                             'repair_units': 0, 'reason': 'no_broken_machinery'})
         return
+
+    opening_cash = float(getattr(firm, 'cash', 0.0))
+    opening_wood = float(firm.inv_get(Goods.wood, 0))
+    opening_furniture = float(firm.inv_get(Goods.furniture, 0))
+    cash_after_borrow = opening_cash
+    needed_cash = None
+    wood_cost = None
+    furniture_cost = None
+    repair_completed = False
+    reason = 'insufficient_base_replacement_cash'
 
     # Check if firm can afford to replace 1 machine
     if firm.cash < MACHINERY_REPLACEMENT_CASH:
@@ -78,14 +119,15 @@ def repair_and_replace_machinery(firm, region, t: int):
         if bank is not None:
             bank.Borrow(t, firm, MACHINERY_REPLACEMENT_CASH - firm.cash,
                         trace_region=region)
+    cash_after_borrow = float(getattr(firm, 'cash', 0.0))
 
     if firm.cash >= MACHINERY_REPLACEMENT_CASH:
         wood_avail = firm.inv_get(Goods.wood, 0)
         furn_avail = firm.inv_get(Goods.furniture, 0)
 
         # Purchase materials from local market if needed
-        wood_cost = region.recipes.get(Goods.wood, {}).get('price', 3.0)
-        furn_cost = region.recipes.get(Goods.furniture, {}).get('price', 10.0)
+        wood_cost = float(region.recipes.get(Goods.wood, {}).get('price', 3.0))
+        furn_cost = float(region.recipes.get(Goods.furniture, {}).get('price', 10.0))
 
         needed_cash = MACHINERY_REPLACEMENT_CASH
         if wood_avail < MACHINERY_WOOD_REQUIRED:
@@ -128,6 +170,29 @@ def repair_and_replace_machinery(firm, region, t: int):
             # Machine is replaced and restored to service!
             firm.broken_machinery -= 1
             firm.machinery_level = getattr(firm, 'machinery_level', 0) + 1
+            repair_completed = True
+            reason = 'repaired'
+        else:
+            reason = 'insufficient_cash_for_replacement_materials'
+
+    if evidence is not None:
+        evidence.append({
+            'firm_id': firm.id, 'broken_before': int(broken),
+            'broken_after': int(getattr(firm, 'broken_machinery', 0)),
+            'repair_units': int(repair_completed), 'reason': reason,
+            'opening_cash': opening_cash, 'cash_after_borrow': cash_after_borrow,
+            'closing_cash': float(getattr(firm, 'cash', 0.0)),
+            'opening_wood': opening_wood,
+            'closing_wood': float(firm.inv_get(Goods.wood, 0)),
+            'opening_furniture': opening_furniture,
+            'closing_furniture': float(firm.inv_get(Goods.furniture, 0)),
+            'required_cash': float(needed_cash)
+            if needed_cash is not None else None,
+            'base_replacement_cash': MACHINERY_REPLACEMENT_CASH,
+            'required_wood': MACHINERY_WOOD_REQUIRED,
+            'required_furniture': MACHINERY_FURNITURE_REQUIRED,
+            'wood_price': wood_cost, 'furniture_price': furniture_cost,
+        })
 
 
 def record_workforce_availability(region, t: int):
@@ -212,12 +277,18 @@ def record_workforce_availability(region, t: int):
 def step_workplace_resistance(region, t: int) -> dict:
     """Run turn of strikes, sabotage, and machinery repairs on a tile."""
     evaluate_strikes(region, t)
-    smashed = evaluate_sabotage(region, t)
-
-    # Attempt repairs for all firms with broken machinery
     firms = [a for a in getattr(region, 'agents', []) if getattr(a, 'is_corporation', False)]
+    opening_firm_state = {
+        firm.id: {'broken': int(getattr(firm, 'broken_machinery', 0)),
+                  'machinery': int(getattr(firm, 'machinery_level', 0))}
+        for firm in firms}
+    sabotage_evidence = []
+    smashed = evaluate_sabotage(region, t, sabotage_evidence)
+
+    # Attempt repairs for all firms with broken machinery.
+    repair_evidence = []
     for f in firms:
-        repair_and_replace_machinery(f, region, t)
+        repair_and_replace_machinery(f, region, t, repair_evidence)
 
     workforce_event_ids = record_workforce_availability(region, t)
 
@@ -225,11 +296,63 @@ def step_workplace_resistance(region, t: int) -> dict:
     total_strikers = sum(1 for a in getattr(region, 'agents', [])
                          if getattr(a, 'is_striking', False) and getattr(a, 'alive', True))
     total_broken = sum(getattr(f, 'broken_machinery', 0) for f in firms)
+    sabotage_by_firm = {row['firm_id']: row for row in sabotage_evidence}
+    repair_by_firm = {row['firm_id']: row for row in repair_evidence}
+    firm_states = []
+    for firm in firms:
+        opening = opening_firm_state[firm.id]
+        sabotage_row = sabotage_by_firm.get(firm.id, {})
+        repair_row = repair_by_firm.get(firm.id, {})
+        smashed_for_firm = int(sabotage_row.get('smashed', 0))
+        repaired_for_firm = int(repair_row.get('repair_units', 0))
+        closing_broken = int(getattr(firm, 'broken_machinery', 0))
+        firm_states.append({
+            'firm_id': firm.id, 'broken_open': opening['broken'],
+            'sabotage_units': smashed_for_firm,
+            'repair_units': repaired_for_firm,
+            'broken_close': closing_broken,
+            'machinery_open': opening['machinery'],
+            'machinery_close': int(getattr(firm, 'machinery_level', 0)),
+            'expected_broken_close': max(
+                0, opening['broken'] + smashed_for_firm - repaired_for_firm),
+            'sabotage_evidence': sabotage_row,
+            'repair_evidence': repair_row,
+        })
     active_strikes = sum(1 for f in firms if getattr(f, 'is_on_strike', False))
     striker_ids = [a.id for a in getattr(region, 'agents', [])
                    if getattr(a, 'is_striking', False)
                    and getattr(a, 'alive', True)]
     from run_trace import emit
+    emit(region, kind='labor_machinery_sabotage_calculation',
+         record_class='calculation', phase='local',
+         subject={'type': 'tile', 'id': region.name},
+         metric_id='labor.machinery_sabotaged', unit='units', after=smashed,
+         formula_id='labor.sabotage_rollup.v1',
+         inputs={'firm_rolls': sabotage_evidence,
+                 'successful_sabotage_units': sum(
+                     int(row.get('smashed', 0)) for row in sabotage_evidence),
+                 'replay_count': sum(
+                     int(row.get('smashed', 0)) for row in sabotage_evidence),
+                 'empty_value': 0})
+    broken_history = getattr(region, 'broken_machinery_log', ())
+    opening_broken = sum(row['broken'] for row in opening_firm_state.values())
+    repaired_total = sum(int(row.get('repair_units', 0))
+                         for row in repair_evidence)
+    expected_broken = max(0, opening_broken + smashed - repaired_total)
+    emit(region, kind='labor_broken_machinery_calculation',
+         record_class='calculation', phase='local',
+         subject={'type': 'tile', 'id': region.name},
+         metric_id='labor.broken_machinery', unit='units',
+         before=broken_history[-1] if broken_history else None,
+         after=total_broken, formula_id='labor.broken_machinery_closing_stock.v1',
+         inputs={'firm_states': firm_states,
+                 'simulation_opening_stock': opening_broken,
+                 'sabotage_units': smashed,
+                 'repair_units': repaired_total,
+                 'expected_closing_stock': expected_broken,
+                 'actual_closing_stock': total_broken,
+                 'replay_matches': expected_broken == total_broken,
+                 'sample_phase': 'after_sabotage_and_repairs_before_depreciation'})
     striker_history = getattr(region, 'strikers_log', ())
     emit(region, kind='labor_striker_count_calculation',
          record_class='calculation', phase='local',

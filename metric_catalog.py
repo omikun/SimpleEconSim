@@ -61,6 +61,9 @@ METRICS = {
     'labor.average_alienation': ('tile', 'ratio', 'alienation.step_tile_alienation; mean across living non-corporate agents'),
     'labor.average_class_consciousness': ('tile', 'ratio', 'alienation.step_tile_alienation; mean across living non-corporate agents'),
     'labor.strikers': ('tile', 'people', 'labor_resistance.step_workplace_resistance'),
+    'labor.workplace_accidents': ('tile', 'incidents', 'alienation.step_tile_alienation; employed-agent safety probability, RNG draw, and outcome rollup'),
+    'labor.machinery_sabotaged': ('tile', 'units_per_turn', 'labor_resistance.evaluate_sabotage; firm despair/alienation risk gate and sabotage draw'),
+    'labor.broken_machinery': ('tile', 'units', 'labor_resistance.step_workplace_resistance; broken equipment stock after sabotage and affordable repairs'),
     'labor.available_worker_hours': ('tile/firm', 'hours', 'labor_resistance.record_workforce_availability before production'),
     'labor.hiring_decision': ('tile/firm/worker', 'accepted', 'region_labor.hire_workers'),
     'labor.occupation_change': ('tile/worker', 'occupation', 'labor_choice.apply_career_switch'),
@@ -398,6 +401,10 @@ LEGACY_HISTORY_TO_METRIC = {
     'avg_consciousness_log': 'labor.average_class_consciousness',
     'rate_of_exploitation_log': 'labor.exploitation_rate',
     'strikers_log': 'labor.strikers',
+    'workplace_accidents_log': 'labor.workplace_accidents',
+    'entertainment_log': 'society.entertainment_level',
+    'sabotage_log': 'labor.machinery_sabotaged',
+    'broken_machinery_log': 'labor.broken_machinery',
 }
 
 TRACE_INSTRUMENTED = set(LEGACY_HISTORY_TO_METRIC.values()) | {

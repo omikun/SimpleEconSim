@@ -357,6 +357,58 @@ class TestWebServerEndpoints(unittest.TestCase):
                 self.assertEqual(len(inputs['striking_agent_ids']),
                                  calculation['value_after'])
 
+    def test_workplace_condition_charts_replay_from_trace_inputs(self):
+        self.sim.step()
+        tile = self.sim.nations[0].tiles[0]
+        charts = self.sim.serialize_tile(tile, turn=self.sim.turn)['charts']['labor']
+
+        def calculation(metric, kind):
+            query = urllib.parse.urlencode({
+                'turn': self.sim.turn, 'entity': f'tile:{tile.name}',
+                'metric': metric, 'limit': 200})
+            payload = json.loads(MockHttpRequestHandler(
+                self.mock_server, 'GET', f'/api/trace?{query}').get_body())
+            matches = [row for row in payload['events'] if row['kind'] == kind]
+            self.assertEqual(len(matches), 1, metric)
+            return matches[0]
+
+        accidents = calculation('labor.workplace_accidents',
+                                'labor_workplace_accidents_calculation')
+        rolls = accidents['inputs']['accident_rolls']
+        self.assertEqual(
+            accidents['value_after'],
+            sum(row['draw'] < row['probability'] for row in rolls))
+        self.assertEqual(charts['workplace_conditions']['accidents'][-1],
+                         accidents['value_after'])
+
+        entertainment = calculation('society.entertainment_level',
+                                    'society_entertainment_level_sample')
+        self.assertEqual(entertainment['value_after'],
+                         entertainment['inputs']['configured_entertainment_level'])
+        self.assertAlmostEqual(
+            charts['workplace_conditions']['entertainment'][-1],
+            entertainment['value_after'] * 100, places=1)
+
+        sabotage = calculation('labor.machinery_sabotaged',
+                               'labor_machinery_sabotage_calculation')
+        sabotage_inputs = sabotage['inputs']
+        self.assertEqual(
+            sabotage['value_after'],
+            sum(int(row.get('smashed', 0))
+                for row in sabotage_inputs['firm_rolls']))
+        self.assertEqual(charts['workplace_conditions']['sabotage'][-1],
+                         sabotage['value_after'])
+
+        broken = calculation('labor.broken_machinery',
+                             'labor_broken_machinery_calculation')
+        broken_inputs = broken['inputs']
+        self.assertEqual(
+            broken['value_after'],
+            sum(row['broken_close'] for row in broken_inputs['firm_states']))
+        self.assertTrue(broken_inputs['replay_matches'])
+        self.assertEqual(charts['workplace_conditions']['broken'][-1],
+                         broken['value_after'])
+
     def test_soil_toxicity_and_bodily_wear_chart_points_have_trace_records(self):
         self.sim.step()
         tile = self.sim.nations[0].tiles[0]
