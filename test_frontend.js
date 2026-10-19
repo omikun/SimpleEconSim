@@ -293,6 +293,26 @@ test('UI Utils, Chart Renderer, Help Content, and State Sync Modules', (t) => {
   assert.ok(ctx.window.CoCStateSync, 'CoCStateSync must be defined');
 });
 
+test('every historical chart has a trace binding, including effective workday cap', () => {
+  const ctx = createBrowserSandbox();
+  loadScript('web_client/chart_renderer.js', ctx);
+  const charts = ctx.window.CoCCharts;
+  for (const entries of Object.values(charts.getChartCatalog())) {
+    for (const entry of entries) {
+      assert.ok(charts.getTraceBinding(entry.id, 'food'),
+        `missing trace binding for chart ${entry.id}`);
+    }
+  }
+
+  const binding = charts.getTraceBinding('workday_cap');
+  assert.equal(binding.metricId, 'labor.statutory_workday');
+  assert.deepEqual(Array.from(binding.tilePath),
+    ['labor', 'shifts_exploitation', 'caps']);
+  assert.deepEqual(Array.from(charts.getTileSeries({
+    labor: { shifts_exploitation: { caps: [16, 10] } }
+  }, binding)), [16, 10]);
+});
+
 test('Voronoi Geometry Module (voronoi_geometry.js)', (t) => {
   const ctx = createBrowserSandbox();
   loadScript('web_client/voronoi_geometry.js', ctx);

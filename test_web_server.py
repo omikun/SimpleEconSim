@@ -357,6 +357,27 @@ class TestWebServerEndpoints(unittest.TestCase):
                 self.assertEqual(len(inputs['striking_agent_ids']),
                                  calculation['value_after'])
 
+    def test_web_workday_cap_chart_uses_effective_turn_history(self):
+        tile = self.sim.nations[0].tiles[0]
+        tile.max_workday_hours = 16.0
+        tile.workday_cap = 10.0
+        self.sim.step()
+
+        charts = self.sim.serialize_tile(tile, turn=self.sim.turn)['charts']
+        effective_cap = charts['labor']['shifts_exploitation']['caps'][-1]
+        query = urllib.parse.urlencode({
+            'turn': self.sim.turn, 'entity': f'tile:{tile.name}',
+            'metric': 'labor.statutory_workday', 'limit': 200})
+        payload = json.loads(MockHttpRequestHandler(
+            self.mock_server, 'GET', f'/api/trace?{query}').get_body())
+        samples = [row for row in payload['events']
+                   if row['kind'] == 'effective_workday_cap_sample']
+
+        self.assertEqual(len(samples), 1)
+        self.assertEqual(effective_cap, 10.0)
+        self.assertEqual(samples[0]['value_after'], effective_cap)
+        self.assertEqual(samples[0]['inputs']['statute_display_value'], 16.0)
+
     def test_workplace_condition_charts_replay_from_trace_inputs(self):
         self.sim.step()
         tile = self.sim.nations[0].tiles[0]

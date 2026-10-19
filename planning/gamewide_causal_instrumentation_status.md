@@ -200,7 +200,10 @@ selected-tile food price, GDP, population, protest energy, food production,
 food producer inventory, food-cash Gini, soil fertility, nutrition density,
 air and water pollution, disease fatalities, individual
 malnutrition/waterborne/respiratory/chemical case counts, and combined
-healthcare outlays. Other chart series still need explicit source mappings.
+healthcare outlays. Every selectable web tile chart now has a metric/source
+binding, including dynamic goods. The web client's Nation-wide chart histories
+remain limited to GDP, treasury, population, average food price, and protest
+energy; other national series still need explicit history aggregation.
 Desktop point-to-trace drilldown currently covers tile Economic, Ecology,
 Citizen Class & Tenure, and Labor charts, plus Nation Citizen and Labor charts.
 Nation selections replay the chart's sum or equal-tile mean from member-tile
@@ -212,7 +215,9 @@ the desktop reader queries every contributing source turn, replays the
 10-turn mean (including the shorter prefix windows at the start of a series),
 and shows missing-turn coverage rather than treating gaps as zero. Government
 revenue charts replay the selected tax, tariff, or inheritance component from
-the calculation inputs instead of confusing the component with the total.
+the calculation inputs instead of confusing the component with the total. The
+web Labor chart now uses the recorded effective workday cap history, rather
+than repeating the current statutory maximum over historical turns.
 
 The coverage checker reports a changed snapshot as unexplained when its final
 value does not match a recorded calculation. Per-profession headcount snapshots
@@ -1797,4 +1802,16 @@ shows all source values compactly in the chart overlay.
 Verification: all 18 desktop chart-trace tests passed, including a full 10-turn
 GDP replay, missing-turn coverage, and component-level government revenue.
 Python compilation and `git diff --check` passed. Bindings for the remaining web
-chart series are still open.
+Nation-wide chart histories remain open for metrics beyond the five existing
+macro series.
+
+Phase 5 follow-up, 2026-10-18: corrected the web Labor cap series to serialize
+the effective workday cap sampled for each turn. Added it as a selectable
+historical chart with a trace binding to `labor.statutory_workday`. Its label
+distinguishes the effective cap from the separate statutory display value in
+the calculation inputs. Updated chart-category counts and browser cache version.
+
+Verification: all 9 frontend module tests passed, including a catalog-wide
+assertion that each selectable chart has a trace binding and that the cap
+series reads the effective history. The complete web server and client parity
+suites passed (69 tests), along with Python compilation and `git diff --check`.

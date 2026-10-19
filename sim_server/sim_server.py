@@ -1577,10 +1577,11 @@ class SimServer:
         fatalities_series = (getattr(tile, 'disease_fatalities_log', []) or [])[-30:]
         health_attr_series = [round(float(h) * 100.0, 1) for h in (getattr(tile, 'avg_health_attrition_log', []) or [])][-30:]
 
-        # Labor & Alienation charts (4 series)
+        # Labor & Alienation chart series
         shifts_series = [round(float(s), 1) for s in (getattr(tile, 'avg_shift_hours_log', []) or [])][-30:]
         sv_rates_series = [round(float(v) * 100.0, 1) for v in (getattr(tile, 'rate_of_exploitation_log', []) or [])][-30:]
-        legal_caps = [round(float(getattr(tile, 'max_workday_hours', 16.0)), 1)] * len(shifts_series)
+        effective_caps = [round(float(v), 1) for v in
+                          (getattr(tile, 'workday_cap_log', []) or [])][-30:]
         alienation_series = [round(float(a) * 100.0, 1) for a in (getattr(tile, 'avg_alienation_log', []) or [])][-30:]
         health_series = health_attr_series
         consc_series = [round(float(c) * 100.0, 1) for c in (getattr(tile, 'avg_consciousness_log', []) or [])][-30:]
@@ -1767,7 +1768,7 @@ class SimServer:
                     'health_attrition': health_attr_series,
                 },
                 'labor': {
-                    'shifts_exploitation': {'shifts': shifts_series, 'caps': legal_caps, 'sv_rate': sv_rates_series},
+                    'shifts_exploitation': {'shifts': shifts_series, 'caps': effective_caps, 'sv_rate': sv_rates_series},
                     'alienation_health': {'alienation': alienation_series, 'health': health_series},
                     'consciousness_pacification': {'consciousness': consc_series, 'entertainment': entertain_series, 'protest': protest_series},
                     'workplace_resistance': {'strikers': strikers_series, 'sabotage': broken_series, 'broken': machines_series},

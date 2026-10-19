@@ -53,7 +53,8 @@
       { id: 'workplace_accidents', name: 'Workplace Accidents' },
       { id: 'entertainment', name: 'Pacification Investment' },
       { id: 'machinery_sabotaged', name: 'Machinery Sabotaged' },
-      { id: 'broken_machinery', name: 'Broken Machinery' }
+      { id: 'broken_machinery', name: 'Broken Machinery' },
+      { id: 'workday_cap', name: 'Effective Workday Cap' }
     ],
     citizens: [
       { id: 'class_serf', name: 'Commoners' },
@@ -182,6 +183,9 @@
     shift_hours: Object.freeze({ metricId: 'labor.average_shift_hours',
       tilePath: ['labor', 'shifts_exploitation', 'shifts'],
       label: 'Average shift hours' }),
+    workday_cap: Object.freeze({ metricId: 'labor.statutory_workday',
+      tilePath: ['labor', 'shifts_exploitation', 'caps'],
+      label: 'Effective workday cap' }),
     exploitation: Object.freeze({ metricId: 'labor.exploitation_rate',
       tilePath: ['labor', 'shifts_exploitation', 'sv_rate'],
       chartScale: 100, displayUnit: '%', label: 'Rate of exploitation (s/v)' }),
