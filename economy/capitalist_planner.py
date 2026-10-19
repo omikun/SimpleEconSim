@@ -638,12 +638,16 @@ class EliteCapitalistPlanner:
                                        'inventory_liquidation', 'do_nothing'],
                                    'selected': result.get('action_taken') or 'do_nothing',
                                    'shadow_cash_price': shadow_cash,
+                                   'operator_execution_event_ids': (
+                                       result.get('execution_event_ids') or []),
                                    'neighbors': sorted(getattr(region, 'neighbors', {}).keys())})
         emit(region, kind='corporation_ai_outcome', record_class='outcome',
              phase='local', subject=subject, metric_id='economy.cash',
              unit=getattr(region, 'home_currency', 'local_currency'),
              before=cash_before, after=cash_after,
              decision_id=decision_id,
+             cause_event_ids=(result.get('evaluation_event_ids', [])
+                              + result.get('execution_event_ids', [])) or None,
              inputs={'action': result.get('action_taken') or 'do_nothing',
                      'details': scalar_details,
                      'omitted_detail_keys': sorted(str(key) for key, value in reported_details.items()
@@ -652,6 +656,7 @@ class EliteCapitalistPlanner:
 
     def _plan_and_execute_elite(self, agent: Any, region: Any, t: int) -> Dict[str, Any]:
         """Formulate and execute a multi-step conversion or investment plan for an elite agent."""
+        from run_trace import emit
         self._last_plan_turn[agent.id] = t
         shadow_cash = self.calculate_shadow_price_cash(agent, region)
         luxuries = self.get_market_luxuries(region)
@@ -662,7 +667,152 @@ class EliteCapitalistPlanner:
             'action_taken': None,
             'details': {},
             'evaluation_event_ids': [],
+            'execution_event_ids': [],
         }
+        trace_enabled = (getattr(region, '_run_trace', None) is not None
+                         and getattr(region, '_collective_trace_clock', None) is not None)
+
+        def operator_return_basis(operator):
+            operator_id = str(operator.id)
+            if operator_id == 'mandate_plantation_labor_gang':
+                viable = [estate for estate in getattr(agent, 'frontier_estates', [])
+                          if estate.get('captive_labor', 0) >= 3]
+                estate = viable[0] if viable else {}
+                commodity = getattr(Goods, estate.get('primary_commodity', 'cotton'),
+                                    Goods.cotton)
+                base_price = float(getattr(region, 'recipes', {}).get(
+                    commodity, {}).get('price', 4.0))
+                expected_price = TransformationGraph.compute_expected_price(region, commodity)
+                effective_price = max(expected_price, base_price * 0.5)
+                return {
+                    'formula': '(effective_unit_price * 15 - 10) * shadow_price_cash',
+                    'commodity': commodity.name,
+                    'expected_unit_price': expected_price,
+                    'recipe_price_floor_basis': base_price,
+                    'effective_unit_price': effective_price,
+                    'valued_output_units': 15.0,
+                    'cash_cost': 10.0}
+            if operator_id == 'procure_captive_labor':
+                estates = getattr(agent, 'frontier_estates', [])
+                estate = min(estates, key=lambda row: row.get('captive_labor', 0)) \
+                    if estates else {}
+                commodity = getattr(Goods, estate.get('primary_commodity', 'cotton'),
+                                    Goods.cotton)
+                expected_price = TransformationGraph.compute_expected_price(region, commodity)
+                return {
+                    'formula': '(expected_unit_price * 15 * 2 - 25) * shadow_price_cash',
+                    'commodity': commodity.name,
+                    'expected_unit_price': expected_price,
+                    'valued_output_units': 30.0,
+                    'cash_cost': 25.0}
+            if operator_id == 'chartered_frontier_conquest':
+                expected_price = TransformationGraph.compute_expected_price(region, Goods.cotton)
+                return {
+                    'formula': '(expected_cotton_price * 10 - 50) * shadow_price_cash + 20',
+                    'commodity': Goods.cotton.name,
+                    'expected_unit_price': expected_price,
+                    'valued_output_units': 10.0,
+                    'cash_cost': 50.0,
+                    'fixed_utility_bonus': 20.0}
+            return None
+
+        def record_operator_gate(operator, *, stage, can_execute, reason,
+                                 net_return=None, threshold=None,
+                                 selected_for_execution=False,
+                                 execution_result=None, state_before=None,
+                                 selected_action=None):
+            if not trace_enabled:
+                return None
+            trace_return = None
+            if net_return is not None:
+                try:
+                    candidate_return = float(net_return)
+                    if math.isfinite(candidate_return):
+                        trace_return = candidate_return
+                except (TypeError, ValueError, OverflowError):
+                    pass
+            event_id = emit(
+                region, kind='elite_operator_evaluation', record_class='decision',
+                phase='local', subject={'type': 'agent', 'id': agent.id,
+                                        'tile': getattr(region, 'name', 'default')},
+                metric_id='ai.elite_economic_decision', unit='operator_gate',
+                after=(selected_action if selected_action else
+                       'selected_for_execution' if selected_for_execution else
+                       'not_selected'),
+                formula_id='elite.transformation_operator_gate.v1',
+                inputs={'stage': stage, 'operator_id': str(operator.id),
+                        'operator_name': str(operator.name),
+                        'operator_category': str(operator.category),
+                        'can_execute': bool(can_execute),
+                        'feasibility_reason': str(reason),
+                        'cash_before': float(agent.cash if state_before is None
+                                             else state_before.get('cash', agent.cash)),
+                        'cash_cost': float(operator.cash_cost),
+                        'shadow_price_cash': float(shadow_cash),
+                        'estimated_net_return': trace_return,
+                        'return_basis': (operator_return_basis(operator)
+                                         if net_return is not None else None),
+                        'strict_return_threshold': threshold,
+                        'selection_reason': (
+                            'return_gate_passed' if selected_for_execution else
+                            'operator_ineligible' if not can_execute else
+                            'estimated_return_not_above_strict_threshold'),
+                        'return_gate_passed': bool(selected_for_execution),
+                        'selected_for_execution': bool(selected_for_execution),
+                        'execution_result': execution_result,
+                        'state_before': state_before})
+            if event_id is not None:
+                result['evaluation_event_ids'].append(event_id)
+            return event_id
+
+        def record_operator_execution(operator, *, stage, evaluation_event_id,
+                                      execution_result, cash_before, state_before):
+            if not trace_enabled:
+                return None
+            cash_after = float(agent.cash)
+            event_id = emit(
+                region, kind='elite_operator_execution', record_class='outcome',
+                phase='local', subject={'type': 'agent', 'id': agent.id,
+                                        'tile': getattr(region, 'name', 'default')},
+                metric_id='ai.elite_economic_decision', unit='operator_action',
+                before=cash_before, after=cash_after,
+                cause_event_ids=([evaluation_event_id]
+                                 if evaluation_event_id is not None else None),
+                inputs={'stage': stage, 'operator_id': str(operator.id),
+                        'execution_result': execution_result,
+                        'state_before': state_before,
+                        'state_after': frontier_estate_state()})
+            if event_id is not None:
+                result['execution_event_ids'].append(event_id)
+            return event_id
+
+        def frontier_estate_state():
+            commoners = [
+                person for person in getattr(region, 'agents', [])
+                if getattr(person, 'alive', True)
+                and not getattr(person, 'is_lord', False)
+                and not getattr(person, 'is_corporation', False)
+                and not getattr(person, 'is_government', False)
+                and not getattr(person, 'is_trader', False)]
+            gov_agent = getattr(getattr(region, 'gov', None), 'agent', None)
+            tracked_goods = (Goods.rum, Goods.cloth, Goods.cotton,
+                             Goods.tobacco, Goods.iron_ore)
+            return {
+                'cash': float(agent.cash),
+                'tracked_inventory': {
+                    good.name: float(agent.inv_get(good, 0))
+                    for good in tracked_goods},
+                'frontier_estates': [
+                    {'target_region': str(estate.get('target_region', '')),
+                     'primary_commodity': str(estate.get('primary_commodity', '')),
+                     'captive_labor': int(estate.get('captive_labor', 0))}
+                    for estate in getattr(agent, 'frontier_estates', [])],
+                'commoner_cash': [
+                    {'agent_id': str(getattr(person, 'id', 'unknown')),
+                     'cash': float(getattr(person, 'cash', 0.0))}
+                    for person in commoners],
+                'government_cash': (float(gov_agent.cash)
+                                    if gov_agent is not None else None)}
 
         # ---------------------------------------------------------------------
         # 1. Luxury Purchase Check: If elite has enough cash, buy luxury!
@@ -800,41 +950,92 @@ class EliteCapitalistPlanner:
         # A. Plantation gang labor extraction if captive labor available
         gang_op = TransformationGraph.get_operator('mandate_plantation_labor_gang')
         if gang_op:
-            can_gang, _ = gang_op.can_agent_execute(agent, region)
+            can_gang, gang_reason = gang_op.can_agent_execute(agent, region)
+            gang_ret = None
+            execute_gang = False
             if can_gang:
                 gang_ret = gang_op.estimate_net_return(agent, region, shadow_cash)
-                if gang_ret > 10.0:
-                    exec_res = gang_op.on_execute(agent, region, t)
-                    if exec_res.get('success'):
-                        result['action_taken'] = 'MANDATE_PLANTATION_LABOR_GANG'
-                        result['details'] = exec_res
-                        return result
+                execute_gang = gang_ret > 10.0
+            gang_state_before = frontier_estate_state() if trace_enabled else None
+            gang_cash_before = float(agent.cash) if trace_enabled else None
+            gang_evaluation_id = record_operator_gate(
+                gang_op, stage='plantation_labor_gang',
+                can_execute=can_gang, reason=gang_reason,
+                net_return=gang_ret, threshold=10.0,
+                selected_for_execution=execute_gang,
+                state_before=gang_state_before)
+            if execute_gang:
+                exec_res = gang_op.on_execute(agent, region, t)
+                record_operator_execution(
+                    gang_op, stage='plantation_labor_gang',
+                    evaluation_event_id=gang_evaluation_id,
+                    execution_result=exec_res,
+                    cash_before=gang_cash_before,
+                    state_before=gang_state_before)
+                if exec_res.get('success'):
+                    result['action_taken'] = 'MANDATE_PLANTATION_LABOR_GANG'
+                    result['details'] = exec_res
+                    return result
 
         # B. Procure captive labor for existing estates
         procure_op = TransformationGraph.get_operator('procure_captive_labor')
         if procure_op:
-            can_procure, _ = procure_op.can_agent_execute(agent, region)
+            can_procure, procure_reason = procure_op.can_agent_execute(agent, region)
+            procure_ret = None
+            execute_procurement = False
             if can_procure:
                 procure_ret = procure_op.estimate_net_return(agent, region, shadow_cash)
-                if procure_ret > 15.0:
-                    exec_res = procure_op.on_execute(agent, region, t)
-                    if exec_res.get('success'):
-                        result['action_taken'] = 'PROCURE_CAPTIVE_LABOR'
-                        result['details'] = exec_res
-                        return result
+                execute_procurement = procure_ret > 15.0
+            procure_state_before = frontier_estate_state() if trace_enabled else None
+            procure_cash_before = float(agent.cash) if trace_enabled else None
+            procurement_evaluation_id = record_operator_gate(
+                procure_op, stage='procure_captive_labor',
+                can_execute=can_procure, reason=procure_reason,
+                net_return=procure_ret, threshold=15.0,
+                selected_for_execution=execute_procurement,
+                state_before=procure_state_before)
+            if execute_procurement:
+                exec_res = procure_op.on_execute(agent, region, t)
+                record_operator_execution(
+                    procure_op, stage='procure_captive_labor',
+                    evaluation_event_id=procurement_evaluation_id,
+                    execution_result=exec_res,
+                    cash_before=procure_cash_before,
+                    state_before=procure_state_before)
+                if exec_res.get('success'):
+                    result['action_taken'] = 'PROCURE_CAPTIVE_LABOR'
+                    result['details'] = exec_res
+                    return result
 
         # C. Chartered frontier conquest
         war_cap_op = TransformationGraph.get_operator('chartered_frontier_conquest')
         if war_cap_op and agent.cash >= 50.0:
-            can_conquer, _ = war_cap_op.can_agent_execute(agent, region)
+            can_conquer, conquer_reason = war_cap_op.can_agent_execute(agent, region)
+            conquer_ret = None
+            execute_conquest = False
             if can_conquer:
                 conquer_ret = war_cap_op.estimate_net_return(agent, region, shadow_cash)
-                if conquer_ret > 20.0:
-                    exec_res = war_cap_op.on_execute(agent, region, t)
-                    if exec_res.get('success'):
-                        result['action_taken'] = 'WAR_CAPITALISM_FRONTIER_CONQUEST'
-                        result['details'] = exec_res
-                        return result
+                execute_conquest = conquer_ret > 20.0
+            conquest_state_before = frontier_estate_state() if trace_enabled else None
+            conquest_cash_before = float(agent.cash) if trace_enabled else None
+            conquest_evaluation_id = record_operator_gate(
+                war_cap_op, stage='frontier_conquest',
+                can_execute=can_conquer, reason=conquer_reason,
+                net_return=conquer_ret, threshold=20.0,
+                selected_for_execution=execute_conquest,
+                state_before=conquest_state_before)
+            if execute_conquest:
+                exec_res = war_cap_op.on_execute(agent, region, t)
+                record_operator_execution(
+                    war_cap_op, stage='frontier_conquest',
+                    evaluation_event_id=conquest_evaluation_id,
+                    execution_result=exec_res,
+                    cash_before=conquest_cash_before,
+                    state_before=conquest_state_before)
+                if exec_res.get('success'):
+                    result['action_taken'] = 'WAR_CAPITALISM_FRONTIER_CONQUEST'
+                    result['details'] = exec_res
+                    return result
 
         # ---------------------------------------------------------------------
         # 3. Capitalist Investment & Wage Bidding

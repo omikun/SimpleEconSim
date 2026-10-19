@@ -183,8 +183,11 @@ evidence.
   affordability, sale quantity, reference-price basis, and linked cash and
   inventory balances. Capital allocation now records the real sector scan,
   input-stock penalty, best-sector choice, and expansion/incorporation gate.
-  Spatial routing, other operator evaluations, and preflight purity/RNG
-  neutrality remain open.
+  Plantation gang labor, captive-labor procurement, and frontier-conquest
+  gates now record eligibility reasons, return formulas and thresholds, and
+  linked execution state including labor attrition, displacement, inventory,
+  and local cash recipients. Lord transformations, machinery decisions,
+  spatial routing, and preflight purity/RNG neutrality remain open.
 
 ## Known gaps
 
@@ -1878,3 +1881,20 @@ shortage penalty puts it below food, and confirms the exact company expansion
 cash/wage/cap changes. Trace-on/off states match. The elite, capitalist,
 actor-account, supply-control, metric-catalog, and trace-reader suites passed
 (107 tests); compilation and `git diff --check` passed.
+
+Phase 4 follow-up, 2026-10-18: actual plantation gang labor, captive-labor
+procurement, and frontier-conquest gates now emit decision evidence in the
+planner's true priority order. Each record shows the prerequisite result and
+reason, strict return cutoff, shadow-cash value, and operator-specific return
+formula inputs. Selected operations emit linked outcomes with cash and tracked
+inventory changes, commoner cash balances, estate labor before/after, and the
+execution result's output or displaced population. Trace-disabled runs avoid
+the extra state snapshots and preserve the same actions and balances.
+
+Verification: dedicated gang-labor, procurement, and frontier-conquest cases
+match trace-on/off actions and state. The tests check zero-wage output, overseer
+cash distribution, rum payment, labor additions/attrition, conquest yield, and
+displaced population. The elite-planner, capitalist, supply-control,
+metric-catalog, and trace-reader suites passed (108 tests); compilation and
+`git diff --check` passed. Lord transformation candidates, machinery gates,
+spatial routing, and preflight purity/RNG neutrality remain open.

@@ -330,6 +330,138 @@ class ElitePlanningGateTraceTests(unittest.TestCase):
         self.assertEqual(outcome['decision_id'], decision['event_id'])
         self.assertEqual(outcome['inputs']['details']['company_cash_after'], 150.0)
 
+    def _coercive_labor_case(self, captive_labor, traced, frontier=False):
+        planner = EliteCapitalistPlanner()
+        owner = Actor(37, lord=False, inventory={Goods.rum: 1})
+        owner.is_trader = True
+        owner.cash = 80.0
+        owner.frontier_estates = ([] if frontier else [{
+            'target_region': 'Overseas_Colony',
+            'primary_commodity': 'cotton',
+            'turn_acquired': 4,
+            'displaced_population': 20,
+            'captive_labor': captive_labor,
+        }])
+        commoner = Actor(38, lord=False)
+        commoner.cash = 4.0
+        region, _, trace = self.make_region(
+            goods=[Goods.cotton], actor=owner, traced=traced)
+        region.agents = [owner, commoner]
+        region.recipes = {
+            Goods.cotton: {'price': 8.0 if frontier else 4.0,
+                           'production': 10.0, 'numInput': 0}}
+        target = SimpleNamespace(name='Frontier', wilderness=True,
+                                 wilderness_pop=15, climate='tropical', biome='plains')
+        region.neighbors = {'Frontier': target} if frontier else {}
+        region.economic_events = []
+        region.home_currency = 'crown'
+        planner._elite_candidate_snapshot = lambda *_args: []
+        planner.get_market_luxuries = lambda *_args: []
+        planner.evaluate_triangular_trade_voyage = lambda *_args: None
+        planner.evaluate_spatial_trade = lambda *_args: None
+        planner.evaluate_class_legislation = lambda *_args: None
+        planner._execute_input_control = lambda *_args: None
+        with patch('economy.actor_accounts.record', return_value=None):
+            result = planner.plan_and_execute_elite(owner, region, 7)
+        return result, owner, commoner, region, trace
+
+    def test_actual_captive_labor_gates_and_execution_are_linked(self):
+        gang_traced = self._coercive_labor_case(captive_labor=5, traced=True)
+        gang_plain = self._coercive_labor_case(captive_labor=5, traced=False)
+        result, owner, commoner, _region, trace = gang_traced
+        plain_result, plain_owner, plain_commoner, _plain_region, _ = gang_plain
+        self.assertEqual(result['action_taken'], 'MANDATE_PLANTATION_LABOR_GANG')
+        self.assertEqual(plain_result['action_taken'], result['action_taken'])
+        self.assertEqual((owner.cash, commoner.cash,
+                          owner.inv_get(Goods.cotton, 0),
+                          owner.frontier_estates[0]['captive_labor']),
+                         (plain_owner.cash, plain_commoner.cash,
+                          plain_owner.inv_get(Goods.cotton, 0),
+                          plain_owner.frontier_estates[0]['captive_labor']))
+        self.assertEqual((owner.cash, commoner.cash,
+                          owner.inv_get(Goods.cotton, 0),
+                          owner.frontier_estates[0]['captive_labor']),
+                         (70.0, 14.0, 15.0, 4))
+
+        gang_gate = next(row for row in trace.rows
+                         if row['kind'] == 'elite_operator_evaluation'
+                         and row['inputs']['stage'] == 'plantation_labor_gang')
+        self.assertTrue(gang_gate['inputs']['can_execute'])
+        self.assertTrue(gang_gate['inputs']['return_gate_passed'])
+        self.assertEqual(gang_gate['inputs']['strict_return_threshold'], 10.0)
+        gang_execution = next(row for row in trace.rows
+                              if row['kind'] == 'elite_operator_execution')
+        self.assertEqual(gang_execution['inputs']['execution_result']['wage_cost_to_laborers'], 0.0)
+        self.assertEqual(gang_execution['inputs']['state_after']['commoner_cash'][0]['cash'], 14.0)
+        self.assertEqual(gang_execution['inputs']['state_after']['tracked_inventory']['cotton'], 15.0)
+
+        procurement_traced = self._coercive_labor_case(captive_labor=0, traced=True)
+        procurement_plain = self._coercive_labor_case(captive_labor=0, traced=False)
+        result, owner, commoner, _region, trace = procurement_traced
+        plain_result, plain_owner, plain_commoner, _plain_region, _ = procurement_plain
+        self.assertEqual(result['action_taken'], 'PROCURE_CAPTIVE_LABOR')
+        self.assertEqual(plain_result['action_taken'], result['action_taken'])
+        self.assertEqual((owner.cash, commoner.cash, owner.inv_get(Goods.rum, 0),
+                          owner.frontier_estates[0]['captive_labor']),
+                         (plain_owner.cash, plain_commoner.cash,
+                          plain_owner.inv_get(Goods.rum, 0),
+                          plain_owner.frontier_estates[0]['captive_labor']))
+        self.assertEqual((owner.cash, commoner.cash, owner.inv_get(Goods.rum, 0),
+                          owner.frontier_estates[0]['captive_labor']),
+                         (80.0, 4.0, 0.0, 5))
+
+        gates = [row for row in trace.rows
+                 if row['kind'] == 'elite_operator_evaluation']
+        self.assertEqual([row['inputs']['stage'] for row in gates],
+                         ['plantation_labor_gang', 'procure_captive_labor'])
+        self.assertFalse(gates[0]['inputs']['can_execute'])
+        self.assertEqual(gates[0]['inputs']['feasibility_reason'],
+                         'Prerequisites hook failed')
+        self.assertTrue(gates[1]['inputs']['return_gate_passed'])
+        procurement_execution = next(row for row in trace.rows
+                                     if row['kind'] == 'elite_operator_execution')
+        self.assertEqual(procurement_execution['inputs']['execution_result']['cost_type'], 'rum')
+        self.assertEqual(procurement_execution['inputs']['state_after']['tracked_inventory']['rum'], 0.0)
+        decision = next(row for row in trace.rows
+                        if row['kind'] == 'corporation_ai_decision')
+        self.assertEqual(decision['cause_event_ids'], [row['event_id'] for row in gates])
+        outcome = next(row for row in trace.rows
+                       if row['kind'] == 'corporation_ai_outcome')
+        self.assertIn(procurement_execution['event_id'], outcome['cause_event_ids'])
+
+        frontier_traced = self._coercive_labor_case(
+            captive_labor=0, traced=True, frontier=True)
+        frontier_plain = self._coercive_labor_case(
+            captive_labor=0, traced=False, frontier=True)
+        result, owner, commoner, region, trace = frontier_traced
+        plain_result, plain_owner, plain_commoner, plain_region, _ = frontier_plain
+        self.assertEqual(result['action_taken'], 'WAR_CAPITALISM_FRONTIER_CONQUEST')
+        self.assertEqual(plain_result['action_taken'], result['action_taken'])
+        self.assertEqual((owner.cash, commoner.cash,
+                          owner.frontier_estates, owner.inv_get(Goods.cotton, 0),
+                          region.neighbors['Frontier'].wilderness_pop),
+                         (plain_owner.cash, plain_commoner.cash,
+                          plain_owner.frontier_estates, plain_owner.inv_get(Goods.cotton, 0),
+                          plain_region.neighbors['Frontier'].wilderness_pop))
+        self.assertEqual((owner.cash, commoner.cash, owner.inv_get(Goods.cotton, 0),
+                          region.neighbors['Frontier'].wilderness_pop),
+                         (45.0, 39.0, 10.0, 0))
+        gates = [row for row in trace.rows
+                 if row['kind'] == 'elite_operator_evaluation']
+        self.assertEqual([row['inputs']['stage'] for row in gates],
+                         ['plantation_labor_gang', 'procure_captive_labor',
+                          'frontier_conquest'])
+        conquest_gate = gates[-1]
+        self.assertTrue(conquest_gate['inputs']['can_execute'])
+        self.assertTrue(conquest_gate['inputs']['return_gate_passed'])
+        self.assertEqual(conquest_gate['inputs']['return_basis']['expected_unit_price'], 8.0)
+        self.assertEqual(conquest_gate['inputs']['estimated_net_return'], 50.0)
+        conquest_execution = next(row for row in trace.rows
+                                  if row['kind'] == 'elite_operator_execution')
+        self.assertEqual(conquest_execution['inputs']['execution_result']['displaced_pop'], 15)
+        self.assertEqual(conquest_execution['inputs']['state_after']['frontier_estates'][0]
+                         ['primary_commodity'], 'cotton')
+
 
 if __name__ == '__main__':
     unittest.main()

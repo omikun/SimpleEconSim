@@ -2412,3 +2412,22 @@ by input scarcity and loses to food; trace-on/off state remains identical. The
 elite, capitalist, actor-account, supply-control, metric-catalog, and trace
 reader suites passed (107 tests), as did compilation and `git diff --check`.
 Other real planner stages and preflight purity/RNG neutrality remain open.
+
+## Phase 4 follow-up — Trace coercive labor and conquest gates (implemented)
+
+The live corporate planner now records its actual plantation gang labor,
+captive-labor procurement, and frontier-conquest evaluations in consideration
+order. Each evaluation records prerequisite status and reason, strict
+return-on-capital threshold, shadow-cash value, and the operator's return
+formula inputs. When selected, the execution record links to its gate and
+captures owner cash, tracked inventory, commoner cash, estate labor, output,
+and displaced population before and after the action. Trace-disabled runs skip
+the added state snapshots.
+
+Verification: dedicated trace-on/off fixtures cover gang labor, procurement,
+and conquest, including zero-wage extraction, overseer pay distribution, rum
+payment, captive-labor changes, commodity output, and displaced population.
+The elite-planner, capitalist, supply-control, metric-catalog, and trace-reader
+suites passed (108 tests); compilation and `git diff --check` passed. Lord
+transformation candidates, machinery gates, spatial routing, and preflight
+purity/RNG neutrality remain open.
