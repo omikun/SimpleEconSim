@@ -1448,3 +1448,17 @@ causal linkage into refusal/escalation, trace-on/off parity and compact `.ctr`
 verification. Project and metric-catalog suites passed (13 tests). The Egypt
 fiscal-project campaign playthrough passed. Compilation and `git diff --check`
 passed.
+
+Phase 3 follow-up, 2026-10-18: strategic-project starts, turn advances,
+damage, repairs, and cancellation now emit lifecycle outcomes and rejection
+reasons. The trace identifies selected crews, work progress, occupation,
+integrity, staffing, public-food and upkeep gates. Wage summaries link to the
+exact worker payments; canal crew meals link each public-store debit to queued
+worker entitlements. Battle damage to the canal line links to its battle
+outcome. No project rules or return values changed.
+
+Verification: eight dedicated lifecycle tests passed, including action gates,
+social/food blockers, wage and meal transfer linkage, battle damage, parity,
+and compact `.ctr` validation. Strategic-project, metric-catalog, and two
+focused playthroughs passed (15 tests). Campaign and campaign-trace suites
+passed (18 tests). Compilation and `git diff --check` passed.

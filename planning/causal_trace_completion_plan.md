@@ -354,11 +354,29 @@ verification. Project and metric-catalog suites passed (13 tests). The Egypt
 fiscal-project campaign playthrough passed. Compilation and `git diff --check`
 passed.
 
-Next Phase 3 audit target: trace strategic-project lifecycle transitions in
+### Phase 3 follow-up — Trace strategic-project lifecycle (implemented)
+
 `scenario_projects.start_project`, `advance`, `damage_project`,
-`repair_project`, and `cancel_project`, including rejected action gates,
-staffing/supply/upkeep reasons, status changes, and links to their wage and
-food transfers.
+`repair_project`, and `cancel_project` now record accepted and rejected action
+gates, selected crew, work progress, occupation/integrity/staffing/public-food
+blockers, upkeep affordability, repair cost, and abandoned sunk wages. Start,
+upkeep, and repair outcomes link to the exact worker payments. Canal-crew food
+allocations record the public-store debit and each worker's queued meal; the
+operating result links to these food and wage events. Project damage from a
+battle links to that battle's outcome. Rules and return values are unchanged.
+
+Verification: eight dedicated lifecycle tests cover starts, duplicate requests,
+occupation and staffing gates, work progression, public-food and upkeep
+shortfalls, wage and meal transfer links, battle damage, repair, cancellation,
+trace-on/off parity, and compact `.ctr` verification. Strategic-project,
+metric-catalog, and two focused campaign playthroughs passed (15 tests).
+Campaign and campaign-trace regressions passed (18 tests). Compilation and
+`git diff --check` passed.
+
+Next Phase 3 audit target: trace `scenario_projects.record_food_results` from
+the repaired Nile district's real harvest and grain transactions into household
+food access, hunger, and owner purchase responses, preserving the distinction
+between a yield forecast and realized production.
 
 ## Phase 5 — Deliver explanations in web, desktop and CLI
 

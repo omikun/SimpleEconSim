@@ -156,7 +156,8 @@ def _record_internal_cash_transfer(region, nation, *, operation_id, kind,
     return event_ids
 
 
-def _pay_workers(world: dict, project: dict, amount: float, kind: str) -> bool:
+def _pay_workers(world: dict, project: dict, amount: float, kind: str,
+                 trace_event_ids=None) -> bool:
     egypt = _nation(world, 'Egypt')
     treasury = egypt.government.agent
     tile = _tile(world, project['site'])
@@ -172,7 +173,7 @@ def _pay_workers(world: dict, project: dict, amount: float, kind: str) -> bool:
         worker_before = float(worker.cash)
         treasury.cash -= wage
         worker.cash += wage
-        _record_person_cash_payment(
+        event_id = _record_person_cash_payment(
             tile, egypt, operation_id=(
                 f"project:{project['id']}:{world['turn']}:{kind}:{worker.id}:"
                 f'{treasury_before:.6f}'),
@@ -181,6 +182,8 @@ def _pay_workers(world: dict, project: dict, amount: float, kind: str) -> bool:
             person_before=worker_before, person_after=float(worker.cash),
             references={'project_id': project['id'], 'worker_id': worker.id,
                         'site': project['site']})
+        if event_id is not None and trace_event_ids is not None:
+            trace_event_ids.append(event_id)
         _state(world)['payments'].append({
             'turn': int(world['turn']), 'kind': kind, 'project': project['id'],
             'payer': 'Egypt', 'recipient_id': worker.id, 'amount': wage,
@@ -195,6 +198,99 @@ def _event(world: dict, project: dict, message: str) -> None:
     world['scenario_feedback'] = message
 
 
+def _project_trace_region(world: dict, site: str | None = None):
+    tiles = list(world.get('tiles', ()))
+    if site is not None:
+        site_data = world.get('scenario_state', {}).get('geography', {}).get(
+            'sites', {}).get(site, {})
+        site_tile = next((tile for tile in tiles
+                          if tile.name == site_data.get('tile')), None)
+        if (site_tile is not None
+                and getattr(site_tile, '_run_trace', None) is not None
+                and getattr(site_tile, '_collective_trace_clock', None) is not None):
+            return site_tile
+    return next((tile for tile in tiles
+                 if getattr(tile, '_run_trace', None) is not None
+                 and getattr(tile, '_collective_trace_clock', None) is not None), None)
+
+
+def _project_operation_id(world: dict, action: str, kind: str, site: str):
+    region = _project_trace_region(world, site)
+    clock = getattr(region, '_collective_trace_clock', None) if region else None
+    ordinal = int(clock.get('next', 1)) if clock is not None else int(world.get('turn', 0))
+    return f'project:{action}:{kind}:{site}:{int(world.get("turn", 0))}:{ordinal}'
+
+
+def _project_trace_state(project):
+    if project is None:
+        return None
+    return {
+        'status': project.get('status'),
+        'progress': int(project.get('progress', 0)),
+        'required_work': int(project.get('required_work', 0)),
+        'integrity': float(project.get('integrity', 1.0)),
+        'paid_cash': float(project.get('paid_cash', 0.0)),
+        'upkeep_paid': float(project.get('upkeep_paid', 0.0)),
+        'last_upkeep_turn': project.get('last_upkeep_turn'),
+        'last_advanced_turn': project.get('last_advanced_turn'),
+        'review_due_turn': project.get('review_due_turn'),
+        'worker_ids': list(project.get('worker_ids', ())),
+    }
+
+
+def _trace_project_lifecycle(world, *, action, kind, site, project_id,
+                             success, reason, before, after, details=None,
+                             operation_id=None, cause_event_ids=None):
+    region = _project_trace_region(world, site)
+    if region is None:
+        return None
+    from run_trace import emit
+    operation_id = operation_id or _project_operation_id(world, action, kind, site)
+    return emit(
+        region, kind=f'scenario_project_{action}',
+        record_class='outcome' if success else 'decision',
+        phase='scenario_projects',
+        subject={'type': 'nation/project', 'id': project_id,
+                 'nation': 'Egypt', 'site': site},
+        metric_id='scenario.project_lifecycle', unit='project_state',
+        before=before, after=after,
+        formula_id='scenario_projects.lifecycle.v1',
+        inputs={'operation_id': operation_id, 'action': action,
+                'turn': int(world.get('turn', 0)), 'success': bool(success),
+                'reason': reason, 'state_before': before, 'state_after': after,
+                **(details or {})},
+        cause_event_ids=cause_event_ids)
+
+
+def _trace_project_crew_food(world, project, egypt, workers, supply_needed,
+                             stock_before, worker_food_before):
+    from run_trace import emit
+    tile = _tile(world, project['site'])
+    units_per_worker = int(supply_needed) // max(1, len(workers))
+    stock_after = int(egypt.government.food_inventory)
+    event_ids = []
+    for worker in workers:
+        worker_before = int(worker_food_before.get(worker.id, 0))
+        event_id = emit(
+            tile, kind='scenario_project_crew_food_transfer',
+            record_class='transfer', phase='scenario_projects',
+            subject={'type': 'agent', 'id': worker.id},
+            metric_id='goods.project_crew_food', unit='food_units',
+            before=worker_before, after=worker_before + units_per_worker,
+            inputs={'operation_id':
+                    f"project:{project['id']}:{int(world['turn'])}:crew_food:{worker.id}",
+                    'project_id': project['id'], 'site': project['site'],
+                    'source': 'Egyptian public stores',
+                    'source_inventory_before': int(stock_before),
+                    'source_inventory_after': stock_after,
+                    'recipient_id': worker.id,
+                    'emergency_food_units': units_per_worker,
+                    'crew_food_units_total': int(supply_needed)})
+        if event_id is not None:
+            event_ids.append(event_id)
+    return event_ids
+
+
 def get_project(world: dict, kind: str, site: str | None = None) -> dict | None:
     return next((project for project in _state(world)['projects']
                  if project['kind'] == kind and (site is None or project['site'] == site)
@@ -202,17 +298,44 @@ def get_project(world: dict, kind: str, site: str | None = None) -> dict | None:
 
 
 def start_project(world: dict, kind: str, site: str) -> tuple[bool, str]:
+    operation_id = _project_operation_id(world, 'start', kind, site)
+    before = _project_trace_state(get_project(world, kind, site))
+
+    def reject(reason, message, details=None):
+        _trace_project_lifecycle(
+            world, action='start', kind=kind, site=site,
+            project_id=f'{kind}:{site}', success=False, reason=reason,
+            before=before, after=before, details=details,
+            operation_id=operation_id)
+        return False, message
+
     definition = PROJECT_DEFS.get(kind)
     if definition is None or site not in definition['sites']:
-        return False, 'This strategic repair is unavailable at that site.'
+        return reject('unavailable_kind_or_site',
+                      'This strategic repair is unavailable at that site.',
+                      {'requested_kind': kind, 'requested_site': site,
+                       'available_kind': definition is not None})
     if get_project(world, kind, site):
-        return False, f'{definition["title"]} is already funded at {site}.'
-    if _occupier(world, site):
-        return False, f'Egypt cannot begin this work while foreign troops hold {site}.'
+        active = get_project(world, kind, site)
+        return reject('already_active',
+                      f'{definition["title"]} is already funded at {site}.',
+                      {'active_project_id': active['id'],
+                       'active_project_status': active['status']})
+    occupier = _occupier(world, site)
+    if occupier:
+        return reject('site_occupied',
+                      f'Egypt cannot begin this work while foreign troops hold {site}.',
+                      {'occupying_nation': occupier})
     tile = _tile(world, site)
     workers = _workers(tile, definition['workers'])
     if len(workers) < definition['workers']:
-        return False, f'{site} lacks enough available local workers.'
+        return reject('insufficient_local_workers',
+                      f'{site} lacks enough available local workers.',
+                      {'available_workers': len(workers),
+                       'required_workers': definition['workers'],
+                       'available_worker_ids': [agent.id for agent in workers]})
+    egypt = _nation(world, 'Egypt')
+    treasury_before = float(egypt.government.agent.cash)
     project = {
         'id': f'{kind}:{site}', 'kind': kind, 'front': definition['front'],
         'site': site, 'tile': tile.name, 'sponsor': 'Egypt',
@@ -222,8 +345,16 @@ def start_project(world: dict, kind: str, site: str) -> tuple[bool, str]:
         'paid_cash': 0.0, 'upkeep_paid': 0.0, 'last_upkeep_turn': None,
         'integrity': 1.0, 'events': [],
     }
-    if not _pay_workers(world, project, definition['cash_cost'], 'construction_wage'):
-        return False, f'Egypt needs {definition["cash_cost"]:.0f} treasury units for {definition["title"].lower()}.'
+    payment_event_ids = []
+    if not _pay_workers(world, project, definition['cash_cost'],
+                        'construction_wage', trace_event_ids=payment_event_ids):
+        treasury_after = float(egypt.government.agent.cash)
+        return reject('insufficient_treasury',
+                      f'Egypt needs {definition["cash_cost"]:.0f} treasury units for {definition["title"].lower()}.',
+                      {'required_construction_cash': float(definition['cash_cost']),
+                       'treasury_cash_before': treasury_before,
+                       'treasury_cash_after': treasury_after,
+                       'available_worker_ids': list(project['worker_ids'])})
     project['paid_cash'] = definition['cash_cost']
     _state(world)['projects'].append(project)
     _state(world)['selected'] = project['id']
@@ -231,6 +362,18 @@ def start_project(world: dict, kind: str, site: str) -> tuple[bool, str]:
                f'{definition["cash_cost"]:.0f} to {len(workers)} local workers; '
                f'completion needs {definition["work_turns"]} staffed turns.')
     _event(world, project, message)
+    _trace_project_lifecycle(
+        world, action='start', kind=kind, site=site, project_id=project['id'],
+        success=True, reason='construction_funded', before=before,
+        after=_project_trace_state(project), operation_id=operation_id,
+        cause_event_ids=payment_event_ids or None,
+        details={'construction_cost': float(definition['cash_cost']),
+                 'required_work_turns': int(definition['work_turns']),
+                 'required_workers': int(definition['workers']),
+                 'selected_worker_ids': list(project['worker_ids']),
+                 'treasury_cash_before': treasury_before,
+                 'treasury_cash_after': float(egypt.government.agent.cash),
+                 'construction_payment_event_ids': payment_event_ids})
     return True, message
 
 
@@ -239,21 +382,54 @@ def advance(world: dict) -> None:
     for project in _state(world)['projects']:
         if project['status'] == 'cancelled' or project['last_advanced_turn'] >= turn:
             continue
+        operation_id = _project_operation_id(
+            world, 'advance', project['kind'], project['site'])
+        before = _project_trace_state(project)
+        definition = PROJECT_DEFS[project['kind']]
+        payment_event_ids = []
+        food_event_ids = []
+        review_event_id = None
         project['last_advanced_turn'] = turn
-        if _occupier(world, project['site']):
+        occupier = _occupier(world, project['site'])
+        if occupier:
             if project['status'] != 'occupied':
                 project['status'] = 'occupied'
                 _event(world, project, f'{project["site"]} is occupied; Egyptian project work and benefits stop.')
+            _trace_project_lifecycle(
+                world, action='advance', kind=project['kind'], site=project['site'],
+                project_id=project['id'], success=False, reason='site_occupied',
+                before=before, after=_project_trace_state(project),
+                operation_id=operation_id,
+                details={'occupying_nation': occupier, 'work_progressed': False})
             continue
         if project['integrity'] < 0.5:
             project['status'] = 'damaged'
+            _trace_project_lifecycle(
+                world, action='advance', kind=project['kind'], site=project['site'],
+                project_id=project['id'], success=False,
+                reason='integrity_below_operating_threshold', before=before,
+                after=_project_trace_state(project), operation_id=operation_id,
+                details={'integrity': float(project['integrity']),
+                         'minimum_operating_integrity': 0.5,
+                         'work_progressed': False})
             continue
-        definition = PROJECT_DEFS[project['kind']]
         tile = _tile(world, project['site'])
         living_ids = {agent.id for agent in _workers(tile, len(tile.agents))}
-        if len(living_ids.intersection(project['worker_ids'])) < definition['workers']:
+        available_worker_ids = sorted(living_ids.intersection(project['worker_ids']))
+        if len(available_worker_ids) < definition['workers']:
             project['status'] = 'stalled'
+            _trace_project_lifecycle(
+                world, action='advance', kind=project['kind'], site=project['site'],
+                project_id=project['id'], success=False,
+                reason='original_crew_unavailable', before=before,
+                after=_project_trace_state(project), operation_id=operation_id,
+                details={'required_workers': int(definition['workers']),
+                         'available_worker_ids': available_worker_ids,
+                         'missing_worker_ids': sorted(set(project['worker_ids'])
+                                                      - set(available_worker_ids)),
+                         'work_progressed': False})
             continue
+        progress_before = int(project['progress'])
         if project['progress'] < project['required_work']:
             project['status'] = 'building'
             project['progress'] += 1
@@ -262,6 +438,16 @@ def advance(world: dict) -> None:
                 if project['kind'] == 'revenue_office':
                     project['review_due_turn'] = turn + 1
             else:
+                _trace_project_lifecycle(
+                    world, action='advance', kind=project['kind'],
+                    site=project['site'], project_id=project['id'], success=True,
+                    reason='staffed_work_progress', before=before,
+                    after=_project_trace_state(project), operation_id=operation_id,
+                    details={'progress_before': progress_before,
+                             'progress_after': int(project['progress']),
+                             'required_work': int(project['required_work']),
+                             'available_worker_ids': available_worker_ids,
+                             'work_progressed': True})
                 continue
         supply_needed = int(definition.get('supply_food', 0))
         egypt = _nation(world, 'Egypt')
@@ -270,8 +456,20 @@ def advance(world: dict) -> None:
             if project.get('supply_warning_turn') != turn - 1:
                 _event(world, project, f'{project["site"]} defense staff lack public food supplies.')
             project['supply_warning_turn'] = turn
+            _trace_project_lifecycle(
+                world, action='advance', kind=project['kind'], site=project['site'],
+                project_id=project['id'], success=False,
+                reason='insufficient_public_food', before=before,
+                after=_project_trace_state(project), operation_id=operation_id,
+                details={'food_required': supply_needed,
+                         'public_food_inventory': int(egypt.government.food_inventory),
+                         'progress_before': progress_before,
+                         'progress_after': int(project['progress']),
+                         'work_progressed': project['progress'] > progress_before})
             continue
-        if _pay_workers(world, project, definition['upkeep'], 'staff_wage'):
+        treasury_before_upkeep = float(egypt.government.agent.cash)
+        if _pay_workers(world, project, definition['upkeep'], 'staff_wage',
+                        trace_event_ids=payment_event_ids):
             project['status'] = 'operating'
             project['last_upkeep_turn'] = turn
             project['upkeep_paid'] = round(project['upkeep_paid'] + definition['upkeep'], 6)
@@ -279,10 +477,18 @@ def advance(world: dict) -> None:
                 from nutrition import queue_emergency_meal
                 crew = {agent.id: agent for agent in _workers(_tile(world, project['site']),
                                                                 len(_tile(world, project['site']).agents))}
+                crew_workers = [crew[worker_id] for worker_id in project['worker_ids']]
+                worker_food_before = {
+                    worker.id: int(getattr(worker, 'emergency_food_units', 0))
+                    for worker in crew_workers}
+                food_inventory_before = int(egypt.government.food_inventory)
                 for worker_id in project['worker_ids']:
                     queue_emergency_meal(crew[worker_id], supply_needed // len(project['worker_ids']))
                 egypt.government.food_inventory -= supply_needed
                 world['scenario_state']['public_maize_stock_units'] = egypt.government.food_inventory
+                food_event_ids = _trace_project_crew_food(
+                    world, project, egypt, crew_workers, supply_needed,
+                    food_inventory_before, worker_food_before)
                 _state(world)['payments'].append({
                     'turn': turn, 'kind': 'crew_food', 'project': project['id'],
                     'payer': 'Egyptian public stores', 'recipient_ids': list(project['worker_ids']),
@@ -292,9 +498,34 @@ def advance(world: dict) -> None:
             project['status'] = 'unfunded'
             if project['last_upkeep_turn'] != turn - 1:
                 _event(world, project, f'{definition["title"]} cannot operate without paid staff.')
+            review_event_id = None
         if (project['kind'] == 'revenue_office' and project.get('review_due_turn') is not None
                 and project['review_due_turn'] <= turn and project['status'] == 'operating'):
-            _review_revenue_office(world, project)
+            review_event_id = _review_revenue_office(world, project)
+        cause_event_ids = [*payment_event_ids, *food_event_ids]
+        if review_event_id is not None:
+            cause_event_ids.append(review_event_id)
+        paid_upkeep = project['last_upkeep_turn'] == turn
+        _trace_project_lifecycle(
+            world, action='advance', kind=project['kind'], site=project['site'],
+            project_id=project['id'], success=paid_upkeep,
+            reason='operating_upkeep_paid' if paid_upkeep else 'upkeep_unaffordable',
+            before=before, after=_project_trace_state(project),
+            operation_id=operation_id, cause_event_ids=cause_event_ids or None,
+            details={'required_staff_wage': float(definition['upkeep']),
+                     'staff_wage_paid': paid_upkeep,
+                     'treasury_cash_before_upkeep': treasury_before_upkeep,
+                     'treasury_cash_after_upkeep': float(egypt.government.agent.cash),
+                     'progress_before': progress_before,
+                     'progress_after': int(project['progress']),
+                     'required_work': int(project['required_work']),
+                     'available_worker_ids': available_worker_ids,
+                     'construction_completed_this_turn':
+                     progress_before < project['required_work']
+                     and project['progress'] >= project['required_work'],
+                     'crew_food_event_ids': food_event_ids,
+                     'wage_event_ids': payment_event_ids,
+                     'revenue_office_review_event_id': review_event_id})
 
 
 def set_grain_entitlement(world: dict, active: bool) -> tuple[bool, str]:
@@ -768,7 +999,7 @@ def _review_revenue_office(world: dict, project: dict) -> None:
     revenue_reports = [dict(row) for row in _state(world).get('revenue_reports', [])
                        if int(row.get('turn', -1)) <= review_turn
                        and int(row.get('turn', -1)) >= review_turn - 1]
-    _trace_revenue_office_review(
+    return _trace_revenue_office_review(
         world, operation_id=operation_id, project=project,
         status=review_status, before=before, after=after,
         details={'claim_at_review': float(claim),
@@ -999,41 +1230,115 @@ def effectiveness(world: dict, kind: str, site: str) -> float:
     return max(0.0, min(1.0, float(project['integrity'])))
 
 
-def damage_project(world: dict, kind: str, site: str, damage: float) -> bool:
+def damage_project(world: dict, kind: str, site: str, damage: float,
+                   cause_event_ids=None) -> bool:
+    operation_id = _project_operation_id(world, 'damage', kind, site)
     project = get_project(world, kind, site)
+    before = _project_trace_state(project)
     if project is None or damage <= 0:
+        _trace_project_lifecycle(
+            world, action='damage', kind=kind, site=site,
+            project_id=f'{kind}:{site}', success=False,
+            reason='no_active_project' if project is None else 'nonpositive_damage',
+            before=before, after=before, operation_id=operation_id,
+            cause_event_ids=cause_event_ids,
+            details={'requested_damage': float(damage)})
         return False
-    project['integrity'] = max(0.0, project['integrity'] - float(damage))
+    integrity_before = float(project['integrity'])
+    project['integrity'] = max(0.0, integrity_before - float(damage))
     if project['integrity'] < 0.5:
         project['status'] = 'damaged'
     _event(world, project, f'{PROJECT_DEFS[kind]["title"]} at {site} is damaged to {project["integrity"]:.0%}.')
+    _trace_project_lifecycle(
+        world, action='damage', kind=kind, site=site, project_id=project['id'],
+        success=True, reason='project_integrity_damaged', before=before,
+        after=_project_trace_state(project), operation_id=operation_id,
+        cause_event_ids=cause_event_ids,
+        details={'requested_damage': float(damage),
+                 'integrity_before': integrity_before,
+                 'integrity_after': float(project['integrity']),
+                 'operating_integrity_threshold': 0.5})
     return True
 
 
 def repair_project(world: dict, kind: str, site: str) -> tuple[bool, str]:
+    operation_id = _project_operation_id(world, 'repair', kind, site)
     project = get_project(world, kind, site)
+    before = _project_trace_state(project)
     if project is None or project['integrity'] >= 1.0:
+        _trace_project_lifecycle(
+            world, action='repair', kind=kind, site=site,
+            project_id=f'{kind}:{site}', success=False, reason='no_damaged_project',
+            before=before, after=before, operation_id=operation_id)
         return False, 'No damaged strategic work needs repair here.'
-    if _occupier(world, site):
+    occupier = _occupier(world, site)
+    if occupier:
+        _trace_project_lifecycle(
+            world, action='repair', kind=kind, site=site,
+            project_id=project['id'], success=False, reason='site_occupied',
+            before=before, after=before, operation_id=operation_id,
+            details={'occupying_nation': occupier})
         return False, 'Egypt cannot repair occupied works.'
     cost = round(PROJECT_DEFS[kind]['cash_cost'] * (1.0 - project['integrity']) * 0.5, 2)
-    if not _pay_workers(world, project, cost, 'repair_wage'):
+    egypt = _nation(world, 'Egypt')
+    treasury_before = float(egypt.government.agent.cash)
+    tile = _tile(world, site)
+    available_worker_ids = {agent.id for agent in _workers(tile, len(tile.agents))}
+    missing_worker_ids = sorted(set(project['worker_ids']) - available_worker_ids)
+    payment_event_ids = []
+    if not _pay_workers(world, project, cost, 'repair_wage',
+                        trace_event_ids=payment_event_ids):
+        reason = ('original_crew_unavailable'
+                  if missing_worker_ids else 'insufficient_treasury')
+        _trace_project_lifecycle(
+            world, action='repair', kind=kind, site=site,
+            project_id=project['id'], success=False, reason=reason,
+            before=before, after=_project_trace_state(project),
+            operation_id=operation_id,
+            details={'repair_cost': float(cost),
+                     'treasury_cash_before': treasury_before,
+                     'treasury_cash_after': float(egypt.government.agent.cash),
+                     'missing_worker_ids': missing_worker_ids,
+                     'required_worker_ids': list(project['worker_ids'])})
         return False, f'Repair needs {cost:.0f} treasury units and the original local crew.'
     project['paid_cash'] = round(project['paid_cash'] + cost, 6)
     project['integrity'] = 1.0
     project['status'] = 'building' if project['progress'] < project['required_work'] else 'unfunded'
     message = f'Egypt paid {cost:.0f} to repair {PROJECT_DEFS[kind]["title"].lower()} at {site}.'
     _event(world, project, message)
+    _trace_project_lifecycle(
+        world, action='repair', kind=kind, site=site, project_id=project['id'],
+        success=True, reason='repair_wages_paid', before=before,
+        after=_project_trace_state(project), operation_id=operation_id,
+        cause_event_ids=payment_event_ids or None,
+        details={'repair_cost': float(cost),
+                 'treasury_cash_before': treasury_before,
+                 'treasury_cash_after': float(egypt.government.agent.cash),
+                 'repair_payment_event_ids': payment_event_ids})
     return True, message
 
 
 def cancel_project(world: dict, kind: str, site: str) -> tuple[bool, str]:
+    operation_id = _project_operation_id(world, 'cancel', kind, site)
     project = get_project(world, kind, site)
+    before = _project_trace_state(project)
     if project is None:
+        _trace_project_lifecycle(
+            world, action='cancel', kind=kind, site=site,
+            project_id=f'{kind}:{site}', success=False,
+            reason='no_active_project', before=before, after=before,
+            operation_id=operation_id)
         return False, 'No active project exists here.'
     project['status'] = 'cancelled'
     message = f'Egypt abandoned {PROJECT_DEFS[kind]["title"].lower()} at {site}; paid wages remain with the workers.'
     _event(world, project, message)
+    _trace_project_lifecycle(
+        world, action='cancel', kind=kind, site=site, project_id=project['id'],
+        success=True, reason='project_abandoned', before=before,
+        after=_project_trace_state(project), operation_id=operation_id,
+        details={'sunk_construction_cash': float(project.get('paid_cash', 0.0)),
+                 'completed_work': int(project.get('progress', 0)),
+                 'wages_reclaimed': False})
     return True, message
 
 

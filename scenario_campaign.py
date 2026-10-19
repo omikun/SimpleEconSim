@@ -253,7 +253,9 @@ def _battle(world, location, *, trace_event_ids=None):
     state['battles'].append(outcome)
     if project_bonus:
         from scenario_projects import damage_project
-        damage_project(world, 'canal_line', location, .35)
+        damage_project(world, 'canal_line', location, .35,
+                       cause_event_ids=[battle_event_id]
+                       if battle_event_id is not None else None)
     if outcome['winner'] == 'attacker':
         state['territorial_control'][location] = 'Britain'
         control_event_id = emit(
