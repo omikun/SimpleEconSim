@@ -126,6 +126,7 @@ class CoCHTTPRequestHandler(BaseHTTPRequestHandler):
                         subject['quote_currency'] = quote_currency
                 metric_id = query.get('metric', [None])[0]
                 kind = query.get('kind', [None])[0]
+                event_id = query.get('event_id', [None])[0]
                 good = query.get('good', [None])[0]
                 if good:
                     subject = dict(subject or {})
@@ -134,6 +135,7 @@ class CoCHTTPRequestHandler(BaseHTTPRequestHandler):
                     result = sim.run_trace.query(turn=turn, subject=subject,
                                                  metric_id=metric_id,
                                                  kind=kind,
+                                                 event_id=event_id,
                                                  offset=offset, limit=limit)
                 body = json.dumps(result, allow_nan=False).encode('utf-8')
                 self.send_response(200)

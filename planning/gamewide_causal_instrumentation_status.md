@@ -1536,3 +1536,15 @@ Verification: scenario quote replay and ownership/currency assertions, the
 historical cloth quote test, and the focused cloth market test passed. The full
 labor-frontier behavior suite still has six petition/protection action timing
 and state failures recorded above. Compilation and `git diff --check` passed.
+
+Phase 5 follow-up, 2026-10-18: the trace query API and CLI reader accept exact
+event IDs. The web price inspector can enter an event ID, show the selected
+record and its market basis/currency/territory fields, and open any linked
+upstream event by clicking its ID. A player can follow the scenario market
+chain from paid transaction to chosen delivered quote to seller ask.
+
+Verification: all 31 run-trace tests passed, including exact event-ID filters
+in `RunTrace.query` and the CLI report. The web trace-query/download endpoint
+and static JavaScript endpoint tests passed (2); `node --check web_client/client.js`
+passed. Historical chart points do not yet choose the
+matching trace automatically, and long lists still need pagination.

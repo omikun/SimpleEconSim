@@ -380,12 +380,14 @@ class RunTrace:
 
 
     def query(self, *, turn=None, subject=None, metric_id=None, kind=None,
-              offset=0, limit=100):
+              event_id=None, offset=0, limit=100):
         found = []
         matched = 0
         for payload in iter_payloads(self.path):
             row = json.loads(payload)
             if row.get('record_class') == 'metadata':
+                continue
+            if event_id is not None and row.get('event_id') != event_id:
                 continue
             if turn is not None and row.get('turn') != turn:
                 continue

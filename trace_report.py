@@ -13,7 +13,7 @@ from trace_codec import decoded_size, iter_payloads
 
 
 def report(path, *, turn=None, entity=None, metric=None, kind=None,
-           good=None, person_id=None):
+           good=None, person_id=None, event_id=None):
     subject_type, _, subject_id = entity.partition(':') if entity else (None, None, None)
     if entity and (not subject_type or not subject_id):
         raise ValueError('entity must be type:id')
@@ -24,6 +24,8 @@ def report(path, *, turn=None, entity=None, metric=None, kind=None,
         except json.JSONDecodeError as exc:
             raise ValueError(f'invalid JSON at record {line_number}') from exc
         if row.get('record_class') == 'metadata':
+            continue
+        if event_id is not None and row.get('event_id') != event_id:
             continue
         if turn is not None and row.get('turn') != turn:
             continue
@@ -96,6 +98,7 @@ def main():
     parser.add_argument('--entity')
     parser.add_argument('--metric')
     parser.add_argument('--kind', help='filter an event kind, including metricless records')
+    parser.add_argument('--event-id', help='show one exact event and its inputs')
     parser.add_argument('--good', help='filter a named good, such as food or cloth')
     parser.add_argument('--person-id', type=int,
                         help='show records naming this person as subject or actor')
@@ -132,12 +135,13 @@ def main():
         print(f"Verified {check['rows']} rows and {check['checkpoints']} checkpoints")
     rows = report(args.run, turn=args.turn, entity=args.entity, metric=args.metric,
                   kind=args.kind,
-                  good=args.good, person_id=args.person_id)
+                  good=args.good, person_id=args.person_id,
+                  event_id=args.event_id)
     if args.compare_run:
         other = report(args.compare_run, turn=args.turn,
                        entity=args.entity, metric=args.metric, kind=args.kind,
                        good=args.good,
-                       person_id=args.person_id)
+                       person_id=args.person_id, event_id=args.event_id)
         print('In-game run comparison; differing values alone do not prove a cause.')
         for change in diff_snapshots(rows, other):
             print(json.dumps(change, sort_keys=True, allow_nan=False))

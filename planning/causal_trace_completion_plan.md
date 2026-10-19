@@ -464,9 +464,24 @@ and verifies that the selected quote's settlement retains those exact values.
 The scenario quote, historical cloth quote, and focused cloth-market tests
 passed. Compilation and `git diff --check` passed.
 
-Next target: finish the player-facing history path so a selected scenario
-market event opens its exact quote and settlement evidence, including no-sale
-quotes and the source tile's ownership at that turn.
+### Phase 5 follow-up — Drill from a price record into its exact causes (implemented)
+
+The web price inspector accepts an exact event ID and renders that record's
+inputs and upstream event IDs. Each upstream ID is a button that opens the
+referenced event, allowing a scenario market paid price to be followed to its
+selected delivered quote and then to the seller ask. Scenario rows show origin,
+destination, seller/buyer nations, currencies, conversion status, and price
+basis. The API and CLI reader support the same event-ID filter.
+
+Verification: the trace query and CLI report return exactly the requested event;
+the web API test performs the same exact-ID lookup. Run-trace tests (31), web
+API/static-client tests (2), and JavaScript syntax checking passed. This remains
+an event-level drill-down; historical chart points do not yet select their
+corresponding trace automatically, and long results still need paging controls.
+
+Next Phase 5 target: make historical chart points open the matching metric,
+good, tile/nation, and turn in the shared inspector, then add paging controls
+for high-volume event lists.
 
 ## Phase 5 — Deliver explanations in web, desktop and CLI
 

@@ -470,8 +470,10 @@ class RunTraceTests(unittest.TestCase):
             self.assertEqual(terms['recent_sample_mean'], 2.3)
             self.assertEqual(row['sequence'], 1)
             self.assertIn('prior_reference', render(row))
+            self.assertEqual(trace.query(event_id=row['event_id'])['events'], [row])
             self.assertEqual(len(report(trace.path, turn=7, entity='tile:Delta',
                                         metric='goods.price')), 1)
+            self.assertEqual(report(trace.path, event_id=row['event_id']), [row])
             self.assertEqual(len(report(trace.path, turn=7, entity='tile:Delta',
                                         metric='goods.price', good='wood')), 0)
 
