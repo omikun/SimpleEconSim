@@ -14,6 +14,7 @@ Verifies:
 from __future__ import annotations
 import os
 import tempfile
+from pathlib import Path
 os.environ['SDL_VIDEODRIVER'] = 'dummy'
 os.environ['MPLCONFIGDIR'] = '/tmp/mpl_cache'
 
@@ -43,6 +44,7 @@ from economy.conspicuous_consumption import (
     ConspicuousConsumptionManager,
 )
 from economy.capitalist_planner import EliteCapitalistPlanner
+from run_trace import RunTrace
 from worldview_cadastre import draw_cadastre_panel, cadastre_panel_hit, _CADASTRE_BUTTONS
 from worldview_map import draw_activity_badges
 
@@ -236,6 +238,64 @@ class TestTriangularTradeAndLuxuries(unittest.TestCase):
 
         self.assertEqual(res['action_taken'], 'CHARTER_MERCHANT_VOYAGE')
         self.assertEqual(len(trade_mgr.active_voyages), 1)
+
+    def test_05a_voyage_decision_trace_records_rankings_and_execution(self):
+        with tempfile.TemporaryDirectory() as directory:
+            region = MockRegion()
+            trade_mgr = TradeTriangleManager()
+            region.trade_manager = trade_mgr
+            region._run_trace = RunTrace(
+                Path(directory) / 'voyage-decision.ctr', 'voyage-decision-fixture')
+            region._collective_trace_clock = {
+                'next': 1, 'turn': 5, 'phase': 'trade'}
+
+            for good, quote in region.recipes.items():
+                region._run_trace.emit(
+                    region._collective_trace_clock,
+                    kind='reference_price_fixture', record_class='observation',
+                    subject={'type': 'tile', 'id': region.name,
+                             'good': good.name},
+                    metric_id='goods.price', after=float(quote['price']),
+                    unit='currency_per_unit')
+
+            commoner = Agent(1)
+            region.agents.append(commoner)
+            elite = Agent(50)
+            elite.cash = 100.0
+            elite.inv_add(Goods.cloth, 10)
+            region.agents.append(elite)
+
+            result = EliteCapitalistPlanner().plan_and_execute_elite(
+                elite, region, t=5)
+
+            self.assertEqual(result['action_taken'], 'CHARTER_MERCHANT_VOYAGE')
+            self.assertEqual(len(trade_mgr.active_voyages), 1)
+            rows = region._run_trace.query(turn=5, limit=1000)['events']
+            evaluation = next(row for row in rows
+                              if row.get('kind') == 'elite_voyage_circuit_evaluation')
+            execution = next(row for row in rows
+                             if row.get('kind') == 'elite_voyage_charter_execution')
+            selected = next(
+                candidate for candidate in
+                evaluation['inputs']['candidate_evaluations']
+                if candidate['circuit_id']
+                == evaluation['inputs']['selected_circuit_id'])
+
+            self.assertTrue(evaluation['inputs']['selected_for_charter'])
+            self.assertTrue(selected['arbitrage_viable'])
+            self.assertTrue(selected['charter_feasible'])
+            self.assertEqual(execution['metric_id'],
+                             'trade.voyage_charter_execution')
+            self.assertEqual(execution['unit'], 'local_currency')
+            self.assertIn('roi_threshold', selected['arbitrage'])
+            self.assertIn('roi_numerator', selected['arbitrage'])
+            self.assertIn('roi_denominator', selected['arbitrage'])
+            self.assertIn(selected['export_price_trace_event_id'],
+                          evaluation['cause_event_ids'])
+            self.assertIn(selected['luxury_price_trace_event_id'],
+                          evaluation['cause_event_ids'])
+            self.assertIn(evaluation['event_id'], execution['cause_event_ids'])
+            self.assertTrue(execution['inputs']['charter_result']['success'])
 
     def test_06_hud_inspector_and_interactive_charter(self):
         """Verify Cadastre Panel Card 4 renders trade info, prestige, and responds to click charters."""

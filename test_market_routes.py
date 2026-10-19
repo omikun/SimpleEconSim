@@ -738,6 +738,134 @@ class MarketRouteTests(unittest.TestCase):
         self.assertIs(trader.destination_region, destination)
         self.assertEqual(trader.trade_good, Goods.wood)
 
+    def test_route_decision_trace_explains_input_demand_and_assignment(self):
+        def make_route(trace=None, clock=None):
+            source = SimpleNamespace(
+                name='Upland', neighbors={}, routes={}, trader_agents=[],
+                recipes={Goods.wood: {'price': 5.0},
+                         Goods.furniture: {'price': 7.0},
+                         Goods.transport: {'price': 1.0, 'capacity': 10}},
+                forex_desks={}, forex=None, IMPORT_MARGIN_MIN=0.05,
+                home_currency='D', agents=[], _last_turn=3)
+            destination = SimpleNamespace(
+                name='Lowland', recipes={
+                    Goods.wood: {'price': 10.0},
+                    Goods.furniture: {'price': 7.0, 'input': Goods.wood,
+                                      'numInput': 1},
+                    Goods.transport: {'price': 1.0, 'capacity': 10},
+                    Goods.food: {'price': 2.0}},
+                agents=[], gov=None, home_currency='D')
+            source.neighbors[destination.name] = destination
+            source.routes[destination.name] = Route(
+                'Upland->Lowland', source, destination)
+
+            firm = Agent(0)
+            initialize_agent(firm, Goods.furniture, 2, 0, 100.0)
+            firm.is_corporation = True
+            firm.inv_set(Goods.wood, 0)
+            destination.agents.append(firm)
+            trader = Agent(0)
+            initialize_agent(trader, Goods.food, 0, 0, 100.0)
+            trader.is_trader = True
+            trader.trade_good = Goods.furniture
+            trader.destination_region = destination
+            source.trader_agents.append(trader)
+
+            if trace is not None:
+                source._run_trace = trace
+                source._collective_trace_clock = clock
+                source._run_trace.emit(
+                    clock, kind='reference_price_fixture',
+                    record_class='observation', subject={
+                        'type': 'tile', 'id': source.name,
+                        'good': Goods.wood.name},
+                    metric_id='goods.price', after=5.0, unit='currency_per_unit')
+                source._run_trace.emit(
+                    clock, kind='reference_price_fixture',
+                    record_class='observation', subject={
+                        'type': 'tile', 'id': destination.name,
+                        'good': Goods.wood.name},
+                    metric_id='goods.price', after=10.0, unit='currency_per_unit')
+            return source, destination, trader
+
+        with tempfile.TemporaryDirectory() as directory:
+            trace = RunTrace(Path(directory) / 'route-decision.ctr',
+                             'route-decision-fixture')
+            clock = {'next': 1, 'turn': 3, 'phase': 'trade'}
+            traced_source, traced_destination, traced_trader = make_route(trace, clock)
+            plain_source, plain_destination, plain_trader = make_route()
+
+            with patch('terrain_edges.get_edge_manager', return_value=None):
+                repoint_traders(traced_source)
+                repoint_traders(plain_source)
+
+            self.assertEqual(traced_trader.destination_region.name,
+                             plain_trader.destination_region.name)
+            self.assertEqual(traced_trader.trade_good, plain_trader.trade_good)
+            self.assertIs(traced_trader.destination_region, traced_destination)
+            self.assertEqual(traced_trader.trade_good, Goods.wood)
+
+            rows = trace.query(turn=3, limit=1000)['events']
+            decision = next(row for row in rows
+                            if row.get('kind') == 'trader_route_decision')
+            assignment = next(row for row in rows
+                              if row.get('kind') == 'trader_route_assignment')
+            wood_candidate = next(
+                row for row in decision['inputs']['candidate_evaluations']
+                if row['destination'] == 'Lowland' and row['good'] == 'wood')
+            source_price = next(row for row in rows
+                                if row.get('subject', {}).get('id') == 'Upland'
+                                and row.get('subject', {}).get('good') == 'wood')
+            destination_price = next(row for row in rows
+                                     if row.get('subject', {}).get('id') == 'Lowland'
+                                     and row.get('subject', {}).get('good') == 'wood')
+
+            self.assertEqual(wood_candidate['requested_input_units'], 2)
+            self.assertGreater(wood_candidate['demand_bonus'], 0)
+            self.assertEqual(decision['unit'], 'destination_good')
+            self.assertEqual(
+                wood_candidate['input_demand_diagnostics']['eligible_corporation_count'], 1)
+            self.assertGreater(wood_candidate['base_freight_per_unit'], 0)
+            self.assertEqual(wood_candidate['edge_friction_multiplier'], 1.0)
+            self.assertEqual(wood_candidate['source_price_trace_event_id'],
+                             source_price['event_id'])
+            self.assertEqual(wood_candidate['destination_price_trace_event_id'],
+                             destination_price['event_id'])
+            self.assertIn(source_price['event_id'], decision['cause_event_ids'])
+            self.assertIn(destination_price['event_id'], decision['cause_event_ids'])
+            self.assertIn(decision['event_id'], assignment['cause_event_ids'])
+            self.assertTrue(decision['inputs']['route_assignment_changed'])
+
+    def test_route_decision_trace_reports_missing_neighbors(self):
+        with tempfile.TemporaryDirectory() as directory:
+            trace = RunTrace(Path(directory) / 'no-route.ctr', 'no-route-fixture')
+            region = SimpleNamespace(
+                name='Island', neighbors={}, routes={}, trader_agents=[],
+                recipes={Goods.transport: {'price': 1.0, 'capacity': 10}},
+                forex_desks={}, _last_turn=4)
+            trader = Agent(0)
+            initialize_agent(trader, Goods.food, 0, 0, 10.0)
+            trader.is_trader = True
+            trader.trade_good = Goods.food
+            trader.destination_region = None
+            region.trader_agents.append(trader)
+            region._run_trace = trace
+            region._collective_trace_clock = {
+                'next': 1, 'turn': 4, 'phase': 'trade'}
+
+            repoint_traders(region)
+
+            row = next(event for event in trace.query(turn=4, limit=100)['events']
+                       if event.get('kind') == 'trader_route_decision')
+            self.assertEqual(row['inputs']['skipped_neighbors'], [
+                {'destination': None, 'reason': 'no_neighbor_regions'}])
+            self.assertEqual(trader.destination_region, None)
+            self.assertEqual(trader.trade_good, Goods.food)
+
+    def test_untraced_repoint_without_neighbors_does_not_require_transport_quote(self):
+        region = SimpleNamespace(neighbors={}, trader_agents=[], recipes={})
+        repoint_traders(region)
+
 
 if __name__ == '__main__':
     unittest.main()

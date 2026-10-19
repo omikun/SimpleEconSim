@@ -177,9 +177,9 @@ evidence.
   wage adjustments, payroll borrowing and layoffs, and incorporation finance.
   Elite planning records selected action, luxury prices and sellers, sector
   margins, voyage ROIs, legislative/operator feasibility, return estimates,
-  and cash outcome. The candidate snapshot is explicitly labeled as a separate
-  diagnostic preflight, not the actual planner's evaluated alternatives. The
-  actual inventory-liquidation gate now logs candidate stock, buyer checks,
+  and cash outcome. The duplicate diagnostic candidate snapshot no longer runs.
+  Actual luxury and labor-law scans now record the first priority stages. The
+  actual inventory-liquidation gate logs candidate stock, buyer checks,
   affordability, sale quantity, reference-price basis, and linked cash and
   inventory balances. Capital allocation now records the real sector scan,
   input-stock penalty, best-sector choice, and expansion/incorporation gate.
@@ -190,7 +190,10 @@ evidence.
   broken-capacity checks, material/cash requirements, return cutoffs, and firm
   balance changes. Actual lord transformation scans now record candidate
   order, eligibility, return ranking, thresholds, and selected outcomes.
-  Spatial routing and preflight purity/RNG neutrality remain open.
+  Spatial routing and voyage selection now record their actual candidate
+  scoring, price causes, thresholds, and assignment/charter outcomes. The
+  duplicate diagnostic preflight was removed; its wrapper leaves water rights
+  and the random cache unchanged.
 
 ## Known gaps
 
@@ -1931,3 +1934,45 @@ does not execute. The elite-planner, capitalist, supply-control,
 metric-catalog, and trace-reader suites passed (112 tests); Python compilation
 and `git diff --check` passed. Spatial routing and preflight purity/RNG
 neutrality remain open.
+
+## Phase 4 follow-up — Trace spatial trader routes and voyages (implemented)
+
+The live route trader scan now records each evaluated destination/good with
+FX, fees, tariff and drawback, freight and edge friction, source and destination
+prices, margin threshold, corporate input shortfall and affordability, demand
+bonus, route score, and strict best-score comparison. Missing markets, missing
+routes, blocked edges, and no-neighbor cases have explicit reasons. Decision
+records link to the reference-price events used; changed trader assignments
+link to their evaluation. The real elite voyage scan records arbitrage inputs,
+charter eligibility, pioneer bonus, circuit ranking, the strict ROI cutoff,
+and linked charter execution state. Trace-disabled route fixtures retain the
+same destination and good; no-neighbor untraced routing still exits before
+requiring a transport quote.
+
+Verification: 18 route tests, 7 triangular trade tests, and 112 elite-planner,
+capitalist, supply-control, metric-catalog, and trace-reader tests passed.
+Fixtures verify price-cause links, input-demand scoring, assignment/execution
+links, and voyage ROI/charter evidence. Python compilation and
+`git diff --check` passed.
+
+## Phase 4 follow-up — Remove duplicate preflight; trace first planner gates
+
+The live planner no longer runs its diagnostic candidate snapshot before
+evaluation. That pass could initialize water rights through the supply
+estimator and repeated operator/market checks that the live planner would later
+perform. The top-level decision marks the snapshot omitted and links the actual
+stage records. The live luxury scan records candidate ranking, cash gates,
+seller availability, and the selected purchase with paired buyer/seller cash
+and inventory changes. The actual labor-law scan records statute and vagrancy
+feasibility in priority order, then links a filed petition to sponsor and
+government cash and petition state. A no-action legislation scan also links to
+the top-level decision.
+
+Verification: trace-on/off luxury fixtures produce matching actions and
+balances. The legislation fixture covers a rejected first option, a selected
+second option, fee transfer and petition creation. The preflight regression
+fixture confirms no water-right initialization and no random-cache consumption.
+The combined elite-planner, supply-control, capitalist, labor-law, route,
+triangular-trade, metric-catalog, and trace-reader run passed 142 tests. Python
+compilation and `git diff --check` passed. The legacy snapshot helper remains
+available for diagnostics but is not used by the simulation planner.

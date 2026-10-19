@@ -36,12 +36,14 @@ reference quote separately from what buyers actually paid.
   it accurately. A new transaction VWAP must use quantities and its own ID.
 - Decay writes `recipes[good]['price']` without synchronizing `_price_ref`.
   Record both values and their roles; do not silently change the pricing rule.
-- The latest elite candidate snapshot runs checks and estimates a second time
-  before the real planner. It also truncates sectors to eight. Its feasibility
-  labels omit some later cash/return gates. The decision record now labels this
-  list as a diagnostic preflight, not as the real planner's evaluated
-  alternatives. The actual inventory-liquidation gate is traced, while other
-  real planner-stage evidence and preflight purity/RNG neutrality remain open.
+- The former elite candidate snapshot reran checks before the real planner,
+  truncated sectors to eight, omitted later cash/return gates, and could
+  initialize water-right state through the supply estimator. The live planner
+  no longer runs that diagnostic pass. Actual decision evidence now covers
+  luxury purchases, voyages, trader routes, labor legislation, lord
+  transformations, machinery, supply control, coercive labor/conquest, capital
+  allocation, and liquidation. A wrapper-level test confirms no preflight
+  water-right mutation or RNG consumption.
 - The first death probe counted only `demographics_estate.handle_death()`;
   subsequent work added the shared registered-person path for combat,
   repression, and assassination. Infant losses stay separate from resident
@@ -2469,3 +2471,41 @@ return exactly at the $5 cutoff that does not execute. The
 elite-planner, capitalist, supply-control, metric-catalog, and trace-reader
 suites passed (112 tests); Python compilation and `git diff --check` passed.
 Spatial routing and preflight purity/RNG neutrality remain open.
+
+## Phase 4 follow-up — Trace spatial trader routes and voyages (implemented)
+
+The actual route-ranking loop records destination prices, FX, fees, tariffs and
+drawback, freight, edge friction, the strict local-margin requirement, missing
+corporate inputs and cash affordability, demand bonus, route score, and best
+candidate comparisons. Price records link as causes; a changed route assignment
+links back to its ranking. The live voyage scan records each circuit's
+arbitrage basis, charter feasibility, pioneer bonus, ROI ranking and threshold,
+then links charter execution and state changes to the selected evaluation.
+
+Verification: route trace-on/off fixtures select the same destination and good,
+and cover demand scoring, price links, assignment links, and missing-neighbor
+handling. Voyage fixtures verify ROI component evidence, price causes, and
+charter links. The route suite passed 18 tests, the triangular trade suite 7,
+and the elite-planner/capitalist/supply-control/metric-catalog/trace-reader
+suite 112; compilation and `git diff --check` passed. Diagnostic preflight
+purity/RNG neutrality remains open.
+
+## Phase 4 follow-up — Remove duplicate preflight; trace first planner gates
+
+The live planner no longer calls the candidate snapshot pass, which could seed
+water rights while merely estimating options. Its decision record now marks
+that diagnostic pass omitted. The actual luxury scan records prestige-per-cash
+ordering, affordability, seller stock, the selected purchase and linked cash
+and inventory changes. The actual labor-law scan records statute/vagrancy
+feasibility in priority order and links an accepted petition to the sponsor,
+government and petition-list changes. No-action legislation scans flow into
+the top-level planner decision.
+
+Verification: trace-on/off luxury-purchase outcomes match. A direct legislation
+fixture verifies first-feasible priority and the linked petition fee/state
+change. A preflight regression fixture asserts no water-right seeding and no
+random-cache consumption. The combined elite-planner, supply-control,
+capitalist, labor-law, route, triangular-trade, metric-catalog, and trace-reader
+run passed 142 tests; compilation and `git diff --check` passed. The unused
+legacy snapshot helper remains available for diagnostics but is not called by
+the simulation planner.

@@ -205,30 +205,123 @@ class EliteCapitalistPlanner:
         prices; route traders now respond to profitable destinations and
         input shortages instead.
         """
-        return None
+        from run_trace import emit
+        event_id = emit(
+            region, kind='elite_spatial_trade_delegation', record_class='decision',
+            phase='local', subject={'type': 'agent', 'id': agent.id,
+                                    'tile': getattr(region, 'name', 'default')},
+            metric_id='ai.elite_economic_decision', unit='spatial_trade_stage',
+            after='delegated_to_trader_routes',
+            formula_id='elite.spatial_trade_delegation.v1',
+            inputs={'turn': int(t), 'direct_neighbor_sale_enabled': False,
+                    'reason': ('route traders handle spatial goods movement through '
+                               'freight, FX, and destination auctions'),
+                    'neighbor_names': sorted(getattr(region, 'neighbors', {}).keys()),
+                    'available_route_names': sorted(getattr(region, 'routes', {}).keys()),
+                    'active_trader_ids': [str(getattr(trader, 'id', 'unknown'))
+                                          for trader in getattr(region, 'trader_agents', [])
+                                          if getattr(trader, 'is_trader', False)
+                                          and getattr(trader, 'alive', True)]})
+        return ({'action_taken': None, 'details': {},
+                 'evaluation_event_ids': [event_id]}
+                if event_id is not None else None)
 
     def evaluate_class_legislation(self, agent: Any, region: Any, t: int) -> Optional[Dict[str, Any]]:
         """Evaluate institutional state power operators (Statute of Laborers, Vagrancy Enforcement)."""
-        statute_op = TransformationGraph.get_operator('petition_statute_of_laborers')
-        if statute_op:
-            can_run, _ = statute_op.can_agent_execute(agent, region)
-            if can_run:
-                exec_res = statute_op.on_execute(agent, region, t)
-                return {
-                    'action_taken': 'PETITION_STATUTE_OF_LABORERS',
-                    'details': exec_res
-                }
+        from run_trace import emit
+        trace_enabled = (getattr(region, '_run_trace', None) is not None
+                         and getattr(region, '_collective_trace_clock', None) is not None)
+        operator_specs = (
+            ('petition_statute_of_laborers', 'PETITION_STATUTE_OF_LABORERS'),
+            ('enforce_vagrancy_decree', 'PETITION_VAGRANCY_DECREE'))
+        evaluations = [] if trace_enabled else None
 
-        vagrancy_op = TransformationGraph.get_operator('enforce_vagrancy_decree')
-        if vagrancy_op:
-            can_run, _ = vagrancy_op.can_agent_execute(agent, region)
-            if can_run:
-                exec_res = vagrancy_op.on_execute(agent, region, t)
-                return {
-                    'action_taken': 'PETITION_VAGRANCY_DECREE',
-                    'details': exec_res
-                }
+        def state_snapshot():
+            government = getattr(getattr(region, 'gov', None), 'agent', None)
+            return {
+                'sponsor_cash': float(agent.cash),
+                'government_cash': (float(government.cash)
+                                    if government is not None else None),
+                'petition_count': len(getattr(region, 'labor_law_petitions', [])),
+                'law_states': {
+                    'statute_of_laborers': bool(getattr(region, 'statute_of_laborers', False)),
+                    'vagrancy_law_active': bool(getattr(region, 'vagrancy_law_active', False))}}
 
+        for index, (operator_id, action) in enumerate(operator_specs):
+            operator = TransformationGraph.get_operator(operator_id)
+            if operator is None:
+                if trace_enabled:
+                    evaluations.append({'consideration_index': index,
+                                        'operator_id': operator_id,
+                                        'registered': False,
+                                        'can_execute': False,
+                                        'reason': 'operator_not_registered'})
+                continue
+            can_run, reason = operator.can_agent_execute(agent, region)
+            row = {'consideration_index': index, 'operator_id': operator_id,
+                   'registered': True, 'can_execute': bool(can_run),
+                   'reason': str(reason)}
+            if can_run:
+                if trace_enabled:
+                    evaluations.append({**row, 'selected_for_execution': True})
+                    evaluation_id = emit(
+                        region, kind='elite_labor_legislation_evaluation',
+                        record_class='decision', phase='local',
+                        subject={'type': 'agent', 'id': agent.id,
+                                 'tile': getattr(region, 'name', 'default')},
+                        metric_id='ai.elite_economic_decision', unit='law_petition',
+                        after=operator_id,
+                        formula_id='elite.labor_legislation_priority.v1',
+                        inputs={'turn': int(t), 'candidate_evaluations': evaluations,
+                                'selected_operator_id': operator_id,
+                                'selection_rule': 'first_feasible_operator_in_priority_order'})
+                    before = state_snapshot()
+                else:
+                    evaluation_id = None
+                    before = None
+                exec_res = operator.on_execute(agent, region, t)
+                if trace_enabled:
+                    after = state_snapshot()
+                    execution_id = emit(
+                        region, kind='elite_labor_legislation_petition',
+                        record_class='outcome', phase='local',
+                        subject={'type': 'agent', 'id': agent.id,
+                                 'tile': getattr(region, 'name', 'default')},
+                        metric_id='ai.elite_economic_decision', unit='law_petition',
+                        before=before['sponsor_cash'], after=after['sponsor_cash'],
+                        cause_event_ids=([evaluation_id]
+                                         if evaluation_id is not None else None),
+                        formula_id='elite.labor_legislation_priority.v1',
+                        inputs={'operator_id': operator_id, 'action': action,
+                                'execution_result': exec_res,
+                                'state_before': before, 'state_after': after})
+                    evaluation_ids = [evaluation_id] if evaluation_id is not None else []
+                    execution_ids = [execution_id] if execution_id is not None else []
+                else:
+                    evaluation_ids = []
+                    execution_ids = []
+                return {'action_taken': action, 'details': exec_res,
+                        'evaluation_event_ids': evaluation_ids,
+                        'execution_event_ids': execution_ids}
+            if trace_enabled:
+                evaluations.append(row)
+
+        if trace_enabled:
+            evaluation_id = emit(
+                region, kind='elite_labor_legislation_evaluation',
+                record_class='decision', phase='local',
+                subject={'type': 'agent', 'id': agent.id,
+                         'tile': getattr(region, 'name', 'default')},
+                metric_id='ai.elite_economic_decision', unit='law_petition',
+                after='no_feasible_petition',
+                formula_id='elite.labor_legislation_priority.v1',
+                inputs={'turn': int(t), 'candidate_evaluations': evaluations,
+                        'selection_rule': 'first_feasible_operator_in_priority_order',
+                        'selection_reason': 'all_registered_petitions_failed_feasibility'})
+            return {'action_taken': None, 'details': {},
+                    'evaluation_event_ids': ([evaluation_id]
+                                             if evaluation_id is not None else []),
+                    'execution_event_ids': []}
         return None
 
     def _input_control_options(self, agent: Any, region: Any) -> List[Dict[str, Any]]:
@@ -424,7 +517,12 @@ class EliteCapitalistPlanner:
                 'selected_score': best['score'], 'candidate_options': options}
 
     def _elite_candidate_snapshot(self, agent: Any, region: Any, shadow_cash: float) -> List[Dict[str, Any]]:
-        """Capture the actionable alternatives and gates used by elite planning."""
+        """Legacy diagnostic snapshot; not called by the live planner.
+
+        Several candidate estimators initialize supporting state, so the live
+        planner records only the real stage evaluations instead of running this
+        separate pass before making its decision.
+        """
         candidates = [{'candidate': 'do_nothing', 'feasible': True,
                        'priority': 'fallback'}]
         candidates.extend(self._input_control_options(agent, region))
@@ -543,33 +641,206 @@ class EliteCapitalistPlanner:
     def evaluate_triangular_trade_voyage(self, agent: Any, region: Any, t: int) -> Optional[Dict[str, Any]]:
         """Evaluate chartering an oceanic merchant voyage on discovered trade circuits."""
         trade_mgr = getattr(region, 'trade_manager', None)
+        from run_trace import emit
+        trace_recorder = getattr(region, '_run_trace', None)
+        trace_clock = getattr(region, '_collective_trace_clock', None)
+        trace_enabled = trace_recorder is not None and trace_clock is not None
+        candidates = [] if trace_enabled else None
+        price_cause_ids = []
+
+        def trace_safe(value):
+            if value is None or isinstance(value, (str, int, bool)):
+                return value
+            if isinstance(value, float):
+                return value if math.isfinite(value) else str(value)
+            if isinstance(value, dict):
+                return {str(key): trace_safe(item) for key, item in value.items()}
+            if isinstance(value, (list, tuple)):
+                return [trace_safe(item) for item in value]
+            if hasattr(value, 'value'):
+                return trace_safe(value.value)
+            return str(value)
+
+        def price_event_id(good_name):
+            getter = getattr(trace_recorder, 'latest_reference_price_event_id', None)
+            if not callable(getter):
+                return None
+            return getter(getattr(region, 'name', 'default'), str(good_name))
+
         if not trade_mgr:
-            return None
+            evaluation_id = emit(
+                region, kind='elite_voyage_circuit_evaluation',
+                record_class='decision', phase='local',
+                subject={'type': 'agent', 'id': agent.id,
+                         'tile': getattr(region, 'name', 'default')},
+                metric_id='trade.triangular_voyage_decision', unit='circuit_candidates',
+                after='no_trade_manager', formula_id='trade.voyage_ai_selection.v1',
+                inputs={'turn': int(t), 'candidate_evaluations': [],
+                        'selection_reason': 'no_trade_manager_attached'})
+            return ({'action_taken': None, 'details': {},
+                     'evaluation_event_ids': [evaluation_id]}
+                    if evaluation_id is not None else None)
 
         best_circuit = None
         best_roi = -999.0
         best_is_pioneer = False
 
-        for c in trade_mgr.circuits.values():
+        for index, c in enumerate(trade_mgr.circuits.values()):
+            best_roi_before = best_roi
             arb = trade_mgr.evaluate_dynamic_arbitrage(c, region)
+            can_run = None
+            charter_reason = 'not_checked_because_circuit_is_not_viable'
+            pioneer = getattr(c, 'status', '') == 'DORMANT_UNEXPLORED'
+            pioneer_bonus = 0.2 if pioneer else 0.0
+            effective_score = None
+            selected_as_best = False
             if arb.get('viable'):
-                can_run, _ = trade_mgr.can_charter_voyage(agent, region, c)
+                can_run, charter_reason = trade_mgr.can_charter_voyage(agent, region, c)
                 if can_run:
                     roi = arb.get('roi', 0.0)
-                    is_pioneer = (getattr(c, 'status', '') == 'DORMANT_UNEXPLORED')
-                    effective_score = roi + (0.2 if is_pioneer else 0.0)
-                    if effective_score > best_roi:
+                    effective_score = roi + pioneer_bonus
+                    selected_as_best = effective_score > best_roi
+                    if selected_as_best:
                         best_roi = effective_score
                         best_circuit = c
-                        best_is_pioneer = is_pioneer
+                        best_is_pioneer = pioneer
+            if trace_enabled:
+                export_price_event_id = price_event_id(c.export_good)
+                luxury_price_event_id = price_event_id(c.import_luxury)
+                for event_id in (export_price_event_id, luxury_price_event_id):
+                    if event_id is not None and event_id not in price_cause_ids:
+                        price_cause_ids.append(event_id)
+                candidates.append({
+                    'consideration_index': index,
+                    'circuit_id': str(c.circuit_id),
+                    'circuit_name': str(c.name),
+                    'circuit_status': str(getattr(c, 'status', 'unknown')),
+                    'export_good': str(c.export_good),
+                    'intermediate_good': c.intermediate_good,
+                    'import_luxury': str(c.import_luxury),
+                    'arbitrage_viable': bool(arb.get('viable')),
+                    'arbitrage_status': str(arb.get('status', 'unknown')),
+                    'arbitrage_reason': arb.get('reason'),
+                    'arbitrage': trace_safe({key: value for key, value in arb.items()
+                                             if key != 'status'}),
+                    'charter_feasible': can_run,
+                    'charter_reason': str(charter_reason),
+                    'pioneer_bonus': pioneer_bonus,
+                    'effective_score': trace_safe(effective_score),
+                    'best_score_before': trace_safe(best_roi_before),
+                    'selected_as_best': selected_as_best,
+                    'export_price_trace_event_id': export_price_event_id,
+                    'luxury_price_trace_event_id': luxury_price_event_id})
 
-        if best_circuit and best_roi >= 0.20:
+        charter_selected = best_circuit is not None and best_roi >= 0.20
+        evaluation_id = None
+        if trace_enabled:
+            evaluation_id = emit(
+                region, kind='elite_voyage_circuit_evaluation',
+                record_class='decision', phase='local',
+                subject={'type': 'agent', 'id': agent.id,
+                         'tile': getattr(region, 'name', 'default')},
+                metric_id='trade.triangular_voyage_decision', unit='circuit_candidates',
+                after=(str(best_circuit.circuit_id) if charter_selected else
+                       'best_circuit_below_strict_threshold'
+                       if best_circuit is not None else 'no_feasible_circuit'),
+                formula_id='trade.voyage_ai_selection.v1',
+                cause_event_ids=price_cause_ids or None,
+                inputs={'turn': int(t), 'candidate_evaluations': candidates,
+                        'selected_circuit_id': (str(best_circuit.circuit_id)
+                                                if best_circuit is not None else None),
+                        'best_effective_score': trace_safe(best_roi),
+                        'charter_threshold': 0.20,
+                        'strict_best_score_comparison': True,
+                        'pioneer_bonus': 0.2,
+                        'selected_for_charter': bool(charter_selected),
+                        'selection_reason': (
+                            'best_viable_and_affordable_circuit_meets_threshold'
+                            if charter_selected else
+                            'best_viable_and_affordable_circuit_below_threshold'
+                            if best_circuit is not None else
+                            'no_viable_affordable_circuit')})
+
+        execution_event_ids = []
+        if charter_selected:
+            export_good = getattr(Goods, best_circuit.export_good, None)
+            if trace_enabled:
+                agent_before = {
+                    'cash': float(agent.cash),
+                    'export_inventory': (float(agent.inv_get(export_good, 0))
+                                         if export_good is not None else 0.0)}
+                actor_balances_before = [
+                    {'agent_id': str(getattr(person, 'id', 'unknown')),
+                     'cash': float(getattr(person, 'cash', 0.0)),
+                     'export_inventory': (float(person.inv_get(export_good, 0))
+                                          if export_good is not None else 0.0)}
+                    for person in getattr(region, 'agents', [])]
+                circuit_state_before = {
+                    'status': str(best_circuit.status),
+                    'pioneered_by': (str(best_circuit.pioneered_by)
+                                     if best_circuit.pioneered_by is not None else None),
+                    'active_voyages': len(trade_mgr.active_voyages)}
             res = trade_mgr.charter_voyage(agent, region, best_circuit.circuit_id, is_pioneer=best_is_pioneer)
+            if trace_enabled:
+                agent_after = {
+                    'cash': float(agent.cash),
+                    'export_inventory': (float(agent.inv_get(export_good, 0))
+                                         if export_good is not None else 0.0)}
+                actor_balances_after = [
+                    {'agent_id': str(getattr(person, 'id', 'unknown')),
+                     'cash': float(getattr(person, 'cash', 0.0)),
+                     'export_inventory': (float(person.inv_get(export_good, 0))
+                                          if export_good is not None else 0.0)}
+                    for person in getattr(region, 'agents', [])]
+                changed_actor_balances = []
+                for balance_index, before in enumerate(actor_balances_before):
+                    after = actor_balances_after[balance_index]
+                    if (before['cash'] != after['cash']
+                            or before['export_inventory'] != after['export_inventory']):
+                        changed_actor_balances.append({
+                            'agent_id': before['agent_id'],
+                            'cash_before': before['cash'], 'cash_after': after['cash'],
+                            'export_inventory_before': before['export_inventory'],
+                            'export_inventory_after': after['export_inventory']})
+                circuit_state_after = {
+                    'status': str(best_circuit.status),
+                    'pioneered_by': (str(best_circuit.pioneered_by)
+                                     if best_circuit.pioneered_by is not None else None),
+                    'active_voyages': len(trade_mgr.active_voyages)}
+                execution_id = emit(
+                    region, kind='elite_voyage_charter_execution',
+                    record_class='outcome', phase='trade',
+                    subject={'type': 'agent', 'id': agent.id,
+                             'tile': getattr(region, 'name', 'default')},
+                    metric_id='trade.voyage_charter_execution', unit='local_currency',
+                    before=agent_before['cash'], after=agent_after['cash'],
+                    cause_event_ids=([evaluation_id] if evaluation_id is not None else None),
+                    inputs={'circuit_id': str(best_circuit.circuit_id),
+                            'is_pioneer': bool(best_is_pioneer),
+                            'charter_result': trace_safe(res),
+                            'agent_before': agent_before, 'agent_after': agent_after,
+                            'changed_actor_balances': changed_actor_balances,
+                            'circuit_before': circuit_state_before,
+                            'circuit_after': circuit_state_after})
+                if execution_id is not None:
+                    execution_event_ids.append(execution_id)
             if res.get('success'):
                 return {
                     'action_taken': 'CHARTER_MERCHANT_VOYAGE',
-                    'details': res
+                    'details': res,
+                    'evaluation_event_ids': ([evaluation_id]
+                                             if evaluation_id is not None else []),
+                    'execution_event_ids': execution_event_ids
                 }
+            if evaluation_id is not None or execution_event_ids:
+                return {'action_taken': None, 'details': res,
+                        'evaluation_event_ids': ([evaluation_id]
+                                                 if evaluation_id is not None else []),
+                        'execution_event_ids': execution_event_ids}
+        if evaluation_id is not None:
+            return {'action_taken': None, 'details': {},
+                    'evaluation_event_ids': [evaluation_id],
+                    'execution_event_ids': []}
         return None
 
     def plan_and_execute_elite(self, agent: Any, region: Any, t: int) -> Dict[str, Any]:
@@ -581,8 +852,6 @@ class EliteCapitalistPlanner:
         existing_events = {event['id'] for event in getattr(region, 'economic_events', [])
                            if event['turn'] == t}
         TransformationGraph.step_pending_capacity_decay(region, t)
-        shadow_cash = self.calculate_shadow_price_cash(agent, region)
-        candidates = self._elite_candidate_snapshot(agent, region, shadow_cash)
         result = self._plan_and_execute_elite(agent, region, t)
         reported_details = result.get('details', {})
         cash_after = float(agent.cash)
@@ -622,10 +891,9 @@ class EliteCapitalistPlanner:
                            after=result.get('action_taken') or 'do_nothing',
                            cause_event_ids=(result.get('evaluation_event_ids') or None),
                            inputs={'opening_cash': cash_before,
-                                   'preflight_candidate_snapshot': candidates,
                                    'preflight_snapshot_status': (
-                                       'separate diagnostic pass; not the alternatives '
-                                       'evaluated by the actual planner'),
+                                       'omitted; live planner records its actual '
+                                       'evaluations once'),
                                    'actual_consideration_order': [
                                        'local_luxury_purchase', 'triangular_trade_voyage',
                                        'spatial_trade', 'class_legislation',
@@ -637,7 +905,7 @@ class EliteCapitalistPlanner:
                                        'capital_expansion_or_incorporation',
                                        'inventory_liquidation', 'do_nothing'],
                                    'selected': result.get('action_taken') or 'do_nothing',
-                                   'shadow_cash_price': shadow_cash,
+                                   'shadow_cash_price': result.get('shadow_price_cash'),
                                    'operator_execution_event_ids': (
                                        result.get('execution_event_ids') or []),
                                    'neighbors': sorted(getattr(region, 'neighbors', {}).keys())})
@@ -678,6 +946,43 @@ class EliteCapitalistPlanner:
                 return number if math.isfinite(number) else str(number)
             except (TypeError, ValueError, OverflowError):
                 return str(value)
+
+        def trace_payload(value):
+            if value is None or isinstance(value, (str, int, bool)):
+                return value
+            if isinstance(value, float):
+                return trace_number(value)
+            if isinstance(value, dict):
+                return {str(key): trace_payload(item) for key, item in value.items()}
+            if isinstance(value, (list, tuple)):
+                return [trace_payload(item) for item in value]
+            return str(value)
+
+        def record_luxury_decision(candidate_rows, selected_good, reason):
+            if not trace_enabled:
+                return None
+            trace_recorder = getattr(region, '_run_trace', None)
+            cause_ids = [row['price_trace_event_id'] for row in candidate_rows
+                         if row.get('price_trace_event_id') is not None]
+            event_id = emit(
+                region, kind='elite_luxury_purchase_evaluation',
+                record_class='decision', phase='local',
+                subject={'type': 'agent', 'id': agent.id,
+                         'tile': getattr(region, 'name', 'default')},
+                metric_id='ai.elite_economic_decision', unit='luxury_purchase',
+                after=(selected_good if selected_good is not None else reason),
+                formula_id='elite.luxury_purchase_priority.v1',
+                cause_event_ids=cause_ids or None,
+                inputs=trace_payload({
+                    'turn': int(t), 'cash_before': float(agent.cash),
+                    'minimum_cash_gate': 25.0,
+                    'cash_gate_passed': bool(agent.cash >= 25.0),
+                    'candidate_evaluations': candidate_rows,
+                    'selection_order': 'descending prestige / max(1, price)',
+                    'selection_rule': 'first affordable good with another live stocked seller',
+                    'selected_good': selected_good,
+                    'selection_reason': reason}))
+            return event_id
 
         def operator_return_basis(operator):
             operator_id = str(operator.id)
@@ -964,27 +1269,105 @@ class EliteCapitalistPlanner:
         # ---------------------------------------------------------------------
         # 1. Luxury Purchase Check: If elite has enough cash, buy luxury!
         # ---------------------------------------------------------------------
-        if luxuries and agent.cash >= 25.0:
+        luxury_candidate_evaluations = [] if trace_enabled else None
+        luxury_gate_open = bool(luxuries and agent.cash >= 25.0)
+        if luxury_gate_open:
             luxuries.sort(key=lambda item: item[2] / max(1.0, item[1]), reverse=True)
-            for good, price, prestige, qty in luxuries:
-                if agent.cash >= price:
-                    seller = next((a for a in region.agents if a.id != agent.id and a.alive
-                                   and a.inv_get(good, 0) > 0), None)
-                    if seller:
-                        agent.cash -= price
-                        seller.cash += price
-                        seller.inv_add(good, -1)
-                        agent.inv_add(good, 1)
-                        result['action_taken'] = 'PURCHASE_LUXURY'
-                        result['details'] = {'good': good.name if hasattr(good, 'name') else str(good),
-                                             'price': price, 'seller_id': seller.id}
-                        return result
+            for index, (good, price, prestige, qty) in enumerate(luxuries):
+                affordable = agent.cash >= price
+                seller = (next((a for a in region.agents
+                                if a.id != agent.id and a.alive
+                                and a.inv_get(good, 0) > 0), None)
+                          if affordable else None)
+                good_name = good.name if hasattr(good, 'name') else str(good)
+                price_event_id = None
+                if trace_enabled:
+                    getter = getattr(getattr(region, '_run_trace', None),
+                                     'latest_reference_price_event_id', None)
+                    if callable(getter):
+                        price_event_id = getter(
+                            getattr(region, 'name', 'default'), good_name)
+                row = {
+                    'consideration_index': index,
+                    'good': good_name,
+                    'price': float(price),
+                    'prestige': float(prestige),
+                    'prestige_per_cash': float(prestige) / max(1.0, float(price)),
+                    'available_quantity': int(qty),
+                    'cash_before_candidate': float(agent.cash),
+                    'affordable': bool(affordable),
+                    'seller_id': (str(seller.id) if seller is not None else None),
+                    'seller_inventory': (float(seller.inv_get(good, 0))
+                                         if seller is not None else 0.0),
+                    'price_trace_event_id': price_event_id,
+                    'selected': bool(affordable and seller is not None),
+                    'reason': ('selected_highest_ranked_purchasable_luxury'
+                               if affordable and seller is not None else
+                               'no_other_live_seller_with_stock' if affordable else
+                               'cash_below_price')}
+                if trace_enabled:
+                    luxury_candidate_evaluations.append(row)
+                if seller:
+                    evaluation_id = record_luxury_decision(
+                        luxury_candidate_evaluations,
+                        good_name, 'first_ranked_affordable_seller_found')
+                    if trace_enabled:
+                        cash_before = float(agent.cash)
+                        buyer_inventory_before = float(agent.inv_get(good, 0))
+                        seller_cash_before = float(seller.cash)
+                        seller_inventory_before = float(seller.inv_get(good, 0))
+                    agent.cash -= price
+                    seller.cash += price
+                    seller.inv_add(good, -1)
+                    agent.inv_add(good, 1)
+                    result['action_taken'] = 'PURCHASE_LUXURY'
+                    result['details'] = {'good': good_name,
+                                         'price': price, 'seller_id': seller.id}
+                    if evaluation_id is not None:
+                        result['evaluation_event_ids'].append(evaluation_id)
+                    execution_id = None
+                    if trace_enabled:
+                        execution_id = emit(
+                            region, kind='elite_luxury_purchase_execution',
+                            record_class='outcome', phase='local',
+                            subject={'type': 'agent', 'id': agent.id,
+                                     'tile': getattr(region, 'name', 'default')},
+                            metric_id='ai.elite_economic_decision', unit='luxury_purchase',
+                            before=cash_before, after=float(agent.cash),
+                            cause_event_ids=([evaluation_id]
+                                             if evaluation_id is not None else None),
+                            formula_id='elite.luxury_purchase_priority.v1',
+                            inputs={'good': good_name, 'seller_id': str(seller.id),
+                                    'unit_price': float(price), 'quantity': 1,
+                                    'buyer_inventory_before': buyer_inventory_before,
+                                    'buyer_inventory_after': float(agent.inv_get(good, 0)),
+                                    'seller_cash_before': seller_cash_before,
+                                    'seller_cash_after': float(seller.cash),
+                                    'seller_inventory_before': seller_inventory_before,
+                                    'seller_inventory_after': float(seller.inv_get(good, 0))})
+                    if execution_id is not None:
+                        result['execution_event_ids'].append(execution_id)
+                    return result
+        if trace_enabled:
+            selection_reason = (
+                'cash_below_minimum_gate' if luxuries and not luxury_gate_open else
+                'no_purchasable_luxury_found' if luxuries else
+                'no_available_luxury_inventory')
+            evaluation_id = record_luxury_decision(
+                luxury_candidate_evaluations, None, selection_reason)
+            if evaluation_id is not None:
+                result['evaluation_event_ids'].append(evaluation_id)
 
         # ---------------------------------------------------------------------
         # 2. Oceanic Triangular Trade Check (Venture Capital & Merchant Voyages)
         # ---------------------------------------------------------------------
         voyage_res = self.evaluate_triangular_trade_voyage(agent, region, t)
-        if voyage_res:
+        if voyage_res is not None:
+            result['evaluation_event_ids'].extend(
+                voyage_res.get('evaluation_event_ids', []))
+            result['execution_event_ids'].extend(
+                voyage_res.get('execution_event_ids', []))
+        if voyage_res and voyage_res.get('action_taken'):
             result['action_taken'] = voyage_res['action_taken']
             result['details'] = voyage_res['details']
             return result
@@ -993,7 +1376,12 @@ class EliteCapitalistPlanner:
         # 3. Macro & Spatial Trade Check (Inter-Regional Luxury & Input Import)
         # ---------------------------------------------------------------------
         spatial_res = self.evaluate_spatial_trade(agent, region, t)
-        if spatial_res:
+        if spatial_res is not None:
+            result['evaluation_event_ids'].extend(
+                spatial_res.get('evaluation_event_ids', []))
+            result['execution_event_ids'].extend(
+                spatial_res.get('execution_event_ids', []))
+        if spatial_res and spatial_res.get('action_taken'):
             result['action_taken'] = spatial_res['action_taken']
             result['details'] = spatial_res['details']
             return result
@@ -1002,7 +1390,12 @@ class EliteCapitalistPlanner:
         # 4. Class Legislation Check (Statute of Laborers / Vagrancy Decrees)
         # ---------------------------------------------------------------------
         leg_res = self.evaluate_class_legislation(agent, region, t)
-        if leg_res:
+        if leg_res is not None:
+            result['evaluation_event_ids'].extend(
+                leg_res.get('evaluation_event_ids', []))
+            result['execution_event_ids'].extend(
+                leg_res.get('execution_event_ids', []))
+        if leg_res and leg_res.get('action_taken'):
             result['action_taken'] = leg_res['action_taken']
             result['details'] = leg_res['details']
             return result

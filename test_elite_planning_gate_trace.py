@@ -9,6 +9,7 @@ from economy.capitalist_planner import EliteCapitalistPlanner
 from economy.transformation_graph import TransformationGraph
 from goods import Goods
 from metric_catalog import METRICS, TRACE_INSTRUMENTED
+from random_cache import rand
 
 
 class MemoryTrace:
@@ -154,7 +155,7 @@ class ElitePlanningGateTraceTests(unittest.TestCase):
         region.home_currency = 'crown'
 
         with patch.object(planner, '_elite_candidate_snapshot',
-                          return_value=[{'candidate': 'do_nothing'}]), \
+                          side_effect=AssertionError('preflight must not run')), \
                 patch.object(planner, '_plan_and_execute_elite',
                              return_value={'action_taken': None, 'details': {}}):
             planner.plan_and_execute_elite(actor, region, 7)
@@ -166,13 +167,134 @@ class ElitePlanningGateTraceTests(unittest.TestCase):
         self.assertEqual(decision['metric_id'], 'ai.elite_economic_decision')
         self.assertEqual(decision['after'], 'do_nothing')
         self.assertEqual(outcome['decision_id'], decision['event_id'])
-        self.assertEqual(decision['inputs']['preflight_candidate_snapshot'],
-                         [{'candidate': 'do_nothing'}])
-        self.assertIn('separate diagnostic pass',
-                      decision['inputs']['preflight_snapshot_status'])
+        self.assertNotIn('preflight_candidate_snapshot', decision['inputs'])
+        self.assertEqual(decision['inputs']['preflight_snapshot_status'],
+                         'omitted; live planner records its actual evaluations once')
         self.assertNotIn('candidates', decision['inputs'])
         self.assertEqual(decision['inputs']['actual_consideration_order'][-2:],
                          ['inventory_liquidation', 'do_nothing'])
+
+    def test_actual_luxury_scan_links_candidate_ranking_and_purchase(self):
+        results = []
+        traces = []
+        for traced in (False, True):
+            planner = EliteCapitalistPlanner()
+            buyer = Actor(17, lord=True, inventory={})
+            buyer.cash = 100.0
+            seller = Actor(18, lord=False, inventory={Goods.foreign_luxuries: 1})
+            seller.cash = 3.0
+            region, _, trace = self.make_region(actor=buyer, traced=traced)
+            region.agents.append(seller)
+            region.goods = [Goods.foreign_luxuries]
+            region.recipes = {Goods.foreign_luxuries: {'price': 10.0}}
+            region.economic_events = []
+            with patch.object(planner, '_elite_candidate_snapshot',
+                              side_effect=AssertionError('preflight must not run')), \
+                    patch.object(planner, 'get_market_luxuries',
+                                 return_value=[(Goods.foreign_luxuries, 10.0, 5.0, 1)]):
+                result = planner._plan_and_execute_elite(buyer, region, 7)
+            results.append((result['action_taken'], buyer.cash, seller.cash,
+                            buyer.inv_get(Goods.foreign_luxuries),
+                            seller.inv_get(Goods.foreign_luxuries)))
+            traces.append(trace)
+
+        self.assertEqual(results[0], results[1])
+        self.assertEqual(results[1], ('PURCHASE_LUXURY', 90.0, 13.0, 1, 0))
+        trace = traces[1]
+        evaluation = next(row for row in trace.rows
+                          if row.get('kind') == 'elite_luxury_purchase_evaluation')
+        execution = next(row for row in trace.rows
+                         if row.get('kind') == 'elite_luxury_purchase_execution')
+        candidate = evaluation['inputs']['candidate_evaluations'][0]
+        self.assertTrue(candidate['selected'])
+        self.assertEqual(candidate['seller_id'], '18')
+        self.assertIn(evaluation['event_id'], execution['cause_event_ids'])
+        self.assertEqual(execution['inputs']['buyer_inventory_before'], 0.0)
+        self.assertEqual(execution['inputs']['buyer_inventory_after'], 1.0)
+
+    def test_actual_labor_legislation_scan_records_priority_and_petition_result(self):
+        planner = EliteCapitalistPlanner()
+        sponsor = Actor(27, lord=True)
+        sponsor.cash = 50.0
+        government = Actor(99, lord=False)
+        government.cash = 1.0
+        region, _, trace = self.make_region(actor=sponsor)
+        region.gov = SimpleNamespace(agent=government)
+        region.labor_law_petitions = []
+        region.labor_laws = {}
+
+        def operator(operator_id, feasible, reason, law, fee):
+            def execute(agent, target, turn):
+                agent.cash -= fee
+                government.cash += fee
+                petition = {'id': len(target.labor_law_petitions) + 1,
+                            'law': law, 'sponsor_id': agent.id,
+                            'fee': fee, 'requested_turn': turn,
+                            'status': 'proposed'}
+                target.labor_law_petitions.append(petition)
+                return {'success': True, 'petition_id': petition['id'],
+                        'fee_paid': fee}
+            return SimpleNamespace(
+                can_agent_execute=lambda _agent, _region: (feasible, reason),
+                on_execute=execute)
+
+        operators = {
+            'petition_statute_of_laborers': operator(
+                'statute', False, 'wage squeeze gate failed', 'wage_cap', 20.0),
+            'enforce_vagrancy_decree': operator(
+                'vagrancy', True, 'workhouse and cash gates passed', 'vagrancy', 10.0)}
+        with patch.object(TransformationGraph, 'get_operator',
+                          side_effect=lambda op_id: operators[op_id]):
+            result = planner.evaluate_class_legislation(sponsor, region, 8)
+
+        self.assertEqual(result['action_taken'], 'PETITION_VAGRANCY_DECREE')
+        evaluation = next(row for row in trace.rows
+                          if row.get('kind') == 'elite_labor_legislation_evaluation')
+        outcome = next(row for row in trace.rows
+                       if row.get('kind') == 'elite_labor_legislation_petition')
+        rows = evaluation['inputs']['candidate_evaluations']
+        self.assertEqual([row['operator_id'] for row in rows], [
+            'petition_statute_of_laborers', 'enforce_vagrancy_decree'])
+        self.assertFalse(rows[0]['can_execute'])
+        self.assertTrue(rows[1]['selected_for_execution'])
+        self.assertIn(evaluation['event_id'], outcome['cause_event_ids'])
+        self.assertEqual(outcome['inputs']['state_before']['sponsor_cash'], 50.0)
+        self.assertEqual(outcome['inputs']['state_after']['sponsor_cash'], 40.0)
+        self.assertEqual(outcome['inputs']['state_after']['petition_count'], 1)
+
+    def test_live_plan_does_not_run_mutating_preflight_or_consume_randomness(self):
+        planner = EliteCapitalistPlanner()
+        owner = Actor(37, lord=False)
+        owner.is_corporation = True
+        owner.output = Goods.furniture
+        owner.employees = []
+        owner.cash = 100.0
+        grower = Actor(38, lord=False, inventory={})
+        grower.output = Goods.wood
+        grower.assigned_plot_id = 'plot-1'
+        plot = SimpleNamespace(plot_id='plot-1', lord_id=grower.id,
+                               controlled_by_id=grower.id, fraction=1.0)
+        region, _, _ = self.make_region(actor=owner, traced=False)
+        region.agents.append(grower)
+        region.recipes = {
+            Goods.furniture: {'price': 20.0, 'production': 2.0,
+                              'input': Goods.wood, 'numInput': 1},
+            Goods.wood: {'price': 5.0}}
+        region.tenure = SimpleNamespace(plots=[plot])
+        region.economic_events = []
+        region.neighbors = {}
+        region._last_turn = 7
+        random_index_before = rand._idx
+
+        with patch.object(planner, '_elite_candidate_snapshot',
+                          side_effect=AssertionError('preflight must not run')), \
+                patch.object(planner, '_plan_and_execute_elite',
+                             return_value={'action_taken': None, 'details': {}}):
+            planner.plan_and_execute_elite(owner, region, 7)
+
+        self.assertFalse(getattr(region, 'water_rights_initialized', False))
+        self.assertFalse(hasattr(region, 'water_rights'))
+        self.assertEqual(rand._idx, random_index_before)
 
     def _liquidation_case(self, buyer_cash, traced):
         planner = EliteCapitalistPlanner()
@@ -228,7 +350,7 @@ class ElitePlanningGateTraceTests(unittest.TestCase):
         self.assertEqual(candidate['settlement_path'], 'direct_inventory_transfer')
         decision = next(row for row in trace.rows
                         if row['kind'] == 'corporation_ai_decision')
-        self.assertEqual(decision['cause_event_ids'], [evaluation['event_id']])
+        self.assertIn(evaluation['event_id'], decision['cause_event_ids'])
         outcome = next(row for row in trace.rows
                        if row['kind'] == 'corporation_ai_outcome')
         self.assertEqual(outcome['decision_id'], decision['event_id'])
@@ -257,7 +379,7 @@ class ElitePlanningGateTraceTests(unittest.TestCase):
                          'buyer_cannot_afford_one_unit')
         decision = next(row for row in trace.rows
                         if row['kind'] == 'corporation_ai_decision')
-        self.assertEqual(decision['cause_event_ids'], [evaluation['event_id']])
+        self.assertIn(evaluation['event_id'], decision['cause_event_ids'])
 
     def _investment_case(self, traced):
         planner = EliteCapitalistPlanner()
@@ -324,7 +446,7 @@ class ElitePlanningGateTraceTests(unittest.TestCase):
         self.assertEqual(furniture['effective_margin'], 4.25)
         decision = next(row for row in trace.rows
                         if row['kind'] == 'corporation_ai_decision')
-        self.assertEqual(decision['cause_event_ids'], [evaluation['event_id']])
+        self.assertIn(evaluation['event_id'], decision['cause_event_ids'])
         outcome = next(row for row in trace.rows
                        if row['kind'] == 'corporation_ai_outcome')
         self.assertEqual(outcome['decision_id'], decision['event_id'])
@@ -428,8 +550,8 @@ class ElitePlanningGateTraceTests(unittest.TestCase):
                         if row['kind'] == 'corporation_ai_decision')
         all_operator_gates = [row for row in trace.rows
                               if row['kind'] == 'elite_operator_evaluation']
-        self.assertEqual(decision['cause_event_ids'],
-                         [row['event_id'] for row in all_operator_gates])
+        self.assertTrue({row['event_id'] for row in all_operator_gates}
+                        <= set(decision['cause_event_ids']))
         outcome = next(row for row in trace.rows
                        if row['kind'] == 'corporation_ai_outcome')
         self.assertIn(procurement_execution['event_id'], outcome['cause_event_ids'])
@@ -694,7 +816,7 @@ class ElitePlanningGateTraceTests(unittest.TestCase):
         self.assertEqual(execution['inputs']['state_after']['tracked_inventory']['cotton'], 12.0)
         decision = next(row for row in trace.rows
                         if row['kind'] == 'corporation_ai_decision')
-        self.assertEqual(decision['cause_event_ids'], [evaluation['event_id']])
+        self.assertIn(evaluation['event_id'], decision['cause_event_ids'])
 
     def test_lord_transformation_return_equal_to_cutoff_does_not_execute(self):
         traced = self._lord_transformation_case(True, candidate_returns=(5.0, 4.0))

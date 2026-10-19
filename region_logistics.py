@@ -2,6 +2,8 @@
 Inter-region transport routes, trader arbitrage repointing, migration scoring, and trader exits.
 """
 
+import math
+
 from goods import Goods
 from transporter import Route
 from logger import loginfo
@@ -80,24 +82,81 @@ def transport_cost_per_unit(region):
 
 def repoint_traders(region):
     """Route traders toward profitable neighbors, including requested inputs."""
-    if not region.neighbors:
-        return
     from world_trade import TRADE_GOODS
-    base_freight = transport_cost_per_unit(region)
+    from run_trace import emit
+
+    trace_recorder = getattr(region, '_run_trace', None)
+    trace_enabled = (trace_recorder is not None
+                     and getattr(region, '_collective_trace_clock', None) is not None)
+    if not region.neighbors and not trace_enabled:
+        return
+
+    def price_event_id(tile_id, good):
+        getter = getattr(trace_recorder, 'latest_reference_price_event_id', None)
+        if not callable(getter):
+            return None
+        return getter(str(tile_id), getattr(good, 'name', str(good)))
+
+    def trace_safe(value):
+        if value is None or isinstance(value, (str, int, bool)):
+            return value
+        if isinstance(value, float):
+            return value if math.isfinite(value) else str(value)
+        if isinstance(value, dict):
+            return {str(key): trace_safe(item) for key, item in value.items()}
+        if isinstance(value, (list, tuple)):
+            return [trace_safe(item) for item in value]
+        return str(value)
+
+    base_freight = transport_cost_per_unit(region) if region.neighbors else 0.0
     for trader in region.trader_agents:
         if not getattr(trader, 'is_trader', False) or not getattr(trader, 'alive', True):
             continue
+        previous_destination = getattr(
+            getattr(trader, 'destination_region', None), 'name', None)
+        previous_good = getattr(getattr(trader, 'trade_good', None), 'name',
+                                getattr(trader, 'trade_good', None))
         best = None
         best_score = -1e18
+        evaluated = [] if trace_enabled else None
+        skipped_neighbors = [] if trace_enabled else None
+        rejection_counts = {} if trace_enabled else None
+        price_cause_ids = [] if trace_enabled else None
+
+        def reject(reason):
+            if trace_enabled:
+                rejection_counts[reason] = rejection_counts.get(reason, 0) + 1
+
+        def candidate_row(name, good, **details):
+            if trace_enabled:
+                evaluated.append({'destination': str(name),
+                                  'good': getattr(good, 'name', str(good)),
+                                  **details})
+
+        if not region.neighbors and trace_enabled:
+            skipped_neighbors.append({'destination': None,
+                                      'reason': 'no_neighbor_regions'})
         for name, other in region.neighbors.items():
             if not other or getattr(other, 'recipes', None) is None:
+                reject('destination_market_unavailable')
+                if trace_enabled:
+                    skipped_neighbors.append({'destination': str(name),
+                                              'reason': 'destination_market_unavailable'})
                 continue
             if name not in region.routes:
+                reject('route_missing')
+                if trace_enabled:
+                    skipped_neighbors.append({'destination': str(name),
+                                              'reason': 'route_missing'})
                 continue
             from terrain_edges import get_edge_manager
             em = get_edge_manager()
             frict = em.get_friction(region.name, other.name) if em else 1.0
             if frict == float('inf'):
+                reject('route_blocked_by_edge')
+                if trace_enabled:
+                    skipped_neighbors.append({'destination': str(name),
+                                              'reason': 'route_blocked_by_edge'})
                 continue
             desk = region.forex_desks.get(name)
             rate = desk.buy_rate() if desk is not None else 1.0
@@ -109,17 +168,54 @@ def repoint_traders(region):
                 other, getattr(region, 'home_currency', None))
             for good in TRADE_GOODS:
                 if good not in region.recipes or good not in other.recipes:
+                    reject('good_not_quoted_in_both_markets')
                     continue
                 local_price = float(region.recipes[good].get('price', 0.0))
                 dest_price = float(other.recipes[good].get('price', 0.0))
+                source_price_id = price_event_id(region.name, good) if trace_enabled else None
+                destination_price_id = price_event_id(other.name, good) if trace_enabled else None
+                if trace_enabled:
+                    for event_id in (source_price_id, destination_price_id):
+                        if event_id is not None and event_id not in price_cause_ids:
+                            price_cause_ids.append(event_id)
                 if local_price <= 0 or dest_price <= 0:
+                    reject('nonpositive_market_price')
+                    candidate_row(name, good, status='rejected',
+                                  reason='nonpositive_market_price',
+                                  source_price=local_price,
+                                  destination_price=dest_price,
+                                  source_price_trace_event_id=source_price_id,
+                                  destination_price_trace_event_id=destination_price_id)
                     continue
                 freight = base_freight * max(0.2, frict)
                 net_receipt = dest_price * rate * fee * (1.0 - effective_tariff)
                 unit_margin = net_receipt - local_price - freight
-                if unit_margin <= local_price * region.IMPORT_MARGIN_MIN:
+                required_margin = local_price * region.IMPORT_MARGIN_MIN
+                if unit_margin <= required_margin:
+                    reject('margin_does_not_exceed_required_threshold')
+                    candidate_row(name, good, status='rejected',
+                                  reason='margin_does_not_exceed_required_threshold',
+                                  source_price=local_price,
+                                  destination_price=dest_price,
+                                  import_margin_min=region.IMPORT_MARGIN_MIN,
+                                  fx_buy_rate=rate, destination_fee_multiplier=fee,
+                                  nominal_tariff_rate=tariff,
+                                  drawback_rate=drawback,
+                                  effective_tariff_rate=effective_tariff,
+                                  base_freight_per_unit=base_freight,
+                                  edge_friction_multiplier=frict,
+                                  freight_per_unit=freight, net_receipt=net_receipt,
+                                  unit_margin=unit_margin,
+                                  required_margin=required_margin,
+                                  source_price_trace_event_id=source_price_id,
+                                  destination_price_trace_event_id=destination_price_id)
                     continue
                 requested = 0
+                requesters = [] if trace_enabled else None
+                demand_diagnostics = ({'eligible_corporation_count': 0,
+                                       'zero_shortfall_count': 0,
+                                       'cash_limited_below_one_unit_count': 0}
+                                      if trace_enabled else None)
                 for company in getattr(other, 'agents', ()):
                     if (not getattr(company, 'alive', True)
                             or not getattr(company, 'is_corporation', False)):
@@ -131,18 +227,129 @@ def repoint_traders(region):
                     shortfall = max(0.0, target - company.inv_get(good, 0))
                     affordable = (company.cash / max(0.05, dest_price)
                                   if dest_price > 0 else 0.0)
-                    requested += int(min(shortfall, affordable))
+                    requested_units = int(min(shortfall, affordable))
+                    requested += requested_units
+                    if trace_enabled:
+                        demand_diagnostics['eligible_corporation_count'] += 1
+                        if shortfall <= 0:
+                            demand_diagnostics['zero_shortfall_count'] += 1
+                        elif requested_units <= 0:
+                            demand_diagnostics[
+                                'cash_limited_below_one_unit_count'] += 1
+                        if requested_units > 0:
+                            requesters.append({
+                                'company_id': str(getattr(company, 'id', 'unknown')),
+                                'input_target': target,
+                                'inventory': float(company.inv_get(good, 0)),
+                                'shortfall': shortfall,
+                                'cash': float(company.cash),
+                                'cash_affordable_units': affordable,
+                                'requested_units': requested_units})
                 # Input demand selects among otherwise profitable routes and
                 # gives firms' missing materials a visible supply response.
                 demand_bonus = min(local_price * 0.20,
                                    local_price * 0.05 * requested)
-                score = unit_margin - local_price * region.IMPORT_MARGIN_MIN + demand_bonus
+                score = unit_margin - required_margin + demand_bonus
+                best_score_before = best_score
+                selected_as_best = score > best_score
                 if score > best_score:
                     best_score = score
                     best = (other, good)
-        if best is None or best_score <= 0:
-            continue
-        trader.destination_region, trader.trade_good = best
+                if trace_enabled:
+                    row = {
+                        'status': 'profitable_candidate',
+                        'reason': 'margin_exceeds_required_threshold',
+                        'source_price': local_price,
+                        'destination_price': dest_price,
+                        'import_margin_min': region.IMPORT_MARGIN_MIN,
+                        'fx_buy_rate': rate,
+                        'destination_fee_multiplier': fee,
+                        'nominal_tariff_rate': tariff,
+                        'drawback_rate': drawback,
+                        'effective_tariff_rate': effective_tariff,
+                        'base_freight_per_unit': base_freight,
+                        'edge_friction_multiplier': frict,
+                        'freight_per_unit': freight,
+                        'net_receipt': net_receipt,
+                        'unit_margin': unit_margin,
+                        'required_margin': required_margin,
+                        'requested_input_units': requested,
+                        'input_demand_diagnostics': demand_diagnostics,
+                        'requesting_corporations': requesters,
+                        'demand_bonus': demand_bonus,
+                        'score': score,
+                        'best_score_before': (best_score_before
+                                              if best_score_before > -1e17 else None),
+                        'selected_as_best': selected_as_best,
+                        'source_price_trace_event_id': source_price_id,
+                        'destination_price_trace_event_id': destination_price_id}
+                    evaluated.append({'destination': str(name),
+                                      'good': getattr(good, 'name', str(good)),
+                                      **row})
+        selected = best is not None and best_score > 0
+        if selected:
+            trader.destination_region, trader.trade_good = best
+        if trace_enabled:
+            selected_destination = best[0].name if selected else previous_destination
+            selected_good = (getattr(best[1], 'name', str(best[1]))
+                             if selected else previous_good)
+            route_changed = (selected and
+                             (selected_destination != previous_destination
+                              or selected_good != previous_good))
+            if not evaluated and not skipped_neighbors:
+                rejection_counts['no_eligible_market_goods'] = 1
+            evaluation_id = emit(
+                region, kind='trader_route_decision', record_class='decision',
+                phase='trade',
+                subject={'type': 'agent', 'id': trader.id,
+                         'tile': getattr(region, 'name', 'default')},
+                metric_id='trade.route_destination_decision', unit='destination_good',
+                before=(previous_destination, previous_good),
+                after=(selected_destination, selected_good),
+                formula_id='route.trader_destination_score.v1',
+                cause_event_ids=price_cause_ids or None,
+                inputs=trace_safe({
+                    'turn': int(getattr(region, '_collective_trace_clock', {}).get(
+                        'turn', getattr(region, '_last_turn', 0))),
+                    'starting_destination': previous_destination,
+                    'starting_good': previous_good,
+                    'candidate_evaluations': evaluated,
+                    'skipped_neighbors': skipped_neighbors,
+                    'rejection_counts': rejection_counts,
+                    'candidate_count': len(evaluated),
+                    'selected_destination': (str(selected_destination)
+                                             if selected_destination is not None else None),
+                    'selected_good': selected_good,
+                    'best_score': best_score if selected else None,
+                    'required_margin_formula': 'source_price * IMPORT_MARGIN_MIN',
+                    'net_receipt_formula': ('destination_price * fx_buy_rate * '
+                                             'destination_fee * (1 - effective_tariff)'),
+                    'unit_margin_formula': 'net_receipt - source_price - freight_per_unit',
+                    'freight_formula': ('base_freight_per_unit * '
+                                        'max(0.2, edge_friction_multiplier)'),
+                    'input_target_formula': ('numInput * 2 * '
+                                             '(1 + corporation_employee_count)'),
+                    'score_formula': ('unit_margin - required_margin + demand_bonus'),
+                    'demand_bonus_formula': ('min(source_price * 0.20, '
+                                             'source_price * 0.05 * requested_input_units)'),
+                    'selection_rule': 'strictly_greater_score_then_positive_score',
+                    'route_assignment_changed': bool(route_changed),
+                    'selection_reason': (
+                        'highest_positive_score_selected' if selected else
+                        'no_positive_profitable_route')}))
+            if route_changed:
+                emit(region, kind='trader_route_assignment',
+                     record_class='outcome', phase='trade',
+                     subject={'type': 'agent', 'id': trader.id,
+                              'tile': getattr(region, 'name', 'default')},
+                     metric_id='trade.route_destination_decision', unit='destination_good',
+                     before=(previous_destination, previous_good),
+                     after=(str(selected_destination), selected_good),
+                     formula_id='route.trader_destination_score.v1',
+                     cause_event_ids=([evaluation_id]
+                                      if evaluation_id is not None else None),
+                     inputs={'selected_score': best_score,
+                             'assignment_applied': True})
 
 
 def post_exports_to_route(region):

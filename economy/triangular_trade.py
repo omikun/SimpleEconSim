@@ -84,6 +84,7 @@ class TradeTriangleManager:
                 'viable': False,
                 'status': status,
                 'roi': -1.0,
+                'roi_threshold': 0.15,
                 'reason': f"Circuit is {status}"
             }
 
@@ -116,12 +117,22 @@ class TradeTriangleManager:
             'viable': roi >= 0.15,
             'status': status,
             'roi': round(roi, 3),
+            'roi_threshold': 0.15,
             'export_qty': q_exp,
             'luxury_qty': q_lux,
             'export_cost': round(export_cost, 2),
+            'export_unit_price': p_exp,
             'freight_cost': freight_cost,
             'expected_gross': round(expected_gross_revenue, 2),
-            'expected_profit': round(net_profit, 2)
+            'luxury_unit_price': p_lux,
+            'yield_leverage': leverage,
+            'tariff_rate': float(circuit.tariff_rate),
+            'tariff_cost': tariff_cost,
+            'total_costs': total_costs,
+            'expected_profit': round(net_profit, 2),
+            'roi_numerator': net_profit,
+            'roi_denominator': max(1.0, total_costs),
+            'roi_formula': 'expected_profit / max(1, export_cost + freight_cost + tariff_cost)'
         }
 
     def can_charter_voyage(self, agent: Any, region: Any, circuit: TradeCircuitSpec) -> Tuple[bool, str]:
