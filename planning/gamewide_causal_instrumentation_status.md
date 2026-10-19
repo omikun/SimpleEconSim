@@ -1546,5 +1546,16 @@ chain from paid transaction to chosen delivered quote to seller ask.
 Verification: all 31 run-trace tests passed, including exact event-ID filters
 in `RunTrace.query` and the CLI report. The web trace-query/download endpoint
 and static JavaScript endpoint tests passed (2); `node --check web_client/client.js`
-passed. Historical chart points do not yet choose the
-matching trace automatically, and long lists still need pagination.
+passed. Long trace result lists still need pagination.
+
+Phase 5 follow-up, 2026-10-18: selecting a food-price chart point opens the
+shared trace inspector for that exact turn. Nation-wide history points query
+`goods.national_food_price`; selected-tile points query local `goods.price` for
+food. The inspector retains exact-event input and clickable upstream IDs for
+following quote, transaction, and formula evidence. Other chart metrics still
+need source mappings and remain outside this slice.
+
+Verification: the chart renderer's point-selection test confirms index, value,
+turn, and hit-area behavior. UI utility/geometry/API transport tests passed;
+web JavaScript serving and trace-query tests passed (2); JavaScript syntax
+checks passed.

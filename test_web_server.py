@@ -135,6 +135,7 @@ class TestWebServerEndpoints(unittest.TestCase):
         body = handler.get_body().decode('utf-8')
         self.assertIn('axialToPixel', body)
         self.assertIn('pixelToAxial', body)
+        self.assertIn('tap a point to inspect its turn', body)
 
     def test_serve_web_ui_utilities(self):
         handler = MockHttpRequestHandler(self.mock_server, 'GET', '/ui_utils.js')

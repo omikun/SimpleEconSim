@@ -479,9 +479,26 @@ API/static-client tests (2), and JavaScript syntax checking passed. This remains
 an event-level drill-down; historical chart points do not yet select their
 corresponding trace automatically, and long results still need paging controls.
 
-Next Phase 5 target: make historical chart points open the matching metric,
-good, tile/nation, and turn in the shared inspector, then add paging controls
-for high-volume event lists.
+This event-level drill-down is the foundation for historical chart selection.
+
+### Phase 5 follow-up — Open price explanations from historical chart points (implemented)
+
+Food-price chart points now carry their turn into the shared trace inspector.
+The nation chart selects `goods.national_food_price`; a selected tile chart
+selects that tile's `goods.price` record for food. Point selection is supported
+with mouse and touch clicks, and the inspector retains the exact-event
+upstream-navigation controls. Other chart metrics still need explicit mappings
+to their registered trace metrics; this does not yet satisfy chart parity for
+all statistics.
+
+Verification: the chart-renderer test selects the intended index/value/turn,
+ignores clicks outside the point hit area, and the web endpoint still serves
+the updated client. UI utility/geometry/API transport tests passed; two focused
+web serving and trace-query tests passed. JavaScript syntax checks passed.
+
+Next Phase 5 target: add metric mappings and chart-point trace selection for the
+remaining economic, ecological, labor, and national history charts, then add
+pagination for traces with many matching events.
 
 ## Phase 5 — Deliver explanations in web, desktop and CLI
 

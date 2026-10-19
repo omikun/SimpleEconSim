@@ -30,7 +30,7 @@
     return chartCatalog;
   }
 
-  function drawHistoricalChart(canvas, values, metric, dpr = 1) {
+  function drawHistoricalChart(canvas, values, metric, dpr = 1, options = {}) {
     const ctx = canvas.getContext('2d');
     const width = canvas.clientWidth || 380;
     const height = canvas.clientHeight || 220;
@@ -41,7 +41,8 @@
     ctx.scale(scale, scale);
     ctx.clearRect(0, 0, width, height);
 
-    const series = Array.isArray(values) && values.length >= 2 ? values : [50, 54, 52, 57, 56];
+    const hasSeries = Array.isArray(values) && values.length >= 2;
+    const series = hasSeries ? values : [50, 54, 52, 57, 56];
     const padL = 44;
     const padR = 14;
     const padT = 18;
@@ -89,6 +90,42 @@
       ctx.arc(x, y, 2.5, 0, Math.PI * 2);
       ctx.fill();
     });
+    if (canvas._cocChartPointSelect && typeof canvas.removeEventListener === 'function') {
+      canvas.removeEventListener('click', canvas._cocChartPointSelect);
+      canvas._cocChartPointSelect = null;
+    }
+    if (hasSeries && typeof options.onPointSelect === 'function'
+        && typeof canvas.addEventListener === 'function') {
+      const selectPoint = event => {
+        const rect = canvas.getBoundingClientRect();
+        const x = event.clientX - rect.left;
+        const y = event.clientY - rect.top;
+        let nearest = -1;
+        let nearestDistance = Infinity;
+        series.forEach((value, index) => {
+          const plotted = point(value, index);
+          const distance = Math.hypot(plotted.x - x, plotted.y - y);
+          if (distance < nearestDistance) {
+            nearest = index;
+            nearestDistance = distance;
+          }
+        });
+        if (nearest >= 0 && nearestDistance <= 14) {
+          const turns = Array.isArray(options.turns) ? options.turns : [];
+          options.onPointSelect({
+            index: nearest,
+            value: series[nearest],
+            turn: turns[nearest] ?? null,
+            metric
+          });
+        }
+      };
+      canvas._cocChartPointSelect = selectPoint;
+      canvas.addEventListener('click', selectPoint);
+      if (canvas.style) canvas.style.cursor = 'crosshair';
+    } else if (canvas.style) {
+      canvas.style.cursor = '';
+    }
     ctx.restore();
     return `${String(metric).toUpperCase()}: Historical Trend over Turns (Min ${minVal.toFixed(1)} | Max ${maxVal.toFixed(1)})`;
   }

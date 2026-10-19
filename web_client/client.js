@@ -2856,12 +2856,150 @@
 
   // ---------------- 20 Charts Engine ----------------
 
+  function openPriceTraceInspector({ good, entity, metric, turn, container }) {
+    if (!container) return;
+    const old = document.getElementById('market-price-trace-detail');
+    if (old) old.remove();
+    const detail = document.createElement('div');
+    detail.id = 'market-price-trace-detail';
+    detail.className = 'card';
+    const tileScope = entity.startsWith('tile:');
+    const options = tileScope
+      ? [['goods.price', 'Reference'], ['goods.seller_ask', 'Seller asks'],
+        ['goods.delivered_quote', 'Delivered quotes'],
+        ['goods.transaction_price', 'Paid'],
+        ['goods.transaction_vwap', 'Paid average']]
+      : [[metric, 'National food price']];
+    const optionsHtml = options.map(([value, label]) =>
+      `<option value="${escapeHtml(value)}"${value === metric ? ' selected' : ''}>${escapeHtml(label)}</option>`
+    ).join('');
+    const selectedTurn = Number.isInteger(Number(turn)) && Number(turn) >= 1
+      ? Number(turn) : Math.max(1, Number(worldState.turn || 1));
+    detail.innerHTML = `<h4>${escapeHtml(good)} price history · ${escapeHtml(entity)}</h4><label>Turn <input class="trace-turn" type="number" min="1" max="${Number(worldState.turn || 1)}" value="${selectedTurn}" style="width:5rem"></label> <label>Price <select class="trace-price-kind">${optionsHtml}</select></label> <label>Event ID <input type="text" class="trace-event-id" placeholder="Exact event" style="width:13rem"></label> <button type="button" class="btn btn-secondary btn-xs trace-load">Show records</button><div class="price-trace-result" aria-live="polite"></div>`;
+    container.appendChild(detail);
+    const turnInput = detail.querySelector('.trace-turn');
+    const priceKind = detail.querySelector('.trace-price-kind');
+    const eventIdInput = detail.querySelector('.trace-event-id');
+    const output = detail.querySelector('.price-trace-result');
+    const load = async () => {
+      const selected = Number(turnInput.value);
+      const eventId = eventIdInput.value.trim();
+      if (!eventId && (!Number.isInteger(selected) || selected < 1
+          || selected > Number(worldState.turn || 0))) {
+        output.textContent = 'Choose a completed turn.';
+        return;
+      }
+      output.textContent = eventId ? 'Loading exact event…' : 'Loading price records…';
+      try {
+        const params = eventId
+          ? new URLSearchParams({ event_id: eventId, limit: '1' })
+          : new URLSearchParams({ turn: String(selected), entity,
+            good, metric: priceKind.value, limit: '200' });
+        const response = await fetch(`/api/trace?${params}`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const result = await response.json();
+        const rows = result.events || [];
+        const bridge = !eventId && priceKind.value === 'goods.price'
+          ? rows.find(row => row.kind === 'price_bridge') : null;
+        const writes = eventId ? rows : priceKind.value === 'goods.price'
+          ? rows.filter(row => row.record_class === 'calculation')
+          : rows.filter(row => row.kind !== 'metric_snapshot');
+        output.innerHTML = '';
+        if (bridge) {
+          const line = document.createElement('p');
+          const oldValue = bridge.value_before == null
+            ? 'unknown' : Number(bridge.value_before).toFixed(3);
+          const newValue = Number(bridge.value_after).toFixed(3);
+          const pct = bridge.inputs && bridge.inputs.percent_change;
+          line.textContent = `${oldValue} → ${newValue} ${bridge.unit || 'per unit'}; ${pct == null ? 'percent change unavailable' : pct.toFixed(1) + '%'} · ${bridge.explanation_status}`;
+          output.appendChild(line);
+        }
+        if (!writes.length) {
+          const line = document.createElement('p');
+          line.textContent = eventId
+            ? 'No event with that ID was found in this run.'
+            : priceKind.value === 'goods.price'
+              ? 'No reference-price update was recorded for this good in this turn.'
+              : 'No quotes or purchases of this kind were recorded in this turn.';
+          output.appendChild(line);
+        }
+        for (const row of writes) {
+          const line = document.createElement('p');
+          const i = row.inputs || {};
+          const rowMetric = row.metric_id || priceKind.value;
+          const terms = rowMetric !== 'goods.price'
+            ? Object.entries(i).filter(([key]) => [
+              'wage', 'cotton_cost', 'productive_slots', 'freight', 'quantity',
+              'buyer_cash', 'affordable', 'price_basis', 'origin_tile',
+              'destination_tile', 'seller_nation_at_quote', 'buyer_nation_at_quote',
+              'seller_currency', 'buyer_currency', 'counterparty_currency_mismatch',
+              'currency_conversion_applied', 'selected_quote_event_id',
+              'currency_semantics', 'coverage_count', 'territory_count',
+              'territory_composition_residual'
+            ].includes(key)).map(([key, value]) => `${key} ${value}`).join(', ')
+            : row.kind === 'market_price_update'
+              ? `bids ${i.bids ?? '?'}, local asks ${i.local_asks ?? '?'}, imported asks ${i.imported_asks ?? '?'}, inventory ${i.average_producer_inventory ?? '?'}, recent sample mean ${i.recent_sample_mean ?? 'none'}, cost floor ${i.input_cost_floor ?? '?'}`
+              : row.kind === 'market_price_decay'
+                ? `no orders; decay factor ${i.decay_factor}, cost floor ${i.input_cost_floor}`
+                : `demand ratio ${i.demand_ratio ?? '?'}; floor ${row.constraints?.min_price_floor ?? '?'}`;
+          const showValue = value => value == null ? '—'
+            : typeof value === 'number' ? value.toFixed(3) : String(value);
+          const valueText = row.value_before == null
+            ? showValue(row.value_after)
+            : `${showValue(row.value_before)} → ${showValue(row.value_after)}`;
+          const replay = row.formula_replay
+            ? (row.formula_replay.matches ? 'formula verified' : 'formula mismatch')
+            : 'formula verification unavailable';
+          line.textContent = `${row.kind}: ${valueText}. ${terms}. ${replay}. ${row.event_id}`;
+          output.appendChild(line);
+          const causes = Array.isArray(row.cause_event_ids) ? row.cause_event_ids : [];
+          if (causes.length) {
+            const causeLabel = document.createElement('span');
+            causeLabel.textContent = 'Upstream evidence: ';
+            output.appendChild(causeLabel);
+            for (const causeId of causes) {
+              const inspect = document.createElement('button');
+              inspect.type = 'button';
+              inspect.className = 'btn btn-secondary btn-xs';
+              inspect.textContent = causeId;
+              inspect.addEventListener('click', () => {
+                eventIdInput.value = causeId;
+                load();
+              });
+              output.appendChild(inspect);
+            }
+          }
+        }
+        if (result.total > rows.length) {
+          const line = document.createElement('p');
+          line.textContent = `${result.total - rows.length} further records exist; use the trace download for the full history.`;
+          output.appendChild(line);
+        }
+      } catch (error) { output.textContent = `Could not load price records: ${error.message}`; }
+    };
+    detail.querySelector('.trace-load').addEventListener('click', load);
+    load();
+  }
+
   function renderHistoricalChart() {
     const chartCanvas = document.getElementById('historical-chart-canvas');
     if (!chartCanvas || !worldState) return;
 
     let values = [];
-    if (selectedTileDetail && selectedTileDetail.charts) {
+    let traceEntity = null;
+    let traceMetric = null;
+    let traceGood = null;
+    if (activeChartMetric === 'food_price' && selectedTileDetail?.charts) {
+      values = selectedTileDetail.charts.economic?.prices?.food || [];
+      traceEntity = `tile:${selectedTileDetail.name}`;
+      traceMetric = 'goods.price';
+      traceGood = 'food';
+    } else if (activeChartMetric === 'food_price') {
+      values = worldState.history?.food_price || [];
+      traceEntity = `nation:${worldState.player_nation_name}`;
+      traceMetric = 'goods.national_food_price';
+      traceGood = 'food';
+    } else if (selectedTileDetail && selectedTileDetail.charts) {
       const mode = selectedTileDetail.charts[activeChartMode];
       if (mode && mode[activeChartMetric]) values = mode[activeChartMetric];
     }
@@ -2870,11 +3008,25 @@
     }
 
     const charts = window.CoCCharts;
+    const turns = (worldState.history?.turns || []).slice(-values.length);
+    const onPointSelect = traceEntity && turns.length === values.length
+      ? point => {
+        const container = chartCanvas.parentElement;
+        const title = document.getElementById('chart-legend-text');
+        if (title) title.textContent = `${activeChartMetric}: Turn ${point.turn} selected`;
+        openPriceTraceInspector({
+          good: traceGood, entity: traceEntity, metric: traceMetric,
+          turn: point.turn, container
+        });
+      }
+      : null;
     const legend = charts.drawHistoricalChart(
-      chartCanvas, values, activeChartMetric, window.devicePixelRatio || 1
+      chartCanvas, values, activeChartMetric, window.devicePixelRatio || 1,
+      { onPointSelect, turns }
     );
     const legendText = document.getElementById('chart-legend-text');
-    if (legendText) legendText.textContent = legend;
+    if (legendText) legendText.textContent = onPointSelect
+      ? `${legend} · tap a point to inspect its turn` : legend;
   }
 
   // ---------------- Tile Deep Inspection & Cadastre ----------------
@@ -2912,102 +3064,11 @@
         item.className = 'price-item';
         item.innerHTML = `<div class="p-name">${escapeHtml(g)}</div><div class="p-val">$${Number(price).toFixed(2)}</div><button type="button" class="btn btn-secondary btn-xs">Why?</button>`;
         item.querySelector('button').addEventListener('click', () => {
-          const detail = document.createElement('div');
-          detail.id = 'market-price-trace-detail';
-          detail.className = 'card';
-          detail.innerHTML = `<h4>${escapeHtml(g)} price history</h4><label>Turn <input type="number" min="1" max="${Number(worldState.turn || 1)}" value="${Number(worldState.turn || 1)}" style="width:5rem"></label> <label>Price <select><option value="goods.price">Reference</option><option value="goods.seller_ask">Seller asks</option><option value="goods.delivered_quote">Delivered quotes</option><option value="goods.transaction_price">Paid</option><option value="goods.transaction_vwap">Paid average</option></select></label> <label>Event ID <input type="text" class="trace-event-id" placeholder="Exact event" style="width:13rem"></label> <button type="button" class="btn btn-secondary btn-xs">Show price history</button><div class="price-trace-result" aria-live="polite"></div>`;
-          const old = document.getElementById(detail.id);
-          if (old) old.remove();
-          pricesGrid.parentElement.appendChild(detail);
-          const turnInput = detail.querySelector('input');
-          const priceKind = detail.querySelector('select');
-          const eventIdInput = detail.querySelector('.trace-event-id');
-          const output = detail.querySelector('.price-trace-result');
-          const load = async () => {
-            const turn = Number(turnInput.value);
-            const eventId = eventIdInput.value.trim();
-            if (!eventId && (!Number.isInteger(turn) || turn < 1 || turn > Number(worldState.turn || 0))) {
-              output.textContent = 'Choose a completed turn.';
-              return;
-            }
-            output.textContent = eventId ? 'Loading exact event…' : 'Loading price records…';
-            try {
-              const params = eventId
-                ? new URLSearchParams({event_id: eventId, limit: '1'})
-                : new URLSearchParams({turn: String(turn), entity: `tile:${tile.name}`,
-                  good: g, metric: priceKind.value, limit: '200'});
-              const response = await fetch(`/api/trace?${params}`);
-              if (!response.ok) throw new Error(`HTTP ${response.status}`);
-              const result = await response.json();
-              const rows = result.events || [];
-              const bridge = priceKind.value === 'goods.price'
-                ? rows.find(row => row.kind === 'price_bridge') : null;
-              const writes = eventId ? rows : priceKind.value === 'goods.price'
-                ? rows.filter(row => row.record_class === 'calculation')
-                : rows.filter(row => row.kind !== 'metric_snapshot');
-              output.innerHTML = '';
-              if (bridge) {
-                const line = document.createElement('p');
-                const oldValue = bridge.value_before == null ? 'unknown' : Number(bridge.value_before).toFixed(3);
-                const newValue = Number(bridge.value_after).toFixed(3);
-                const pct = bridge.inputs && bridge.inputs.percent_change;
-                line.textContent = `${oldValue} → ${newValue} ${bridge.unit || 'per unit'}; ${pct == null ? 'percent change unavailable' : pct.toFixed(1) + '%'} · ${bridge.explanation_status}`;
-                output.appendChild(line);
-              }
-              if (!writes.length) {
-                const line = document.createElement('p');
-                line.textContent = eventId
-                  ? 'No event with that ID was found in this run.'
-                  : priceKind.value === 'goods.price'
-                  ? 'No reference-price update was recorded for this good in this turn.'
-                  : 'No quotes or purchases of this kind were recorded in this turn.';
-                output.appendChild(line);
-              }
-              for (const row of writes) {
-                const line = document.createElement('p');
-                const i = row.inputs || {};
-                const rowMetric = row.metric_id || priceKind.value;
-                const terms = rowMetric !== 'goods.price'
-                  ? Object.entries(i).filter(([key]) => ['wage', 'cotton_cost', 'productive_slots', 'freight', 'quantity', 'buyer_cash', 'affordable', 'price_basis', 'origin_tile', 'destination_tile', 'seller_nation_at_quote', 'buyer_nation_at_quote', 'seller_currency', 'buyer_currency', 'counterparty_currency_mismatch', 'currency_conversion_applied', 'selected_quote_event_id'].includes(key)).map(([key, value]) => `${key} ${value}`).join(', ')
-                  : row.kind === 'market_price_update'
-                  ? `bids ${i.bids ?? '?'}, local asks ${i.local_asks ?? '?'}, imported asks ${i.imported_asks ?? '?'}, inventory ${i.average_producer_inventory ?? '?'}, recent sample mean ${i.recent_sample_mean ?? 'none'}, cost floor ${i.input_cost_floor ?? '?'}`
-                  : row.kind === 'market_price_decay' ? `no orders; decay factor ${i.decay_factor}, cost floor ${i.input_cost_floor}`
-                  : `demand ratio ${i.demand_ratio ?? '?'}; floor ${row.constraints?.min_price_floor ?? '?'}`;
-                const valueText = row.value_before == null
-                  ? `${Number(row.value_after).toFixed(3)}`
-                  : `${Number(row.value_before).toFixed(3)} → ${Number(row.value_after).toFixed(3)}`;
-                const replay = row.formula_replay
-                  ? (row.formula_replay.matches ? 'formula verified' : 'formula mismatch')
-                  : 'formula verification unavailable';
-                line.textContent = `${row.kind}: ${valueText}. ${terms}. ${replay}. ${row.event_id}`;
-                output.appendChild(line);
-                const causes = Array.isArray(row.cause_event_ids) ? row.cause_event_ids : [];
-                if (causes.length) {
-                  const causeLabel = document.createElement('span');
-                  causeLabel.textContent = 'Upstream evidence: ';
-                  output.appendChild(causeLabel);
-                  for (const causeId of causes) {
-                    const inspect = document.createElement('button');
-                    inspect.type = 'button';
-                    inspect.className = 'btn btn-secondary btn-xs';
-                    inspect.textContent = causeId;
-                    inspect.addEventListener('click', () => {
-                      eventIdInput.value = causeId;
-                      load();
-                    });
-                    output.appendChild(inspect);
-                  }
-                }
-              }
-              if (result.total > rows.length) {
-                const line = document.createElement('p');
-                line.textContent = `${result.total - rows.length} further records exist; use the trace download for the full history.`;
-                output.appendChild(line);
-              }
-            } catch (error) { output.textContent = `Could not load price records: ${error.message}`; }
-          };
-          detail.querySelector('button').addEventListener('click', load);
-          load();
+          openPriceTraceInspector({
+            good: g, entity: `tile:${tile.name}`, metric: 'goods.price',
+            turn: Number(worldState.turn || 1),
+            container: pricesGrid.parentElement
+          });
         });
         pricesGrid.appendChild(item);
       });

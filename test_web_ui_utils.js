@@ -44,6 +44,26 @@ assert.match(chartLegend, /GDP: Historical Trend/);
 assert.ok(chartCalls.some(call => call[0] === 'arc'));
 assert.equal(globalThis.CoCCharts.getChartCatalog().economic[0].id, 'gdp');
 
+const listeners = {};
+const selectedPoints = [];
+const interactiveCanvas = {
+  clientWidth: 300,
+  clientHeight: 160,
+  style: {},
+  getContext: () => chartContext,
+  getBoundingClientRect: () => ({ left: 0, top: 0 }),
+  addEventListener: (name, callback) => { listeners[name] = callback; },
+  removeEventListener: name => { delete listeners[name]; }
+};
+globalThis.CoCCharts.drawHistoricalChart(
+  interactiveCanvas, [10, 20, 15], 'food_price', 1,
+  { turns: [3, 4, 5], onPointSelect: point => selectedPoints.push(point) });
+assert.equal(interactiveCanvas.style.cursor, 'crosshair');
+listeners.click({ clientX: 165, clientY: 18 });
+assert.deepEqual(selectedPoints, [{ index: 1, value: 20, turn: 4, metric: 'food_price' }]);
+listeners.click({ clientX: 150, clientY: 80 });
+assert.equal(selectedPoints.length, 1);
+
 assert.ok(globalThis.CoCHelpContent);
 const helpHtml = globalThis.CoCHelpContent.renderHelpPage('3', {
   seed: 17,
