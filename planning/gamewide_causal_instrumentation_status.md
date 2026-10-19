@@ -193,9 +193,10 @@ path is linked. Remaining price work includes scenario history series and
 their membership/currency decomposition. The main market's `vwap` input is an
 unweighted recent-sample mean. Web chart points open the trace inspector for
 national food price, nominal GDP, treasury, population and protest energy, plus
-selected-tile food price, GDP, population and protest energy. Other chart
-series still need explicit source mappings; desktop charts do not yet open the
-trace inspector.
+selected-tile food price, GDP, population, protest energy, food production,
+food producer inventory, soil fertility, nutrition density, air and water
+pollution, and disease fatalities. Other chart series still need explicit
+source mappings; desktop charts do not yet open the trace inspector.
 
 The coverage checker reports a changed snapshot as unexplained when its final
 value does not match a recorded calculation. Per-profession headcount snapshots

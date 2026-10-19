@@ -253,6 +253,19 @@ class TestWebServerEndpoints(unittest.TestCase):
                                 and row['turn'] == 1
                                 and row['subject']['id'] == tile
                                 for row in payload['events']), (tile, metric))
+        for metric in ('goods.production', 'goods.producer_inventory'):
+            query = urllib.parse.urlencode({
+                'turn': 1, 'entity': f'tile:{tile}', 'metric': metric,
+                'good': 'food', 'limit': 200})
+            handler = MockHttpRequestHandler(
+                self.mock_server, 'GET', f'/api/trace?{query}')
+            payload = json.loads(handler.get_body())
+            self.assertGreater(payload['total'], 0, (tile, metric))
+            self.assertTrue(all(row['metric_id'] == metric
+                                and row['turn'] == 1
+                                and row['subject']['id'] == tile
+                                and row['subject']['good'] == 'food'
+                                for row in payload['events']), (tile, metric))
 
     def test_api_world_state(self):
         handler = MockHttpRequestHandler(self.mock_server, 'GET', '/api/state')

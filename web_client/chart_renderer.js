@@ -6,12 +6,13 @@
     economic: [
       { id: 'gdp', name: 'Nominal GDP' }, { id: 'treasury', name: 'Treasury' },
       { id: 'food_price', name: 'Food Price' }, { id: 'pop', name: 'Pop/Hunger' },
-      { id: 'production', name: 'Production' }, { id: 'trade', name: 'Trade Flow' },
+      { id: 'production', name: 'Food Production' }, { id: 'trade', name: 'Trade Flow' },
       { id: 'gov_income', name: 'Gov Revenue' }, { id: 'gini', name: 'Gini Inequality' },
-      { id: 'inventories', name: 'Commodity Stocks' }, { id: 'unrest', name: 'Protest Energy' }
+      { id: 'inventories', name: 'Food Stocks' }, { id: 'unrest', name: 'Protest Energy' }
     ],
     ecological: [
-      { id: 'soil', name: 'Soil & Nutrition' }, { id: 'smog', name: 'Smog Particulate' },
+      { id: 'soil', name: 'Soil Fertility' }, { id: 'nutrition', name: 'Nutrition Density' },
+      { id: 'smog', name: 'Smog Particulate' },
       { id: 'effluent', name: 'Water Effluent' }, { id: 'epidemics', name: 'Epidemic Cases' },
       { id: 'health_outlays', name: 'Healthcare Outlays' }, { id: 'illness_deaths', name: 'Illness Fatalities' }
     ],
@@ -38,7 +39,26 @@
       tilePath: ['economic', 'pop_hunger', 'pop'], label: 'Population' }),
     unrest: Object.freeze({ metricId: 'politics.protest_energy', historyKey: 'unrest',
       tilePath: ['economic', 'protest_commons', 'protest'],
-      label: 'Protest energy' })
+      label: 'Protest energy' }),
+    production: Object.freeze({ metricId: 'goods.production',
+      tilePath: ['economic', 'production', 'food'], good: 'food',
+      label: 'Food production' }),
+    inventories: Object.freeze({ metricId: 'goods.producer_inventory',
+      tilePath: ['economic', 'inventories', 'food'], good: 'food',
+      label: 'Food producer inventory' }),
+    soil: Object.freeze({ metricId: 'ecology.soil_fertility',
+      tilePath: ['ecological', 'soil_nutrition', 'soil'], chartScale: 100,
+      displayUnit: '%', label: 'Soil fertility' }),
+    nutrition: Object.freeze({ metricId: 'ecology.nutrition_density',
+      tilePath: ['ecological', 'soil_nutrition', 'nutrition'], chartScale: 100,
+      displayUnit: '%', label: 'Nutrition density' }),
+    smog: Object.freeze({ metricId: 'ecology.pollution_air',
+      tilePath: ['ecological', 'pollution', 'smog'], label: 'Air pollution' }),
+    effluent: Object.freeze({ metricId: 'ecology.pollution_water',
+      tilePath: ['ecological', 'pollution', 'water'], label: 'Water pollution' }),
+    illness_deaths: Object.freeze({ metricId: 'health.fatalities',
+      tilePath: ['ecological', 'untreated_fatalities', 'fatalities'],
+      label: 'Disease fatalities' })
   });
 
   function getChartCatalog() {

@@ -2076,3 +2076,19 @@ metrics still need explicit bindings; this does not establish coverage for
 every series. A combined web endpoint and parity run reached its 30-second
 tool window without returning a final summary, so only the focused cases above
 are counted as verified.
+
+## Phase 5 follow-up — Bind tile production and ecology charts (implemented)
+
+Food production and producer inventory points now query the matching tile and
+good trace metric; the inspector passes the selected good to the API. Tile
+soil fertility and nutrition density charts expose their percent scaling next
+to raw ratio evidence. Air and water pollution and disease-fatality charts
+query their respective tile metrics. Chart titles now name the plotted food
+series and distinguish fertility from nutrition. These bindings use existing
+trace records and do not change simulation calculations.
+
+Verification: chart-binding assertions cover the new metric IDs, selected-good
+filters, ratio scaling, and unsupported charts. The web endpoint test confirms
+the exact turn/tile/good records for production and inventory. JavaScript
+syntax, UI utility, chart renderer, and focused API checks passed (2 Python
+tests and the UI utility test).

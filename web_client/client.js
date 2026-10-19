@@ -2981,7 +2981,8 @@
     load();
   }
 
-  function openChartTraceInspector({ metric, entity, turn, value, label, container }) {
+  function openChartTraceInspector({ metric, entity, turn, value, label, good,
+    chartScale, displayUnit, container }) {
     if (!container) return;
     const old = document.getElementById('market-price-trace-detail');
     if (old) old.remove();
@@ -2990,7 +2991,10 @@
     detail.className = 'card';
     const selectedTurn = Number.isInteger(Number(turn)) && Number(turn) >= 0
       ? Number(turn) : Number(worldState.turn || 0);
-    detail.innerHTML = `<h4>${escapeHtml(label)} trace · ${escapeHtml(entity)}</h4><p>Chart value: ${escapeHtml(String(value))}</p><label>Turn <input class="trace-turn" type="number" min="0" max="${Number(worldState.turn || 0)}" value="${selectedTurn}" style="width:5rem"></label> <label>Event ID <input type="text" class="trace-event-id" placeholder="Exact event" style="width:13rem"></label> <button type="button" class="btn btn-secondary btn-xs trace-load">Show records</button><div class="trace-record-result" aria-live="polite"></div>`;
+    const scaledNote = chartScale
+      ? `<p>Chart displays the trace value multiplied by ${escapeHtml(String(chartScale))}.</p>`
+      : '';
+    detail.innerHTML = `<h4>${escapeHtml(label)} trace · ${escapeHtml(entity)}</h4><p>Chart value: ${escapeHtml(String(value))}${escapeHtml(displayUnit || '')}</p>${scaledNote}<label>Turn <input class="trace-turn" type="number" min="0" max="${Number(worldState.turn || 0)}" value="${selectedTurn}" style="width:5rem"></label> <label>Event ID <input type="text" class="trace-event-id" placeholder="Exact event" style="width:13rem"></label> <button type="button" class="btn btn-secondary btn-xs trace-load">Show records</button><div class="trace-record-result" aria-live="polite"></div>`;
     container.appendChild(detail);
     const turnInput = detail.querySelector('.trace-turn');
     const eventIdInput = detail.querySelector('.trace-event-id');
@@ -3005,9 +3009,11 @@
       }
       output.textContent = eventId ? 'Loading exact event…' : 'Loading metric records…';
       try {
+        const filters = { turn: String(selected), entity, metric, limit: '200' };
+        if (good) filters.good = good;
         const params = eventId
           ? new URLSearchParams({ event_id: eventId, limit: '1' })
-          : new URLSearchParams({ turn: String(selected), entity, metric, limit: '200' });
+          : new URLSearchParams(filters);
         const response = await fetch(`/api/trace?${params}`);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const result = await response.json();
@@ -3089,18 +3095,21 @@
     let traceEntity = null;
     let traceMetric = null;
     let traceGood = null;
+    let traceIsPrice = false;
     if (selectedTileDetail && selectedTileDetail.charts) {
       if (traceBinding?.tilePath) {
         values = traceBinding.tilePath.reduce((value, key) => value?.[key], selectedTileDetail.charts) || [];
         traceEntity = `tile:${selectedTileDetail.name}`;
         traceMetric = activeChartMetric === 'food_price' ? 'goods.price' : traceBinding.metricId;
-        traceGood = activeChartMetric === 'food_price' ? 'food' : null;
+        traceGood = traceBinding.good || (activeChartMetric === 'food_price' ? 'food' : null);
+        traceIsPrice = activeChartMetric === 'food_price';
       }
     } else if (traceBinding?.historyKey) {
       values = worldState.history?.[traceBinding.historyKey] || [];
       traceEntity = `nation:${worldState.player_nation}`;
       traceMetric = traceBinding.metricId;
       traceGood = activeChartMetric === 'food_price' ? 'food' : null;
+      traceIsPrice = activeChartMetric === 'food_price';
     }
     if (!values.length && selectedTileDetail && selectedTileDetail.charts
         && !traceBinding?.tilePath) {
@@ -3117,7 +3126,7 @@
         const container = chartCanvas.parentElement;
         const title = document.getElementById('chart-legend-text');
         if (title) title.textContent = `${activeChartMetric}: Turn ${point.turn} selected`;
-        if (traceGood) {
+        if (traceIsPrice) {
           openPriceTraceInspector({
             good: traceGood, entity: traceEntity, metric: traceMetric,
             turn: point.turn, container
@@ -3125,7 +3134,9 @@
         } else {
           openChartTraceInspector({
             metric: traceMetric, entity: traceEntity, turn: point.turn,
-            value: point.value, label: traceBinding.label, container
+            value: point.value, label: traceBinding.label, good: traceGood,
+            chartScale: traceBinding.chartScale,
+            displayUnit: traceBinding.displayUnit, container
           });
         }
       }
