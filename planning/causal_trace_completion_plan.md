@@ -2549,3 +2549,25 @@ matches all three chart histories to their aggregate records. Frontend tests
 confirm each trade chart has a Nation history binding. Focused Python trace,
 web-server and serialization checks passed; all 10 frontend tests passed.
 Python/JavaScript syntax checks and `git diff --check` passed.
+
+## Phase 2/5 follow-up — Trace firm and tile surplus value (implemented)
+
+Each producing corporation records output units and value, recipe-reference
+prices, input quantities and reference prices, raw-input cost, inventory
+unit-cost basis and its known/missing status, safety investment, worker count,
+wages, constant and variable capital, and the resulting surplus and exploitation
+rate. These records link to production and available price events. Inventory
+unit-cost basis is exposed separately because the surplus formula uses the
+current recipe reference price.
+
+Tile surplus aggregation is now turn-scoped: only firm production stats from
+the requested turn contribute. Prior-turn or turn-unknown firm values are shown
+in aggregate inputs with an exclusion reason and zero contribution. Tile history is sampled
+under `labor.surplus_value`, and firm and tile calculations replay from their
+recorded terms with event links back to the contributing production records.
+
+Verification: current-turn aggregate fixtures cover stale-stat exclusion, and
+a live trace run verifies linked firm calculations plus replay of firm surplus,
+exploitation rate, and tile total. The labor aggregate, metric catalog, full
+run-trace, and true-cost suites passed (52 tests); compilation and
+`git diff --check` passed.

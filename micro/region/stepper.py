@@ -304,7 +304,7 @@ def step_economy(region: Any, t: int):
 
     # Surplus value & labor metrics (P2.1)
     from labor_contract import aggregate_tile_surplus
-    surplus_stats = aggregate_tile_surplus(region)
+    surplus_stats = aggregate_tile_surplus(region, turn=t)
     sample_effective_workday_cap(region)
     region.avg_shift_hours_log.append(surplus_stats['avg_shift_hours'])
     region.surplus_value_log.append(surplus_stats['total_surplus_value'])
@@ -326,6 +326,23 @@ def step_economy(region: Any, t: int):
              unit=unit,
              before=history[-2] if len(history) > 1 else None,
              after=float(value), formula_id=formula_id, inputs=inputs)
+
+    surplus_inputs = surplus_stats['surplus_inputs']
+    surplus_causes = [row['source_event_id']
+                      for row in surplus_inputs['firms']
+                      if row.get('included_in_current_turn')
+                      and row.get('source_event_id') is not None]
+    emit(region, kind='labor_surplus_value_calculation',
+         record_class='calculation', phase='local',
+         subject={'type': 'tile', 'id': region.name},
+         metric_id='labor.surplus_value',
+         unit=getattr(region, 'home_currency', None) or 'local_currency',
+         before=(region.surplus_value_log[-2]
+                 if len(region.surplus_value_log) > 1 else None),
+         after=float(surplus_stats['total_surplus_value']),
+         formula_id='labor.surplus_value_current_turn.v1',
+         inputs=surplus_inputs,
+         cause_event_ids=surplus_causes or None)
 
     if t > 0 and t % 10 == 0:
         _fin.recalculate_multipliers(region)

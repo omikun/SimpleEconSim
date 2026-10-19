@@ -151,10 +151,15 @@ class RunTraceTests(unittest.TestCase):
             with patch('region_production.rand.random_n', return_value=[0.0]):
                 produce_corporation(region, firm, region.recipes[Goods.cloth],
                                     Goods.cloth, {Goods.cloth: 1}, {})
-            production = trace.recent[-1]
+            production = next(row for row in reversed(trace.recent)
+                              if row['kind'] == 'firm_production')
             self.assertEqual(production['kind'], 'firm_production')
             self.assertEqual(production['cause_event_ids'],
                              [available_ids[firm.id]])
+            surplus = next(row for row in reversed(trace.recent)
+                           if row['kind'] == 'firm_surplus_value_calculation')
+            self.assertEqual(surplus['turn'], 5)
+            self.assertEqual(surplus['inputs']['turn'], 5)
 
     def test_commons_work_share_explains_failed_independent_production_roll(self):
         from region import Region
@@ -722,11 +727,13 @@ class RunTraceTests(unittest.TestCase):
                                total_population=[4], deaths_this_turn=2,
                                deaths_by_cause_this_turn={'disease': 2},
                                protest_energy_log=[], unrest_log=[], agents=[],
-                               construction_projects=[], cost_of_living=1.0)
+                               construction_projects=[], cost_of_living=1.0,
+                               surplus_value_log=[8.5])
         first = sample([tile], [])
         second = sample([tile], [])
         self.assertEqual(first, second)
         self.assertEqual(first[('goods.price', 'Delta', 'cotton')][2], 3.0)
+        self.assertEqual(first[('labor.surplus_value', 'Delta')][2], 8.5)
         self.assertEqual(first[('labor.hungry_adults', 'Delta')][2], 0)
         self.assertEqual(first[('labor.temporary_work_share', 'Delta')][2], 0.0)
         self.assertEqual(tile.deaths_this_turn, 2)
@@ -1068,6 +1075,7 @@ class RunTraceTests(unittest.TestCase):
         inventory = {row['field']: row for row in inventory_region_histories(server.tiles[0])}
         self.assertEqual(inventory['gdp_log']['coverage'], 'instrumented')
         self.assertEqual(inventory['bank_cash_log']['coverage'], 'untraced')
+        self.assertEqual(inventory['surplus_value_log']['coverage'], 'instrumented')
         server.step()
         rows = server.run_trace.query(turn=1, limit=10000)['events']
         kinds = {row['kind'] for row in rows}
@@ -1075,6 +1083,28 @@ class RunTraceTests(unittest.TestCase):
         self.assertIn('unrest_roll', kinds)
         self.assertTrue(all(row['turn'] == 1 for row in rows))
         rows_by_id = {row['event_id']: row for row in rows}
+        firm_surplus = [row for row in rows
+                        if row.get('kind') == 'firm_surplus_value_calculation']
+        tile_surplus = [row for row in rows
+                        if row.get('kind') == 'labor_surplus_value_calculation']
+        self.assertTrue(firm_surplus)
+        self.assertTrue(tile_surplus)
+        self.assertTrue(all(row['formula_replay']['matches']
+                            for row in firm_surplus + tile_surplus))
+        for row in firm_surplus:
+            self.assertTrue(row.get('cause_event_ids'))
+            self.assertTrue(all(event_id in rows_by_id
+                                for event_id in row['cause_event_ids']))
+        self.assertTrue(all(row['inputs']['turn'] == 1
+                            for row in firm_surplus))
+        firm_surplus_ids = {row['event_id'] for row in firm_surplus}
+        for row in tile_surplus:
+            expected_causes = [firm['source_event_id']
+                               for firm in row['inputs']['firms']
+                               if firm.get('included_in_current_turn')
+                               and firm.get('source_event_id') is not None]
+            self.assertEqual(row.get('cause_event_ids', []), expected_causes)
+            self.assertTrue(set(expected_causes).issubset(firm_surplus_ids))
         buyer_orders = [row for row in rows
                         if row['kind'] == 'market_buyer_order_submitted']
         seller_orders = [row for row in rows

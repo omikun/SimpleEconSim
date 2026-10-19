@@ -148,7 +148,7 @@ def _record_zero_production(region, agent, output, *, kind, formula_id,
 
 
 def produce_corporation(region, agent, recipe, output, num_agents_per_good,
-                        local_total_production, receipt_ids=None):
+                        local_total_production, receipt_ids=None, turn=None):
     """Run production logic for a corporate employer."""
     # P2.3: Striking or revolting workers withhold living labor power
     working_employees = [e for e in agent.employees if not getattr(e, 'is_striking', False) and not getattr(e, 'in_revolt', False)]
@@ -223,6 +223,8 @@ def produce_corporation(region, agent, recipe, output, num_agents_per_good,
     if successful_slots:
         inputs_cost = 0.0
         inputs_used = 0
+        input_price = 0.0
+        recorded_basis = None
         if recipe.get('numInput', 0) > 0:
             inputs_used = successful_slots * recipe['numInput']
             recorded_basis = max(0.0, float(agent.cost_get(recipe['input'], 0)))
@@ -274,8 +276,18 @@ def produce_corporation(region, agent, recipe, output, num_agents_per_good,
 
         # P2.1: Surplus value extraction accounting (s/v)
         wages_paid = len(agent.employees) * getattr(agent, 'wage', 1.0)
-        record_surplus_value(agent, region, output, num_output, inputs_cost, wages_paid)
-        compute_and_record_firm_footprint(agent, region, output, num_output, inputs_cost, wages_paid)
+        record_surplus_value(agent, region, output, num_output, inputs_cost,
+                             wages_paid, turn=turn,
+                             input_good=(recipe.get('input')
+                                         if inputs_used > 0 else None),
+                             input_units=inputs_used,
+                             input_reference_price=input_price,
+                             input_inventory_unit_cost_basis=recorded_basis,
+                             input_inventory_cost_basis_known=(
+                                 recorded_basis > 0.0
+                                 if recorded_basis is not None else None))
+        compute_and_record_firm_footprint(agent, region, output, num_output,
+                                          inputs_cost, wages_paid, cur_turn=turn)
     else:
         if workforce_event_id is not None:
             _record_zero_production(
@@ -532,7 +544,8 @@ def produce(region, t):
             continue
         if a.is_corporation:
             produce_corporation(region, a, r, a.output, num_agents_per_good,
-                                local_total_production, receipt_ids.setdefault(a.output, []))
+                                local_total_production,
+                                receipt_ids.setdefault(a.output, []), turn=t)
         else:
             produce_independent(region, a, r, a.output, num_agents_per_good,
                                 local_total_production, receipt_ids.setdefault(a.output, []))

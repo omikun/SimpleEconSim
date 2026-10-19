@@ -5,7 +5,8 @@ from pathlib import Path
 import subprocess
 import unittest
 
-from metric_catalog import METRICS, TRACE_INSTRUMENTED
+from metric_catalog import (LEGACY_HISTORY_TO_METRIC, METRICS,
+                            TRACE_INSTRUMENTED)
 
 
 class MetricCatalogTraceCoverageTests(unittest.TestCase):
@@ -39,6 +40,14 @@ class MetricCatalogTraceCoverageTests(unittest.TestCase):
         self.assertEqual(sorted(emitted_metrics - set(METRICS)), [])
         self.assertEqual(sorted(emitted_metrics - TRACE_INSTRUMENTED), [])
         self.assertEqual(sorted(TRACE_INSTRUMENTED - set(METRICS)), [])
+
+    def test_surplus_history_and_firm_metric_are_explained(self):
+        self.assertEqual(LEGACY_HISTORY_TO_METRIC['surplus_value_log'],
+                         'labor.surplus_value')
+        self.assertIn('labor.surplus_value', TRACE_INSTRUMENTED)
+        self.assertIn('labor.firm_surplus_value', TRACE_INSTRUMENTED)
+        self.assertIn('labor.surplus_value', METRICS)
+        self.assertIn('labor.firm_surplus_value', METRICS)
 
 
 if __name__ == '__main__':

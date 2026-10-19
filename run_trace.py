@@ -194,7 +194,9 @@ class RunTrace:
                 'goods.scenario_market_coverage',
                 'goods.demand', 'goods.supply',
                 'goods.demand_ratio', 'living.cost_of_living',
-                'goods.national_reference_price', 'goods.national_food_price')):
+                'goods.national_reference_price', 'goods.national_food_price',
+                'labor.firm_surplus_value', 'labor.surplus_value',
+                'labor.exploitation_rate')):
             from price_trace import replay_event
             replay = replay_event(row)
             if replay is not None:

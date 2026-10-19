@@ -2076,3 +2076,25 @@ Verification: trace fixtures confirm strategy → offer → settlement and strat
 outcome. The supply-control suite passed 48 tests; trace and metric-catalog
 suites passed 37; planner-gate and supply-rights suites passed 24. Python
 compilation and `git diff --check` passed.
+
+## Phase 2/5 follow-up — Trace firm and tile surplus value (implemented)
+
+Each producing corporation now records the current-turn surplus calculation:
+output and recipe-reference prices, input good/quantity and reference price,
+raw-input cost, inventory unit-cost basis, safety cost, worker count and wages,
+constant and variable capital, the surplus floor, and the resulting surplus and
+exploitation rate. The record links to the production event and any available
+output/input price records. Input inventory unit-cost basis and whether that
+basis is known are shown separately from the recipe-reference value used by
+the surplus formula.
+
+The tile aggregate now receives the simulation turn and sums only firm stats
+recorded for that turn. Prior-turn and turn-unknown values remain visible in its
+inputs with an explicit exclusion reason and contribute zero. Tile surplus
+history is sampled as `labor.surplus_value`; firm and tile calculations replay from their recorded
+components, and the tile total links to contributing firm calculations.
+
+Verification: current-turn fixtures prove stale firms are excluded; a live
+trace run verifies firm-to-production/price links and replays firm, exploitation,
+and tile totals. The labor aggregate, metric catalog, full run-trace, and true
+cost suites passed (52 tests); Python compilation and `git diff --check` passed.

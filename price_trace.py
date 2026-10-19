@@ -189,6 +189,24 @@ def replay_event(row):
                 'empty_value', inputs.get('empty_population_value', 0.0))
     elif formula == 'aggregate.sum.v1':
         expected = sum(row['inputs']['member_values'])
+    elif formula == 'labor.gross_value_minus_capital.v1':
+        inputs = row['inputs']
+        gross_output_value = inputs['output_units'] * inputs['reference_price']
+        raw_inputs_cost = inputs['input_units'] * inputs['input_reference_price']
+        safety_cost = (inputs['safety_investment_per_worker']
+                       * inputs['worker_count'])
+        constant_capital = raw_inputs_cost + safety_cost
+        variable_capital = max(0.0, inputs['wages_paid'])
+        expected = max(0.0, gross_output_value - constant_capital
+                       - variable_capital)
+    elif formula == 'labor.surplus_value_current_turn.v1':
+        expected = sum(float(firm['contribution'])
+                        for firm in row['inputs']['firms'])
+    elif formula == 'labor.surplus_over_variable_capital.v1':
+        inputs = row['inputs']
+        variable_capital = float(inputs['total_variable_capital'])
+        expected = (float(inputs['total_surplus_value']) / variable_capital
+                    if variable_capital > 0.0 else 0.0)
     elif formula == 'econsim.market_price.v1':
         expected = replay_econsim_market_price(row['inputs'])
     else:
