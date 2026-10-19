@@ -260,9 +260,9 @@ The remaining scenario-project gaps identified by this audit—reserve-recall
 social costs, grain-entitlement policy state, and per-turn delivery outcomes—
 are implemented in the latest progress entry below.
 
-Next Phase 3 audit target: review `scenario_occupation.apply_action` for
-untraced boycott, general-strike, insurgency, and collaboration choices, then
-trace the first uncovered active mutation.
+Next Phase 3 audit target: review `scenario_campaign.resolve_landing` for
+untraced landing responses, especially Egyptian garrison relocation,
+occupation-force placement, and pre-landing settlement effects.
 
 ## Phase 5 — Deliver explanations in web, desktop and CLI
 
@@ -1765,3 +1765,21 @@ district-effect, and bargaining suites passed (33 tests). They cover transfer
 contracts, used-gate and zero-delivery cases, operation-level causal links, and
 trace-on/off state parity for reserve recall and grain entitlement. Compilation
 and `git diff --check` passed.
+
+## Phase 3 follow-up — Trace occupation resistance and collaboration choices (implemented)
+
+Record each Guided Egypt occupation response with a unique same-turn operation
+ID, before/after resistance and collaboration, active boycott or strike window,
+Egyptian legitimacy and treasury, withdrawal proposal, garrison strength, and
+civilian-casualty counter. Include the exact clamp rule and effect duration for
+boycott, strike, insurgency, and collaboration. For insurgency, show the
+selected unit and actual soldier loss (which can be less than the nominal three)
+alongside the civilian casualty counter increment. Withdrawal offers distinguish
+the requested $30 from a payment: cash is not debited until Britain accepts.
+Record the no-held-territory, no-force, unaffordable treasury, pending proposal,
+and unknown-action gates. Gameplay rules and action return values are unchanged.
+
+Verification: five focused fixtures cover four successful choices, all rejection
+gates, repeated same-turn operation IDs, and trace-on/off state parity. The
+occupation, metric-catalog, district-effect and geography suites passed (18
+tests). Compilation and `git diff --check` passed.

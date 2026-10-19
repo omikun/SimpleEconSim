@@ -1330,3 +1330,15 @@ Verification: project-transfer, strategic-project, catalog, district-effect,
 and bargaining suites passed (33 tests), including compact contract legs,
 delivery and no-delivery cases, reserve gates, and trace-on/off parity for
 recall and food entitlement. Compilation and `git diff --check` passed.
+
+Phase 3 follow-up, 2026-10-18: Guided Egypt occupation actions now explain
+boycott, general strike, insurgency, collaboration and withdrawal offers with
+before/after state, effect duration, clamp formulas and rejection reasons.
+Insurgency reports the actual garrison loss and civilian-casualty counter; a
+withdrawal offer is recorded as a proposal with no immediate payment. Repeated
+same-turn decisions receive distinct operation IDs. No occupation rule changed.
+
+Verification: occupation action, occupation regression, metric-catalog,
+district-effect and geography tests passed (18 tests), covering all player
+actions, rejection gates, unique operation IDs and trace-on/off state parity.
+Compilation and `git diff --check` passed.

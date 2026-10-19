@@ -266,6 +266,67 @@ def _occupying_units(world):
             if unit.unit_id.startswith('guided_british_landing_') and unit.soldiers > 0]
 
 
+def _occupation_action_state(world, occupation, egypt):
+    britain = _nation(world, 'Britain')
+    units = [unit for unit in getattr(britain, 'military_units', [])
+             if str(getattr(unit, 'unit_id', '')).startswith('guided_british_landing_')]
+    proposal = occupation.get('withdrawal_proposal')
+    return {
+        'resistance': float(occupation['resistance']),
+        'collaboration': float(occupation['collaboration']),
+        'boycott_until': int(occupation['boycott_until']),
+        'strike_until': int(occupation['strike_until']),
+        'withdrawal_proposal': dict(proposal) if proposal else None,
+        'egypt_legitimacy': (float(egypt.legitimacy) if egypt is not None else None),
+        'egypt_treasury_cash': (
+            float(egypt.government.agent.cash) if egypt is not None else None),
+        'civilian_casualty_counter': int(
+            world.get('scenario_state', {}).get('campaign', {}).get(
+                'civilian_casualties', 0)),
+        'garrison_units': [
+            {'unit_id': str(getattr(unit, 'unit_id', 'unknown')),
+             'soldiers': int(getattr(unit, 'soldiers', 0))}
+            for unit in units],
+    }
+
+
+def _trace_occupation_action(world, *, action_id, operation_id, turn,
+                             success, reason, before, after, details=None):
+    from run_trace import emit
+
+    egypt = _nation(world, 'Egypt')
+    region = _trace_region(world,
+                           getattr(egypt, 'government', None), egypt)
+    return emit(
+        region, kind=('occupation_player_action_resolved' if success else
+                      'occupation_player_action_rejected'),
+        record_class='outcome' if success else 'decision',
+        phase='occupation',
+        subject={'type': 'nation/action',
+                 'id': f'{getattr(egypt, "name", "Egypt")}:{action_id}',
+                 'nation': getattr(egypt, 'name', 'Egypt'),
+                 'action_id': action_id},
+        metric_id='scenario.occupation_action', unit='success',
+        before=0, after=int(bool(success)),
+        formula_id='occupation.player_action.v1',
+        inputs={'operation_id': operation_id, 'action_id': action_id,
+                'turn': int(turn), 'success': bool(success), 'reason': reason,
+                'state_before': before, 'state_after': after,
+                **(details or {})})
+
+
+def _occupation_action_operation_id(world, occupation, action_id, turn):
+    egypt = _nation(world, 'Egypt')
+    region = _trace_region(world,
+                           getattr(egypt, 'government', None), egypt)
+    clock = getattr(region, '_collective_trace_clock', None)
+    if clock is not None:
+        ordinal = int(clock.get('next', 1))
+    else:
+        ordinal = len(occupation.get('events', [])) + 1
+    return f'occupation-action:{action_id}:{int(turn)}:{ordinal}'
+
+
 def _move_occupation_force_to_cairo(world):
     egypt = _nation(world, 'Egypt')
     cairo = next(tile for tile in egypt.tiles if getattr(tile, 'scenario_location', '') == 'Cairo')
@@ -494,45 +555,118 @@ def withdraw(world, reason, *, cause='other', cause_event_ids=None):
 def apply_action(world, action_id):
     state = world['scenario_state']
     occupation = state['occupation']
+    turn = int(world['turn'])
+    operation_id = _occupation_action_operation_id(
+        world, occupation, action_id, turn)
+    egypt = _nation(world, 'Egypt')
+    before = _occupation_action_state(world, occupation, egypt)
     held = any(owner == 'Britain' for owner in state['campaign']['territorial_control'].values())
     if not held:
+        _trace_occupation_action(
+            world, action_id=action_id, operation_id=operation_id, turn=turn,
+            success=False, reason='no_foreign_garrison_to_confront',
+            before=before, after=before, details={'foreign_territory_held': False})
         return False, 'There is no foreign garrison to confront.'
-    egypt = _nation(world, 'Egypt')
+    details = {'foreign_territory_held': True}
     if action_id == 'organize_boycott':
         occupation['boycott_until'] = int(world['turn']) + 2
         occupation['resistance'] = min(1.0, occupation['resistance'] + .12)
+        details.update({
+            'resistance_rule': 'min(1.0, resistance_before + 0.12)',
+            'boycott_until_rule': 'turn + 2',
+            'receipt_effect_window_turns': 2})
         message = 'Egyptian merchants boycott occupied customs; receipts available to Britain shrink for two turns.'
     elif action_id == 'call_general_strike':
         occupation['strike_until'] = int(world['turn']) + 2
         occupation['resistance'] = min(1.0, occupation['resistance'] + .15)
         egypt.legitimacy = min(1.0, egypt.legitimacy + .03)
+        details.update({
+            'resistance_rule': 'min(1.0, resistance_before + 0.15)',
+            'strike_until_rule': 'turn + 2',
+            'legitimacy_rule': 'min(1.0, legitimacy_before + 0.03)',
+            'receipt_effect_window_turns': 2})
         message = 'A general strike disrupts occupied tax and customs offices for two turns.'
     elif action_id == 'coordinate_insurgency':
         units = _occupying_units(world)
         if not units:
+            _trace_occupation_action(
+                world, action_id=action_id, operation_id=operation_id, turn=turn,
+                success=False, reason='no_occupation_force_in_reach',
+                before=before, after=before, details=details)
             return False, 'There is no occupation force in reach.'
-        units[0].soldiers = max(0, units[0].soldiers - 3)
+        selected_unit = units[0]
+        unit_id = str(getattr(selected_unit, 'unit_id', 'unknown'))
+        soldiers_before = int(selected_unit.soldiers)
+        selected_unit.soldiers = max(0, selected_unit.soldiers - 3)
         occupation['resistance'] = min(1.0, occupation['resistance'] + .18)
         egypt.legitimacy = max(0.0, egypt.legitimacy - .03)
+        casualties_before = int(state['campaign'].get('civilian_casualties', 0))
         state['campaign']['civilian_casualties'] += 1
+        details.update({
+            'selected_garrison_unit_id': unit_id,
+            'selected_unit_soldiers_before': soldiers_before,
+            'selected_unit_soldiers_after': int(selected_unit.soldiers),
+            'soldier_loss_rule': 'max(0, soldiers_before - 3)',
+            'resistance_rule': 'min(1.0, resistance_before + 0.18)',
+            'legitimacy_rule': 'max(0.0, legitimacy_before - 0.03)',
+            'civilian_casualty_counter_before': casualties_before,
+            'civilian_casualty_counter_after': int(
+                state['campaign']['civilian_casualties']),
+            'civilian_casualty_counter_increment': 1})
         message = 'Insurgents cost the British garrison three troops; one civilian is injured and legitimacy falls.'
     elif action_id == 'collaborate_with_occupation':
         occupation['collaboration'] = min(1.0, occupation['collaboration'] + .25)
         occupation['resistance'] = max(0.0, occupation['resistance'] - .18)
         egypt.legitimacy = max(0.0, egypt.legitimacy - .05)
+        details.update({
+            'collaboration_rule': 'min(1.0, collaboration_before + 0.25)',
+            'resistance_rule': 'max(0.0, resistance_before - 0.18)',
+            'legitimacy_rule': 'max(0.0, legitimacy_before - 0.05)'})
         message = 'Local collaboration calms resistance but reduces Egyptian legitimacy and strengthens occupation.'
     elif action_id == 'negotiate_withdrawal':
         cost = 30.0
         if egypt.government.agent.cash < cost:
+            _trace_occupation_action(
+                world, action_id=action_id, operation_id=operation_id, turn=turn,
+                success=False, reason='insufficient_egyptian_treasury_cash',
+                before=before, after=before,
+                details={**details, 'required_cash': cost,
+                         'egypt_treasury_cash_before': float(
+                             egypt.government.agent.cash),
+                         'cash_paid_now': 0.0})
             return False, 'The treasury needs 30 units for withdrawal terms.'
         if occupation.get('withdrawal_proposal'):
+            _trace_occupation_action(
+                world, action_id=action_id, operation_id=operation_id, turn=turn,
+                success=False, reason='withdrawal_proposal_pending',
+                before=before, after=before,
+                details={**details, 'required_cash': cost,
+                         'existing_proposal': dict(occupation['withdrawal_proposal']),
+                         'egypt_treasury_cash_before': float(
+                             egypt.government.agent.cash),
+                         'cash_paid_now': 0.0})
             return False, 'Britain has not answered the current withdrawal offer.'
         occupation['withdrawal_proposal'] = {'turn': int(world['turn']),
                                              'reply_turn': int(world['turn']) + 1,
                                              'amount': cost}
+        details.update({'required_cash': cost,
+                        'egypt_treasury_cash_before': float(
+                            egypt.government.agent.cash),
+                        'cash_paid_now': 0.0,
+                        'payment_status': 'proposal_only_no_cash_transfer',
+                        'reply_turn': turn + 1})
         message = ('Cairo offers 30 units for a British withdrawal. London answers next turn; '
                    'cash transfers only if it accepts.')
     else:
+        _trace_occupation_action(
+            world, action_id=action_id, operation_id=operation_id, turn=turn,
+            success=False, reason='unknown_occupation_decision',
+            before=before, after=before, details=details)
         return False, 'Unknown occupation decision.'
     _event(world, message)
+    after = _occupation_action_state(world, occupation, egypt)
+    _trace_occupation_action(
+        world, action_id=action_id, operation_id=operation_id, turn=turn,
+        success=True, reason='occupation_action_applied',
+        before=before, after=after, details=details)
     return True, message
