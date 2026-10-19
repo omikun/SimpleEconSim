@@ -256,10 +256,13 @@ tests). They cover no-arrears and no-force gates, exact arrears allocation,
 trace-on/off repression parity and both action-to-source causal chains.
 Compilation and `git diff --check` passed.
 
-Next Phase 3 audit target: review the remaining fiscal and military scenario
-flows in `scenario_projects.py`, `scenario_occupation.py`,
-`scenario_geography.py`, and `scenario_gunboat.py` against the completion-plan
-inventory, then trace the first uncovered active mutation.
+The remaining scenario-project gaps identified by this audit—reserve-recall
+social costs, grain-entitlement policy state, and per-turn delivery outcomes—
+are implemented in the latest progress entry below.
+
+Next Phase 3 audit target: review `scenario_occupation.apply_action` for
+untraced boycott, general-strike, insurgency, and collaboration choices, then
+trace the first uncovered active mutation.
 
 ## Phase 5 — Deliver explanations in web, desktop and CLI
 
@@ -1747,3 +1750,18 @@ for cash, receivership state, and RNG progression. Dedicated tests cover exact
 payments, missing recipients, and unaffordable suspension; the metric-catalog
 audit and imperialism, coercion, phase-4, and hired-agent conservation tests
 passed (13 distinct tests). Compilation and `git diff --check` passed.
+
+Phase 3 follow-up, 2026-10-18: reserve recalls now include explicit already-used
+and insufficient-capacity gates, itemized same-nation cash legs, per-district
+unrest changes, and the national legitimacy reduction. Grain-entitlement
+activation, deactivation, and repeated requests have state events. Each active
+turn records donor/carrier/recipient feasibility, exact food transfers and
+carrier wages, the hunger response, and resulting legitimacy/unrest changes;
+zero-delivery turns state why no transfer was possible. Trace event IDs remain
+outside saved scenario state.
+
+Verification: scenario-project transfer, strategic-project, catalog,
+district-effect, and bargaining suites passed (33 tests). They cover transfer
+contracts, used-gate and zero-delivery cases, operation-level causal links, and
+trace-on/off state parity for reserve recall and grain entitlement. Compilation
+and `git diff --check` passed.

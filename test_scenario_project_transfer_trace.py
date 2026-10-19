@@ -1,3 +1,4 @@
+import copy
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -107,6 +108,84 @@ class ScenarioProjectTransferTraceTests(unittest.TestCase):
             self.assertEqual({leg['inputs']['transfer_contract']['side']
                               for leg in legs}, {'payer', 'payee'})
             self.assertAlmostEqual(sum(leg['after'] for leg in legs), 0.0)
+        action = next(row for row in trace.rows
+                      if row.get('kind') == 'recall_district_reserves_resolved')
+        self.assertEqual(action['after'], 1)
+        self.assertEqual(set(action['cause_event_ids']),
+                         {row['event_id'] for row in rows})
+        self.assertAlmostEqual(action['inputs']['total_transferred'], 70.0)
+        self.assertEqual(action['inputs']['sovereign_cash_before'], 100.0)
+        self.assertEqual(action['inputs']['sovereign_cash_after'], 170.0)
+        self.assertEqual(action['inputs']['legitimacy_before'], 0.8)
+        self.assertEqual(action['inputs']['legitimacy_after'], 0.765)
+        unrest = [row for row in trace.rows
+                  if row.get('kind') == 'district_reserve_recall_unrest']
+        self.assertEqual(len(unrest), 2)
+        self.assertTrue(all(row['before'] == 0.0 and row['after'] == 0.02
+                            for row in unrest))
+        legitimacy = next(row for row in trace.rows
+                          if row.get('kind') == 'district_reserve_recall_legitimacy')
+        self.assertEqual((legitimacy['before'], legitimacy['after']), (0.8, 0.765))
+
+    def test_recall_rejection_records_used_gate(self):
+        trace = MemoryTrace()
+        clock = {'turn': 3, 'phase': 'scenario_projects', 'next': 1}
+        sovereign = SimpleNamespace(agent=SimpleNamespace(cash=100.0))
+        egypt = SimpleNamespace(name='Egypt', currency='EGP', government=sovereign,
+                                tiles=[], legitimacy=0.8)
+        tile = _traced_region('District', egypt, [], trace, clock)
+        tile.gov = SimpleNamespace(agent=SimpleNamespace(cash=70.0))
+        egypt.tiles.append(tile)
+        state = {'reserve_recall_used': True, 'reserve_recall_reports': []}
+        world = {'turn': 3, 'nations': [egypt], 'tiles': [tile],
+                 'scenario_state': {'strategic_projects': state}}
+
+        success, _ = recall_district_reserves(world)
+
+        self.assertFalse(success)
+        event = next(row for row in trace.rows
+                     if row.get('kind') == 'recall_district_reserves_resolved')
+        self.assertEqual(event['after'], 0)
+        self.assertEqual(event['inputs']['reason'], 'recall_already_used')
+        self.assertEqual(egypt.government.agent.cash, 100.0)
+
+    def test_tracing_does_not_change_reserve_recall_state(self):
+        def fixture(traced):
+            trace = MemoryTrace()
+            clock = {'turn': 2, 'phase': 'scenario_projects', 'next': 1}
+            sovereign = SimpleNamespace(agent=SimpleNamespace(cash=100.0))
+            egypt = SimpleNamespace(name='Egypt', currency='EGP', government=sovereign,
+                                    tiles=[], legitimacy=0.8)
+            locals_ = [SimpleNamespace(name='District A',
+                                       agent=SimpleNamespace(cash=70.0)),
+                       SimpleNamespace(name='District B',
+                                       agent=SimpleNamespace(cash=40.0))]
+            tiles = [_traced_region(f'District {index}', egypt, [],
+                                    trace if traced else None, clock)
+                     for index in ('A', 'B')]
+            for tile, government in zip(tiles, locals_):
+                tile.gov = government
+                egypt.tiles.append(tile)
+            state = {'reserve_recall_used': False, 'reserve_recall_reports': []}
+            world = {'turn': 2, 'nations': [egypt], 'tiles': tiles,
+                     'scenario_state': {'strategic_projects': state}}
+            return world, egypt, tiles, locals_, trace, state
+
+        plain = fixture(False)
+        traced = copy.deepcopy(plain)
+        clock = {'turn': 2, 'phase': 'scenario_projects', 'next': 1}
+        for tile in traced[2]:
+            tile._run_trace = traced[4]
+            tile._collective_trace_clock = clock
+        self.assertEqual(recall_district_reserves(plain[0])[0],
+                         recall_district_reserves(traced[0])[0])
+        self.assertEqual(
+            ([plain[1].government.agent.cash, plain[1].legitimacy],
+             [tile.unrest_level for tile in plain[2]],
+             [government.agent.cash for government in plain[3]], plain[5]),
+            ([traced[1].government.agent.cash, traced[1].legitimacy],
+             [tile.unrest_level for tile in traced[2]],
+             [government.agent.cash for government in traced[3]], traced[5]))
 
     def test_central_revenue_remittance_pairs_local_and_cairo_legs(self):
         trace = MemoryTrace()
@@ -176,6 +255,124 @@ class ScenarioProjectTransferTraceTests(unittest.TestCase):
         self.assertIn(wage_row['event_id'], food_row['cause_event_ids'])
         self.assertEqual(owner.inv_get(Goods.food, 0), 18)
         self.assertEqual(recipient.calorie_deficit_kcal, 0)
+        summary = next(row for row in trace.rows
+                       if row.get('kind') == 'grain_entitlement_turn_resolved')
+        self.assertEqual(summary['metric_id'], 'scenario.grain_entitlement')
+        self.assertEqual(summary['after'], 2)
+        self.assertEqual(summary['inputs']['reason'], 'food_delivered')
+        self.assertEqual(summary['cause_event_ids'], [food_row['event_id']])
+        self.assertEqual(summary['inputs']['underfed_households_before'], 1)
+        self.assertEqual(summary['inputs']['underfed_households_after'], 0)
+        self.assertEqual(nation.legitimacy, 0.788)
+        self.assertEqual(tile.unrest_level, 0.004)
+        legitimacy = next(row for row in trace.rows
+                          if row.get('kind') == 'grain_entitlement_legitimacy')
+        self.assertAlmostEqual(legitimacy['before'], 0.8)
+        self.assertAlmostEqual(legitimacy['after'], 0.788)
+        unrest = next(row for row in trace.rows
+                      if row.get('kind') == 'grain_entitlement_unrest')
+        self.assertEqual((unrest['before'], unrest['after']), (0.0, 0.004))
+
+    def test_active_entitlement_records_zero_delivery_reason(self):
+        trace = MemoryTrace()
+        clock = {'turn': 3, 'phase': 'scenario_projects', 'next': 1}
+        owner = _agent(200, 20.0, lord=True)
+        owner.inv_set(Goods.food, 20)
+        carrier = _agent(201, 0.0)
+        recipient = _agent(202, 5.0)
+        recipient.calorie_deficit_kcal = 0.0
+        recipient.last_calories_eaten = 0.0
+        tile = _traced_region('Delta', None, [owner, carrier, recipient],
+                              trace, clock)
+        nation = SimpleNamespace(
+            name='Egypt', currency='EGP', tiles=[tile], legitimacy=0.8,
+            government=SimpleNamespace(agent=SimpleNamespace(cash=50.0)))
+        tile.owner_nation = nation
+        world = {'turn': 3, 'nations': [nation], 'tiles': [tile],
+                 'scenario_state': {
+                     'strategic_projects': {'grain_entitlement_active': True,
+                                            'grain_entitlement_reports': []},
+                     'political_economy': {'warehouse_by_tile': {},
+                                           'private_reserve_by_tile': {},
+                                           'grain_transactions': []}}}
+
+        advance_grain_entitlement(world)
+
+        summary = next(row for row in trace.rows
+                       if row.get('kind') == 'grain_entitlement_turn_resolved')
+        self.assertEqual(summary['after'], 0)
+        self.assertEqual(summary['inputs']['reason'], 'no_underfed_households')
+        self.assertEqual(summary['inputs']['eligible_surplus_donor_count'], 1)
+        self.assertFalse(any(row.get('metric_id') == 'politics.legitimacy'
+                             for row in trace.rows))
+
+    def test_tracing_does_not_change_grain_entitlement_state(self):
+        def fixture(traced):
+            trace = MemoryTrace()
+            clock = {'turn': 3, 'phase': 'scenario_projects', 'next': 1}
+            owner = _agent(400, 20.0, lord=True)
+            owner.inv_set(Goods.food, 20)
+            carrier = _agent(401, 0.0)
+            recipient = _agent(402, 5.0)
+            recipient.calorie_deficit_kcal = CALORIES_PER_FOOD * 2
+            recipient.last_calories_eaten = 0.0
+            tile = _traced_region('Delta', None, [owner, carrier, recipient],
+                                  trace if traced else None, clock)
+            nation = SimpleNamespace(
+                name='Egypt', currency='EGP', tiles=[tile], legitimacy=0.8,
+                government=SimpleNamespace(agent=SimpleNamespace(cash=50.0)))
+            tile.owner_nation = nation
+            state = {'grain_entitlement_active': True,
+                     'grain_entitlement_reports': []}
+            econ = {'warehouse_by_tile': {}, 'private_reserve_by_tile': {},
+                    'grain_transactions': []}
+            world = {'turn': 3, 'nations': [nation], 'tiles': [tile],
+                     'scenario_state': {'strategic_projects': state,
+                                        'political_economy': econ}}
+            return world, nation, tile, owner, carrier, recipient, trace, state, econ
+
+        plain = fixture(False)
+        traced = copy.deepcopy(plain)
+        traced[2]._run_trace = traced[6]
+        traced[2]._collective_trace_clock = {
+            'turn': 3, 'phase': 'scenario_projects', 'next': 1}
+        advance_grain_entitlement(plain[0])
+        advance_grain_entitlement(traced[0])
+        def result(fixture):
+            _world, nation, tile, owner, carrier, recipient, _trace, state, econ = fixture
+            return (nation.government.agent.cash, nation.legitimacy,
+                    tile.unrest_level, owner.cash, owner.inv_get(Goods.food),
+                    carrier.cash, recipient.calorie_deficit_kcal,
+                    recipient.last_calories_eaten, copy.deepcopy(state),
+                    copy.deepcopy(econ))
+        self.assertEqual(result(traced), result(plain))
+
+    def test_grain_entitlement_policy_activation_repeat_and_end_are_logged(self):
+        from scenario_projects import set_grain_entitlement
+
+        trace = MemoryTrace()
+        clock = {'turn': 4, 'phase': 'scenario_action', 'next': 1}
+        worker = _agent(301, 3.0)
+        government = SimpleNamespace(agent=SimpleNamespace(cash=100.0))
+        nation = SimpleNamespace(name='Egypt', currency='EGP', tiles=[], legitimacy=0.8,
+                                 government=government)
+        tile = _traced_region('Delta', nation, [worker], trace, clock)
+        nation.tiles.append(tile)
+        state = {'grain_entitlement_active': False}
+        world = {'turn': 4, 'nations': [nation], 'tiles': [tile],
+                 'scenario_state': {'strategic_projects': state}}
+
+        self.assertTrue(set_grain_entitlement(world, True)[0])
+        self.assertFalse(set_grain_entitlement(world, True)[0])
+        self.assertTrue(set_grain_entitlement(world, False)[0])
+
+        events = [row for row in trace.rows
+                  if row.get('metric_id') == 'scenario.grain_entitlement_policy']
+        self.assertEqual(len(events), 3)
+        self.assertEqual([(row['before'], row['after']) for row in events],
+                         [(0, 1), (1, 1), (1, 0)])
+        self.assertEqual(events[1]['inputs']['reason'],
+                         'policy_already_in_requested_state')
 
 
 if __name__ == '__main__':

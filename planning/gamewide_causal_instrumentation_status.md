@@ -1315,3 +1315,18 @@ district-action, catalog, and actor-account writeoff probes passed (23 tests).
 They cover traced/untraced repression parity, unavailable force, missing
 arrears, exact public writeoff shares, and links from repression/writeoff
 records to the scenario action. Compilation and `git diff --check` passed.
+
+Phase 3 follow-up, 2026-10-18: district reserve recall now records used/empty
+reserve gates, each paired district-to-Cairo cash transfer, per-district unrest,
+and the national legitimacy loss in a linked action summary. Grain-entitlement
+policy activation, deactivation and repeated requests are traced; each active
+turn records its donor/recipient feasibility, conserved food and carrier
+payments, remaining hunger, and the delivery-linked legitimacy and unrest
+changes. Zero-delivery turns identify the unmet eligibility condition. The
+trace event IDs remain local to the recorder and are not stored in campaign
+state.
+
+Verification: project-transfer, strategic-project, catalog, district-effect,
+and bargaining suites passed (33 tests), including compact contract legs,
+delivery and no-delivery cases, reserve gates, and trace-on/off parity for
+recall and food entitlement. Compilation and `git diff --check` passed.

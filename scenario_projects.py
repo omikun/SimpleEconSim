@@ -47,6 +47,27 @@ def _state(world: dict) -> dict:
     return world['scenario_state']['strategic_projects']
 
 
+def _trace_district_action(region, nation, *, action_id, turn, success,
+                           reason, inputs, cause_event_ids=None):
+    if region is None:
+        return None
+    from run_trace import emit
+
+    return emit(
+        region, kind=f'{action_id}_resolved', record_class='outcome',
+        phase='scenario_projects',
+        subject={'type': 'tile', 'id': region.name,
+                 'nation': getattr(nation, 'name', region.name),
+                 'action_id': action_id},
+        metric_id='scenario.district_action', unit='success',
+        before=0, after=int(bool(success)),
+        formula_id='scenario_projects.district_action.v1',
+        inputs={'operation_id': f'{action_id}:{getattr(nation, "name", "unknown")}:{int(turn)}',
+                'action_id': action_id, 'turn': int(turn),
+                'success': bool(success), 'reason': reason, **inputs},
+        cause_event_ids=cause_event_ids)
+
+
 def _nation(world: dict, name: str):
     return next((nation for nation in world['nations'] if nation.name == name), None)
 
@@ -117,6 +138,7 @@ def _record_internal_cash_transfer(region, nation, *, operation_id, kind,
         payee_type, payee_name, currency, subaccount='government_agent.cash',
         balance_before=payee_balance_before, balance_after=payee_balance_after,
         balance_scope='government_agent.cash')
+    event_ids = []
     for side, signed_amount in (('payer', -amount), ('payee', amount)):
         contract = transfer_contract(
             operation_id, kind, side=side, amount=amount,
@@ -124,11 +146,14 @@ def _record_internal_cash_transfer(region, nation, *, operation_id, kind,
             local_cash_leg_amount=amount, local_cash_leg_currency=currency,
             counterparty_leg_status='paired_internal_transfer_same_nation',
             mutation_reference={'turn': turn, 'operation': kind})
-        emit_treasury_leg(
+        event_id = emit_treasury_leg(
             region, kind=f'{kind}_{side}', nation_name=nation.name,
             currency=currency, signed_amount=signed_amount, contract=contract,
             phase='scenario_projects',
             inputs={'turn': turn, 'operation_id': operation_id})
+        if event_id is not None:
+            event_ids.append(event_id)
+    return event_ids
 
 
 def _pay_workers(world: dict, project: dict, amount: float, kind: str) -> bool:
@@ -275,10 +300,44 @@ def advance(world: dict) -> None:
 def set_grain_entitlement(world: dict, active: bool) -> tuple[bool, str]:
     """A continuing food-access decision, paid for by owners and the treasury."""
     state = _state(world)
+    previous = bool(state['grain_entitlement_active'])
+    egypt = _nation(world, 'Egypt')
+    turn = int(world['turn'])
+    trace_region = (egypt.tiles[0] if egypt is not None and egypt.tiles else
+                    next(iter(world.get('tiles', ())), None))
     if state['grain_entitlement_active'] == active:
+        if trace_region is not None:
+            from run_trace import emit
+            emit(
+                trace_region, kind='grain_entitlement_policy_unchanged',
+                record_class='decision', phase='scenario_action',
+                subject={'type': 'nation',
+                         'id': getattr(egypt, 'name', 'Egypt')},
+                metric_id='scenario.grain_entitlement_policy', unit='active',
+                before=int(previous), after=int(previous),
+                formula_id='scenario_projects.grain_entitlement_policy.v1',
+                inputs={'operation_id': (
+                            f'grain-entitlement-policy:{turn}:{int(previous)}:{int(bool(active))}'),
+                        'turn': turn, 'requested_state': bool(active),
+                        'success': False, 'reason': 'policy_already_in_requested_state'})
         return False, ('The grain entitlement is already active.' if active else
                        'The grain entitlement has already ended.')
     state['grain_entitlement_active'] = active
+    if trace_region is not None:
+        from run_trace import emit
+        emit(
+            trace_region, kind='grain_entitlement_policy_changed',
+            record_class='outcome', phase='scenario_action',
+            subject={'type': 'nation', 'id': getattr(egypt, 'name', 'Egypt')},
+            metric_id='scenario.grain_entitlement_policy', unit='active',
+            before=int(previous), after=int(bool(active)),
+            formula_id='scenario_projects.grain_entitlement_policy.v1',
+            inputs={'operation_id': f'grain-entitlement-policy:{turn}:{int(previous)}:{int(bool(active))}',
+                    'turn': turn, 'requested_state': bool(active),
+                    'success': True,
+                    'reason': 'policy_activated' if active else 'policy_deactivated',
+                    'protected_private_stock_rule': '4 if owner is lord else 8',
+                    'carrier_fee_per_food_unit': .05})
     return True, ('Cairo orders a recurring in-kind levy on private maize above protected reserves. '
                   'Carriers are paid from the treasury; holders resist each turn.' if active else
                   'Cairo ends the recurring grain levy and public entitlement.')
@@ -299,17 +358,37 @@ def recall_district_reserves(world: dict) -> tuple[bool, str]:
     """Move already collected district cash to Cairo, once, with local costs."""
     state = _state(world)
     egypt = _nation(world, 'Egypt')
+    turn = int(world['turn'])
+    trace_region = (getattr(egypt, 'tiles', [None])[0]
+                    if egypt is not None and getattr(egypt, 'tiles', None)
+                    else next(iter(world.get('tiles', ())), None))
     if state['reserve_recall_used']:
+        _trace_district_action(
+            trace_region, egypt, action_id='recall_district_reserves', turn=turn,
+            success=False, reason='recall_already_used',
+            inputs={'reserve_recall_used_before': True,
+                    'capacity_available': 0.0})
         return False, 'Cairo has already recalled the district reserves.'
     capacity = reserve_recall_capacity(world)
     if capacity < 1.0:
+        _trace_district_action(
+            trace_region, egypt, action_id='recall_district_reserves', turn=turn,
+            success=False, reason='no_cash_above_protected_reserves',
+            inputs={'reserve_recall_used_before': False,
+                    'capacity_available': float(capacity),
+                    'protected_reserve_per_district': 20.0})
         return False, 'District governments have no cash above their protected operating reserves.'
+    operation_id = f'recall_district_reserves:{getattr(egypt, "name", "Egypt")}:{turn}'
+    sovereign_cash_before = float(egypt.government.agent.cash)
+    legitimacy_before = float(egypt.legitimacy)
     by_government = {}
     for tile in egypt.tiles:
         if tile.gov is not egypt.government:
             by_government.setdefault(id(tile.gov), (tile.gov, []))[1].append(tile)
     remaining = capacity
     receipts = []
+    transfer_event_ids = []
+    district_effects = []
     for gov, tiles in sorted(by_government.values(),
                              key=lambda row: (-float(row[0].agent.cash), row[0].name)):
         amount = round(min(remaining, max(0.0, float(gov.agent.cash) - 20.0)), 6)
@@ -319,20 +398,29 @@ def recall_district_reserves(world: dict) -> tuple[bool, str]:
         payee_before = float(egypt.government.agent.cash)
         gov.agent.cash -= amount
         egypt.government.agent.cash += amount
-        operation_id = (f'reserve-recall:{int(world["turn"])}:{gov.name}:'
-                        f'{payer_before:.6f}:{amount:.6f}')
-        _record_internal_cash_transfer(
-            tiles[0], egypt, operation_id=operation_id,
+        transfer_operation_id = (f'reserve-recall:{turn}:{gov.name}:'
+                                 f'{payer_before:.6f}:{amount:.6f}')
+        operation_event_ids = _record_internal_cash_transfer(
+            tiles[0], egypt, operation_id=transfer_operation_id,
             kind='district_reserve_recall', amount=amount,
             payer_name=gov.name, payer_balance_before=payer_before,
             payer_balance_after=float(gov.agent.cash), payee_name=egypt.name,
             payee_balance_before=payee_before,
             payee_balance_after=float(egypt.government.agent.cash),
-            turn=int(world['turn']))
+            turn=turn)
+        transfer_event_ids.extend(operation_event_ids)
         remaining -= amount
         for tile in tiles:
+            unrest_before = float(getattr(tile, 'unrest_level', 0.0))
             tile.unrest_level = min(1.0, float(getattr(tile, 'unrest_level', 0.0)) + .02)
-        receipts.append({'operation_id': operation_id,
+            district_effects.append({
+                'district': tile.name, 'unrest_before': unrest_before,
+                'unrest_after': float(tile.unrest_level),
+                'unrest_increase': float(tile.unrest_level) - unrest_before,
+                'unrest_increment_capped_at': 1.0,
+                'transfer_operation_id': transfer_operation_id,
+                'cause_event_ids': operation_event_ids})
+        receipts.append({'operation_id': transfer_operation_id,
                          'districts': [getattr(tile, 'scenario_location', tile.name)
                                         for tile in tiles],
                          'amount': amount, 'collector': gov.name})
@@ -343,6 +431,54 @@ def recall_district_reserves(world: dict) -> tuple[bool, str]:
     state['reserve_recall_reports'].append({'turn': int(world['turn']),
                                            'total': transferred, 'districts': receipts})
     egypt.legitimacy = max(0.0, float(egypt.legitimacy) - .035)
+    from run_trace import emit
+    for effect in district_effects:
+        tile = next((candidate for candidate in egypt.tiles
+                     if candidate.name == effect['district']), None)
+        if tile is None:
+            continue
+        unrest_event_id = emit(
+            tile, kind='district_reserve_recall_unrest',
+            record_class='outcome', phase='scenario_projects',
+            subject={'type': 'tile', 'id': tile.name, 'nation': egypt.name},
+            metric_id='politics.unrest_level', unit='ratio',
+            before=effect['unrest_before'], after=effect['unrest_after'],
+            formula_id='scenario_projects.reserve_recall_unrest.v1',
+            inputs={'operation_id': operation_id,
+                    'transfer_operation_id': effect['transfer_operation_id'],
+                    'action_id': 'recall_district_reserves',
+                    'turn': turn, 'unrest_increment': .02},
+            cause_event_ids=effect['cause_event_ids'] or None)
+        if unrest_event_id is not None:
+            effect['unrest_event_id'] = unrest_event_id
+    legitimacy_event_id = emit(
+        trace_region, kind='district_reserve_recall_legitimacy',
+        record_class='outcome', phase='scenario_projects',
+        subject={'type': 'nation', 'id': egypt.name},
+        metric_id='politics.legitimacy', unit='ratio',
+        before=legitimacy_before, after=float(egypt.legitimacy),
+        formula_id='scenario_projects.reserve_recall_legitimacy.v1',
+        inputs={'operation_id': operation_id, 'action_id': 'recall_district_reserves',
+                'turn': turn, 'requested_decrease': .035,
+                'applied_decrease': legitimacy_before - float(egypt.legitimacy)},
+        cause_event_ids=transfer_event_ids or None)
+    _trace_district_action(
+        trace_region, egypt, action_id='recall_district_reserves', turn=turn,
+        success=True, reason='district_reserves_recalled',
+        inputs={'capacity_available': float(capacity),
+                'total_transferred': transferred,
+                'protected_reserve_per_district': 20.0,
+                'transfer_operation_ids': [receipt['operation_id']
+                                           for receipt in receipts],
+                'transfer_event_ids': transfer_event_ids,
+                'district_receipts': receipts,
+                'district_effects': district_effects,
+                'sovereign_cash_before': sovereign_cash_before,
+                'sovereign_cash_after': float(egypt.government.agent.cash),
+                'legitimacy_before': legitimacy_before,
+                'legitimacy_after': float(egypt.legitimacy),
+                'legitimacy_event_id': legitimacy_event_id},
+        cause_event_ids=transfer_event_ids or None)
     return True, (f'Called {transferred:.1f} already-collected treasury units from district governments '
                   'to Cairo. Local budgets retain 20 each; district unrest and political resentment rise.')
 
@@ -356,7 +492,16 @@ def advance_grain_entitlement(world: dict) -> None:
     if egypt is None:
         return
     turn = int(world['turn'])
+    operation_id = f'grain-entitlement-turn:{egypt.name}:{turn}'
     treasury = egypt.government.agent
+    treasury_cash_before = float(treasury.cash)
+    legitimacy_before = float(egypt.legitimacy)
+    deficit_households_before = sum(
+        deficit_fraction(agent) > 0
+        for tile in egypt.tiles for agent in _workers(tile, len(tile.agents)))
+    unrest_before_by_tile = {
+        tile.name: float(getattr(tile, 'unrest_level', 0.0))
+        for tile in egypt.tiles}
     carriers = {tile.name: (_workers(tile, 1) or [None])[0] for tile in egypt.tiles}
     donors = sorted(((tile, agent) for tile in egypt.tiles for agent in tile.agents
                      if carriers[tile.name] is not None
@@ -366,12 +511,15 @@ def advance_grain_entitlement(world: dict) -> None:
                      and not getattr(agent, 'is_trader', False)
                      and agent.inv_get(Goods.food, 0) > (4 if getattr(agent, 'is_lord', False) else 8)),
                     key=lambda row: (-row[1].inv_get(Goods.food, 0), row[1].id))
+    eligible_surplus_donor_count = len(donors)
     recipients = sorted((agent for tile in egypt.tiles for agent in _workers(tile, len(tile.agents))
                          if deficit_fraction(agent) > 0),
                         key=lambda agent: (-deficit_fraction(agent), float(agent.cash), agent.id))
     moved = helped = 0
     transport_paid = 0.0
     payment_sequence = 0
+    food_transfer_event_ids = []
+    transfer_operations = []
     economy = world['scenario_state']['political_economy']
     for person in recipients:
         need = ceil(float(person.calorie_deficit_kcal) / CALORIES_PER_FOOD)
@@ -403,6 +551,7 @@ def advance_grain_entitlement(world: dict) -> None:
             payment_sequence += 1
             grain_transfer_id = (f'grain-entitlement:{turn}:{tile.name}:{owner.id}:'
                                  f'{person.id}:{payment_sequence}')
+            transfer_operations.append(grain_transfer_id)
             carrier_event_id = _record_person_cash_payment(
                 tile, egypt, operation_id=f'{grain_transfer_id}:carrier-wage',
                 kind='grain_carrier_wage', amount=fee, person=carrier,
@@ -417,24 +566,27 @@ def advance_grain_entitlement(world: dict) -> None:
             eaten_before = float(person.last_calories_eaten)
             feed_emergency_meal(person, units)
             from run_trace import emit
-            emit(tile, kind='grain_entitlement_food_transfer',
-                 record_class='transfer', phase='scenario_projects',
-                 subject={'type': 'agent', 'id': person.id},
-                 metric_id='goods.food_entitlement_transfer', unit='food_units',
-                 after=units,
-                 inputs={'operation_id': grain_transfer_id,
-                         'food_owner_id': owner.id,
-                         'food_recipient_id': person.id,
-                         'carrier_id': carrier.id,
-                         'source_tile': tile.name,
-                         'source_inventory_before': owner_food_before,
-                         'source_inventory_after': int(owner.inv_get(Goods.food, 0)),
-                         'recipient_deficit_before_kcal': deficit_before,
-                         'recipient_deficit_after_kcal': float(person.calorie_deficit_kcal),
-                         'recipient_calories_eaten_before': eaten_before,
-                         'recipient_calories_eaten_after': float(person.last_calories_eaten),
-                         'carrier_wage_operation_id': f'{grain_transfer_id}:carrier-wage'},
-                 cause_event_ids=[carrier_event_id] if carrier_event_id else None)
+            food_event_id = emit(
+                tile, kind='grain_entitlement_food_transfer',
+                record_class='transfer', phase='scenario_projects',
+                subject={'type': 'agent', 'id': person.id},
+                metric_id='goods.food_entitlement_transfer', unit='food_units',
+                after=units,
+                inputs={'operation_id': grain_transfer_id,
+                        'food_owner_id': owner.id,
+                        'food_recipient_id': person.id,
+                        'carrier_id': carrier.id,
+                        'source_tile': tile.name,
+                        'source_inventory_before': owner_food_before,
+                        'source_inventory_after': int(owner.inv_get(Goods.food, 0)),
+                        'recipient_deficit_before_kcal': deficit_before,
+                        'recipient_deficit_after_kcal': float(person.calorie_deficit_kcal),
+                        'recipient_calories_eaten_before': eaten_before,
+                        'recipient_calories_eaten_after': float(person.last_calories_eaten),
+                        'carrier_wage_operation_id': f'{grain_transfer_id}:carrier-wage'},
+                cause_event_ids=[carrier_event_id] if carrier_event_id else None)
+            if food_event_id is not None:
+                food_transfer_event_ids.append(food_event_id)
             moved += units
             received += units
             need -= units
@@ -448,17 +600,86 @@ def advance_grain_entitlement(world: dict) -> None:
             helped += 1
         if not donors or treasury.cash < .05:
             break
+    legitimacy_event_id = None
+    unrest_event_ids = []
     if moved:
         egypt.legitimacy = max(0.0, float(egypt.legitimacy) - .012)
+        from run_trace import emit
+        legitimacy_event_id = emit(
+            egypt.tiles[0], kind='grain_entitlement_legitimacy',
+            record_class='outcome', phase='scenario_projects',
+            subject={'type': 'nation', 'id': egypt.name},
+            metric_id='politics.legitimacy', unit='ratio',
+            before=legitimacy_before, after=float(egypt.legitimacy),
+            formula_id='scenario_projects.grain_entitlement_legitimacy.v1',
+            inputs={'operation_id': operation_id, 'turn': turn,
+                    'food_units_moved': int(moved),
+                    'requested_decrease': .012,
+                    'applied_decrease': legitimacy_before - float(egypt.legitimacy)},
+            cause_event_ids=food_transfer_event_ids or None)
         for tile in egypt.tiles:
+            unrest_before = unrest_before_by_tile[tile.name]
             tile.unrest_level = min(1.0, float(getattr(tile, 'unrest_level', 0.0)) + .004)
-    state['grain_entitlement_reports'].append({
+            unrest_event_id = emit(
+                tile, kind='grain_entitlement_unrest',
+                record_class='outcome', phase='scenario_projects',
+                subject={'type': 'tile', 'id': tile.name, 'nation': egypt.name},
+                metric_id='politics.unrest_level', unit='ratio',
+                before=unrest_before, after=float(tile.unrest_level),
+                formula_id='scenario_projects.grain_entitlement_unrest.v1',
+                inputs={'operation_id': operation_id, 'turn': turn,
+                        'food_units_moved': int(moved),
+                        'requested_increase': .004,
+                        'applied_increase': float(tile.unrest_level) - unrest_before},
+                cause_event_ids=food_transfer_event_ids or None)
+            if unrest_event_id is not None:
+                unrest_event_ids.append(unrest_event_id)
+    underfed_after = sum(
+        deficit_fraction(agent) > 0
+        for tile in egypt.tiles for agent in _workers(tile, len(tile.agents)))
+    report = {
         'turn': turn, 'units': moved, 'households_reached': helped,
         'transport_wages': round(transport_paid, 2),
-        'remaining_underfed': sum(deficit_fraction(agent) > 0
-                                  for tile in egypt.tiles
-                                  for agent in _workers(tile, len(tile.agents))),
-    })
+        'remaining_underfed': underfed_after}
+    state['grain_entitlement_reports'].append(report)
+    trace_region = egypt.tiles[0] if egypt.tiles else None
+    if trace_region is not None:
+        from run_trace import emit
+        if moved:
+            reason = 'food_delivered'
+        elif not deficit_households_before:
+            reason = 'no_underfed_households'
+        elif not donors:
+            reason = 'no_surplus_donor_with_available_carrier'
+        elif treasury_cash_before < .05:
+            reason = 'treasury_below_minimum_carrier_fee'
+        else:
+            reason = 'no_food_units_delivered'
+        emit(
+            trace_region, kind='grain_entitlement_turn_resolved',
+            record_class='outcome', phase='scenario_projects',
+            subject={'type': 'nation', 'id': egypt.name},
+            metric_id='scenario.grain_entitlement', unit='food_units',
+            before=0, after=int(moved),
+            formula_id='scenario_projects.grain_entitlement_delivery.v1',
+            inputs={'operation_id': operation_id, 'turn': turn, 'active': True,
+                    'reason': reason,
+                    'eligible_surplus_donor_count': eligible_surplus_donor_count,
+                    'available_carrier_tiles': [name for name, carrier in carriers.items()
+                                                if carrier is not None],
+                    'underfed_households_before': int(deficit_households_before),
+                    'households_reached': int(helped),
+                    'underfed_households_after': int(underfed_after),
+                    'food_units_moved': int(moved),
+                    'transport_wages_paid': float(transport_paid),
+                    'treasury_cash_before': treasury_cash_before,
+                    'treasury_cash_after': float(treasury.cash),
+                    'transfer_operations': transfer_operations,
+                    'food_transfer_event_ids': food_transfer_event_ids,
+                    'legitimacy_event_id': legitimacy_event_id,
+                    'unrest_event_ids': unrest_event_ids,
+                    'report': report},
+            cause_event_ids=food_transfer_event_ids or None)
 
 
 def allocate_revenue(world: dict, government, source: str, net: float, turn: int) -> float:
