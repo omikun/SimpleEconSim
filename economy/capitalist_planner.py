@@ -426,11 +426,11 @@ class EliteCapitalistPlanner:
             if proposal:
                 active_plan['status'] = proposal['status']
                 active_plan['outcome_turn'] = t
+        from run_trace import emit
         options = self._input_control_options(agent, region)
         viable = [row for row in options if row.get('feasible') and row.get('score', 0) > .08]
         if not viable:
             if options:
-                from run_trace import emit
                 emit(region, kind='supply_strategy_decision', record_class='decision',
                      subject={'type': 'agent', 'id': agent.id},
                      metric_id='market.supply_strategy', unit='candidate',
@@ -443,9 +443,30 @@ class EliteCapitalistPlanner:
                                     {'advance_offtake': 0, 'lease_input_land': 1,
                                      'exclusive_processing_charter': 2}.get(row['candidate'], 9)))
         best = viable[0]
+        decision_event_id = emit(region, kind='supply_strategy_decision', record_class='decision',
+                                 subject={'type': 'agent', 'id': agent.id},
+                                 metric_id='market.supply_strategy', unit='candidate',
+                                 after=best['candidate'],
+                                 formula_id='supply.incremental_owner_value.v1',
+                                 inputs={'candidates': options, 'selected': best['candidate'],
+                                         'runner_up': viable[1]['candidate'] if len(viable) > 1
+                                         else 'spot_or_route',
+                                         'action_stage': 'before_execution'})
+        cause_event_ids = [decision_event_id] if decision_event_id is not None else None
+
+        def record_submission_failure():
+            emit(region, kind='supply_strategy_outcome', record_class='outcome',
+                 subject={'type': 'agent', 'id': agent.id},
+                 metric_id='market.supply_strategy_outcome', unit='status',
+                 after='submission_failed', formula_id='supply.action_submission.v1',
+                 cause_event_ids=cause_event_ids,
+                 inputs={'candidate': best['candidate'],
+                         'reason': 'proposal validation or duplicate-offer gate blocked submission'})
+
         good = next(g for g in region.recipes if g.name == best['good'])
         if best['candidate'] == 'reduce_or_pause_output':
             worker_ids = []
+            max_employees_before = int(getattr(agent, 'max_employees', 0))
             for worker in list(getattr(agent, 'employees', [])):
                 worker_ids.append(worker.id)
                 if getattr(worker, 'employer', None) is agent:
@@ -458,7 +479,15 @@ class EliteCapitalistPlanner:
             agent.max_employees = 0
             agent.supply_pause_until = t + 5
             details = {'worker_ids': worker_ids, 'resume_turn': t + 5,
-                       'estimated_margin': best['estimated_margin']}
+                       'estimated_margin': best['estimated_margin'],
+                       'max_employees_before': max_employees_before,
+                       'max_employees_after': int(agent.max_employees)}
+            emit(region, kind='supply_strategy_outcome', record_class='outcome',
+                 subject={'type': 'agent', 'id': agent.id},
+                 metric_id='market.supply_strategy_outcome', unit='status',
+                 before='operating', after='output_paused',
+                 formula_id='supply.output_pause.v1', cause_event_ids=cause_event_ids,
+                 inputs={'candidate': best['candidate'], **details})
         elif best['candidate'] == 'advance_offtake':
             grower = next(a for a in region.agents if a.id == best['grower_id'])
             from supply_proposals import propose
@@ -466,8 +495,10 @@ class EliteCapitalistPlanner:
                                turn=t, price=best['advance'], due_turn=t + 2,
                                plot_id=best['plot_id'], good=best['good'],
                                quantity=best['quantity'], unit_price=best['unit_price'],
-                               max_price=best['advance'])
+                               max_price=best['advance'],
+                               cause_event_ids=cause_event_ids)
             if proposal is None:
+                record_submission_failure()
                 return None
             details = proposal
         elif best['candidate'] == 'acquire_water_right':
@@ -476,8 +507,10 @@ class EliteCapitalistPlanner:
             proposal = propose(region, 'water_right', agent, seller, turn=t,
                                price=best['price'], units=best['units'],
                                from_plot_id=best['from_plot_id'],
-                               to_plot_id=best['to_plot_id'], max_price=best['price'] * 1.25)
+                               to_plot_id=best['to_plot_id'], max_price=best['price'] * 1.25,
+                               cause_event_ids=cause_event_ids)
             if proposal is None:
+                record_submission_failure()
                 return None
             details = proposal
         elif best['candidate'] == 'lease_input_land':
@@ -485,15 +518,19 @@ class EliteCapitalistPlanner:
             from supply_proposals import propose
             proposal = propose(region, 'land_lease', agent, seller, turn=t,
                                price=best['price'], plot_id=best['plot_id'],
-                               lease_turns=10, max_price=best['price'] * 1.25)
+                               lease_turns=10, max_price=best['price'] * 1.25,
+                               cause_event_ids=cause_event_ids)
             if proposal is None:
+                record_submission_failure()
                 return None
             details = proposal
         else:
             from market_concessions import submit_concession_petition
             petition = submit_concession_petition(agent, region, good, 'exclusive_processing',
-                                                   best['fee'], best['term_turns'], t)
+                                                   best['fee'], best['term_turns'], t,
+                                                   cause_event_ids=cause_event_ids)
             if petition is None:
+                record_submission_failure()
                 return None
             details = petition
         self._active_plans[agent.id] = {'candidate': best['candidate'],
@@ -505,14 +542,6 @@ class EliteCapitalistPlanner:
                                                                    'lease_input_land') else None,
                                         'budget': best.get('advance', best.get('price', best.get('fee', 0))),
                                         'status': 'active'}
-        from run_trace import emit
-        emit(region, kind='supply_strategy_decision', record_class='decision',
-             subject={'type': 'agent', 'id': agent.id},
-             metric_id='market.supply_strategy', unit='candidate',
-             after=best['candidate'], formula_id='supply.incremental_owner_value.v1',
-             inputs={'candidates': options, 'selected': best['candidate'],
-                     'runner_up': viable[1]['candidate'] if len(viable) > 1 else 'spot_or_route',
-                     'details': details})
         return {'action_taken': best['candidate'].upper(), 'details': details,
                 'selected_score': best['score'], 'candidate_options': options}
 

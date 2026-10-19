@@ -415,3 +415,10 @@ already fun or balanced; that still needs player feedback.
   events. Snapshots omit unchanged and zero-count categories to keep the new
   series compact.
 - `MPLCONFIGDIR=/private/tmp/profession-population-tests venv/bin/python -m unittest test_run_trace test_person_flows test_web_server test_trade_route_epidemic_transmission` — 68 tests passed. In a seeded five-turn default-world run, the profession series emitted 182 events (113 changed snapshots), had no unexplained changes, and matched each tile's `total_population` history exactly. Targeted compilation and `git diff --check` passed.
+- Corporate supply-control traces now link the ranked strategy to its advance,
+  land, water, or charter submission and to the later negotiation or public
+  decision. Failed submissions and output pauses produce explicit outcomes;
+  pause evidence names released workers and the workforce-cap change.
+- The supply-control actor suite passed 48 tests, trace/catalog tests passed
+  37, and planner-gate/supply-rights tests passed 24. Python compilation and
+  `git diff --check` passed.

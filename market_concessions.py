@@ -4,7 +4,8 @@ from goods import Goods
 CHARTER_TYPES = frozenset({'exclusive_buying', 'exclusive_processing', 'exclusive_route'})
 
 
-def submit_concession_petition(sponsor, region, good, charter_type, fee, term_turns, turn):
+def submit_concession_petition(sponsor, region, good, charter_type, fee, term_turns, turn,
+                               cause_event_ids=None):
     if (charter_type not in CHARTER_TYPES or good not in getattr(region, 'recipes', {})
             or sponsor.cash < fee or getattr(region, 'gov', None) is None):
         return None
@@ -28,7 +29,8 @@ def submit_concession_petition(sponsor, region, good, charter_type, fee, term_tu
                 'good': getattr(good, 'value', str(good)), 'type': charter_type,
                 'sponsor_id': sponsor.id, 'fee': fee, 'requested_turn': int(turn),
                 'decision_turn': int(turn) + 1, 'term_turns': term_turns,
-                'status': 'proposed'}
+                'status': 'proposed',
+                'planner_decision_event_ids': list(cause_event_ids or ())}
     competitors = [a.id for a in getattr(region, 'agents', []) if a.id != sponsor.id
                    and getattr(a, 'alive', True) and (getattr(a, 'is_corporation', False)
                    or getattr(a, 'is_trader', False))]
@@ -49,10 +51,10 @@ def submit_concession_petition(sponsor, region, good, charter_type, fee, term_tu
     region._next_concession_id = petition['id'] + 1
     region.concession_petitions.append(petition)
     from run_trace import emit
-    emit(region, kind='market_concession_petition', record_class='decision',
+    petition['petition_event_id'] = emit(region, kind='market_concession_petition', record_class='decision',
          subject={'type': 'agent', 'id': sponsor.id}, metric_id='market.charter_petition',
          unit='petition', after=petition['id'], formula_id='charter.petition_fee.v1',
-         inputs=petition)
+         inputs=dict(petition), cause_event_ids=cause_event_ids)
     return petition
 
 
@@ -99,7 +101,10 @@ def decide_concession_petitions(region, turn):
             charter = {k: petition[k] for k in ('id', 'good', 'type', 'sponsor_id', 'term_turns')}
             charter.update({'start_turn': int(turn), 'expiry_turn': int(turn) + petition['term_turns'],
                             'enforcement': max(.0, min(1.0, float(getattr(region, 'concession_enforcement', .65)))),
-                            'status': 'active'})
+                            'status': 'active',
+                            'petition_event_id': petition.get('petition_event_id'),
+                            'planner_decision_event_ids': list(
+                                petition.get('planner_decision_event_ids') or ())})
             region.market_charters.append(charter)
         else:
             charter = None
@@ -129,10 +134,19 @@ def decide_concession_petitions(region, turn):
             events.append(event)
     from run_trace import emit
     for event in events:
+        petition = next((p for p in region.concession_petitions
+                         if p['id'] == event.get('petition_id')), None)
+        charter = next((c for c in getattr(region, 'market_charters', [])
+                        if c['id'] == event.get('charter_id')), None)
+        source = petition or charter or {}
+        cause_event_ids = ([source['petition_event_id']]
+                           if source.get('petition_event_id') else [])
+        cause_event_ids.extend(source.get('planner_decision_event_ids') or ())
         emit(region, kind='market_concession_decision', record_class='outcome',
              subject={'type': 'charter', 'id': event.get('petition_id', event.get('charter_id'))},
              metric_id='market.charter_status', unit='status', after=event['status'],
-             formula_id='charter.public_interest_screen.v1', inputs=event)
+             formula_id='charter.public_interest_screen.v1', inputs=event,
+             cause_event_ids=cause_event_ids or None)
     return events
 
 

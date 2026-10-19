@@ -2061,3 +2061,18 @@ binding. This makes newly added chart series fail early if the Nation view
 cannot supply their history.
 
 Verification: all 10 frontend tests passed with the inventory assertion.
+
+## Phase 4 follow-up — Link corporate supply-control choices to outcomes (implemented)
+
+The live corporate input-control ranking is now recorded before action. Its
+event ID links to advance, land-lease, water-right, and processing-charter
+submissions, then to their later negotiation or government decisions. Failed
+submissions now have an explicit outcome record. Output pauses record released
+workers, the workforce cap change, estimated margin, and resume turn, linked to
+the choice that caused them.
+
+Verification: trace fixtures confirm strategy → offer → settlement and strategy
+→ petition → charter-decision links, plus a linked output-pause workforce
+outcome. The supply-control suite passed 48 tests; trace and metric-catalog
+suites passed 37; planner-gate and supply-rights suites passed 24. Python
+compilation and `git diff --check` passed.

@@ -73,7 +73,7 @@ def _valid(region, proposal):
     return True, 'eligible'
 
 
-def propose(region, kind, buyer, seller, *, turn, price, **terms):
+def propose(region, kind, buyer, seller, *, turn, price, cause_event_ids=None, **terms):
     """Create an offer without moving money, goods, debt, title, or water."""
     if kind not in TYPES or buyer is None or seller is None:
         return None
@@ -84,7 +84,8 @@ def propose(region, kind, buyer, seller, *, turn, price, **terms):
                 'seller_name': getattr(seller, 'display_name', None) or f'Actor {seller.id}',
                 'created_turn': int(turn), 'decision_turn': int(turn) + 1,
                 'expiry_turn': int(turn) + 3, 'price': max(0.0, float(price)),
-                'status': 'proposed', 'round': 0, **terms}
+                'status': 'proposed', 'round': 0,
+                'planner_decision_event_ids': list(cause_event_ids or ()), **terms}
     key = (kind, seller.id, proposal.get('plot_id', proposal.get('from_plot_id')))
     if any((p['kind'], p['seller_id'], p.get('plot_id', p.get('from_plot_id'))) == key
            and p['status'] in ('proposed', 'countered')
@@ -96,10 +97,11 @@ def propose(region, kind, buyer, seller, *, turn, price, **terms):
     region._next_supply_proposal_id = proposal['id'] + 1
     region.supply_proposals = (getattr(region, 'supply_proposals', []) + [proposal])[-300:]
     from run_trace import emit
-    emit(region, kind='supply_offer', record_class='decision',
+    proposal['offer_event_id'] = emit(region, kind='supply_offer', record_class='decision',
          subject={'type': 'agent', 'id': buyer.id},
          metric_id='market.supply_offer', unit='proposal', after=proposal['id'],
-         formula_id='supply.offer.v1', inputs=dict(proposal))
+         formula_id='supply.offer.v1', inputs=dict(proposal),
+         cause_event_ids=cause_event_ids)
     return proposal
 
 
@@ -228,6 +230,9 @@ def decide(region, turn):
              subject={'type': 'proposal', 'id': proposal['id']},
              metric_id='market.supply_offer_status', unit='status',
              after=proposal['status'], formula_id='supply.reservation_decision.v1',
-             inputs={**event, 'reservation_basis': proposal.get('reservation_basis')})
+             inputs={**event, 'reservation_basis': proposal.get('reservation_basis')},
+             cause_event_ids=([proposal['offer_event_id']]
+                              if proposal.get('offer_event_id') else [])
+             + list(proposal.get('planner_decision_event_ids') or ()))
     region.supply_proposal_events = (getattr(region, 'supply_proposal_events', []) + outcomes)[-300:]
     return outcomes

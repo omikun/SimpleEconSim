@@ -1078,6 +1078,23 @@ class SupplyProposalTests(unittest.TestCase):
 
 
 class SupplyStrategyTests(unittest.TestCase):
+    def _attach_trace(self, region):
+        class Recorder:
+            def __init__(self):
+                self.rows = []
+
+            def emit(self, clock, **row):
+                event_id = f"test-run:{clock['next']}"
+                clock['next'] += 1
+                row.update({'event_id': event_id, 'turn': clock['turn']})
+                self.rows.append(row)
+                return event_id
+
+        recorder = Recorder()
+        region._collective_trace_clock = {'turn': 5, 'next': 1, 'phase': 'economy'}
+        region._run_trace = recorder
+        return recorder
+
     def _world(self, grower_cash):
         region = Region()
         region.recipes = {Goods.food: {'price': 2.0},
@@ -1112,6 +1129,78 @@ class SupplyStrategyTests(unittest.TestCase):
         self.assertEqual(action['action_taken'], 'ADVANCE_OFFTAKE')
         self.assertEqual(region.supply_proposals[0]['status'], 'proposed')
         self.assertEqual(mill.cash, 100)
+
+    def test_selected_strategy_links_offer_and_settlement(self):
+        region, grower, mill = self._world(0)
+        trace = self._attach_trace(region)
+        action = EliteCapitalistPlanner()._execute_input_control(mill, region, 5)
+        self.assertEqual(action['action_taken'], 'ADVANCE_OFFTAKE')
+        strategy = next(row for row in trace.rows
+                        if row['kind'] == 'supply_strategy_decision')
+        offer = next(row for row in trace.rows if row['kind'] == 'supply_offer')
+        self.assertEqual(offer['cause_event_ids'], [strategy['event_id']])
+
+        decide(region, 6)
+        outcome = next(row for row in trace.rows
+                       if row['kind'] == 'supply_offer_decision')
+        self.assertEqual(outcome['after'], 'settled')
+        self.assertEqual(outcome['cause_event_ids'],
+                         [offer['event_id'], strategy['event_id']])
+        self.assertEqual((mill.cash, grower.cash), (90, 10))
+
+    def test_output_pause_has_linked_workforce_outcome(self):
+        region, grower, mill = self._world(0)
+        region.recipes[Goods.cloth]['price'] = 1.0
+        region.recipes[Goods.cloth]['production'] = 1
+        worker = Person(9, 0)
+        worker.employer = mill
+        mill.employees = [worker]
+        mill.max_employees = 3
+        mill.wage = 3.0
+        trace = self._attach_trace(region)
+
+        action = EliteCapitalistPlanner()._execute_input_control(mill, region, 5)
+        self.assertEqual(action['action_taken'], 'REDUCE_OR_PAUSE_OUTPUT')
+        strategy = next(row for row in trace.rows
+                        if row['kind'] == 'supply_strategy_decision')
+        outcome = next(row for row in trace.rows
+                       if row['kind'] == 'supply_strategy_outcome')
+        self.assertEqual(outcome['after'], 'output_paused')
+        self.assertEqual(outcome['cause_event_ids'], [strategy['event_id']])
+        self.assertEqual(outcome['inputs']['worker_ids'], [worker.id])
+        self.assertEqual(outcome['inputs']['max_employees_before'], 3)
+        self.assertEqual(outcome['inputs']['max_employees_after'], 0)
+
+    def test_charter_resolution_links_back_to_sponsor_strategy(self):
+        from market_concessions import (decide_concession_petitions,
+                                        submit_concession_petition)
+        region = Region()
+        region.recipes[Goods.cotton] = {'price': 5.0}
+        government, sponsor = Person(20, 100), Person(21, 100)
+        region.gov = SimpleNamespace(agent=government)
+        region.agents = [government, sponsor]
+        region.government_legitimacy = .8
+        trace = self._attach_trace(region)
+        from run_trace import emit
+        strategy_id = emit(region, kind='supply_strategy_decision',
+                           record_class='decision',
+                           subject={'type': 'agent', 'id': sponsor.id},
+                           metric_id='market.supply_strategy', unit='candidate',
+                           after='exclusive_processing_charter')
+
+        petition = submit_concession_petition(
+            sponsor, region, Goods.cotton, 'exclusive_processing', 10, 10, 5,
+            cause_event_ids=[strategy_id])
+        petition_event = next(row for row in trace.rows
+                              if row['kind'] == 'market_concession_petition')
+        self.assertEqual(petition_event['cause_event_ids'], [strategy_id])
+        self.assertEqual(petition['petition_event_id'], petition_event['event_id'])
+
+        decide_concession_petitions(region, 6)
+        outcome = next(row for row in trace.rows
+                       if row['kind'] == 'market_concession_decision')
+        self.assertEqual(outcome['cause_event_ids'],
+                         [petition_event['event_id'], strategy_id])
 
     def test_negative_unit_margin_pauses_and_releases_workers(self):
         region, grower, mill = self._world(0)
