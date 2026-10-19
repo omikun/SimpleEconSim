@@ -1644,6 +1644,26 @@
           <strong>${escapeHtml(card.value)}</strong>
           <p>${escapeHtml(card.cause)}</p>
         </section>`).join('');
+      const marketSeries = (sc.market_history || []).flatMap(market =>
+        ['cotton', 'cloth'].map(good => {
+          const points = (market.markets?.[good] || []).slice(-5);
+          const latest = points[points.length - 1];
+          const label = good === 'cotton' ? 'Cotton to mills' : 'Cloth to households';
+          const values = points.map(point => {
+            const price = point.price == null
+              ? ['mixed_currency_basis', 'counterparty_currency_mismatch']
+                  .includes(point.price_unavailable_reason)
+                ? 'mixed currencies' : 'no trade'
+              : `${Number(point.price).toFixed(2)} ${market.currency || ''}`.trim();
+            return `<span title="${escapeHtml(`${label}, turn ${point.turn}: ${price}; ${point.quantity} units`)}">T${Number(point.turn)} ${escapeHtml(price)}</span>`;
+          }).join(' · ');
+          const metric = latest?.trace_metric_id || 'goods.scenario_market_coverage';
+          const turn = latest?.turn ?? Number(sc.turn || 0);
+          return `<div class="labor-market-line">
+            <span><strong>${escapeHtml(market.nation)}</strong> ${escapeHtml(label)}<small>${values || 'No settled trades yet'}</small></span>
+            <button type="button" class="labor-market-explain" data-nation="${escapeHtml(market.nation)}" data-good="${good}" data-metric="${escapeHtml(metric)}" data-turn="${Number(turn)}" ${latest ? '' : 'disabled'}>Explain</button>
+          </div>`;
+        })).join('');
       const districts = (sc.districts || []).map(d =>
         `<span class="labor-district" title="${escapeHtml(d.people)} residents, ${escapeHtml(d.commons_rights)} usable commons rights">
           ${escapeHtml(d.name)} · ${escapeHtml(d.owner)} · ${escapeHtml(d.units)} soldiers</span>`).join('');
@@ -1669,6 +1689,7 @@
           ${laborPanelCollapsed ? '' : `<div class="labor-scenario-scroll">
             <p class="labor-mandate">${escapeHtml(sc.mandate || '')}</p>
             ${debrief || `${cards}<div class="labor-districts">${districts}</div>
+              <h4>Paid market prices · last five turns</h4><div class="labor-market-history">${marketSeries || '<p class="labor-market-empty">No settled scenario trades yet.</p>'}</div>
               <h4>One decision this turn</h4><div class="labor-actions">${actions}</div>
               <h4>Recent consequences</h4><ol class="labor-timeline">${timeline}</ol>`}
           </div>`}
@@ -1680,6 +1701,15 @@
       scenarioPressuresRibbon.querySelectorAll('.labor-action').forEach(button => {
         button.addEventListener('click', () => sendCommand('SCENARIO_ACTION', {
           action_id: button.dataset.action
+        }));
+      });
+      scenarioPressuresRibbon.querySelectorAll('.labor-market-explain').forEach(button => {
+        button.addEventListener('click', () => openPriceTraceInspector({
+          good: button.dataset.good,
+          entity: `nation:${button.dataset.nation}`,
+          metric: button.dataset.metric,
+          turn: Number(button.dataset.turn),
+          container: scenarioPressuresRibbon
         }));
       });
       const scroller = scenarioPressuresRibbon.querySelector('.labor-scenario-scroll');
@@ -2956,18 +2986,25 @@
     detail.id = 'market-price-trace-detail';
     detail.className = 'card';
     const tileScope = entity.startsWith('tile:');
+    const scenarioScope = metric === 'goods.scenario_transaction_vwap'
+      || metric === 'goods.scenario_market_coverage';
     const options = tileScope
       ? [['goods.price', 'Reference'], ['goods.seller_ask', 'Seller asks'],
         ['goods.delivered_quote', 'Delivered quotes'],
         ['goods.transaction_price', 'Paid'],
         ['goods.transaction_vwap', 'Paid average']]
-      : [[metric, `National ${String(good || 'goods').replaceAll('_', ' ')} reference price`]];
+      : scenarioScope
+        ? metric === 'goods.scenario_market_coverage'
+          ? [[metric, 'Settled volume and no-trade reason']]
+          : [[metric, 'Paid scenario average'],
+            ['goods.scenario_market_coverage', 'Settled volume and no-trade reason']]
+        : [[metric, `National ${String(good || 'goods').replaceAll('_', ' ')} reference price`]];
     const optionsHtml = options.map(([value, label]) =>
       `<option value="${escapeHtml(value)}"${value === metric ? ' selected' : ''}>${escapeHtml(label)}</option>`
     ).join('');
     const selectedTurn = Number.isInteger(Number(turn)) && Number(turn) >= 0
       ? Number(turn) : Math.max(1, Number(worldState.turn || 1));
-    detail.innerHTML = `<h4>${escapeHtml(good)} price history · ${escapeHtml(entity)}</h4><label>Turn <input class="trace-turn" type="number" min="0" max="${Number(worldState.turn || 0)}" value="${selectedTurn}" style="width:5rem"></label> <label>Price <select class="trace-price-kind">${optionsHtml}</select></label> <label>Event ID <input type="text" class="trace-event-id" placeholder="Exact event" style="width:13rem"></label> <button type="button" class="btn btn-secondary btn-xs trace-load">Show records</button><div class="price-trace-result" aria-live="polite"></div>`;
+    detail.innerHTML = `<h4>${escapeHtml(good)} ${scenarioScope ? 'scenario market' : 'price'} history · ${escapeHtml(entity)}</h4><label>Turn <input class="trace-turn" type="number" min="0" max="${Number(worldState.turn || 0)}" value="${selectedTurn}" style="width:5rem"></label> <label>${scenarioScope ? 'Evidence' : 'Price'} <select class="trace-price-kind">${optionsHtml}</select></label> <label>Event ID <input type="text" class="trace-event-id" placeholder="Exact event" style="width:13rem"></label> <button type="button" class="btn btn-secondary btn-xs trace-load">Show records</button><div class="price-trace-result" aria-live="polite"></div>`;
     container.appendChild(detail);
     const turnInput = detail.querySelector('.trace-turn');
     const priceKind = detail.querySelector('.trace-price-kind');
@@ -3021,8 +3058,12 @@
           const line = document.createElement('p');
           const i = row.inputs || {};
           const rowMetric = row.metric_id || priceKind.value;
-          const terms = rowMetric !== 'goods.price'
-            ? Object.entries(i).filter(([key]) => [
+          const terms = rowMetric === 'goods.scenario_transaction_vwap'
+            ? `${Number(i.transaction_count || 0)} trade(s), ${Number(i.quantity || 0)} units, ${i.currency || ''} ${Number(i.total_paid || 0).toFixed(3)} paid; destination territories ${((i.destination_territory_membership || []).join(', ') || 'none')}; contributing source tiles ${((i.contributing_source_tiles || []).join(', ') || 'none')}; seller nations ${((i.seller_nations || []).join(', ') || 'none')}; membership changed ${i.territory_membership_changed ? 'yes' : 'no'}; continuing-market change ${i.continuing_market_price_change == null ? 'unavailable' : Number(i.continuing_market_price_change).toFixed(3)}; residual ${i.territorial_composition_residual == null ? 'unavailable' : Number(i.territorial_composition_residual).toFixed(3)} (${i.delta_decomposition_status || 'unavailable'}); residual includes trade mix and volume weights; currency conversion ${i.currency_conversion_applied ? 'applied' : 'not applied'}`
+            : rowMetric === 'goods.scenario_market_coverage'
+              ? `${Number(i.transaction_count || 0)} settled transaction(s), ${Number(row.value_after || 0)} units; ${i.price_unavailable_reason === 'counterparty_currency_mismatch' ? `counterparties use different currencies (${(i.currency_basis || []).join(', ')}); no conversion or averaging applied` : i.price_unavailable_reason === 'mixed_currency_basis' ? `incompatible currency basis (${(i.currency_basis || []).join(', ')}); amounts were not averaged` : i.no_settled_trade ? 'no settled trade this turn' : 'settled trade observed'}; currency conversion ${i.currency_conversion_applied ? 'applied' : 'not applied'}`
+            : rowMetric !== 'goods.price'
+              ? Object.entries(i).filter(([key]) => [
               'wage', 'cotton_cost', 'productive_slots', 'freight', 'quantity',
               'buyer_cash', 'affordable', 'price_basis', 'origin_tile',
               'destination_tile', 'seller_nation_at_quote', 'buyer_nation_at_quote',

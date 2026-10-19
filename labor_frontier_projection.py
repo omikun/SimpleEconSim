@@ -38,6 +38,17 @@ def project(world):
                   for right in rows if right.resource == 'commons_food') if border else 0)
     own_market = state.get('market_summary', {}).get(player.name, {})
     rival_market = state.get('market_summary', {}).get(rival.name, {})
+    market_history = []
+    recorded_prices = state.get('market_price_history', {})
+    for nation in world['nations']:
+        market_history.append({
+            'nation': nation.name,
+            'currency': nation.currency,
+            'markets': {
+                good: list(recorded_prices.get(nation.name, {}).get(good, ())[-5:])
+                for good in ('cotton', 'cloth')
+            },
+        })
     mill = _firm(capital, Goods.cloth)
     estate = _firm(border, Goods.cotton)
     treasury = player.government.agent.cash
@@ -162,5 +173,6 @@ def project(world):
                                 'politics': {region.name: political_summary(region)
                                              for region in world['tiles']}},
             'districts': districts, 'debrief': debrief, 'ending': ending,
+            'market_history': market_history,
             'major_action_spent': spent, 'sovereign_cash': round(treasury, 3),
             'resident_count': len(people), 'active': True}

@@ -873,6 +873,99 @@ class RunTraceTests(unittest.TestCase):
                 self.assertEqual(transaction['inputs'][field],
                                  quote['inputs'][field])
 
+    def test_scenario_market_histories_replay_paid_prices_and_keep_mix(self):
+        from sim_server.sim_server import SimServer
+
+        server = SimServer(seed=619, terrain_seed=619, nation_seed=619,
+                           scenario_id='labor_frontier_rivalry')
+        server.step()
+        server.step()
+        coverage = server.run_trace.query(
+            turn=1, metric_id='goods.scenario_market_coverage',
+            limit=10000)['events']
+        self.assertEqual(len(coverage), len(server.nations) * 2)
+        self.assertTrue(all(replay_event(row)['matches'] for row in coverage))
+        coverage_by_market = {
+            (row['subject']['id'], row['subject']['good']): row
+            for row in coverage}
+
+        prices = server.run_trace.query(
+            turn=1, metric_id='goods.scenario_transaction_vwap',
+            limit=10000)['events']
+        all_events = server.run_trace.query(limit=100000)['events']
+        by_id = {row['event_id']: row for row in all_events}
+        for row in prices:
+            self.assertTrue(replay_event(row)['matches'])
+            inputs = row['inputs']
+            key = (row['subject']['id'], row['subject']['good'])
+            coverage_row = coverage_by_market[key]
+            self.assertIn(coverage_row['event_id'], row['cause_event_ids'])
+            self.assertFalse(inputs['currency_conversion_applied'])
+            nation = next(n for n in server.nations if n.name == key[0])
+            self.assertEqual(inputs['destination_territory_membership'],
+                             sorted(tile.name for tile in nation.tiles))
+            self.assertEqual(inputs['quantity'], coverage_row['value_after'])
+            paid_rows = [by_id[trade['event_id']]
+                         for trade in inputs['transactions']]
+            self.assertTrue(all(event['kind'] in (
+                'scenario_cotton_paid_price', 'scenario_cloth_paid_price')
+                for event in paid_rows))
+            self.assertTrue(all(event_id in row['cause_event_ids']
+                                for event_id in (e['event_id'] for e in paid_rows)))
+            self.assertEqual(inputs['total_paid'], sum(
+                event['value_after'] * trade['quantity']
+                for event, trade in zip(paid_rows, inputs['transactions'])))
+
+        scenario_info = server.serialize_world()['scenario_info']
+        self.assertEqual(len(scenario_info['market_history']), len(server.nations))
+        for market in scenario_info['market_history']:
+            self.assertIn(market['nation'], {n.name for n in server.nations})
+            self.assertEqual(set(market['markets']), {'cotton', 'cloth'})
+            for points in market['markets'].values():
+                self.assertEqual([point['turn'] for point in points], [1, 2])
+                for point in points:
+                    self.assertEqual(point['currency_conversion_applied'], False)
+                    if point['quantity']:
+                        self.assertIsNotNone(point['price'])
+                        self.assertEqual(point['trace_metric_id'],
+                                         'goods.scenario_transaction_vwap')
+                    else:
+                        self.assertIsNone(point['price'])
+                        self.assertEqual(point['trace_metric_id'],
+                                         'goods.scenario_market_coverage')
+                previous, current = points
+                if (previous['price'] is not None and current['price'] is not None
+                        and current['currency_membership_stable']):
+                    self.assertIsNotNone(current['national_market_price_change'])
+                    self.assertEqual(
+                        current['territory_membership_changed'],
+                        current['territory_membership']
+                        != previous['territory_membership'])
+
+    def test_scenario_market_history_does_not_depend_on_trace_recorder(self):
+        from labor_frontier_market import _record_scenario_market_prices
+
+        tile = SimpleNamespace(name='Mill District', _run_trace=None,
+                               _collective_trace_clock=None)
+        nation = SimpleNamespace(name='Meridian', currency='MRC', tiles=[tile])
+        tile.owner_nation = nation
+        world = {'scenario_state': {}, 'currencies': ['MRC'],
+                 'nations': [nation], 'tiles': [tile]}
+        purchases = [{
+            'destination_nation': 'Meridian', 'trace_event_id': None,
+            'paid_price': 3.5, 'quantity': 1, 'origin': 'Cotton District',
+            'mill': 'Mill District', 'seller_nation': 'Meridian',
+            'currency': 'MRC'}]
+
+        _record_scenario_market_prices(world, 1, purchases, [])
+
+        point = world['scenario_state']['market_price_history'][
+            'Meridian']['cotton'][0]
+        self.assertEqual(point['price'], 3.5)
+        self.assertEqual(point['quantity'], 1)
+        self.assertEqual(point['trace_event_id'], None)
+        self.assertEqual(point['trace_metric_id'],
+                         'goods.scenario_transaction_vwap')
     def test_fx_formula_records_reserves_and_ppp(self):
         from forex import ForexDesk
         with tempfile.TemporaryDirectory() as tmp:

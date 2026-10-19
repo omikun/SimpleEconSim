@@ -2509,3 +2509,24 @@ capitalist, labor-law, route, triangular-trade, metric-catalog, and trace-reader
 run passed 142 tests; compilation and `git diff --check` passed. The unused
 legacy snapshot helper remains available for diagnostics but is not called by
 the simulation planner.
+
+## Phase 2/5 follow-up — Trace labor-frontier price history (implemented)
+
+The labor-frontier scenario now records destination-market cotton and cloth
+histories from actual paid settlements. Series use quantity-weighted prices,
+retain explicit zero-trade coverage rows, and keep same-currency constraints
+visible. Per-turn evidence includes paid-event links, territory membership,
+contributing source and destination tiles, seller nations, seller/buyer
+currencies, and whether conversion occurred. When a prior comparable point
+exists, the event includes continuing-market price change plus an arithmetic
+territory/trade-mix residual; changed or incompatible currency makes the
+decomposition unavailable. The scenario panel shows five recent turns for both
+goods in each nation, with an Explain action that opens that turn's trace
+evidence.
+
+Verification: scenario trace tests confirm quote-to-paid links, weighted
+settlement replay, coverage for both nations and goods, territory/currency
+context, two-turn history alignment, and trace-disabled history parity. The
+complete run-trace suite passed (36 tests); metric-catalog and web-server
+parity suites passed (25 tests); all 10 frontend tests passed. Python and
+JavaScript syntax checks and `git diff --check` passed.

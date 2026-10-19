@@ -1980,6 +1980,14 @@ input[type="range"] {
 .labor-pressure h4, .labor-scenario-scroll h4 { margin: 0 0 4px; font-size: .84rem; }
 .labor-pressure strong { font-size: .78rem; }
 .labor-pressure p { margin-bottom: 0; }
+.labor-market-history { margin: 5px 0 10px; padding: 4px 7px; border: 1px solid #40506a; border-radius: 6px; background: #1d2636; }
+.labor-market-line { display: flex; align-items: center; justify-content: space-between; gap: 7px; padding: 5px 0; border-bottom: 1px solid #344157; font-size: .69rem; }
+.labor-market-line:last-child { border-bottom: 0; }
+.labor-market-line small { display: block; margin-top: 3px; color: #aebcd0; font-size: .62rem; }
+.labor-market-line small span { white-space: nowrap; }
+.labor-market-explain { flex: 0 0 auto; min-width: 62px; min-height: 44px; padding: 5px 8px; color: #f0ddaa; background: #303f58; border: 1px solid #6d8aae; border-radius: 4px; font-size: .68rem; cursor: pointer; touch-action: manipulation; }
+.labor-market-explain:disabled { color: #8490a1; cursor: default; }
+.labor-market-empty { margin: 3px 0; color: #aebcd0; font-size: .68rem; }
 .labor-districts { display: flex; flex-wrap: wrap; gap: 4px; margin: 9px 0; }
 .labor-district { padding: 4px 6px; border: 1px solid #506078; border-radius: 4px; font-size: .66rem; }
 .labor-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-bottom: 10px; }

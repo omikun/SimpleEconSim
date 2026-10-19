@@ -204,9 +204,15 @@ for supported formulas. National and basket calculations retain their current
 unconverted currency semantics and flag mixed currency. Imported shipment IDs
 resolve across purchase, departure, arrival, supply, quote, and paid sale when
 those source records exist. The core local strike/workforce/output/offer/price
-path is linked. Remaining price work includes scenario history series and
-their membership/currency decomposition. The main market's `vwap` input is an
-unweighted recent-sample mean. Web chart points open the trace inspector for
+path is linked. Labor-frontier cotton and cloth histories now aggregate actual
+paid prices by destination Nation and good, preserve zero-trade turns as gaps,
+and expose the last five turns in the scenario panel. Each point links its paid
+transactions, market quotes, formula replay, turn-time territory membership,
+contributing origin/destination tiles, seller nations, and both sides of the
+currency basis. Continuing-market change and the remaining territory/trade-mix
+residual are shown only when currency and common-market evidence support the
+arithmetic comparison; the residual is not labeled as causal attribution. The
+main market's `vwap` input is an unweighted recent-sample mean. Web chart points open the trace inspector for
 national food price, nominal GDP, treasury, population and protest energy, plus
 selected-tile food price, GDP, population, protest energy, food production,
 food producer inventory, food-cash Gini, soil fertility, nutrition density,

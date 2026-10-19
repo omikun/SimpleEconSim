@@ -38,6 +38,7 @@ def initialize_market(world):
     state['market_summary'] = {}
     state['firm_statements'] = {}
     state['cotton_purchases'] = []
+    state['market_price_history'] = {}
     state['market_cash_baseline'] = fx.audit_currency_total(world['tiles'], world['currencies'][0])
     state['machinery_projects'] = []
 
@@ -258,7 +259,7 @@ def _buy_cotton(world, turn):
             firm.inv_add(Goods.cotton, 1)
             firm.cost_set(Goods.cotton,
                           (old_stock * old_cost + delivered) / (old_stock + 1))
-            emit(field, kind='scenario_cotton_paid_price', record_class='observation',
+            paid_event_id = emit(field, kind='scenario_cotton_paid_price', record_class='observation',
                  phase='scenario_market',
                  subject={'type': 'tile', 'id': field.name, 'good': 'cotton',
                           'seller_id': grower.id, 'buyer_id': firm.id},
@@ -285,6 +286,13 @@ def _buy_cotton(world, turn):
             purchases.append(stamp(field, {'turn': turn, 'mill': mill_region.name,
                               'origin': field.name, 'grower_id': grower.id,
                               'firm_id': firm.id, 'price': price, 'freight': freight,
+                              'paid_price': delivered, 'quantity': 1,
+                              'destination_nation': buyer_nation,
+                              'seller_nation': seller_nation,
+                              'currency': seller_currency,
+                              'seller_currency': seller_currency,
+                              'buyer_currency': buyer_currency,
+                              'trace_event_id': paid_event_id,
                               'public_tax': tax, 'tax_nation': field.owner_nation.name}))
     return purchases
 
@@ -441,7 +449,14 @@ def _sell_cloth(world, turn):
                           'seller_nation': source.owner_nation.name,
                           'market': market.name, 'buyer_id': buyer.id,
                           'firm_id': firm.id, 'mill_receipt': ask,
-                          'delivered_price': delivered, 'freight': freight,
+                          'delivered_price': delivered, 'paid_price': delivered,
+                          'quantity': 1,
+                          'destination_nation': buyer_nation,
+                          'currency': seller_currency,
+                          'seller_currency': seller_currency,
+                          'buyer_currency': buyer_currency,
+                          'trace_event_id': paid_event_id,
+                          'freight': freight,
                           'public_tax': tax}))
     return sales
 
@@ -477,6 +492,224 @@ def _sweep_sales_tax(world, sales, purchases=()):
     return transfers
 
 
+def _record_scenario_market_prices(world, turn, purchases, sales):
+    """Write destination-market paid-price VWAPs with turn-time composition."""
+    state = world['scenario_state']
+    currency = world['currencies'][0]
+    grouped = defaultdict(list)
+    for good, rows in ((Goods.cotton, purchases), (Goods.cloth, sales)):
+        for row in rows:
+            nation_name = row.get('destination_nation')
+            paid_event_id = row.get('trace_event_id')
+            quantity = int(row.get('quantity', 1))
+            if not nation_name or quantity <= 0:
+                continue
+            grouped[(nation_name, good)].append({
+                'event_id': paid_event_id,
+                'price': float(row['paid_price']),
+                'quantity': quantity,
+                'origin_tile': row['origin'],
+                'destination_tile': row.get('mill', row.get('market')),
+                'seller_nation': row.get('seller_nation'),
+                'buyer_nation': nation_name,
+                'currency': row.get('currency', currency),
+                'seller_currency': row.get('seller_currency',
+                                           row.get('currency', currency)),
+                'buyer_currency': row.get('buyer_currency', currency),
+            })
+
+    by_name = {region.name: region for region in world['tiles']}
+    history = state.setdefault('market_price_history', {})
+    from run_trace import emit
+    for nation in world['nations']:
+        destination_membership = sorted(
+            tile.name for tile in getattr(nation, 'tiles', ()))
+        nation_history = history.setdefault(nation.name, {})
+        for good in (Goods.cotton, Goods.cloth):
+            trades = grouped.get((nation.name, good), ())
+            quantity = sum(int(row['quantity']) for row in trades)
+            total_paid = sum(float(row['price']) * int(row['quantity'])
+                             for row in trades)
+            contributing_tiles = sorted({row['destination_tile'] for row in trades})
+            source_tiles = sorted({row['origin_tile'] for row in trades})
+            seller_nations = sorted({row['seller_nation'] for row in trades
+                                     if row['seller_nation']})
+            seller_currencies = sorted({row['seller_currency'] for row in trades}) or [currency]
+            buyer_currencies = sorted({row['buyer_currency'] for row in trades}) or [currency]
+            currency_basis = sorted(set(seller_currencies) | set(buyer_currencies))
+            currency_pairs = sorted({(row['seller_currency'], row['buyer_currency'])
+                                     for row in trades})
+            # The scenario currently shares one currency. Keep future variants
+            # honest: the market average is unavailable when counterparties
+            # use different units because these settlements do not convert FX.
+            compatible = (len(seller_currencies) == 1 and len(buyer_currencies) == 1
+                          and seller_currencies[0] == buyer_currencies[0])
+            market_currency = (seller_currencies[0] if len(seller_currencies) == 1
+                               else currency)
+            price = (total_paid / quantity
+                     if quantity and compatible else None)
+            member_totals = defaultdict(lambda: [0.0, 0])
+            for trade in trades:
+                member = member_totals[trade['destination_tile']]
+                member[0] += trade['price'] * trade['quantity']
+                member[1] += trade['quantity']
+            member_market_prices = {
+                tile_name: total_paid / member_quantity
+                for tile_name, (total_paid, member_quantity) in member_totals.items()
+                if member_quantity and compatible
+            }
+            previous_points = nation_history.setdefault(good.name.lower(), [])
+            previous_point = previous_points[-1] if previous_points else None
+            previous_membership = set(
+                (previous_point or {}).get('territory_membership', ()))
+            current_membership = set(destination_membership)
+            common_members = sorted(previous_membership & current_membership)
+            previous_member_prices = (previous_point or {}).get(
+                'member_market_prices', {})
+            comparable_members = [tile_name for tile_name in common_members
+                                  if tile_name in previous_member_prices
+                                  and tile_name in member_market_prices]
+            prior_common_mean = (
+                sum(previous_member_prices[tile_name]
+                    for tile_name in comparable_members) / len(comparable_members)
+                if comparable_members else None)
+            current_common_mean = (
+                sum(member_market_prices[tile_name]
+                    for tile_name in comparable_members) / len(comparable_members)
+                if comparable_members else None)
+            continuing_market_change = (
+                current_common_mean - prior_common_mean
+                if prior_common_mean is not None and current_common_mean is not None
+                else None)
+            currency_stable = bool(
+                previous_point is not None and compatible
+                and previous_point.get('currency') == market_currency)
+            previous_price = ((previous_point or {}).get('price'))
+            national_market_change = (
+                price - previous_price
+                if price is not None and previous_price is not None and currency_stable
+                else None)
+            composition_residual = (
+                national_market_change - continuing_market_change
+                if national_market_change is not None
+                and continuing_market_change is not None else None)
+            decomposition_status = (
+                'arithmetic_decomposition_available'
+                if composition_residual is not None else
+                'mixed_or_changed_currency' if not currency_stable else
+                'no_prior_common_market_value')
+            clock_tile = (by_name.get(contributing_tiles[0]) if contributing_tiles
+                          else next(iter(getattr(nation, 'tiles', ())), None))
+            if clock_tile is None:
+                continue
+            causes = [row['event_id'] for row in trades if row['event_id']]
+            coverage_id = emit(
+                clock_tile, kind='scenario_market_price_coverage',
+                record_class='calculation', phase='scenario_market',
+                subject={'type': 'nation', 'id': nation.name,
+                         'good': good.name.lower()},
+                metric_id='goods.scenario_market_coverage', unit='units',
+                after=quantity, formula_id='aggregate.sum.v1',
+                inputs={'member_values': [row['quantity'] for row in trades],
+                        'transaction_count': len(trades),
+                        'currency_basis': currency_basis,
+                        'seller_currency_basis': seller_currencies,
+                        'buyer_currency_basis': buyer_currencies,
+                        'currency_pairs': [list(pair) for pair in currency_pairs],
+                        'currency_basis_compatible': compatible,
+                        'currency_conversion_applied': False,
+                        'no_settled_trade': not trades,
+                        'price_unavailable_reason': (
+                            'no_settled_trade' if not trades else
+                            'counterparty_currency_mismatch'
+                            if any(seller != buyer for seller, buyer in currency_pairs)
+                            else 'mixed_currency_basis' if not compatible else None)},
+                cause_event_ids=causes or None)
+            vwap_id = None
+            if price is not None:
+                vwap_id = emit(
+                    clock_tile, kind='scenario_market_transaction_vwap',
+                    record_class='calculation', phase='scenario_market',
+                    subject={'type': 'nation', 'id': nation.name,
+                             'good': good.name.lower()},
+                    metric_id='goods.scenario_transaction_vwap',
+                    unit='local_currency_per_unit', after=price,
+                    formula_id='scenario.market_vwap.v1',
+                    inputs={'total_paid': total_paid, 'quantity': quantity,
+                            'transaction_count': len(trades),
+                            'transactions': trades,
+                            'price_basis': ('delivered_to_mill' if good is Goods.cotton
+                                            else 'delivered_to_household_market'),
+                            'destination_nation': nation.name,
+                            'destination_territory_membership': destination_membership,
+                            'contributing_destination_tiles': contributing_tiles,
+                            'contributing_source_tiles': source_tiles,
+                            'member_market_prices': member_market_prices,
+                            'previous_territory_membership': sorted(previous_membership),
+                            'added_territory_tiles': sorted(
+                                current_membership - previous_membership),
+                            'removed_territory_tiles': sorted(
+                                previous_membership - current_membership),
+                            'territory_membership_changed': (
+                                previous_membership != current_membership),
+                            'previous_contributing_destination_tiles': sorted(
+                                (previous_point or {}).get(
+                                    'contributing_destination_tiles', ())),
+                            'common_market_tiles': comparable_members,
+                            'previous_common_market_mean': prior_common_mean,
+                            'current_common_market_mean': current_common_mean,
+                            'continuing_market_price_change': continuing_market_change,
+                            'national_market_price_change': national_market_change,
+                            'territorial_composition_residual': composition_residual,
+                            'currency_membership_stable': currency_stable,
+                            'delta_decomposition_status': decomposition_status,
+                            'delta_decomposition_note': (
+                                'Continuing-market change plus residual is an '
+                                'arithmetic decomposition, not a causal share; '
+                                'the residual also contains transaction mix and '
+                                'volume-weight changes.'),
+                            'seller_nations': seller_nations,
+                            'currency': currency_basis[0],
+                            'seller_currency_basis': seller_currencies,
+                            'buyer_currency_basis': buyer_currencies,
+                            'currency_pairs': [list(pair) for pair in currency_pairs],
+                            'currency_conversion_applied': False,
+                            'currency_basis_compatible': compatible},
+                    cause_event_ids=[*causes, coverage_id])
+            point = {
+                'turn': int(turn), 'price': round(price, 4) if price is not None else None,
+                'quantity': quantity, 'transaction_count': len(trades),
+                'currency': market_currency if compatible else None,
+                'currency_basis': currency_basis,
+                'currency_conversion_applied': False,
+                'territory_count': len(destination_membership),
+                'territory_membership': destination_membership,
+                'contributing_destination_tiles': contributing_tiles,
+                'contributing_source_tiles': source_tiles,
+                'member_market_prices': member_market_prices,
+                'seller_nations': seller_nations,
+                'territory_membership_changed': (
+                    previous_membership != current_membership),
+                'added_territory_tiles': sorted(current_membership - previous_membership),
+                'removed_territory_tiles': sorted(previous_membership - current_membership),
+                'national_market_price_change': national_market_change,
+                'continuing_market_price_change': continuing_market_change,
+                'territorial_composition_residual': composition_residual,
+                'currency_membership_stable': currency_stable,
+                'delta_decomposition_status': decomposition_status,
+                'price_unavailable_reason': (
+                    'no_settled_trade' if not trades else
+                    'counterparty_currency_mismatch'
+                    if any(seller != buyer for seller, buyer in currency_pairs)
+                    else 'mixed_currency_basis' if not compatible else None),
+                'trace_event_id': vwap_id or coverage_id,
+                'trace_metric_id': ('goods.scenario_transaction_vwap'
+                                    if price is not None
+                                    else 'goods.scenario_market_coverage'),
+            }
+            previous_points.append(point)
+
+
 def settle_markets(world, turn):
     """Clear one funded order per buyer and reconcile the shared currency."""
     state = world['scenario_state']
@@ -493,6 +726,7 @@ def settle_markets(world, turn):
     # Preserve the full paid-transaction history for run reconstruction.
     state['market_sales'].extend(sales)
     state['cotton_purchases'].extend(purchases)
+    _record_scenario_market_prices(world, turn, purchases, sales)
     summary = {}
     statements = {}
     for region, firm in _firms(world):

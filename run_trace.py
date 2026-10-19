@@ -188,7 +188,9 @@ class RunTrace:
         if formula_id is not None and (formula_id in (
                 'aggregate.mean.v1', 'aggregate.sum.v1') or metric_id in (
                 'goods.price', 'goods.seller_ask', 'goods.delivered_quote',
-                'goods.transaction_vwap', 'goods.demand', 'goods.supply',
+                'goods.transaction_vwap', 'goods.scenario_transaction_vwap',
+                'goods.scenario_market_coverage',
+                'goods.demand', 'goods.supply',
                 'goods.demand_ratio', 'living.cost_of_living',
                 'goods.national_reference_price', 'goods.national_food_price')):
             from price_trace import replay_event

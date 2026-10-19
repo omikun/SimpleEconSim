@@ -151,6 +151,9 @@ def replay_event(row):
     elif formula == 'market.transaction_vwap.v1':
         i = row['inputs']
         expected = i['total_paid'] / i['quantity']
+    elif formula == 'scenario.market_vwap.v1':
+        i = row['inputs']
+        expected = i['total_paid'] / i['quantity']
     elif formula == 'market.local_bid.v1':
         i = row['inputs']
         expected = i['reference'] * (1.0 + max(
