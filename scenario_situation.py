@@ -207,13 +207,14 @@ def _trace_creditor_payment(world: dict, nation, source: str, operation_id,
     return event_ids
 
 
-def apply_effects(world: dict, effects: dict, *, source: str = 'direct') -> tuple[bool, str]:
+def apply_effects(world: dict, effects: dict, *, source: str = 'direct',
+                  trace_event_ids=None) -> tuple[bool, str]:
     """Apply only the bounded effects supported by situation template v1."""
     operation_id = _situation_operation_id(world, source)
     nation = _egypt(world)
     if nation is None:
         message = 'The Egyptian administration is unavailable.'
-        _emit_situation_trace(
+        event_id = _emit_situation_trace(
             world, kind='creditor_effect_application', record_class='outcome',
             phase='creditor_reaction',
             subject={'type': 'scenario/nation',
@@ -222,6 +223,8 @@ def apply_effects(world: dict, effects: dict, *, source: str = 'direct') -> tupl
             inputs={'operation_id': operation_id, 'source': source,
                     'success': False, 'reason': 'player_nation_unavailable',
                     'effects_requested': dict(effects), 'effects_applied': []})
+        if event_id is not None and trace_event_ids is not None:
+            trace_event_ids.append(event_id)
         return False, message
     state = world.get('scenario_state', {})
     cost = float(effects.get('treasury_cost', 0.0))
@@ -245,9 +248,11 @@ def apply_effects(world: dict, effects: dict, *, source: str = 'direct') -> tupl
                                else 'treasury_cash_below_response_cost')})
         if funding_event_id is not None:
             cause_ids.append(funding_event_id)
+            if trace_event_ids is not None:
+                trace_event_ids.append(funding_event_id)
     if cost > treasury_before:
         message = f'The treasury needs {cost:,.0f} units for this response.'
-        _emit_situation_trace(
+        event_id = _emit_situation_trace(
             world, kind='creditor_effect_application', record_class='outcome',
             phase='creditor_reaction',
             subject={'type': 'scenario/nation', 'id': nation.name},
@@ -259,6 +264,8 @@ def apply_effects(world: dict, effects: dict, *, source: str = 'direct') -> tupl
                     'effects_requested': dict(effects), 'effects_applied': [],
                     'funding_decision_event_id': funding_event_id},
             cause_event_ids=cause_ids or None)
+        if event_id is not None and trace_event_ids is not None:
+            trace_event_ids.append(event_id)
         return False, message
 
     before_state = _effect_state(nation, state)
@@ -273,6 +280,8 @@ def apply_effects(world: dict, effects: dict, *, source: str = 'direct') -> tupl
             treasury_cash_before, treasury_cash_after, creditor_payments,
             cause_event_ids=cause_ids or None)
         cause_ids.extend(payment_event_ids)
+        if trace_event_ids is not None:
+            trace_event_ids.extend(payment_event_ids)
     for field, delta in (('creditor_confidence', effects.get('confidence_delta', 0.0)),
                          ('fiscal_autonomy', effects.get('autonomy_delta', 0.0))):
         state[field] = max(0.0, min(1.0, float(state.get(field, 0.0)) + float(delta)))
@@ -302,7 +311,7 @@ def apply_effects(world: dict, effects: dict, *, source: str = 'direct') -> tupl
         from scenario_debt import set_collection_assignment
         set_collection_assignment(world, effects['levy_per_turn'], origin='caisse_consent')
     after_state = _effect_state(nation, state)
-    _emit_situation_trace(
+    event_id = _emit_situation_trace(
         world, kind='creditor_effect_application', record_class='outcome',
         phase='creditor_reaction',
         subject={'type': 'scenario/nation', 'id': nation.name},
@@ -320,6 +329,8 @@ def apply_effects(world: dict, effects: dict, *, source: str = 'direct') -> tupl
                 'funding_decision_event_id': funding_event_id,
                 'payment_event_ids': payment_event_ids},
         cause_event_ids=cause_ids or None)
+    if event_id is not None and trace_event_ids is not None:
+        trace_event_ids.append(event_id)
     return True, ''
 
 
@@ -396,8 +407,10 @@ def resolve_creditor_response(world: dict, response_id: str) -> tuple[bool, str]
         return False, f'The treasury needs {float(response.get("requires_cash", 0.0)):,.0f} units for this response.'
     from scenario_status import snapshot, record_change
     before = snapshot(world)
+    apply_event_ids = []
     ok, message = apply_effects(
-        world, response.get('effects', {}), source=f'response:{response_id}')
+        world, response.get('effects', {}), source=f'response:{response_id}',
+        trace_event_ids=apply_event_ids)
     if not ok:
         return False, message
     record_change(world, response_id, before, snapshot(world))
@@ -410,7 +423,7 @@ def resolve_creditor_response(world: dict, response_id: str) -> tuple[bool, str]
     pending['status'] = 'resolved'
     if response_id in ('contest_customs_claim', 'reject_revised_terms'):
         from scenario_gunboat import begin_escalation
-        begin_escalation(world, response_id)
+        begin_escalation(world, response_id, cause_event_ids=apply_event_ids)
     elif response_id in ('accept_customs_control', 'offer_arrears_plan'):
         if state.get('naval_crisis', {}).get('stage') in ('mobilizing', 'ultimatum', 'blockaded'):
             from scenario_gunboat import withdraw

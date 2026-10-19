@@ -191,18 +191,48 @@ def _record(world: dict, text: str, kind: str = 'NAVAL') -> None:
     ticker_push(world, int(world['turn']), kind, text, (230, 126, 95))
 
 
-def begin_escalation(world: dict, reason: str) -> None:
+def begin_escalation(world: dict, reason: str, *, cause_event_ids=None) -> None:
     state = world['scenario_state']
     crisis = state.setdefault('naval_crisis', {'stage': 'none'})
+    stage_before = crisis.get('stage', 'none')
+    turn = int(world.get('turn', 0))
+    operation_id = _naval_crisis_operation_id(world, 'trigger', turn)
+    before = _naval_escalation_state(world)
+    trace_ids_before = _naval_response_trace_ids(world)
+    def causes_for_trigger():
+        combined = list(cause_event_ids or ())
+        combined.extend(_naval_response_causes(world, trace_ids_before) or ())
+        unique = list(dict.fromkeys(event_id for event_id in combined
+                                   if event_id is not None))
+        return unique or None
+
     if crisis['stage'] not in ('none', 'withdrawn'):
+        _trace_naval_escalation(
+            world, operation_id=operation_id, reason=reason, success=False,
+            gate_reason='naval_crisis_already_active', before=before,
+            after=before,
+            cause_event_ids=causes_for_trigger())
         return
-    crisis.update(stage='mobilizing', reason=reason, due_turn=int(world['turn']) + 1,
+    crisis.update(stage='mobilizing', reason=reason, due_turn=turn + 1,
                   last_offer_turn=-1, french_support=False)
     state['naval_withdrawal_cause'] = None
     state.get('diplomatic_crisis', {})['policy_lock'] = None
     from scenario_egypt_1877 import enter_chapter_two
-    enter_chapter_two(world, 'naval mobilization')
+    chapter_before = int(state.get('chapter', 1))
+    chapter_started = enter_chapter_two(world, 'naval mobilization')
     _record(world, 'Cairo refused collection. Britain is weighing a naval expedition to Alexandria.')
+    _trace_naval_escalation(
+        world, operation_id=operation_id, reason=reason, success=True,
+        gate_reason='escalation_trigger_accepted', before=before,
+        after=_naval_escalation_state(world),
+        details={'stage_before': stage_before, 'stage_after': crisis['stage'],
+                 'due_turn': int(crisis['due_turn']),
+                 'next_turn_delay': 1,
+                 'chapter_before': chapter_before,
+                 'chapter_after': int(state.get('chapter', 1)),
+                 'chapter_transition_started': bool(chapter_started),
+                 'chapter_transition_cause': 'naval mobilization'},
+        cause_event_ids=causes_for_trigger())
 
 
 def _remove_squadron(world: dict) -> None:
@@ -728,6 +758,20 @@ def _naval_crisis_state(world):
     return result
 
 
+def _naval_escalation_state(world):
+    state = world.get('scenario_state', {})
+    result = _naval_crisis_state(world)
+    result.update({
+        'chapter': int(state.get('chapter', 1)),
+        'chapter_two_start_turn': state.get('chapter_two_start_turn'),
+        'chapter_two_cause': state.get('chapter_two_cause'),
+        'naval_news_count': len(state.get('naval_news', [])),
+        'bookend_modal': world.get('scenario_bookend_modal'),
+        'scenario_horizon_turns': world.get('scenario', {}).get('horizon_turns'),
+    })
+    return result
+
+
 def _naval_response_operation_id(world, response_id):
     region = _trace_region(world, _nation(world, 'Egypt'))
     clock = getattr(region, '_collective_trace_clock', None) if region else None
@@ -798,6 +842,26 @@ def _trace_naval_crisis_step(world, *, operation_id, status, reason,
         inputs={'operation_id': operation_id,
                 'turn': int(world.get('turn', 0)), 'status': status,
                 'reason': reason, 'state_before': before, 'state_after': after,
+                **(details or {})},
+        cause_event_ids=cause_event_ids)
+
+
+def _trace_naval_escalation(world, *, operation_id, reason, success,
+                            gate_reason, before, after, details=None,
+                            cause_event_ids=None):
+    changed = before != after
+    return _emit_naval_trace(
+        world, kind='naval_escalation_triggered' if success
+        else 'naval_escalation_rejected',
+        record_class='outcome' if success or changed else 'decision',
+        phase='naval_crisis',
+        subject={'type': 'scenario/operation', 'id': operation_id},
+        metric_id='scenario.naval_escalation', unit='success',
+        before=0, after=int(bool(success)),
+        inputs={'operation_id': operation_id,
+                'turn': int(world.get('turn', 0)), 'success': bool(success),
+                'reason': reason, 'gate_reason': gate_reason,
+                'state_before': before, 'state_after': after,
                 **(details or {})},
         cause_event_ids=cause_event_ids)
 

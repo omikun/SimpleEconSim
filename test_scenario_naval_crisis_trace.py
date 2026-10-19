@@ -9,7 +9,7 @@ from unittest.mock import patch
 from macro.imperialism.manager import get_imperialism_manager
 from run_trace import RunTrace, verify
 from scenario_geography import create_fleet, move_fleet
-from scenario_gunboat import advance_naval_crisis
+from scenario_gunboat import advance_naval_crisis, begin_escalation
 from worldview_engine import build_world_view
 
 
@@ -311,6 +311,104 @@ class ScenarioNavalCrisisTraceTests(unittest.TestCase):
             row = recorder.query(metric_id='scenario.naval_crisis_step')['events'][0]
             self.assertEqual(row['inputs']['reason'],
                              'debt_settlement_already_completed')
+            self.assertGreater(verify(trace_path)['rows'], 1)
+
+    def test_escalation_trigger_records_cause_deadline_and_chapter_transition(self):
+        world, trace = _fixture(stage='none', turn=5)
+        tile = world['tiles'][0]
+        upstream = trace.emit(tile._collective_trace_clock,
+                              kind='creditor_response_resolved',
+                              metric_id='scenario.creditor_effects')
+
+        begin_escalation(world, 'contest_customs_claim',
+                         cause_event_ids=[upstream])
+
+        row = next(event for event in trace.rows
+                   if event.get('metric_id') == 'scenario.naval_escalation')
+        self.assertTrue(row['inputs']['success'])
+        self.assertEqual(row['inputs']['gate_reason'],
+                         'escalation_trigger_accepted')
+        self.assertEqual(row['inputs']['stage_before'], 'none')
+        self.assertEqual(row['inputs']['stage_after'], 'mobilizing')
+        self.assertEqual(row['inputs']['due_turn'], 6)
+        self.assertTrue(row['inputs']['chapter_transition_started'])
+        self.assertIn(upstream, row['cause_event_ids'])
+
+    def test_creditor_response_effect_links_into_escalation_trigger(self):
+        from scenario_situation import resolve_creditor_response
+        world, trace = _fixture(stage='none', turn=5)
+        world['scenario_state']['creditor_reactions'] = [{
+            'action_id': 'default_remittance', 'due_turn': 4,
+            'status': 'awaiting_response'}]
+
+        success, _ = resolve_creditor_response(world, 'contest_customs_claim')
+
+        self.assertTrue(success)
+        effect = next(event for event in trace.rows
+                      if event.get('metric_id') == 'scenario.creditor_effects'
+                      and event.get('inputs', {}).get('source')
+                      == 'response:contest_customs_claim')
+        escalation = next(event for event in trace.rows
+                          if event.get('metric_id') == 'scenario.naval_escalation')
+        self.assertIn(effect['event_id'], escalation['cause_event_ids'])
+        self.assertEqual(escalation['inputs']['reason'],
+                         'contest_customs_claim')
+
+    def test_active_crisis_rejects_a_repeat_trigger_without_state_change(self):
+        world, trace = _fixture(stage='ultimatum')
+        before = world['scenario_state']['naval_crisis'].copy()
+
+        begin_escalation(world, 'reject_revised_terms')
+
+        row = next(event for event in trace.rows
+                   if event.get('metric_id') == 'scenario.naval_escalation')
+        self.assertFalse(row['inputs']['success'])
+        self.assertEqual(row['inputs']['gate_reason'],
+                         'naval_crisis_already_active')
+        self.assertEqual(world['scenario_state']['naval_crisis'], before)
+
+    def test_withdrawn_crisis_can_be_reopened_without_repeating_chapter_two(self):
+        world, trace = _fixture(stage='withdrawn')
+        world['scenario_state']['chapter'] = 2
+        world['scenario_state']['chapter_two_start_turn'] = 2
+        world['scenario_bookend_modal'] = None
+
+        begin_escalation(world, 'refuse_revenue_inspection')
+
+        row = next(event for event in trace.rows
+                   if event.get('metric_id') == 'scenario.naval_escalation')
+        self.assertTrue(row['inputs']['success'])
+        self.assertEqual(world['scenario_state']['naval_crisis']['stage'],
+                         'mobilizing')
+        self.assertFalse(row['inputs']['chapter_transition_started'])
+        self.assertEqual(world.get('scenario_bookend_modal'), None)
+
+    def test_escalation_trace_is_state_neutral_and_compact_serializable(self):
+        def run(traced):
+            world, _trace = _fixture(stage='none', traced=traced)
+            begin_escalation(world, 'contest_customs_claim')
+            return (dict(world['scenario_state']['naval_crisis']),
+                    world['scenario_state']['chapter'],
+                    world['scenario_state'].get('chapter_two_cause'),
+                    world['scenario_state'].get('chapter_two_start_turn'),
+                    world.get('scenario_bookend_modal'),
+                    world.get('playing'),
+                    world['scenario_state'].get('naval_news'))
+
+        self.assertEqual(run(True), run(False))
+
+        world, _trace = _fixture(stage='none', traced=False)
+        with tempfile.TemporaryDirectory() as tmp:
+            trace_path = Path(tmp) / 'naval-escalation.ctr'
+            recorder = RunTrace(trace_path, 'naval-escalation-test')
+            clock = {'turn': int(world['turn']),
+                     'phase': 'naval_crisis', 'next': 1}
+            for tile in world['tiles']:
+                tile._run_trace = recorder
+                tile._collective_trace_clock = clock
+            begin_escalation(world, 'contest_customs_claim')
+            row = recorder.query(metric_id='scenario.naval_escalation')['events'][0]
+            self.assertTrue(row['inputs']['success'])
             self.assertGreater(verify(trace_path)['rows'], 1)
 
 

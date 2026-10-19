@@ -316,9 +316,26 @@ expedition links, mediation gates, and compact `.ctr` verification. The
 geography, diplomacy and naval-response suites passed (20 tests). Compilation
 and `git diff --check` passed.
 
-Next Phase 3 audit target: review the Guided Egypt escalation trigger in
-`scenario_gunboat.begin_escalation` and related crisis state initialization for
-entry-condition, chapter-transition, and repeated-trigger trace gaps.
+### Phase 3 follow-up — Trace Egyptian escalation entry (implemented)
+
+`scenario_gunboat.begin_escalation` now records the caller's trigger reason,
+active-crisis rejection gate, old/new crisis stage, mobilization deadline, and
+chapter-two state transition. A withdrawn crisis can reopen under the existing
+rule without repeating chapter two. `scenario_situation.apply_effects` can
+return its emitted trace IDs to the creditor-response handler, which passes the
+resolved creditor-effect event into the escalation record as a direct cause.
+No trigger or chapter-transition behavior changed.
+
+Verification: 15 dedicated naval crisis and escalation tests passed, covering
+trigger and repeat gates, reopening, creditor-response causal linkage,
+trace-on/off parity, and compact trace verification. The combined naval,
+geography, diplomacy, creditor-situation and metric-catalog regression set
+passed (41 tests), including the trace-on/off checks. The funded-canal campaign
+playthrough passed. Compilation and `git diff --check` passed.
+
+Next Phase 3 audit target: review `scenario_projects.answer_fiscal_challenge`
+and other direct refusal actions that call `begin_escalation` for missing
+action summaries and source-to-escalation causal links.
 
 ## Phase 5 — Deliver explanations in web, desktop and CLI
 

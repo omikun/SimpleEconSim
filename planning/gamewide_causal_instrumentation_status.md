@@ -1409,3 +1409,16 @@ crisis pauses remain silent. No naval-crisis behavior changed.
 Verification: ten dedicated naval-crisis tests passed, including compact
 `.ctr` serialization; geography, diplomacy and naval-response suites passed
 (20 tests). Compilation and `git diff --check` passed.
+
+Phase 3 follow-up, 2026-10-18: naval escalation entry now records the trigger
+reason, active-crisis rejection, stage transition, due turn and chapter-two
+transition. A crisis can reopen after withdrawal under the current rule without
+restarting chapter two. Creditor response effect events are passed through to
+the escalation summary as direct causes. No trigger or chapter behavior
+changed.
+
+Verification: 15 naval-crisis and escalation tests passed, including
+creditor-response causal linkage, trace-on/off parity and compact `.ctr`
+verification. The combined naval, geography, diplomacy, creditor-situation
+and metric-catalog regression set passed (41 tests), as did the funded-canal
+campaign playthrough. Compilation and `git diff --check` passed.
