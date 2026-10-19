@@ -775,6 +775,12 @@ class RunTraceTests(unittest.TestCase):
         nation = SimpleNamespace(name='Republic', tiles=[
             tile('North', 2, 0.5, 0.2, 8.0, 1),
             tile('South', 4, 1.0, 0.4, 10.0, 2)])
+        shared_government = SimpleNamespace(
+            name='Shared Provincial Government',
+            income_log=[{'turn': 1, 'tax': 10.0, 'tariff': 2.0,
+                         'inheritance': 1.0}])
+        for member in nation.tiles:
+            member.gov = shared_government
         rows = nation_chart_aggregation_rows(nation, turn=1)
         by_series = {(row['inputs']['chart_family'],
                       row['inputs']['chart_series']): row for row in rows}
@@ -811,6 +817,15 @@ class RunTraceTests(unittest.TestCase):
         self.assertEqual(outlays['after'], 30.0)
         self.assertTrue(outlays['inputs']['unconverted_mixed_currency'])
         self.assertFalse(outlays['inputs']['currency_conversion_applied'])
+        government_income = by_series[('government', 'income')]
+        self.assertEqual(government_income['after'], 13.0)
+        self.assertEqual(government_income['inputs']['government_count'], 1)
+        self.assertEqual(
+            [row['government_income_contribution'] for row in
+             government_income['inputs']['member_contributions']],
+            ['counted_once', 'duplicate_shared_government_snapshot'])
+        self.assertIn('no FX conversion',
+                      government_income['inputs']['contribution_policy'])
         net_trade = by_series[('trade', 'net')]
         self.assertEqual(net_trade['inputs']['member_currencies'], ['NRC', 'SRC'])
         self.assertTrue(net_trade['inputs']['unconverted_mixed_currency'])

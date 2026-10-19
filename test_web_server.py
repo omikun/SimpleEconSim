@@ -883,6 +883,39 @@ class TestWebServerEndpoints(unittest.TestCase):
                         for key in ('tax', 'tariff', 'inheritance'))
         self.assertAlmostEqual(displayed, calculation['value_after'], places=1)
 
+        nation = self.sim.nations[0]
+        history = self.sim.serialize_world()['history']
+        self.assertEqual(len(history['government_income']), len(history['turns']))
+        self.assertIsNone(history['government_income'][0])
+        nation_query = urllib.parse.urlencode({
+            'turn': self.sim.turn, 'entity': f'nation:{nation.name}',
+            'metric': 'finance.government_income', 'limit': 200})
+        nation_payload = json.loads(MockHttpRequestHandler(
+            self.mock_server, 'GET', f'/api/trace?{nation_query}').get_body())
+        aggregates = [row for row in nation_payload['events']
+                      if row['kind'] == 'nation_chart_history_aggregate'
+                      and row['inputs']['chart_family'] == 'government'
+                      and row['inputs']['chart_series'] == 'income']
+        self.assertEqual(len(aggregates), 1)
+        aggregate = aggregates[0]
+        self.assertAlmostEqual(history['government_income'][-1],
+                               aggregate['value_after'], places=1)
+        current_governments = {id(member.gov) for member in nation.tiles
+                               if getattr(member, 'gov', None) is not None
+                               and len(getattr(member.gov, 'income_log', ())) >= self.sim.turn}
+        self.assertEqual(aggregate['inputs']['government_count'],
+                         len(current_governments))
+        self.assertEqual(len(aggregate['inputs']['member_values']),
+                         len(current_governments))
+        self.assertTrue(any(
+            contribution['government_income_contribution']
+            == 'duplicate_shared_government_snapshot'
+            for contribution in aggregate['inputs']['member_contributions']))
+        self.assertFalse(aggregate['inputs']['currency_conversion_applied'])
+        self.assertTrue(all(
+            contribution['source_link_status'] == 'linked'
+            for contribution in aggregate['inputs']['member_contributions']))
+
     def test_trade_chart_points_have_turn_aligned_trace_records(self):
         self.sim.step()
         self.sim.step()

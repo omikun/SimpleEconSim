@@ -217,7 +217,7 @@ METRICS = {
     'scenario.foreign_diplomacy_ai': ('nation/decision', 'policy', 'scenario_diplomacy foreign creditor and Ottoman candidate evaluations, funding/protest gates, and British treaty-versus-expedition values'),
     'fx.bilateral_mid': ('tile/partner', 'home_currency_per_foreign_currency', 'forex.ForexDesk.update'),
     'finance.treasury': ('nation', 'local_currency', 'nation.Nation.treasury'),
-    'finance.government_income': ('tile', 'local_currency', 'government.trace_income_snapshot; retained tax, tariff and inheritance income, with shared-province scope'),
+    'finance.government_income': ('tile/nation', 'local_currency', 'government.trace_income_snapshot; retained tax, tariff and inheritance income; Nation chart counts each shared government snapshot once and performs no FX conversion'),
     'finance.sovereign_bond': ('nation', 'local_currency', 'sovereign_bonds.SovereignBondMarket'),
     'finance.treasury_flow': ('nation', 'signed_local_currency', 'sovereign_bonds.SovereignBondMarket and treasury operations'),
     'finance.policy_expenditure': ('tile/province/nation/service', 'signed_local_currency', 'worldview_policies and labor_politics policy actions; municipal, provincial, national, public-service, emergency food-aid, guano-subsidy, or entertainment treasury cost'),

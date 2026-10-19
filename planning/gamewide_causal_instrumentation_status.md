@@ -2032,3 +2032,16 @@ to their Nation aggregate records and verify tile-source links, including the
 observation link for fatalities. The trace and metric-catalog suites passed
 (37 tests); all 10 frontend tests passed. Python/JavaScript syntax checks and
 `git diff --check` passed.
+
+Phase 5 follow-up, 2026-10-18: added a Nation government-revenue history and
+connected the Government Revenue chart to it. The aggregate counts each unique
+government income snapshot once, so a shared province's receipt log is not
+multiplied by its member tiles. Inputs identify the government group and which
+tile contribution counted; the displayed Nation sum remains unconverted across
+currencies.
+
+Verification: a two-tile shared-government fixture confirms the snapshot is
+counted once. The web endpoint test compares the Nation chart point with its
+aggregate and checks all member calculation links, the shared-government
+deduplication flags, and the no-conversion label. Metric-catalog, chart
+parity, syntax, whitespace, and all 10 frontend checks passed.

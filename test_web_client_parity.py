@@ -70,7 +70,7 @@ class TestWebClientParity(unittest.TestCase):
                        'soil_pollution', 'malnutrition_cases',
                        'waterborne_cases', 'respiratory_cases',
                        'chemical_cases', 'health_outlays', 'untreated_cases',
-                       'illness_deaths'):
+                       'illness_deaths', 'government_income'):
             self.assertEqual(len(hist[series]), len(hist['turns']))
 
     def test_tile_deep_inspection(self):

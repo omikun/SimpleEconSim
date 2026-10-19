@@ -279,7 +279,7 @@ def nation_chart_aggregation_rows(nation, turn=None):
     rows = []
 
     def add(family, label, metric_id, unit, reducer, index, history_value,
-            subject_filters=None):
+            subject_filters=None, contribution_policy=None):
         contributions = []
         for tile in tiles:
             value = history_value(tile, index)
@@ -294,7 +294,7 @@ def nation_chart_aggregation_rows(nation, turn=None):
         for key, item in (subject_filters or {}).items():
             subject[key] = item
             source_filter[key] = item
-        rows.append({
+        row = {
             'subject': subject, 'metric_id': metric_id, 'unit': unit,
             'after': value,
             'formula_id': ('aggregate.sum.v1' if reducer == 'sum' else
@@ -326,7 +326,10 @@ def nation_chart_aggregation_rows(nation, turn=None):
                     if metric_id.startswith('trade.')
                     or unit.startswith('local_currency') else False)},
             'source_subject_filter': source_filter,
-        })
+        }
+        if contribution_policy:
+            row['inputs']['contribution_policy'] = contribution_policy
+        rows.append(row)
 
     def series_value(tile, field, index):
         history = getattr(tile, field, ()) or ()
@@ -389,6 +392,52 @@ def nation_chart_aggregation_rows(nation, turn=None):
                 ('imports', 'trade.import_value', 'import_value_log')):
             add('trade', label, metric_id, 'local_currency_per_turn', 'sum',
                 index, lambda tile, i, name=field: series_value(tile, name, i))
+
+    income_by_tile = {}
+    income_group_by_tile = {}
+    government_groups = {}
+    for tile in tiles:
+        government = getattr(tile, 'gov', None)
+        group_key = id(government) if government is not None else ('tile', tile.name)
+        group = government_groups.setdefault(group_key, {
+            'government': government, 'tiles': []})
+        group['tiles'].append(tile)
+    income_government_count = 0
+    for group in government_groups.values():
+        government = group['government']
+        members = group['tiles']
+        income_log = getattr(government, 'income_log', ()) if government else ()
+        index = (turn - 1 if turn is not None else len(income_log) - 1)
+        snapshot = income_log[index] if 0 <= index < len(income_log) else None
+        amount = (sum(float(snapshot.get(key, 0.0))
+                      for key in ('tax', 'tariff', 'inheritance'))
+                  if snapshot is not None else None)
+        if government is not None and amount is not None:
+            income_government_count += 1
+        for member_index, tile in enumerate(members):
+            income_by_tile[tile.name] = amount if member_index == 0 else None
+            income_group_by_tile[tile.name] = {
+                'government_id': getattr(government, 'name', None),
+                'government_member_tiles': [member.name for member in members],
+                'government_income_contribution': (
+                    'no_current_snapshot' if amount is None else
+                    'counted_once' if member_index == 0 else
+                    'duplicate_shared_government_snapshot')}
+    if any(value is not None for value in income_by_tile.values()):
+        index = (max(0, turn - 1) if turn is not None else max((
+            len(getattr(getattr(tile, 'gov', None), 'income_log', ()) or ()) - 1
+            for tile in tiles), default=0))
+        add('government', 'income', 'finance.government_income',
+            'local_currency', 'sum', index,
+            lambda tile, _i: income_by_tile.get(tile.name),
+            contribution_policy=(
+                'count one income snapshot per distinct government object; '
+                'shared-province snapshots appear on every member tile; '
+                'no FX conversion'))
+        aggregate = rows[-1]
+        aggregate['inputs']['government_count'] = income_government_count
+        for contribution in aggregate['inputs']['member_contributions']:
+            contribution.update(income_group_by_tile[contribution['tile_id']])
 
     market_goods = set()
     for tile in tiles:

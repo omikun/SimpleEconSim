@@ -317,7 +317,7 @@ test('every historical chart has a trace binding, including effective workday ca
   for (const id of ['soil', 'nutrition', 'smog', 'effluent',
     'soil_pollution', 'bodily_wear', 'illness_deaths', 'untreated_cases',
     'malnutrition_cases', 'waterborne_cases', 'respiratory_cases',
-    'chemical_cases', 'health_outlays']) {
+    'chemical_cases', 'health_outlays', 'gov_income']) {
     const binding = charts.getTraceBinding(id);
     assert.ok(binding.historyKey, `missing Nation ecology/health history for ${id}`);
   }

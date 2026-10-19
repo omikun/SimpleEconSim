@@ -34,6 +34,7 @@ _NATION_CHART_HISTORY_KEYS = {
     ('trade', 'net'): ('trade', 1.0),
     ('trade', 'exports'): ('trade_exports', 1.0),
     ('trade', 'imports'): ('trade_imports', 1.0),
+    ('government', 'income'): ('government_income', 1.0),
     ('ecology', 'soil'): ('soil', 100.0),
     ('ecology', 'nutrition'): ('nutrition', 100.0),
     ('ecology', 'smog'): ('smog', 1.0),
@@ -314,7 +315,7 @@ class SimServer:
                 if family in ('market_production', 'market_inventory',
                               'market_demand_ratio'):
                     market_history_values[(family, chart_series)] = aggregate['after']
-                if family in ('ecology', 'health'):
+                if family in ('ecology', 'health', 'government'):
                     environment_history_values[(family, chart_series)] = aggregate['after']
                     continue
                 key = _NATION_CHART_HISTORY_KEYS.get((
@@ -345,11 +346,11 @@ class SimServer:
                     series.append(round(float(value), digits)
                                   if value is not None else None)
 
-            # Ecology and health use one chart point per Nation turn. If no
-            # tile produced a current reading, preserve a gap at this turn.
+            # Ecology, health, and government income use one point per Nation
+            # turn. Missing readings remain gaps at their original turns.
             for (family, chart_series), (history_key, display_scale) in (
                     _NATION_CHART_HISTORY_KEYS.items()):
-                if family not in ('ecology', 'health'):
+                if family not in ('ecology', 'health', 'government'):
                     continue
                 series = hist.setdefault(history_key, [])
                 while len(series) < len(hist['turns']) - 1:
