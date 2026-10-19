@@ -750,27 +750,146 @@ def _review_revenue_office(world: dict, project: dict) -> None:
     project['review_due_turn'] = None
 
 
+def _fiscal_challenge_trace_region(world):
+    egypt = _nation(world, 'Egypt')
+    candidates = list(getattr(egypt, 'tiles', ())) if egypt is not None else []
+    candidates.extend(world.get('tiles', ()))
+    return next((tile for tile in candidates
+                 if (getattr(tile, '_run_trace', None) is not None
+                     and getattr(tile, '_collective_trace_clock', None) is not None)), None)
+
+
+def _fiscal_challenge_operation_id(world):
+    region = _fiscal_challenge_trace_region(world)
+    clock = getattr(region, '_collective_trace_clock', None) if region else None
+    ordinal = int(clock.get('next', 1)) if clock is not None else int(world.get('turn', 0))
+    return f'fiscal-challenge:{int(world.get("turn", 0))}:{ordinal}'
+
+
+def _fiscal_challenge_trace_state(world):
+    state = world.get('scenario_state', {})
+    projects = state.get('strategic_projects', {})
+    challenge = projects.get('fiscal_challenge') or {}
+    egypt = _nation(world, 'Egypt')
+    from scenario_debt import bonds, outstanding
+    return {
+        'turn': int(world.get('turn', 0)),
+        'challenge_status': challenge.get('status'),
+        'challenge_due_turn': challenge.get('due_turn'),
+        'creditor_confidence': float(state.get('creditor_confidence', 0.0)),
+        'egypt_treasury_cash': (float(egypt.government.agent.cash)
+                                if egypt is not None else None),
+        'payment_status': state.get('payment_status'),
+        'debt_outstanding': float(outstanding(world)),
+        'defaulted_bond_ids': sorted(bond.bond_id for bond in bonds(world)
+                                     if bond.status == 'defaulted'),
+        'naval_crisis_stage': state.get('naval_crisis', {}).get('stage'),
+        'chapter': int(state.get('chapter', 1)),
+        'chapter_two_start_turn': state.get('chapter_two_start_turn'),
+        'chapter_two_cause': state.get('chapter_two_cause'),
+        'creditor_news_count': len(state.get('creditor_news', [])),
+    }
+
+
+def _trace_fiscal_challenge(world, *, operation_id, kind, publish, success,
+                            reason, before, after, details=None,
+                            cause_event_ids=None, metric_id='scenario.fiscal_challenge_response'):
+    region = _fiscal_challenge_trace_region(world)
+    if region is None:
+        return None
+    from run_trace import emit
+    return emit(
+        region, kind=kind,
+        record_class='outcome' if success or before != after else 'decision',
+        phase='scenario_projects',
+        subject={'type': 'nation/action', 'id': f'Egypt:fiscal_challenge:{publish}',
+                 'nation': 'Egypt',
+                 'action_id': 'publish_revenue_accounts' if publish
+                 else 'refuse_revenue_inspection'},
+        metric_id=metric_id,
+        unit='triggered' if metric_id == 'scenario.fiscal_challenge_escalation_decision'
+        else 'success',
+        before=0, after=int(bool(success)),
+        formula_id='scenario_projects.fiscal_challenge_response.v1',
+        inputs={'operation_id': operation_id, 'turn': int(world.get('turn', 0)),
+                'publish': bool(publish), 'success': bool(success),
+                'reason': reason, 'state_before': before, 'state_after': after,
+                **(details or {})},
+        cause_event_ids=cause_event_ids)
+
+
 def answer_fiscal_challenge(world: dict, publish: bool) -> tuple[bool, str]:
+    operation_id = _fiscal_challenge_operation_id(world)
+    before = _fiscal_challenge_trace_state(world)
     challenge = _state(world).get('fiscal_challenge') or {}
     if challenge.get('status') != 'pending':
+        _trace_fiscal_challenge(
+            world, operation_id=operation_id,
+            kind='fiscal_challenge_response_rejected', publish=publish,
+            success=False, reason='no_pending_fiscal_challenge',
+            before=before, after=before,
+            details={'challenge_status': challenge.get('status')})
         return False, 'The Caisse has no outstanding demand for these accounts.'
+    confidence_before = float(world['scenario_state'].get('creditor_confidence', 0.0))
     challenge['status'] = 'published' if publish else 'refused'
     state = world['scenario_state']
+    defaulted_bond_ids = []
+    escalation_decision_event_id = None
+    escalation_event_id = None
     if publish:
         state['creditor_confidence'] = min(1.0, state.get('creditor_confidence', .6) + .06)
         message = ('Cairo publishes the actual Alexandria receipts. The Caisse can verify '
                    'its claim, but the Egyptian treasury retains control of unassigned cash.')
+        reason = 'accounts_published'
     else:
         state['creditor_confidence'] = max(0.0, state.get('creditor_confidence', .6) - .12)
         message = ('Cairo refuses Caisse inspection. The office keeps collecting, while '
                    'creditors distrust the figures and may escalate an unpaid claim.')
         from scenario_debt import bonds
-        if any(bond.status == 'defaulted' for bond in bonds(world)):
+        defaulted_bond_ids = sorted(bond.bond_id for bond in bonds(world)
+                                    if bond.status == 'defaulted')
+        if defaulted_bond_ids:
+            decision_event_id = _trace_fiscal_challenge(
+                world, operation_id=operation_id,
+                kind='fiscal_challenge_escalation_decision', publish=False,
+                success=True, reason='inspection_refused_with_defaulted_obligation',
+                before=before, after=_fiscal_challenge_trace_state(world),
+                details={'defaulted_bond_ids': defaulted_bond_ids,
+                         'confidence_before': confidence_before,
+                         'confidence_after': float(state['creditor_confidence']),
+                         'crisis_stage_before': before['naval_crisis_stage'],
+                         'escalation_gate_open': before['naval_crisis_stage']
+                         in ('none', 'withdrawn')},
+                metric_id='scenario.fiscal_challenge_escalation_decision')
+            escalation_decision_event_id = decision_event_id
             from scenario_gunboat import begin_escalation
-            begin_escalation(world, 'refuse_revenue_inspection')
+            escalation_event_id = begin_escalation(
+                world, 'refuse_revenue_inspection',
+                cause_event_ids=([decision_event_id]
+                                 if decision_event_id is not None else None))
+            reason = 'inspection_refused_with_defaulted_obligation'
+        else:
+            reason = 'inspection_refused_without_defaulted_obligation'
     state.setdefault('creditor_news', []).append({
         'turn': int(world['turn']), 'headline': 'Alexandria accounts', 'body': message,
     })
+    cause_ids = [event_id for event_id in
+                 (escalation_decision_event_id, escalation_event_id)
+                 if event_id is not None]
+    _trace_fiscal_challenge(
+        world, operation_id=operation_id,
+        kind='fiscal_challenge_response_resolved', publish=publish,
+        success=True, reason=reason, before=before,
+        after=_fiscal_challenge_trace_state(world),
+        details={'confidence_before': confidence_before,
+                 'confidence_after': float(state['creditor_confidence']),
+                 'defaulted_bond_ids': defaulted_bond_ids,
+                 'escalation_attempted': bool(defaulted_bond_ids),
+                 'escalation_gate_open': before['naval_crisis_stage']
+                 in ('none', 'withdrawn') if defaulted_bond_ids else False,
+                 'escalation_event_id': escalation_event_id,
+                 'message': message},
+        cause_event_ids=cause_ids or None)
     return True, message
 
 

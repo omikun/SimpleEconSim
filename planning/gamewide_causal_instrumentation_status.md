@@ -1422,3 +1422,15 @@ creditor-response causal linkage, trace-on/off parity and compact `.ctr`
 verification. The combined naval, geography, diplomacy, creditor-situation
 and metric-catalog regression set passed (41 tests), as did the funded-canal
 campaign playthrough. Compilation and `git diff --check` passed.
+
+Phase 3 follow-up, 2026-10-18: Alexandria revenue-inspection answers now trace
+the pending-demand gate, publication or refusal, creditor-confidence change,
+defaulted bond IDs and escalation attempt. A pre-escalation decision record
+links the refusal and default condition into naval crisis entry; the final
+response record links the decision and escalation. An already-active crisis
+records the rejected repeat trigger. No response rules changed.
+
+Verification: six dedicated fiscal-challenge tests passed, including compact
+`.ctr` verification and trace-on/off parity. Project, metric-catalog,
+creditor-situation and naval-crisis tests passed (31 tests). The fiscal-project
+campaign playthrough passed. Compilation and `git diff --check` passed.

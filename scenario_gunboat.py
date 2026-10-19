@@ -191,7 +191,7 @@ def _record(world: dict, text: str, kind: str = 'NAVAL') -> None:
     ticker_push(world, int(world['turn']), kind, text, (230, 126, 95))
 
 
-def begin_escalation(world: dict, reason: str, *, cause_event_ids=None) -> None:
+def begin_escalation(world: dict, reason: str, *, cause_event_ids=None) -> str | None:
     state = world['scenario_state']
     crisis = state.setdefault('naval_crisis', {'stage': 'none'})
     stage_before = crisis.get('stage', 'none')
@@ -207,7 +207,7 @@ def begin_escalation(world: dict, reason: str, *, cause_event_ids=None) -> None:
         return unique or None
 
     if crisis['stage'] not in ('none', 'withdrawn'):
-        _trace_naval_escalation(
+        return _trace_naval_escalation(
             world, operation_id=operation_id, reason=reason, success=False,
             gate_reason='naval_crisis_already_active', before=before,
             after=before,
@@ -221,7 +221,7 @@ def begin_escalation(world: dict, reason: str, *, cause_event_ids=None) -> None:
     chapter_before = int(state.get('chapter', 1))
     chapter_started = enter_chapter_two(world, 'naval mobilization')
     _record(world, 'Cairo refused collection. Britain is weighing a naval expedition to Alexandria.')
-    _trace_naval_escalation(
+    return _trace_naval_escalation(
         world, operation_id=operation_id, reason=reason, success=True,
         gate_reason='escalation_trigger_accepted', before=before,
         after=_naval_escalation_state(world),

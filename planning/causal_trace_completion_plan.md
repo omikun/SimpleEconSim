@@ -333,9 +333,25 @@ geography, diplomacy, creditor-situation and metric-catalog regression set
 passed (41 tests), including the trace-on/off checks. The funded-canal campaign
 playthrough passed. Compilation and `git diff --check` passed.
 
-Next Phase 3 audit target: review `scenario_projects.answer_fiscal_challenge`
-and other direct refusal actions that call `begin_escalation` for missing
-action summaries and source-to-escalation causal links.
+### Phase 3 follow-up — Trace Alexandria revenue-inspection responses (implemented)
+
+`scenario_projects.answer_fiscal_challenge` now records the no-pending-demand
+gate, publication or refusal, creditor-confidence change, exact defaulted bond
+IDs, and the resulting naval escalation attempt. A decision event captures the
+refusal-with-default condition before escalation; the crisis entry links to
+that event, and the final project response links to both. If a crisis is already
+active, the rejected trigger remains visible. No project or crisis rules
+changed.
+
+Verification: six dedicated tests cover rejection, publication, refusal with
+and without default, active-crisis rejection, causal links, trace-on/off parity,
+and compact trace verification. Project, catalog, situation and crisis suites
+passed (31 tests). The Egypt fiscal-project playthrough passed. Compilation and
+`git diff --check` passed.
+
+Next Phase 3 audit target: review `scenario_projects._review_revenue_office`
+for the claim and collection-assignment gates that create or suppress an
+inspection challenge, and link the project review to the later player response.
 
 ## Phase 5 — Deliver explanations in web, desktop and CLI
 
