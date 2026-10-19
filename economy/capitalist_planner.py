@@ -620,11 +620,21 @@ class EliteCapitalistPlanner:
                            phase='local', subject=subject,
                            metric_id='ai.elite_economic_decision', unit='candidate_plan',
                            after=result.get('action_taken') or 'do_nothing',
-                           inputs={'opening_cash': cash_before, 'candidates': candidates,
-                                   'consideration_order': [
-                                       'luxury_purchase', 'triangular_trade', 'spatial_trade',
-                                       'class_legislation', 'lord_transformation', 'machinery',
-                                       'supply_security', 'captured_labor', 'capital_investment',
+                           cause_event_ids=(result.get('evaluation_event_ids') or None),
+                           inputs={'opening_cash': cash_before,
+                                   'preflight_candidate_snapshot': candidates,
+                                   'preflight_snapshot_status': (
+                                       'separate diagnostic pass; not the alternatives '
+                                       'evaluated by the actual planner'),
+                                   'actual_consideration_order': [
+                                       'local_luxury_purchase', 'triangular_trade_voyage',
+                                       'spatial_trade', 'class_legislation',
+                                       *(['lord_transformation']
+                                         if getattr(agent, 'is_lord', False) else []),
+                                       'repair_machinery', 'construct_machinery',
+                                       'supply_control', 'plantation_labor_gang',
+                                       'procure_captive_labor', 'frontier_conquest',
+                                       'capital_expansion_or_incorporation',
                                        'inventory_liquidation', 'do_nothing'],
                                    'selected': result.get('action_taken') or 'do_nothing',
                                    'shadow_cash_price': shadow_cash,
@@ -650,7 +660,8 @@ class EliteCapitalistPlanner:
             'is_lord': getattr(agent, 'is_lord', False),
             'shadow_price_cash': shadow_cash,
             'action_taken': None,
-            'details': {}
+            'details': {},
+            'evaluation_event_ids': [],
         }
 
         # ---------------------------------------------------------------------
@@ -900,25 +911,124 @@ class EliteCapitalistPlanner:
         # ---------------------------------------------------------------------
         # 4. Market Liquidation: Sell excess non-luxury inventory for cash
         # ---------------------------------------------------------------------
+        liquidation_evaluations = []
         for g in getattr(region, 'goods', []):
             spec = TransformationGraph.get_commodity_spec(g)
             if spec and spec.prestige_rating == 0.0 and g != Goods.food:
                 held = agent.inv_get(g, 0)
-                if held > 0:
-                    p = float(region.recipes.get(g, {}).get('price', 1.0))
-                    buyer = next((a for a in region.agents if a.id != agent.id and a.alive
-                                  and a.cash >= p), None)
-                    if buyer:
-                        sale_qty = min(held, max(1, int(buyer.cash // p)))
-                        trade_cash = sale_qty * p
-                        buyer.cash -= trade_cash
-                        agent.cash += trade_cash
-                        agent.inv_add(g, -sale_qty)
-                        buyer.inv_add(g, sale_qty)
-                        result['action_taken'] = f'LIQUIDATE_{g.name.upper()}'
-                        result['details'] = {'good': g.name, 'quantity': sale_qty,
-                                             'cash_received': trade_cash,
-                                             'buyer_id': buyer.id}
-                        return result
+                candidate = {'good': getattr(g, 'name', str(g)),
+                             'seller_inventory': float(held)}
+                if held <= 0:
+                    candidate['reason'] = 'no_liquidatable_inventory'
+                    liquidation_evaluations.append(candidate)
+                    continue
+
+                p = float(region.recipes.get(g, {}).get('price', 1.0))
+                candidate.update({'reference_price': p,
+                                  'price_basis': 'displayed_recipe_reference',
+                                  'buyer_checks': []})
+                buyer = None
+                for buyer_index, potential_buyer in enumerate(region.agents):
+                    if potential_buyer.id == agent.id:
+                        reason = 'seller_cannot_buy_own_inventory'
+                    elif not potential_buyer.alive:
+                        reason = 'buyer_not_alive'
+                    elif potential_buyer.cash < p:
+                        reason = 'buyer_cannot_afford_one_unit'
+                    else:
+                        reason = 'first_live_buyer_who_can_afford_one_unit'
+                        buyer = potential_buyer
+                    candidate['buyer_checks'].append({
+                        'order': buyer_index,
+                        'agent_id': str(potential_buyer.id),
+                        'cash': float(potential_buyer.cash),
+                        'reason': reason})
+                    if buyer is not None:
+                        break
+
+                if buyer is None:
+                    candidate['reason'] = 'no_live_buyer_can_afford_one_unit'
+                    liquidation_evaluations.append(candidate)
+                    continue
+
+                sale_qty = min(held, max(1, int(buyer.cash // p)))
+                trade_cash = sale_qty * p
+                candidate.update({
+                    'reason': 'liquidation_selected',
+                    'selected_buyer_id': str(buyer.id),
+                    'buyer_affordable_quantity': int(buyer.cash // p),
+                    'sale_quantity': float(sale_qty),
+                    'cash_received': float(trade_cash),
+                    'settlement_path': 'direct_inventory_transfer'})
+                liquidation_evaluations.append(candidate)
+                from run_trace import emit
+                evaluation_event_id = emit(
+                    region, kind='elite_inventory_liquidation_decision',
+                    record_class='decision', phase='local',
+                    subject={'type': 'agent', 'id': agent.id,
+                             'tile': getattr(region, 'name', 'default')},
+                    metric_id='ai.elite_economic_decision', unit='candidate',
+                    after=f"LIQUIDATE_{getattr(g, 'name', str(g)).upper()}",
+                    formula_id='elite.inventory_liquidation_gate.v1',
+                    inputs={'decision_rule': (
+                                'sell the first eligible non-luxury, non-food good '
+                                'for which the seller has stock and the first live '
+                                'non-seller buyer can afford one unit'),
+                            'evaluated_goods': liquidation_evaluations,
+                            'selected_good': getattr(g, 'name', str(g)),
+                            'selected_buyer_id': str(buyer.id),
+                            'unit_reference_price': p,
+                            'sale_quantity': float(sale_qty),
+                            'cash_received': float(trade_cash),
+                            'settlement_path': 'direct_inventory_transfer'})
+                if evaluation_event_id is not None:
+                    result['evaluation_event_ids'].append(evaluation_event_id)
+
+                seller_cash_before = float(agent.cash)
+                buyer_cash_before = float(buyer.cash)
+                seller_inventory_before = float(agent.inv_get(g, 0))
+                buyer_inventory_before = float(buyer.inv_get(g, 0))
+                buyer.cash -= trade_cash
+                agent.cash += trade_cash
+                agent.inv_add(g, -sale_qty)
+                buyer.inv_add(g, sale_qty)
+                result['action_taken'] = f'LIQUIDATE_{g.name.upper()}'
+                result['details'] = {'good': g.name, 'quantity': sale_qty,
+                                     'cash_received': trade_cash,
+                                     'buyer_id': buyer.id,
+                                     'reference_unit_price': p,
+                                     'currency': getattr(region, 'home_currency', None),
+                                     'settlement_path': 'direct_inventory_transfer',
+                                     'currency_conversion_applied': False,
+                                     'seller_cash_before': seller_cash_before,
+                                     'seller_cash_after': float(agent.cash),
+                                     'buyer_cash_before': buyer_cash_before,
+                                     'buyer_cash_after': float(buyer.cash),
+                                     'seller_inventory_before': seller_inventory_before,
+                                     'seller_inventory_after': float(agent.inv_get(g, 0)),
+                                     'buyer_inventory_before': buyer_inventory_before,
+                                     'buyer_inventory_after': float(buyer.inv_get(g, 0))}
+                return result
+
+        from run_trace import emit
+        evaluation_event_id = emit(
+            region, kind='elite_inventory_liquidation_decision',
+            record_class='decision', phase='local',
+            subject={'type': 'agent', 'id': agent.id,
+                     'tile': getattr(region, 'name', 'default')},
+            metric_id='ai.elite_economic_decision', unit='candidate',
+            after='continue', formula_id='elite.inventory_liquidation_gate.v1',
+            inputs={'decision_rule': (
+                        'sell the first eligible non-luxury, non-food good '
+                        'for which the seller has stock and the first live '
+                        'non-seller buyer can afford one unit'),
+                    'evaluated_goods': liquidation_evaluations,
+                    'reason': ('no eligible inventory goods'
+                               if not liquidation_evaluations else
+                               'no good had both seller inventory and an '
+                               'affordable live buyer'),
+                    'selected_good': None})
+        if evaluation_event_id is not None:
+            result['evaluation_event_ids'].append(evaluation_event_id)
 
         return result

@@ -104,7 +104,7 @@ METRICS = {
     'military.border_vulnerability': ('nation/tile', 'ratio', 'ai_nation.NationPolicyAI.evaluate_tile_vulnerability; adjacent neighbors, alliance/non-aggression exclusion, relative hostility, and local defensive strength'),
     'expansion.ai_candidates': ('nation/tile', 'plan', 'ai_nation.NationPolicyAI.evaluate_expansion; frontier eligibility, terrain and bottleneck value, settlement/conquest gates, and strict score ranking'),
     'ai.nation_decision': ('nation', 'submitted_intents', 'ai_nation.NationPolicyAI.decide_turn; considered policies, candidate reasons, selected intents, and links to diplomacy, war, and border calculations'),
-    'ai.elite_economic_decision': ('tile/agent', 'candidate_plan', 'economy.capitalist_planner.plan_and_execute_elite; landed-elite, merchant, and corporate candidate plans, consideration order, selected action, and linked cash outcome'),
+    'ai.elite_economic_decision': ('tile/agent', 'candidate_plan', 'economy.capitalist_planner.plan_and_execute_elite; actual consideration order and selected action, separately labeled diagnostic preflight snapshot, liquidation buyer/affordability evidence, and linked cash outcome'),
     'ai.intent_execution': ('nation/intent', 'intent_state', 'intents.Intent.step; approval timing, execution result, treasury change, and originating nation decision link'),
     'diplomacy.relation': ('nation_pair', 'ratio', 'diplomacy.DiplomacySystem.update_relations'),
     'diplomacy.ai_candidates': ('nation/foreign_nation', 'decision candidates', 'ai_nation.NationPolicyAI.evaluate_diplomacy; military threat screens, alliance partners, trade pacts, betrayal conditions and ideological war gates'),

@@ -6,6 +6,8 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from economy.capitalist_planner import EliteCapitalistPlanner
+from economy.transformation_graph import TransformationGraph
+from goods import Goods
 from metric_catalog import METRICS, TRACE_INSTRUMENTED
 
 
@@ -26,11 +28,17 @@ class Actor:
         self.id = agent_id
         self.is_lord = lord
         self.is_corporation = False
+        self.alive = True
         self.cash = 0.0
         self._inventory = inventory or {}
+        self.company_owned = None
+        self.employer = None
 
     def inv_get(self, good, default=0):
         return self._inventory.get(good, default)
+
+    def inv_add(self, good, amount):
+        self._inventory[good] = self._inventory.get(good, 0) + amount
 
 
 class ElitePlanningGateTraceTests(unittest.TestCase):
@@ -158,6 +166,98 @@ class ElitePlanningGateTraceTests(unittest.TestCase):
         self.assertEqual(decision['metric_id'], 'ai.elite_economic_decision')
         self.assertEqual(decision['after'], 'do_nothing')
         self.assertEqual(outcome['decision_id'], decision['event_id'])
+        self.assertEqual(decision['inputs']['preflight_candidate_snapshot'],
+                         [{'candidate': 'do_nothing'}])
+        self.assertIn('separate diagnostic pass',
+                      decision['inputs']['preflight_snapshot_status'])
+        self.assertNotIn('candidates', decision['inputs'])
+        self.assertEqual(decision['inputs']['actual_consideration_order'][-2:],
+                         ['inventory_liquidation', 'do_nothing'])
+
+    def _liquidation_case(self, buyer_cash, traced):
+        planner = EliteCapitalistPlanner()
+        seller = Actor(17, lord=False, inventory={Goods.wood: 4})
+        buyer = Actor(18, lord=False)
+        seller.cash = 0.0
+        buyer.cash = float(buyer_cash)
+        region, _, trace = self.make_region(
+            goods=[Goods.wood], actor=seller, traced=traced)
+        region.agents = [seller, buyer]
+        region.recipes = {Goods.wood: {'price': 5.0}}
+        region.economic_events = []
+        region.neighbors = {}
+        region.trade_manager = None
+        region.home_currency = 'crown'
+
+        planner._elite_candidate_snapshot = lambda *_args: [
+            {'candidate': 'diagnostic_only'}]
+        planner.get_market_luxuries = lambda *_args: []
+        planner.evaluate_triangular_trade_voyage = lambda *_args: None
+        planner.evaluate_spatial_trade = lambda *_args: None
+        planner.evaluate_class_legislation = lambda *_args: None
+        planner._execute_input_control = lambda *_args: None
+        with patch.object(TransformationGraph, 'get_operator', return_value=None), \
+                patch('economy.actor_accounts.record', return_value=None):
+            result = planner.plan_and_execute_elite(seller, region, 7)
+        return result, seller, buyer, trace
+
+    def test_liquidation_uses_actual_first_affordable_buyer_and_traces_cash(self):
+        traced = self._liquidation_case(10.0, True)
+        plain = self._liquidation_case(10.0, False)
+        traced_result, seller, buyer, trace = traced
+        plain_result, plain_seller, plain_buyer, _ = plain
+
+        self.assertEqual(traced_result['action_taken'], 'LIQUIDATE_WOOD')
+        self.assertEqual(plain_result['action_taken'], traced_result['action_taken'])
+        self.assertEqual((seller.cash, buyer.cash, seller.inv_get(Goods.wood),
+                          buyer.inv_get(Goods.wood)),
+                         (plain_seller.cash, plain_buyer.cash,
+                          plain_seller.inv_get(Goods.wood),
+                          plain_buyer.inv_get(Goods.wood)))
+        self.assertEqual((seller.cash, buyer.cash,
+                          seller.inv_get(Goods.wood), buyer.inv_get(Goods.wood)),
+                         (10.0, 0.0, 2, 2))
+
+        evaluation = next(row for row in trace.rows
+                          if row['kind'] == 'elite_inventory_liquidation_decision')
+        candidate = evaluation['inputs']['evaluated_goods'][-1]
+        self.assertEqual(candidate['reason'], 'liquidation_selected')
+        self.assertEqual(candidate['selected_buyer_id'], '18')
+        self.assertEqual(candidate['sale_quantity'], 2.0)
+        self.assertEqual(candidate['cash_received'], 10.0)
+        self.assertEqual(candidate['settlement_path'], 'direct_inventory_transfer')
+        decision = next(row for row in trace.rows
+                        if row['kind'] == 'corporation_ai_decision')
+        self.assertEqual(decision['cause_event_ids'], [evaluation['event_id']])
+        outcome = next(row for row in trace.rows
+                       if row['kind'] == 'corporation_ai_outcome')
+        self.assertEqual(outcome['decision_id'], decision['event_id'])
+        details = outcome['inputs']['details']
+        self.assertEqual(details['buyer_cash_before'], 10.0)
+        self.assertEqual(details['buyer_cash_after'], 0.0)
+        self.assertEqual(details['seller_inventory_before'], 4.0)
+        self.assertEqual(details['seller_inventory_after'], 2.0)
+        self.assertEqual(details['buyer_inventory_before'], 0.0)
+        self.assertEqual(details['buyer_inventory_after'], 2.0)
+        self.assertFalse(details['currency_conversion_applied'])
+
+    def test_liquidation_records_no_affordable_buyer_as_a_rejection(self):
+        result, seller, buyer, trace = self._liquidation_case(4.0, True)
+
+        self.assertIsNone(result['action_taken'])
+        self.assertEqual(seller.inv_get(Goods.wood), 4)
+        self.assertEqual(buyer.inv_get(Goods.wood), 0)
+        evaluation = next(row for row in trace.rows
+                          if row['kind'] == 'elite_inventory_liquidation_decision')
+        candidate = evaluation['inputs']['evaluated_goods'][0]
+        self.assertEqual(candidate['reason'], 'no_live_buyer_can_afford_one_unit')
+        self.assertEqual(candidate['buyer_checks'][0]['reason'],
+                         'seller_cannot_buy_own_inventory')
+        self.assertEqual(candidate['buyer_checks'][1]['reason'],
+                         'buyer_cannot_afford_one_unit')
+        decision = next(row for row in trace.rows
+                        if row['kind'] == 'corporation_ai_decision')
+        self.assertEqual(decision['cause_event_ids'], [evaluation['event_id']])
 
 
 if __name__ == '__main__':

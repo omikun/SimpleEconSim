@@ -38,8 +38,10 @@ reference quote separately from what buyers actually paid.
   Record both values and their roles; do not silently change the pricing rule.
 - The latest elite candidate snapshot runs checks and estimates a second time
   before the real planner. It also truncates sectors to eight. Its feasibility
-  labels omit some later cash/return gates. These are prospective alternatives,
-  not proof that the real planner evaluated every one of them.
+  labels omit some later cash/return gates. The decision record now labels this
+  list as a diagnostic preflight, not as the real planner's evaluated
+  alternatives. The actual inventory-liquidation gate is traced, while other
+  real planner-stage evidence and preflight purity/RNG neutrality remain open.
 - The first death probe counted only `demographics_estate.handle_death()`;
   subsequent work added the shared registered-person path for combat,
   repression, and assassination. Infant losses stay separate from resident
@@ -2378,3 +2380,19 @@ Verification: 15 desktop chart tests, all 34 causal trace tests,
 metric-catalog coverage, Python compilation, and `git diff --check` passed.
 Trace evidence across all source turns for moving-average chart points and
 bindings for remaining web series remain open.
+
+## Phase 4 follow-up — Trace actual inventory liquidation (implemented)
+
+The corporation decision record now distinguishes its diagnostic preflight
+snapshot from the actual consideration order. When the planner reaches its
+final liquidation stage, the trace records the goods examined, seller stocks,
+reference price, buyer checks in iteration order, affordability failures, and
+the selected buyer, quantity, and proceeds. The decision links to that real
+evaluation. The linked outcome includes both actors' cash and inventory
+balances before and after, plus the direct same-currency transfer basis.
+
+Verification: 71 elite-planner, capitalist-propagation, actor-account, and
+supply-control tests passed. Trace-on/off liquidation fixtures produced the
+same action and balances; both a selected buyer and an unaffordable buyer were
+checked. Python compilation and `git diff --check` passed. The planner's other
+real evaluation stages remain open.

@@ -177,11 +177,13 @@ evidence.
   wage adjustments, payroll borrowing and layoffs, and incorporation finance.
   Elite planning records selected action, luxury prices and sellers, sector
   margins, voyage ROIs, legislative/operator feasibility, return estimates,
-  and cash outcome. Spatial exports, inventory liquidation, and some
-  investment alternatives remain partial.
-  The candidate snapshot is a separate preflight evaluation; it must be replaced
-  or validated before describing those alternatives as the planner's actual
-  evaluated choices.
+  and cash outcome. The candidate snapshot is explicitly labeled as a separate
+  diagnostic preflight, not the actual planner's evaluated alternatives. The
+  actual inventory-liquidation gate now logs candidate stock, buyer checks,
+  affordability, sale quantity, reference-price basis, and linked cash and
+  inventory balances. Spatial trade and other investment alternatives still
+  need evidence from their real evaluation paths; preflight purity and RNG
+  neutrality remain unverified.
 
 ## Known gaps
 
@@ -1845,3 +1847,19 @@ records, including the reference basis and no-conversion currency flag. All 37
 Nation aggregation, trace-reader, and metric-catalog tests passed, all 10
 frontend tests passed (including gap rendering and turn selection), and Python
 and JavaScript syntax checks plus `git diff --check` passed.
+
+Phase 4 follow-up, 2026-10-18: clarified the corporation decision record's
+actual consideration order and labeled the existing candidate list as a
+separate diagnostic preflight. The real final-stage inventory liquidation now
+records each eligible good examined, stock, reference price, buyer checks in
+market order, affordability rejection, and selected quantity/proceeds. The
+decision links to this actual evaluation. Its outcome also records both actors'
+cash and inventory before/after; the direct transfer is marked same-currency
+with no conversion.
+
+Verification: 71 elite planner, capitalist propagation, actor-account, and
+supply-control tests passed. Trace-on and trace-off liquidation fixtures had
+identical action, cash, and inventory results; selected and unaffordable-buyer
+paths both recorded their decision evidence. Python compilation and
+`git diff --check` passed. Actual evaluation evidence for the planner's other
+stages remains open.
