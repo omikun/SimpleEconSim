@@ -81,17 +81,57 @@ _LABOR_BINDINGS = {
         'sabotaged this turn': ('labor.machinery_sabotaged', None)},
 }
 
+_NATION_CITIZEN_BINDINGS = {
+    1: {'serf': ('society.class_population', 'serf', 'sum'),
+        'tenant': ('society.class_population', 'tenant', 'sum'),
+        'worker': ('society.class_population', 'worker', 'sum'),
+        'disposs': ('society.class_population', 'dispossessed', 'sum'),
+        'gentry': ('society.class_population', 'gentry', 'sum'),
+        'artisan': ('society.class_population', 'artisan', 'sum')},
+    2: {'foraged': ('food.foraged', None, 'sum'),
+        'market food': ('food.purchased', None, 'sum'),
+        'hungry': ('people.hungry', None, 'sum')},
+    3: {'avg commons %': ('land.commons_access', None, 'mean'),
+        'rent ($)': ('finance.rent_collected', None, 'sum'),
+        'arrears ($)': ('finance.rent_arrears', None, 'sum')},
+    4: {'avg gini (x100)': ('economy.gini', 'food', 'mean'),
+        'avg protest': ('politics.protest_energy', None, 'mean')},
+}
 
-def chart_trace_binding(chart_mode: str, chart_idx: int, label: str) -> dict | None:
+_NATION_LABOR_BINDINGS = {
+    1: {'avg shift hrs': ('labor.average_shift_hours', None, 'mean'),
+        'avg effective cap': ('labor.statutory_workday', None, 'mean'),
+        'avg s/v rate (%)': ('labor.exploitation_rate', None, 'mean')},
+    2: {'alienation (x100)': ('labor.average_alienation', None, 'mean'),
+        'bodily wear (x100)': ('health.average_bodily_wear', None, 'mean'),
+        'accidents': ('labor.workplace_accidents', None, 'sum')},
+    3: {'consciousness (x100)': ('labor.average_class_consciousness', None, 'mean'),
+        'entertainment (x100)': ('society.entertainment_level', None, 'mean'),
+        'protest': ('politics.protest_energy', None, 'mean')},
+    4: {'strikers': ('labor.strikers', None, 'sum'),
+        'broken stock': ('labor.broken_machinery', None, 'sum'),
+        'sabotaged this turn': ('labor.machinery_sabotaged', None, 'sum')},
+}
+
+
+def chart_trace_binding(chart_mode: str, chart_idx: int, label: str,
+                        chart_scope: str = 'tile') -> dict | None:
     """Return trace filters for one plotted series, if that series is mapped."""
     label_key = str(label).strip().lower()
-    mapping = {'eco': _ECO_BINDINGS, 'citizen': _CITIZEN_BINDINGS,
-               'labor': _LABOR_BINDINGS}.get(chart_mode, _ECON_BINDINGS)
+    if chart_scope == 'nation' and chart_mode == 'citizen':
+        mapping = _NATION_CITIZEN_BINDINGS
+    elif chart_scope == 'nation' and chart_mode == 'labor':
+        mapping = _NATION_LABOR_BINDINGS
+    else:
+        mapping = {'eco': _ECO_BINDINGS, 'citizen': _CITIZEN_BINDINGS,
+                   'labor': _LABOR_BINDINGS}.get(chart_mode, _ECON_BINDINGS)
     row = mapping.get(int(chart_idx), {}).get(label_key)
     if row is None:
         return None
-    metric_id, filter_value = row
+    metric_id, filter_value, *aggregate = row
     binding = {'metric_id': metric_id}
+    if aggregate:
+        binding['aggregation'] = aggregate[0]
     if metric_id == 'health.disease_cases':
         binding['disease'] = filter_value
     elif metric_id == 'society.class_population':
@@ -116,8 +156,17 @@ def chart_trace_binding(chart_mode: str, chart_idx: int, label: str) -> dict | N
         ('labor', 2, 'bodily wear (x100)'): '×100 display scale',
         ('labor', 3, 'consciousness (x100)'): '×100 display scale',
         ('labor', 3, 'entertainment (x100)'): '×100 display scale',
+        ('nation_citizen', 3, 'avg commons %'): '×100 display scale',
+        ('nation_citizen', 4, 'avg gini (x100)'): '×100 display scale',
+        ('nation_labor', 1, 'avg s/v rate (%)'): '×100 display scale',
+        ('nation_labor', 2, 'alienation (x100)'): '×100 display scale',
+        ('nation_labor', 2, 'bodily wear (x100)'): '×100 display scale',
+        ('nation_labor', 3, 'consciousness (x100)'): '×100 display scale',
+        ('nation_labor', 3, 'entertainment (x100)'): '×100 display scale',
     }
-    transform = transforms.get((chart_mode, int(chart_idx), label_key))
+    transform_mode = (f'nation_{chart_mode}' if chart_scope == 'nation'
+                      else chart_mode)
+    transform = transforms.get((transform_mode, int(chart_idx), label_key))
     if transform is None:
         transform = transforms.get((chart_mode, int(chart_idx)))
     if chart_mode == 'econ' and int(chart_idx) in (5, 9):
@@ -233,35 +282,127 @@ def chart_point_at_pixel(position, chart, plot_rect, window: int) -> dict | None
 
 
 def select_chart_trace(region, chart_mode, chart_idx, chart, plot_rect,
-                       position, window: int, fallback_turn: int = 0) -> dict | None:
-    """Select a chart point, query its tile trace records, and return display data."""
+                       position, window: int, fallback_turn: int = 0,
+                       chart_scope: str = 'tile', nation_name: str | None = None,
+                       nation_tiles=None) -> dict | None:
+    """Select a chart point and query its tile or nation trace evidence."""
     point = chart_point_at_pixel(position, chart, plot_rect, window)
     if point is None:
         return None
-    binding = chart_trace_binding(chart_mode, chart_idx, point['label'])
+    binding = chart_trace_binding(chart_mode, chart_idx, point['label'],
+                                  chart_scope=chart_scope)
     if binding is None:
         return None
     last_turn = int(getattr(region, '_last_turn', fallback_turn))
     turn = max(0, last_turn - (point['series_length'] - 1 - point['point_index']))
-    subject = {'type': 'tile', 'id': region.name}
+    subject_type = 'nation' if chart_scope == 'nation' else 'tile'
+    subject_id = nation_name if chart_scope == 'nation' else region.name
+    subject = {'type': subject_type, 'id': subject_id}
     for key in ('good', 'disease', 'class_group'):
         if binding.get(key) is not None:
             subject[key] = binding[key]
     trace = getattr(region, '_run_trace', None)
     rows = []
+    aggregation = None
     if trace is not None:
-        result = trace.query(turn=turn, subject=subject,
-                            metric_id=binding['metric_id'], limit=200)
-        rows = result.get('events', [])
-    preferred = [row for row in rows
-                 if row.get('record_class') == 'calculation'
-                 and row.get('kind') != 'metric_snapshot']
-    if preferred:
-        rows = preferred
+        if chart_scope == 'nation':
+            contributing_tiles = list(nation_tiles or ())
+            if not contributing_tiles and region is not None:
+                contributing_tiles = [region]
+            member_values = []
+            source_rows = []
+            for tile in contributing_tiles:
+                tile_subject = {'type': 'tile', 'id': tile.name}
+                for key in ('good', 'disease', 'class_group'):
+                    if binding.get(key) is not None:
+                        tile_subject[key] = binding[key]
+                result = trace.query(turn=turn, subject=tile_subject,
+                                     metric_id=binding['metric_id'], limit=200)
+                tile_rows = result.get('events', [])
+                calculations = [row for row in tile_rows
+                                if row.get('record_class') == 'calculation'
+                                and row.get('kind') != 'metric_snapshot'
+                                and row.get('value_after') is not None]
+                candidates = calculations or [
+                    row for row in tile_rows
+                    if row.get('kind') == 'metric_snapshot'
+                    and row.get('value_after') is not None]
+                if candidates:
+                    source_row = candidates[-1]
+                    member_values.append({'tile_id': tile.name,
+                                          'value': float(source_row['value_after']),
+                                          'event_id': source_row.get('event_id'),
+                                          'evidence': 'calculation' if calculations
+                                          else 'snapshot'})
+                    source_rows.append(source_row)
+                else:
+                    member_values.append({'tile_id': tile.name, 'value': None,
+                                          'event_id': None,
+                                          'evidence': 'missing'})
+            known = [row['value'] for row in member_values
+                     if row['value'] is not None]
+            reducer = binding.get('aggregation', 'mean')
+            denominator = len(known)
+            replay = ((sum(known) if reducer == 'sum' else
+                       sum(known) / denominator) if denominator else None)
+            transform_scale = (100.0 if binding.get('plot_transform') ==
+                               '×100 display scale' else 1.0)
+            plotted_replay = (replay * transform_scale
+                              if replay is not None else None)
+            tolerance = max(1e-6, abs(point['value']) * 1e-6)
+            aggregation = {
+                'reducer': reducer,
+                'member_values': member_values,
+                'member_count': len(contributing_tiles),
+                'coverage_count': denominator,
+                'coverage_complete': denominator == len(contributing_tiles),
+                'source_value': replay,
+                'plotted_value': plotted_replay,
+                'matches_chart_point': (plotted_replay is not None and
+                                        abs(plotted_replay - point['value']) <= tolerance),
+                'membership_basis': 'nation.tiles at inspection time',
+            }
+            nation_result = trace.query(
+                turn=turn, subject=subject,
+                metric_id=binding['metric_id'], limit=200)
+            nation_calculations = [row for row in nation_result.get('events', ())
+                                   if row.get('record_class') == 'calculation'
+                                   and row.get('kind') != 'metric_snapshot'
+                                   and row.get('value_after') is not None]
+            if nation_calculations:
+                nation_row = nation_calculations[-1]
+                recorded_value = float(nation_row['value_after'])
+                recorded_plotted = recorded_value * transform_scale
+                recorded_members = ((nation_row.get('inputs') or {}).get(
+                    'member_tiles') or [])
+                aggregation.update({
+                    'recorded_nation_value': recorded_value,
+                    'recorded_nation_plotted_value': recorded_plotted,
+                    'recorded_nation_matches_chart_point': (
+                        abs(recorded_plotted - point['value']) <= tolerance),
+                    'recorded_membership_matches_current': (
+                        set(recorded_members)
+                        == {tile.name for tile in contributing_tiles}),
+                })
+            rows = source_rows
+        else:
+            result = trace.query(turn=turn, subject=subject,
+                                 metric_id=binding['metric_id'], limit=200)
+            rows = result.get('events', [])
+    if chart_scope != 'nation':
+        preferred = [row for row in rows
+                     if row.get('record_class') == 'calculation'
+                     and row.get('kind') != 'metric_snapshot']
+        if preferred:
+            rows = preferred
+        else:
+            rows = [row for row in rows if row.get('kind') != 'metric_snapshot']
     else:
-        rows = [row for row in rows if row.get('kind') != 'metric_snapshot']
+        rows = [row for row in rows if row is not None]
     return {
         'tile': region.name,
+        'nation': nation_name if chart_scope == 'nation' else None,
+        'chart_scope': chart_scope,
         'turn': turn,
         'metric_id': binding['metric_id'],
         'series_label': point['label'],
@@ -269,12 +410,28 @@ def select_chart_trace(region, chart_mode, chart_idx, chart, plot_rect,
         'component': binding.get('component'),
         'plot_transform': binding.get('plot_transform'),
         'events': rows[:4],
+        'aggregation': aggregation,
         'has_trace': trace is not None,
         'chart_idx': int(chart_idx),
         'chart_mode': chart_mode,
-        'chart_family': (chart_mode if chart_mode in ('citizen', 'labor')
+        'chart_family': ('nation' if chart_scope == 'nation' else
+                         chart_mode if chart_mode in ('citizen', 'labor')
                          else 'tile'),
     }
+
+
+def trace_selection_matches(selection, info, region, chart_idx):
+    """Whether a selection belongs to the currently rendered chart context."""
+    if not selection or not info:
+        return False
+    if (selection.get('chart_family', 'tile') != info.get('chart_family', 'tile')
+            or selection.get('chart_idx') != chart_idx
+            or selection.get('chart_mode') != info.get('chart_mode')
+            or selection.get('chart_scope', 'tile') != info.get('chart_scope', 'tile')):
+        return False
+    if info.get('chart_scope') == 'nation':
+        return selection.get('nation') == info.get('nation')
+    return selection.get('tile') == getattr(region, 'name', None)
 
 
 def draw_trace_selection(surface, selection, rect, font):
@@ -282,19 +439,43 @@ def draw_trace_selection(surface, selection, rect, font):
     if not selection:
         return
     x, y, width, height = rect
-    panel_height = min(132, max(96, height // 2))
+    aggregation = selection.get('aggregation')
+    panel_height = (min(200, max(150, height // 2)) if aggregation else
+                    min(132, max(96, height // 2)))
     panel = (x + 8, y + height - panel_height - 8, width - 16, panel_height)
     import pygame
     pygame.draw.rect(surface, (10, 14, 22), panel, border_radius=5)
     pygame.draw.rect(surface, (100, 120, 150), panel, 1, border_radius=5)
     tx, ty = panel[0] + 8, panel[1] + 6
-    header = (f"Trace T{selection['turn']} · {selection['metric_id']} · "
+    scope_name = (f"{selection['nation']} · " if selection.get('nation') else '')
+    header = (f"Trace {scope_name}T{selection['turn']} · {selection['metric_id']} · "
               f"{selection['series_label']}")
     if selection.get('component'):
         header += f" / {selection['component']}"
     lines = [header, f"Chart point: {selection['chart_value']:,.3f}"]
     if selection.get('plot_transform'):
         lines.append(f"Chart transform: {selection['plot_transform']}")
+    if aggregation:
+        replay = aggregation.get('plotted_value')
+        status = ('matches' if aggregation.get('matches_chart_point') else
+                  'does not match' if replay is not None else 'unavailable')
+        lines.append(
+            f"Nation {aggregation['reducer']} across "
+            f"{aggregation['coverage_count']}/{aggregation['member_count']} tiles; "
+            f"replay {status} point")
+        examples = [f"{row['tile_id']}={row['value']:,.3f}"
+                    for row in aggregation.get('member_values', ())
+                    if row.get('value') is not None][:2]
+        if examples:
+            lines.append('Tile values: ' + ', '.join(examples))
+        if aggregation.get('recorded_nation_value') is not None:
+            membership = ('same' if aggregation.get(
+                'recorded_membership_matches_current') else 'different')
+            recorded = ('matches' if aggregation.get(
+                'recorded_nation_matches_chart_point') else 'differs from')
+            lines.append(
+                f"Run record {membership} membership: "
+                f"{recorded} plotted point")
     events = selection.get('events', [])
     if not selection.get('has_trace'):
         lines.append('No run trace is attached to this tile.')
@@ -319,6 +500,6 @@ def draw_trace_selection(surface, selection, rect, font):
                 break
         if simple:
             lines.append('Inputs: ' + ', '.join(simple))
-    for line in lines[:6]:
+    for line in lines[:8]:
         surface.blit(font.render(line[:115], True, (220, 225, 235)), (tx, ty))
         ty += 18

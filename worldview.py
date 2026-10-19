@@ -764,7 +764,9 @@ def main():
                         # 3c. Check sidebar chart clicks
                         grid_top = world.get('_chart_grid_top', 178 + TOP_BAR_H + 30)
                         grid_bottom = world.get('_chart_grid_bottom', HEIGHT - TICKER_H - 96)
-                        num_c = 6 if world.get('tile_chart_mode') == 'eco' else 10
+                        num_c = (4 if world.get('scope', 'tile') == 'nation'
+                                 else 6 if world.get('tile_chart_mode') == 'eco'
+                                 else 10)
                         if world.get('view', 0) == 0:
                             clicked_chart = chart_at_pixel(event.pos, grid_top, grid_bottom, num_charts=num_c)
                             if clicked_chart is not None:
@@ -779,10 +781,16 @@ def main():
                             # Click a plotted point to inspect trace evidence; click outside the plot to return.
                             if event.pos[0] >= PANEL_LEFT:
                                 info = world.get('_chart_zoom_trace_info') or {}
-                                region = world.get('selected_region')
+                                scope = world.get('scope', 'tile')
+                                nation = selected_nation(world) if scope == 'nation' else None
+                                region = (nation.tiles[0] if nation is not None
+                                          and nation.tiles else
+                                          world.get('selected_region'))
                                 selection = None
                                 if (region is not None
-                                        and world.get('scope', 'tile') != 'nation'
+                                        and info.get('chart_scope', 'tile') == scope
+                                        and info.get('chart_family') == (
+                                            'nation' if scope == 'nation' else 'tile')
                                         and info.get('chart') is not None
                                         and info.get('plot_rect') is not None):
                                     from desktop_chart_trace import select_chart_trace
@@ -791,7 +799,10 @@ def main():
                                         info.get('chart_idx') or world.get('view'),
                                         info['chart'], info.get('plot_rect'),
                                         event.pos, info.get('window', world.get('window', 100)),
-                                        fallback_turn=world.get('turn', 0))
+                                        fallback_turn=world.get('turn', 0),
+                                        chart_scope=scope,
+                                        nation_name=nation.name if nation else None,
+                                        nation_tiles=nation.tiles if nation else None)
                                 if selection is not None:
                                     world['_chart_trace_selection'] = selection
                                 else:
@@ -1022,6 +1033,8 @@ def main():
                         world['_chart_trace_selection'] = None
                 elif event.key == pygame.K_v:
                     world['scope'] = 'nation' if world.get('scope', 'tile') == 'tile' else 'tile'
+                    world['view'] = 0
+                    world['_chart_trace_selection'] = None
                     curr_sc = world.get('policy_scope', 'tile')
                     world['policy_scope'] = 'province' if curr_sc == 'tile' else ('nation' if curr_sc == 'province' else 'tile')
                     _mark_dirty(world)

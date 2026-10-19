@@ -731,6 +731,59 @@ class RunTraceTests(unittest.TestCase):
         self.assertEqual(first[('labor.temporary_work_share', 'Delta')][2], 0.0)
         self.assertEqual(tile.deaths_this_turn, 2)
 
+    def test_nation_chart_aggregation_replays_current_tile_histories(self):
+        from trace_snapshots import nation_chart_aggregation_rows
+
+        def tile(name, serf, commons, gini, shift, accidents):
+            return SimpleNamespace(
+                name=name,
+                social_class_log=[{'serf': serf, 'proletarian': serf + 1}],
+                food_foraged_log=[serf * 2], food_purchased_log=[serf],
+                hungry_log={Goods.food: [serf], Goods.wood: [0],
+                            Goods.furniture: [0], 'trader': [0]},
+                tenure_log=[commons], rent_collected_log=[serf * 3],
+                rent_arrears_log=[serf], gini_log={Goods.food: [gini]},
+                protest_energy_log=[float(serf)], avg_shift_hours_log=[shift],
+                rate_of_exploitation_log=[0.5], workday_cap_log=[10.0],
+                avg_alienation_log=[0.2], avg_health_attrition_log=[0.1],
+                workplace_accidents_log=[accidents], avg_consciousness_log=[0.4],
+                entertainment_log=[0.3], strikers_log=[serf],
+                broken_machinery_log=[1], sabotage_log=[1])
+
+        nation = SimpleNamespace(name='Republic', tiles=[
+            tile('North', 2, 0.5, 0.2, 8.0, 1),
+            tile('South', 4, 1.0, 0.4, 10.0, 2)])
+        rows = nation_chart_aggregation_rows(nation)
+        by_series = {(row['inputs']['chart_family'],
+                      row['inputs']['chart_series']): row for row in rows}
+        self.assertEqual(by_series[('citizen', 'serf')]['after'], 6.0)
+        self.assertEqual(by_series[('citizen', 'hungry')]['after'], 6.0)
+        self.assertEqual(by_series[('citizen', 'avg commons %')]['after'], 0.75)
+        self.assertAlmostEqual(by_series[('citizen', 'avg gini (x100)')]['after'],
+                               0.3)
+        self.assertEqual(by_series[('labor', 'avg shift hrs')]['after'], 9.0)
+        self.assertEqual(by_series[('labor', 'accidents')]['after'], 3.0)
+        self.assertEqual(
+            by_series[('citizen', 'rent ($)')]['inputs']['currency_conversion_applied'],
+            False)
+
+    def test_latest_metric_calculation_link_is_turn_scoped(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            trace = RunTrace(Path(tmp) / 'metric-link.ctr', 'metric-link')
+            clock = {'turn': 1, 'phase': 'local', 'next': 1}
+            subject = {'type': 'tile', 'id': 'North'}
+            event_id = trace.emit(
+                clock, kind='sample_calculation', record_class='calculation',
+                subject=subject, metric_id='people.hungry', after=4)
+            self.assertEqual(trace.latest_metric_calculation_event_id(
+                'people.hungry', subject), event_id)
+            clock.update(turn=2, next=2)
+            trace.emit(clock, kind='sample_calculation',
+                       record_class='calculation', subject=subject,
+                       metric_id='people.hungry', after=3)
+            self.assertNotEqual(trace.latest_metric_calculation_event_id(
+                'people.hungry', subject), event_id)
+
     def test_scenario_quote_replays_and_paid_price_is_separate(self):
         from sim_server.sim_server import SimServer
         server = SimServer(seed=613, terrain_seed=613, nation_seed=613,
@@ -858,6 +911,8 @@ class RunTraceTests(unittest.TestCase):
                          if row['kind'] == 'market_seller_order_submitted']
         pressure_rows = [row for row in rows
                          if row['kind'] == 'market_demand_supply_ratio']
+        nation_chart_rows = [row for row in rows
+                             if row['kind'] == 'nation_chart_history_aggregate']
         market_totals = [row for row in rows
                          if row['kind'] in ('market_demand_total',
                                             'market_supply_total',
@@ -867,6 +922,16 @@ class RunTraceTests(unittest.TestCase):
         self.assertTrue(buyer_orders)
         self.assertTrue(seller_orders)
         self.assertTrue(pressure_rows)
+        self.assertTrue(nation_chart_rows)
+        worker_aggregate = next(
+            row for row in nation_chart_rows
+            if row['metric_id'] == 'society.class_population'
+            and row['subject'].get('class_group') == 'worker')
+        self.assertEqual(worker_aggregate['formula_id'], 'aggregate.sum.v1')
+        self.assertTrue(replay_event(worker_aggregate)['matches'])
+        self.assertTrue(worker_aggregate['inputs']['member_values'])
+        self.assertTrue(worker_aggregate['inputs']['member_contributions'])
+        self.assertTrue(worker_aggregate['cause_event_ids'])
         self.assertTrue(zero_order_summaries)
         self.assertTrue(all(replay_event(row)['matches'] for row in pressure_rows))
         self.assertTrue(all(row['formula_replay']['matches']

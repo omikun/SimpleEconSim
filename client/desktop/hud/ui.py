@@ -994,11 +994,16 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
                 yy += 20
             from client.desktop.inspect.citizens import nation_citizen_charts
             nat_charts = nation_citizen_charts(n)
+            trace_region = n.tiles[0] if n.tiles else region
+            nation_trace_context = {
+                'chart_family': 'nation', 'chart_mode': 'citizen',
+                'chart_scope': 'nation', 'nation': n.name}
             view = world.get('view', 0)
             if view == 0:
                 if nat_charts:
                     draw_chart_grid(surface, nat_charts, font, font_small, world['window'],
-                                    yy + 8, chart_bottom, mouse_pos=mouse_pos, world=world, region=region)
+                                    yy + 8, chart_bottom, mouse_pos=mouse_pos,
+                                    world=world, region=trace_region)
                 hint = font_small.render(
                     f"NATION scope (V=tile)  Click/1-4: Zoom chart", True, DIM)
                 surface.blit(hint, (PANEL_LEFT, chart_bottom + 6))
@@ -1006,9 +1011,12 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
                 idx = max(0, min(len(nat_charts) - 1, view - 1)) if nat_charts else 0
                 if nat_charts:
                     draw_chart_large(surface, nat_charts[idx], font, font_small,
-                                     world['window'], yy + 8, chart_bottom, mouse_pos=mouse_pos, world=world, region=region, chart_idx=view)
+                                     world['window'], yy + 8, chart_bottom,
+                                     mouse_pos=mouse_pos, world=world,
+                                     region=trace_region, chart_idx=view,
+                                     trace_context=nation_trace_context)
                 hint = font_small.render(
-                    f"{nat_charts[idx][0] if nat_charts else ''}  (Tab/Esc = Grid)", True, DIM)
+                    f"{nat_charts[idx][0] if nat_charts else ''}  Click point: trace · V: tile · Esc: Grid", True, DIM)
                 surface.blit(hint, (PANEL_LEFT, chart_bottom + 6))
             draw_regime_readout(surface, region if region is not None else n.tiles[0],
                                 font_small, chart_bottom + 24)

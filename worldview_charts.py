@@ -425,10 +425,7 @@ def draw_chart_large(surface, chart, font, font_small, window, y0, y1,
         info.update(trace_context or {})
         world['_chart_zoom_trace_info'] = info
         selection = world.get('_chart_trace_selection')
-        if (selection and selection.get('chart_family', 'tile')
-                == info.get('chart_family', 'tile')
-                and selection.get('tile') == getattr(region, 'name', None)
-                and selection.get('chart_idx') == chart_idx
-                and selection.get('chart_mode') == info.get('chart_mode')):
+        from desktop_chart_trace import trace_selection_matches
+        if trace_selection_matches(selection, info, region, chart_idx):
             from desktop_chart_trace import draw_trace_selection
             draw_trace_selection(surface, selection, rect, font_small)

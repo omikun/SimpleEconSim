@@ -2356,3 +2356,25 @@ law/repeal, and labor aggregate tests passed (19 tests total). Python
 compilation and `git diff --check` passed. Nation-scope chart drilldown and
 evidence spanning all source turns behind moving-average chart points remain
 open.
+
+## Phase 5 follow-up — Explain Nation chart points (implemented)
+
+The desktop Nation Citizen and Labor charts now support point-to-trace in the
+main chart view and both inspection panels. Each series declares whether the
+Nation value is summed or is an equal-tile mean, using the shared replayable
+aggregate formulas. Traced turns record the
+member-tile values and link available source calculation events. A clicked
+Nation point recomputes the displayed value from member-tile trace records,
+shows coverage gaps, and compares the replay with the aggregation recorded for
+that turn. The chart has historically recomputed past points using the Nation's
+current tiles; the reader identifies this when current membership differs from
+turn-time membership. Rent and arrears remain raw local-currency sums without
+conversion.
+
+Added the missing replay branch for transport-market demand/supply ratios; its
+zero-supply rule now passes the existing live trace test.
+
+Verification: 15 desktop chart tests, all 34 causal trace tests,
+metric-catalog coverage, Python compilation, and `git diff --check` passed.
+Trace evidence across all source turns for moving-average chart points and
+bindings for remaining web series remain open.

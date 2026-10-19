@@ -202,9 +202,14 @@ air and water pollution, disease fatalities, individual
 malnutrition/waterborne/respiratory/chemical case counts, and combined
 healthcare outlays. Other chart series still need explicit source mappings.
 Desktop point-to-trace drilldown currently covers tile Economic, Ecology,
-Citizen Class & Tenure, and Labor charts. Nation-scope chart drilldown remains
-open. For moving-average chart points, the UI identifies the display transform
-but currently queries source trace rows only for the selected turn.
+Citizen Class & Tenure, and Labor charts, plus Nation Citizen and Labor charts.
+Nation selections replay the chart's sum or equal-tile mean from member-tile
+calculations, list missing member evidence, and compare that result with the
+Nation aggregation recorded for the turn. Historical Nation charts use the
+Nation's current tile membership; when it differs from the membership recorded
+at the selected turn, the reader labels both bases. For moving-average points,
+the UI identifies the transform but source trace rows still cover only the
+selected turn.
 
 The coverage checker reports a changed snapshot as unexplained when its final
 value does not match a recorded calculation. Per-profession headcount snapshots
@@ -252,8 +257,10 @@ catalog does not yet cover every displayed field;
 untraced so a missing probe is visible during development.
 The UI shows unavailable comparison placeholders as such. Web charts show an
 empty-state message when a series has no data instead of drawing a sample
-curve. Desktop Nation-scope chart drilldown and a trace explanation of all
-source turns behind moving-average points remain open.
+curve. A trace explanation of all source turns behind moving-average points
+remains open. Nation chart means are equal-weighted by tile, and summed rent
+and arrears retain raw local-currency values without conversion; both rules are
+shown in the aggregation evidence.
 Save/rebranch and a persistent query index are not implemented. The compact
 source trace is queried by scanning events.
 
@@ -1753,3 +1760,25 @@ Verification: 12 desktop point-selection tests, metric-catalog coverage, labor
 law/repeal, and labor aggregate tests passed (19 tests total). Python
 compilation and `git diff --check` passed. Nation-scope chart drilldown and the
 multi-turn evidence behind moving-average chart points remain open.
+
+Phase 5 follow-up, 2026-10-18: connected Nation Citizen and Labor chart points
+in the main view and both inspection panels. Nation series now have explicit
+sum or equal-tile mean bindings, replayed with the shared aggregate formulas.
+Each completed traced turn records member
+tile values and links available source calculation event IDs. Clicking a
+Nation point replays the displayed reducer from current member tile traces,
+reports coverage gaps, and compares the result to the aggregate logged for that
+turn. When membership changed since the selected point, the reader calls out
+that the chart uses current territory while the stored turn aggregate uses
+turn-time territory. The national mean is unweighted by population; rent and
+arrears are summed without currency conversion.
+
+Also added replay support for the transport-market demand/supply ratio, so the
+existing demand-pressure integration test verifies that transport branch as
+well as commodity markets.
+
+Verification: 15 desktop chart tests cover tile and Nation bindings, Nation
+reducer replay, and Citizen/Labor panel click dispatch. All 34 causal trace
+tests, metric-catalog coverage, Python compilation, and `git diff --check`
+passed. Multi-turn source evidence for moving-average chart points and chart
+bindings for the remaining web series remain open.

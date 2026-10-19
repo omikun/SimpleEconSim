@@ -170,15 +170,20 @@ def replay_event(row):
         i = row['inputs']
         expected = (i['zero_supply_ratio'] if i['total_asks'] == 0
                     else i['bids'] / i['total_asks'])
+    elif formula == 'market.transport_demand_supply_ratio.v1':
+        i = row['inputs']
+        expected = (i['zero_supply_ratio'] if i['asks'] == 0
+                    else i['bids'] / i['asks'])
     elif formula == 'living.basket_prices_climate.v1':
         expected = replay_living_basket(row['inputs'])
     elif formula == 'aggregate.mean.v1':
         inputs = row['inputs']
-        values = inputs['member_values']
+        values = inputs.get('member_values', inputs.get('values', ()))
         if values:
             expected = sum(values) / inputs['denominator']
         else:
-            expected = inputs.get('empty_value', 0.0)
+            expected = inputs.get(
+                'empty_value', inputs.get('empty_population_value', 0.0))
     elif formula == 'aggregate.sum.v1':
         expected = sum(row['inputs']['member_values'])
     elif formula == 'econsim.market_price.v1':

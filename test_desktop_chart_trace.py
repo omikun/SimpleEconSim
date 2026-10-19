@@ -91,6 +91,148 @@ class DesktopChartTraceTests(unittest.TestCase):
                         chart_trace_binding(mode, chart_idx, label),
                         (mode, chart_idx, label))
 
+    def test_nation_citizen_and_labor_series_have_exact_reducers(self):
+        from worldview_citizens import nation_citizen_charts
+        from worldview_labor_ui import nation_labor_charts
+        from goods import Goods
+
+        def tile(name):
+            return SimpleNamespace(
+                name=name, social_class_log=[{'serf': 2, 'tenant': 1,
+                    'proletarian': 3, 'dispossessed': 1, 'lord': 1,
+                    'landlord': 1, 'petty_bourgeois': 1, 'industrialist': 1}],
+                food_foraged_log=[4], food_purchased_log=[5],
+                hungry_log={Goods.food: [1], Goods.wood: [0],
+                    Goods.furniture: [0], 'trader': [0]},
+                tenure_log=[0.8], rent_collected_log=[2.0],
+                rent_arrears_log=[1.0], gini_log={Goods.food: [0.3]},
+                protest_energy_log=[1.5], avg_shift_hours_log=[8.0],
+                rate_of_exploitation_log=[0.5], workday_cap_log=[10.0],
+                avg_alienation_log=[0.2], avg_health_attrition_log=[0.1],
+                workplace_accidents_log=[1], avg_consciousness_log=[0.4],
+                entertainment_log=[0.3], strikers_log=[3],
+                broken_machinery_log=[1], sabotage_log=[1])
+
+        nation = SimpleNamespace(name='Republic', tiles=[tile('North'), tile('South')])
+        for mode, charts in (
+                ('citizen', nation_citizen_charts(nation)),
+                ('labor', nation_labor_charts(nation))):
+            for chart_idx, chart in enumerate(charts, start=1):
+                for label in chart[4]:
+                    self.assertIsNotNone(
+                        chart_trace_binding(mode, chart_idx, label,
+                                            chart_scope='nation'),
+                        (mode, chart_idx, label))
+        self.assertEqual(
+            chart_trace_binding('citizen', 1, 'worker', 'nation'),
+            {'metric_id': 'society.class_population',
+             'aggregation': 'sum', 'class_group': 'worker'})
+        self.assertEqual(
+            chart_trace_binding('labor', 1, 'avg shift hrs', 'nation'),
+            {'metric_id': 'labor.average_shift_hours', 'aggregation': 'mean'})
+
+    def test_nation_chart_selection_replays_member_tile_evidence(self):
+        class NationTrace(FakeTrace):
+            def __init__(self):
+                super().__init__([])
+                self.queries = []
+
+            def query(self, **kwargs):
+                self.queries.append(kwargs)
+                subject = kwargs['subject']
+                if subject['type'] == 'nation':
+                    row = {'kind': 'nation_chart_history_aggregate',
+                           'record_class': 'calculation', 'value_after': 4.0,
+                           'event_id': 'nation-event',
+                           'inputs': {'member_tiles': ['North', 'South']}}
+                else:
+                    value = {'North': 3.0, 'South': 1.0}[subject['id']]
+                    row = {'kind': 'social_class_population_calculation',
+                           'record_class': 'calculation', 'value_after': value,
+                           'event_id': f"event-{subject['id']}"}
+                return {'events': [row], 'total': 1}
+
+        trace = NationTrace()
+        north, south = FakeRegion(trace), FakeRegion(trace)
+        north.name, south.name = 'North', 'South'
+        nation_tiles = [north, south]
+        chart = ('Classes', 'line', [[2.0, 4.0], [1.0, 2.0]],
+                 ['green', 'yellow'], ['serf', 'tenant'])
+        selection = select_chart_trace(
+            north, 'citizen', 1, chart, (10, 20, 100, 100), (104, 55), 2,
+            chart_scope='nation', nation_name='Republic',
+            nation_tiles=nation_tiles)
+        self.assertEqual(selection['chart_family'], 'nation')
+        self.assertEqual(selection['nation'], 'Republic')
+        self.assertEqual(selection['metric_id'], 'society.class_population')
+        self.assertEqual(selection['aggregation']['reducer'], 'sum')
+        self.assertEqual(selection['aggregation']['source_value'], 4.0)
+        self.assertTrue(selection['aggregation']['matches_chart_point'])
+        self.assertTrue(selection['aggregation'][
+            'recorded_nation_matches_chart_point'])
+        self.assertTrue(selection['aggregation'][
+            'recorded_membership_matches_current'])
+        self.assertEqual([row['tile_id'] for row in
+                          selection['aggregation']['member_values']],
+                         ['North', 'South'])
+        self.assertEqual(len(selection['events']), 2)
+
+    def test_nation_citizen_and_labor_panel_clicks_dispatch(self):
+        from worldview_camera import HEIGHT, TICKER_H, TOP_BAR_H
+        from worldview_citizens import PANEL_LEFT as CITIZEN_LEFT, citizen_panel_hit
+        from worldview_labor_ui import PANEL_LEFT as LABOR_LEFT, labor_panel_hit
+
+        citizen_trace = FakeTrace([{
+            'kind': 'social_class_population_calculation',
+            'record_class': 'calculation', 'value_after': 2.0,
+            'event_id': 'class-1'}])
+        tile = FakeRegion(citizen_trace)
+        tile.owner_nation = SimpleNamespace(name='Republic')
+        nation = tile.owner_nation
+        nation.tiles = [tile]
+        chart_y0 = 180 + TOP_BAR_H + 52 + 60 + 30
+        plot_rect = (CITIZEN_LEFT + 10, chart_y0 + 50, 100, 100)
+        chart = ('Classes', 'line', [[1.0, 2.0]], ['green'], ['serf'])
+        world = {
+            'selected_region': tile, 'nations': [nation], 'scope': 'tile',
+            'citizen_scope': 'nation', 'citizen_subtab': 'class',
+            'citizen_class_mode': 'charts', 'citizen_chart_view': 1,
+            'window': 2, 'turn': 25,
+            '_chart_zoom_trace_info': {
+                'chart_family': 'nation', 'chart_mode': 'citizen',
+                'chart_scope': 'nation', 'nation': nation.name,
+                'chart_idx': 1, 'chart': chart, 'plot_rect': plot_rect,
+                'window': 2},
+        }
+        citizen_point = (plot_rect[0] + 94, plot_rect[1] + 24)
+        self.assertLess(citizen_point[1], HEIGHT - TICKER_H - 24)
+        self.assertTrue(citizen_panel_hit(citizen_point, world))
+        self.assertEqual(world['_chart_trace_selection']['chart_family'], 'nation')
+        self.assertEqual(world['_chart_trace_selection']['nation'], nation.name)
+
+        labor_trace = FakeTrace([{
+            'kind': 'labor_shift_hours_calculation',
+            'record_class': 'calculation', 'value_after': 9.0,
+            'event_id': 'labor-1'}])
+        tile._run_trace = labor_trace
+        labor_chart = ('Shifts', 'line', [[8.0, 9.0]], ['red'],
+                       ['avg shift hrs'])
+        labor_rect = (LABOR_LEFT + 10, chart_y0 + 50, 100, 100)
+        world.update({
+            'labor_sub_mode': 'charts', 'citizen_chart_view': 1,
+            '_chart_trace_selection': None,
+            '_chart_zoom_trace_info': {
+                'chart_family': 'nation', 'chart_mode': 'labor',
+                'chart_scope': 'nation', 'nation': nation.name,
+                'chart_idx': 1, 'chart': labor_chart,
+                'plot_rect': labor_rect, 'window': 2},
+        })
+        labor_point = (labor_rect[0] + 94, labor_rect[1] + 24)
+        self.assertTrue(labor_panel_hit(labor_point, world))
+        self.assertEqual(world['_chart_trace_selection']['chart_family'], 'nation')
+        self.assertEqual(world['_chart_trace_selection']['metric_id'],
+                         'labor.average_shift_hours')
+
     def test_citizen_chart_series_bind_and_include_trader_hunger(self):
         from goods import Goods
         from worldview_citizens import tile_citizen_charts

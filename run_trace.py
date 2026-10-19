@@ -26,6 +26,7 @@ class RunTrace:
         self._active_turn = None
         self._calculated = set()
         self._calculated_values = {}
+        self._latest_calculation_event_ids = {}
         self._treasury_flows = {}
         self._price_mutations = {}
         self._person_flow_events = {}
@@ -70,6 +71,7 @@ class RunTrace:
             self._active_turn = clock.get('turn', 0)
             self._calculated.clear()
             self._calculated_values.clear()
+            self._latest_calculation_event_ids.clear()
             self._treasury_flows.clear()
             self._price_mutations.clear()
             self._previous_person_flow_events = self._person_flow_events
@@ -183,11 +185,12 @@ class RunTrace:
                     causes.append(source_event_id)
             if causes:
                 row['cause_event_ids'] = causes
-        if formula_id is not None and metric_id in (
+        if formula_id is not None and (formula_id in (
+                'aggregate.mean.v1', 'aggregate.sum.v1') or metric_id in (
                 'goods.price', 'goods.seller_ask', 'goods.delivered_quote',
                 'goods.transaction_vwap', 'goods.demand', 'goods.supply',
                 'goods.demand_ratio', 'living.cost_of_living',
-                'goods.national_reference_price', 'goods.national_food_price'):
+                'goods.national_reference_price', 'goods.national_food_price')):
             from price_trace import replay_event
             replay = replay_event(row)
             if replay is not None:
@@ -214,6 +217,11 @@ class RunTrace:
             self._append(row)
         except OSError as exc:
             self.write_error = str(exc)
+        else:
+            if (record_class == 'calculation' and metric_id is not None
+                    and subject is not None):
+                self._latest_calculation_event_ids[(
+                    metric_id, json.dumps(subject, sort_keys=True))] = row['event_id']
         if self.write_error is None and shipment_id is not None:
             if kind == 'route_shipment_departure':
                 self._shipment_departure_events[str(shipment_id)] = row['event_id']
@@ -306,6 +314,11 @@ class RunTrace:
     def food_intake_event_id(self, agent_id):
         """Return the current-turn food-intake calculation for one person."""
         return self._latest_food_intake_events.get(str(agent_id))
+
+    def latest_metric_calculation_event_id(self, metric_id, subject):
+        """Return the latest current-turn calculation for an exact subject."""
+        key = (metric_id, json.dumps(subject, sort_keys=True))
+        return self._latest_calculation_event_ids.get(key)
 
     def turn_tile_production_event_id(self, tile_id, good_name):
         """Return the current-turn aggregate production event for a tile good."""

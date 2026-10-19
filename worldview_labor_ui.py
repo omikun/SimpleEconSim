@@ -365,17 +365,16 @@ def draw_labor_dashboard(surface, world, region, font, font_small, mouse_pos=Non
         draw_chart_large(surface, charts[idx], font, font_small,
                          world['window'], chart_y0, chart_y1, mouse_pos=mouse_pos, world=world, region=region, chart_idx=c_view)
         world['_chart_zoom_trace_info'].update({
-            'chart_family': 'labor', 'chart_mode': 'labor',
-            'chart_scope': scope})
+            'chart_family': 'nation' if scope == 'nation' else 'labor',
+            'chart_mode': 'labor', 'chart_scope': scope,
+            'nation': nation.name if scope == 'nation' and nation else None})
         selection = world.get('_chart_trace_selection')
-        if (selection and selection.get('chart_family') == 'labor'
-                and selection.get('chart_mode') == 'labor'
-                and selection.get('chart_idx') == c_view
-                and selection.get('tile') == getattr(region, 'name', None)):
+        from desktop_chart_trace import trace_selection_matches
+        if trace_selection_matches(
+                selection, world['_chart_zoom_trace_info'], region, c_view):
             from desktop_chart_trace import draw_trace_selection
             draw_trace_selection(surface, selection, large_rect, font_small)
-        drilldown_hint = ("Click point: trace · Esc: Grid" if scope == 'tile'
-                          else "Nation trace unavailable · Esc: Grid")
+        drilldown_hint = "Click point: trace · Esc: Grid"
         hint = font_small.render(
             f"{charts[idx][0]}  {drilldown_hint}", True, DIM)
         surface.blit(hint, (PANEL_LEFT + 6, chart_y1 + 4))
@@ -420,9 +419,17 @@ def labor_panel_hit(pos, world):
                         and getattr(world['nations'][0], 'tiles', None)):
                     region = world['nations'][0].tiles[0]
                 scope = world.get('citizen_scope', world.get('scope', 'tile'))
+                nation = None
+                if scope == 'nation':
+                    from worldview_ui import selected_nation
+                    nation = selected_nation(world)
+                    if nation is not None and getattr(nation, 'tiles', None):
+                        region = nation.tiles[0]
                 selection = None
-                if (scope == 'tile' and region is not None
-                        and info.get('chart_family') == 'labor'
+                if (region is not None
+                        and info.get('chart_scope', 'tile') == scope
+                        and info.get('chart_family') == (
+                            'nation' if scope == 'nation' else 'labor')
                         and info.get('chart') is not None
                         and info.get('plot_rect') is not None):
                     from desktop_chart_trace import select_chart_trace
@@ -431,7 +438,10 @@ def labor_panel_hit(pos, world):
                         world.get('citizen_chart_view'), info['chart'],
                         info['plot_rect'], pos,
                         info.get('window', world.get('window', 100)),
-                        fallback_turn=world.get('turn', 0))
+                        fallback_turn=world.get('turn', 0),
+                        chart_scope=scope,
+                        nation_name=nation.name if nation else None,
+                        nation_tiles=nation.tiles if nation else None)
                 if selection is not None:
                     world['_chart_trace_selection'] = selection
                 else:

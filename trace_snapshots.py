@@ -271,6 +271,133 @@ def resident_population_bridges(previous, current, previous_roles, tiles, turn,
             + bridge_rows(before_nation, after_nation, nation_flows, 'nation'))
 
 
+def nation_chart_aggregation_rows(nation):
+    """Build the exact current-turn reducers used by the desktop Nation charts."""
+    tiles = list(getattr(nation, 'tiles', ()))
+    if not tiles:
+        return []
+    rows = []
+
+    def add(family, label, metric_id, unit, reducer, index, history_value,
+            subject_filters=None):
+        contributions = []
+        for tile in tiles:
+            value = history_value(tile, index)
+            contributions.append({'tile_id': tile.name,
+                                  'value': (None if value is None else float(value))})
+        included = [row['value'] for row in contributions
+                    if row['value'] is not None]
+        value = (sum(included) if reducer == 'sum' else
+                 sum(included) / len(included) if included else 0.0)
+        subject = {'type': 'nation', 'id': nation.name}
+        source_filter = {}
+        for key, item in (subject_filters or {}).items():
+            subject[key] = item
+            source_filter[key] = item
+        rows.append({
+            'subject': subject, 'metric_id': metric_id, 'unit': unit,
+            'after': value,
+            'formula_id': ('aggregate.sum.v1' if reducer == 'sum' else
+                           'aggregate.mean.v1'),
+            'inputs': {
+                'chart_family': family, 'chart_series': label,
+                'reducer': reducer, 'history_index': index,
+                'member_tiles': [tile.name for tile in tiles],
+                'member_values': included,
+                'member_contributions': contributions,
+                'coverage_count': len(included),
+                'denominator': len(included) if reducer == 'mean' else None,
+                'empty_value': 0.0,
+                'missing_history_policy': 'omit tile for this turn',
+                'source_metric_id': metric_id,
+                'source_subject_filter': source_filter,
+                'territorial_basis': 'nation.tiles at this turn',
+                'member_currencies': [getattr(tile, 'home_currency', None)
+                                      for tile in tiles],
+                'currency_conversion_applied': False,
+                'currency_semantics': (
+                    'raw local-currency sum without conversion'
+                    if unit == 'local_currency' else None)},
+            'source_subject_filter': source_filter,
+        })
+
+    def series_value(tile, field, index):
+        history = getattr(tile, field, ()) or ()
+        return history[index] if index < len(history) else None
+
+    citizen_length = max((len(getattr(tile, 'social_class_log', ()) or ())
+                          for tile in tiles), default=0)
+    if citizen_length:
+        index = citizen_length - 1
+        for label, members in (
+                ('serf', ('serf',)), ('tenant', ('tenant',)),
+                ('worker', ('proletarian',)),
+                ('disposs', ('dispossessed',)),
+                ('gentry', ('lord', 'landlord')),
+                ('artisan', ('petty_bourgeois', 'industrialist'))):
+            add('citizen', label, 'society.class_population', 'people', 'sum',
+                index, lambda tile, i, member_classes=members: (
+                    sum((getattr(tile, 'social_class_log', ()) or ())[i].get(
+                        key, 0) for key in member_classes)
+                    if i < len(getattr(tile, 'social_class_log', ()) or ())
+                    else None), {'class_group': (
+                        'dispossessed' if label == 'disposs' else label)})
+        for label, metric_id, field, unit in (
+                ('foraged', 'food.foraged', 'food_foraged_log', 'food_units'),
+                ('market food', 'food.purchased', 'food_purchased_log', 'food_units'),
+                ('rent ($)', 'finance.rent_collected', 'rent_collected_log',
+                 'local_currency'),
+                ('arrears ($)', 'finance.rent_arrears', 'rent_arrears_log',
+                 'local_currency')):
+            add('citizen', label, metric_id, unit, 'sum',
+                index, lambda tile, i, name=field: series_value(tile, name, i))
+        add('citizen', 'hungry', 'people.hungry', 'people', 'sum', index,
+            lambda tile, i: (
+                sum((getattr(tile, 'hungry_log', {}) or {}).get(good, ())[i]
+                    for good in (Goods.food, Goods.wood, Goods.furniture, 'trader')
+                    if i < len((getattr(tile, 'hungry_log', {}) or {}).get(good, ())))
+                if any(i < len((getattr(tile, 'hungry_log', {}) or {}).get(good, ()))
+                       for good in (Goods.food, Goods.wood, Goods.furniture, 'trader'))
+                else None))
+        add('citizen', 'avg commons %', 'land.commons_access', 'ratio', 'mean',
+            index, lambda tile, i: series_value(tile, 'tenure_log', i))
+        add('citizen', 'avg gini (x100)', 'economy.gini', 'ratio', 'mean',
+            index, lambda tile, i: (
+                (getattr(tile, 'gini_log', {}) or {}).get(Goods.food, ())[i]
+                if i < len((getattr(tile, 'gini_log', {}) or {}).get(Goods.food, ()))
+                else None), {'good': Goods.food.name})
+
+    labor_length = max((len(getattr(tile, 'avg_shift_hours_log', ()) or ())
+                        for tile in tiles), default=0)
+    if labor_length:
+        index = labor_length - 1
+        for label, metric_id, field, unit, reducer in (
+                ('avg shift hrs', 'labor.average_shift_hours',
+                 'avg_shift_hours_log', 'hours', 'mean'),
+                ('avg effective cap', 'labor.statutory_workday',
+                 'workday_cap_log', 'hours', 'mean'),
+                ('avg s/v rate (%)', 'labor.exploitation_rate',
+                 'rate_of_exploitation_log', 'ratio', 'mean'),
+                ('alienation (x100)', 'labor.average_alienation',
+                 'avg_alienation_log', 'ratio', 'mean'),
+                ('bodily wear (x100)', 'health.average_bodily_wear',
+                 'avg_health_attrition_log', 'attrition_points', 'mean'),
+                ('accidents', 'labor.workplace_accidents',
+                 'workplace_accidents_log', 'incidents', 'sum'),
+                ('consciousness (x100)', 'labor.average_class_consciousness',
+                 'avg_consciousness_log', 'ratio', 'mean'),
+                ('entertainment (x100)', 'society.entertainment_level',
+                 'entertainment_log', 'ratio', 'mean'),
+                ('strikers', 'labor.strikers', 'strikers_log', 'people', 'sum'),
+                ('broken stock', 'labor.broken_machinery',
+                 'broken_machinery_log', 'units', 'sum'),
+                ('sabotaged this turn', 'labor.machinery_sabotaged',
+                 'sabotage_log', 'units_per_turn', 'sum')):
+            add('labor', label, metric_id, unit, reducer, index,
+                lambda tile, i, name=field: series_value(tile, name, i))
+    return rows
+
+
 def sample(tiles, nations):
     values = {}
     for tile in tiles:
@@ -1010,6 +1137,33 @@ def record(server):
                                               before=before, after=after, unit=unit)
             server.run_trace.snapshot(clock, subject=subject, metric_id=key[0],
                                       unit=unit, before=before, after=after)
+        for nation in server.nations:
+            for aggregate in nation_chart_aggregation_rows(nation):
+                source_event_ids = []
+                source_filters = aggregate['source_subject_filter']
+                for contribution in aggregate['inputs']['member_contributions']:
+                    source_subject = {'type': 'tile',
+                                      'id': contribution['tile_id'],
+                                      **source_filters}
+                    source_event_id = server.run_trace.latest_metric_calculation_event_id(
+                        aggregate['metric_id'], source_subject)
+                    contribution['source_event_id'] = source_event_id
+                    contribution['source_link_status'] = (
+                        'linked' if source_event_id is not None
+                        else 'tile_calculation_not_captured')
+                    if source_event_id is not None:
+                        source_event_ids.append(source_event_id)
+                inputs = dict(aggregate['inputs'])
+                inputs.pop('source_metric_id', None)
+                inputs.pop('source_subject_filter', None)
+                server.run_trace.emit(
+                    clock, kind='nation_chart_history_aggregate',
+                    record_class='calculation', phase='snapshot',
+                    subject=aggregate['subject'],
+                    metric_id=aggregate['metric_id'], unit=aggregate['unit'],
+                    after=aggregate['after'],
+                    formula_id=aggregate['formula_id'], inputs=inputs,
+                    cause_event_ids=source_event_ids or None)
     server._trace_previous = current
     server._trace_previous_people = current_people
     server._trace_previous_roles = current_roles
