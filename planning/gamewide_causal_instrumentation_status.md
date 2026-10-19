@@ -1596,3 +1596,20 @@ matches its calculation record and identifies the chart's tile in the shared
 government membership when applicable. Metric-catalog and Node UI checks pass.
 The trade chart's old histories require partner-currency and turn-index
 correction before a reliable trace binding can be added.
+
+Phase 5 follow-up, 2026-10-18: trade chart histories now record exports,
+imports, and net value once per turn in each tile's home currency. Imported
+market sales carry their source tile and exact paid-sale IDs, so bilateral
+settlement no longer assigns the destination's all-source import total to each
+neighbor. Export valuation records the current partner FX buy quote or its
+explicit parity fallback; imports remain in destination currency. Chart points
+link to their calculations, which carry partner, good, currency, settlement,
+and source-market evidence. The net calculation links the export and import
+totals. The map's trade balance also consumes the corrected per-turn net.
+
+Verification: a two-neighbor market fixture checks source attribution. The web
+chart integration test checks two consecutive turns for all three series and
+replays each calculation from trace inputs. Trade-route/accounting, labor and
+government chart, history parity, and metric-catalog checks passed (21 Python
+tests); Node UI, JavaScript syntax, Python compilation, and `git diff --check`
+passed.

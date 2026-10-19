@@ -11,7 +11,7 @@ Coordinates the multi-layered turn pipeline across:
 
 from goods import Goods
 import forex as fx
-from world_trade import pending_imports, resolve_parked, settle_trade
+from world_trade import pending_imports, resolve_parked, settle_trade, desk_for
 from regime import step_regime
 from migration import run_migrations
 from trade_settle import settle_wilderness
@@ -89,6 +89,8 @@ def step_turn(t: int, tiles: list, nations: list = None,
                 pending.setdefault(g, []).extend(entries)
         r.pending_imports = pending
         r._auction_import_sales = {}
+        r._auction_import_sales_by_source = {}
+        r._auction_import_sale_trace_ids = {}
 
     # 2. Stepping: Provinces first (shared institutions), then independent tiles
     if trace_clock is not None:
@@ -121,8 +123,61 @@ def step_turn(t: int, tiles: list, nations: list = None,
     resolve_parked(tiles)
 
     # 5. Settle bilateral trade between paired regions
+    trade_exports_by_tile = {region.name: [] for region in tiles}
     for r, other in pair_orders:
         settle_trade(t, other, r)
+        if r.name not in trade_exports_by_tile:
+            continue
+        partner_currency = getattr(other, 'home_currency', None)
+        home_currency = getattr(r, 'home_currency', None)
+        source_sales_by_good = getattr(
+            other, '_auction_import_sales_by_source', {})
+        pair_quantity = 0
+        partner_value = 0.0
+        source_sale_event_ids = []
+        good_rows = []
+        for good in (Goods.food, Goods.wood, Goods.furniture):
+            source_rows = source_sales_by_good.get(good)
+            if source_rows is None:
+                quantity, value = getattr(other, '_auction_import_sales', {}).get(
+                    good, (0, 0.0))
+                source_event_ids = []
+            else:
+                source_row = source_rows.get(r.name, {})
+                quantity = int(source_row.get('quantity', 0))
+                value = float(source_row.get('value', 0.0))
+                source_event_ids = list(source_row.get('event_ids', ()))
+            pair_quantity += int(quantity)
+            partner_value += float(value)
+            source_sale_event_ids.extend(source_event_ids)
+            good_rows.append({'good': good.name, 'quantity': int(quantity),
+                              'value': float(value),
+                              'sale_event_ids': source_event_ids})
+        if home_currency == partner_currency:
+            conversion_rate = 1.0
+            conversion_basis = 'same_currency'
+        elif home_currency is None or partner_currency is None:
+            conversion_rate = 1.0
+            conversion_basis = 'parity_assumed_missing_currency'
+        else:
+            desk = desk_for(r, other)
+            if desk is None:
+                conversion_rate = 1.0
+                conversion_basis = 'parity_assumed_no_source_desk'
+            else:
+                conversion_rate = float(desk.buy_rate())
+                conversion_basis = 'source_desk_current_buy_rate'
+        trade_exports_by_tile[r.name].append({
+            'partner_tile': other.name,
+            'partner_currency': partner_currency,
+            'home_currency': home_currency,
+            'quantity': pair_quantity,
+            'value_in_partner_currency': partner_value,
+            'conversion_rate_to_home': conversion_rate,
+            'conversion_basis': conversion_basis,
+            'value_in_home_currency': partner_value * conversion_rate,
+            'goods': good_rows,
+            'source_sale_event_ids': source_sale_event_ids})
 
     # 6. Cycle all forex markets & convert non-trader foreign wallets
     fx.cycle_all_markets(tiles, t)
@@ -262,18 +317,85 @@ def step_turn(t: int, tiles: list, nations: list = None,
             on_event(t, 'DESTROY',
                      f"DESTROY {ev['currency'] or '-'} ${ev['amount']:.2f} ({ev['reason']})")
 
-    # 13. Trade flow and balance logs
+    # 13. Turn-level trade values, valued in each tile's home currency.
+    if trace_clock is not None:
+        trace_clock['phase'] = 'trade'
+    from run_trace import emit
     for r in tiles:
-        for other in tiles:
-            if other is r or other not in r.neighbors.values():
-                continue
-            turn_export = sum(r.export_val[g][-1]
-                              for g in [Goods.food, Goods.wood, Goods.furniture]
-                              if r.export_val[g])
-            turn_import = sum(r.import_val[g][-1]
-                              for g in [Goods.food, Goods.wood, Goods.furniture]
-                              if r.import_val[g])
-            r.cumulative_trade_balance += (turn_export - turn_import)
-            r.trade_flow_log.append(turn_export - turn_import)
+        import_rows = []
+        import_event_ids = []
+        imports_by_source = getattr(r, '_auction_import_sales_by_source', {})
+        import_trace_ids = getattr(r, '_auction_import_sale_trace_ids', {})
+        import_total = 0.0
+        for good in (Goods.food, Goods.wood, Goods.furniture):
+            quantity, value = getattr(r, '_auction_import_sales', {}).get(
+                good, (0, 0.0))
+            quantity, value = int(quantity), float(value)
+            source_rows = imports_by_source.get(good, {})
+            breakdown = [
+                {'source_tile': source,
+                 'quantity': int(row.get('quantity', 0)),
+                 'value': float(row.get('value', 0.0)),
+                 'paid_sale_event_ids': list(row.get('event_ids', ()))}
+                for source, row in sorted(source_rows.items())]
+            summary_id = import_trace_ids.get(good)
+            if summary_id is not None:
+                import_event_ids.append(summary_id)
+            import_rows.append({'good': good.name, 'quantity': quantity,
+                                'value': value, 'currency': r.home_currency,
+                                'source_breakdown': breakdown,
+                                'market_summary_event_id': summary_id})
+            import_total += value
+        export_rows = trade_exports_by_tile.get(r.name, [])
+        export_total = sum(row['value_in_home_currency'] for row in export_rows)
+        net_total = export_total - import_total
+        r.export_value_log.append(export_total)
+        r.import_value_log.append(import_total)
+        r.net_trade_value_log.append(net_total)
+        r.cumulative_trade_balance += net_total
+        r.trade_flow_log.append(net_total)
+        currency = getattr(r, 'home_currency', None) or 'local_currency'
+        export_event_id = emit(
+            r, kind='trade_export_value_calculation',
+            record_class='calculation', phase='trade',
+            subject={'type': 'tile', 'id': r.name},
+            metric_id='trade.export_value',
+            unit=f'{currency}_per_turn',
+            before=r.export_value_log[-2] if len(r.export_value_log) > 1 else None,
+            after=export_total,
+            formula_id='trade.sum_partner_values_in_home_currency.v1',
+            inputs={'home_currency': currency,
+                    'partner_settlements': export_rows,
+                    'conversion_timing': 'trade_settlement_current_fx_quote',
+                    'formula_result': export_total},
+            cause_event_ids=[event_id for row in export_rows
+                             for event_id in row['source_sale_event_ids']] or None)
+        import_event_id = emit(
+            r, kind='trade_import_value_calculation',
+            record_class='calculation', phase='trade',
+            subject={'type': 'tile', 'id': r.name},
+            metric_id='trade.import_value',
+            unit=f'{currency}_per_turn',
+            before=r.import_value_log[-2] if len(r.import_value_log) > 1 else None,
+            after=import_total,
+            formula_id='trade.sum_market_import_values_in_home_currency.v1',
+            inputs={'home_currency': currency, 'goods': import_rows,
+                    'currency_conversion_applied': False,
+                    'formula_result': import_total},
+            cause_event_ids=import_event_ids or None)
+        emit(r, kind='trade_net_value_calculation',
+             record_class='calculation', phase='trade',
+             subject={'type': 'tile', 'id': r.name},
+             metric_id='trade.net_value', unit=f'{currency}_per_turn',
+             before=r.net_trade_value_log[-2]
+             if len(r.net_trade_value_log) > 1 else None,
+             after=net_total,
+             formula_id='trade.export_minus_import_value.v1',
+             inputs={'export_value_home_currency': export_total,
+                     'import_value_home_currency': import_total,
+                     'formula_result': net_total},
+             cause_event_ids=[event_id for event_id in
+                              (export_event_id, import_event_id)
+                              if event_id is not None])
 
     return violations, claim_events

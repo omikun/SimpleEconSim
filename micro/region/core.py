@@ -233,6 +233,9 @@ class Region:
         self.export_val: dict = {}
         self.import_vol: dict = {}
         self.import_val: dict = {}
+        self.export_value_log: list = []
+        self.import_value_log: list = []
+        self.net_trade_value_log: list = []
         self.trade_balance_log: list = []
         self.pipeline_depth_log: list = []
         self.trader_cash_log: list = []

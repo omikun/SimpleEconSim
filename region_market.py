@@ -683,6 +683,7 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
     sale_event_ids = []
     imp_units = 0
     imp_value = 0.0
+    import_sales_by_source = {}
     bi = 0
     for b in book:
         ask, qty, seller, is_import = b[0], b[1], b[2], b[3]
@@ -719,6 +720,7 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
                 bi += 1
                 continue
             cost = take * unit_price
+            import_source_entry = None
             buyer_cash_before = buyer.cash
             seller_cash_before = seller.cash
             seller_wallet_before = _fx.fx_balance(seller, region.home_currency)
@@ -763,6 +765,14 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
                         seller.inventory_foreign[good.value] -= take
                 imp_units += take
                 imp_value += cost
+                source_name = (getattr(source_region, 'name', source_region)
+                               or getattr(seller, 'home_region', None))
+                source_key = (str(source_name) if source_name is not None
+                              else '__unattributed__')
+                import_source_entry = import_sales_by_source.setdefault(
+                    source_key, {'quantity': 0, 'value': 0.0, 'event_ids': []})
+                import_source_entry['quantity'] += int(take)
+                import_source_entry['value'] += float(cost)
                 if shipment_id is not None:
                     found_lot = False
                     for lot in getattr(seller, 'import_lots', []):
@@ -907,6 +917,8 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
                                    if gov_cash_before is not None else None})
             if sale_id is not None:
                 sale_event_ids.append(sale_id)
+                if import_source_entry is not None:
+                    import_source_entry['event_ids'].append(sale_id)
             emit(region, kind='paid_market_unit_price', record_class='observation',
                  subject={'type': 'tile', 'id': region.name, 'good': good.name},
                  metric_id='goods.transaction_price', unit='local_currency_per_unit',
@@ -1036,6 +1048,9 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
             if buyer.cash < unit_price or rem_bids[buyer.id] <= 0:
                 bi += 1
     region._auction_import_sales[good] = (imp_units, imp_value)
+    region.__dict__.setdefault('_auction_import_sales_by_source', {})
+    region.__dict__.setdefault('_auction_import_sale_trace_ids', {})
+    region._auction_import_sales_by_source[good] = import_sales_by_source
     realized = sum(prices) / len(prices) if prices else ref
     if units > 0:
         emit(region, kind='market_transaction_vwap', record_class='calculation',
@@ -1056,6 +1071,7 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
                               'no_paid_sale': not bool(prices)},
                       cause_event_ids=sale_event_ids)
     if summary_id is not None:
+        region._auction_import_sale_trace_ids[good] = summary_id
         recent_ids = region.__dict__.setdefault('_trade_price_event_ids', {}).setdefault(good, [])
         recent_ids.append(summary_id)
         del recent_ids[:-12]
@@ -1283,6 +1299,8 @@ def _trace_government_food_purchase(region, seller, *, quantity, unit_price,
 def trade(region, t):
     """Run market trading session for goods and transport services."""
     from run_trace import emit
+    region._auction_import_sales_by_source = {}
+    region._auction_import_sale_trace_ids = {}
     all_goods_price = region.all_goods_price
     food_price = region.food_price
     if getattr(region, 'province', None) is None:
@@ -1830,14 +1848,18 @@ def trade(region, t):
         price = ref
         if min(price_ta, tb) == 0:
             region._auction_import_sales[good] = (0, 0.0)
+            region._auction_import_sales_by_source[good] = {}
             from run_trace import emit
-            emit(region, kind='market_no_trade', record_class='observation',
-                 subject={'type': 'tile', 'id': region.name, 'good': good.name},
-                 metric_id='goods.sold', unit='units', after=0,
-                 cause_event_ids=([pressure_event_id]
-                                  if pressure_event_id is not None else None),
-                 inputs={'local_asks': ta, 'imported_asks': imp_total,
-                         'bids': tb, 'reason': 'no bids or no offers'})
+            no_trade_event_id = emit(
+                region, kind='market_no_trade', record_class='observation',
+                subject={'type': 'tile', 'id': region.name, 'good': good.name},
+                metric_id='goods.sold', unit='units', after=0,
+                cause_event_ids=([pressure_event_id]
+                                 if pressure_event_id is not None else None),
+                inputs={'local_asks': ta, 'imported_asks': imp_total,
+                        'bids': tb, 'reason': 'no bids or no offers'})
+            if no_trade_event_id is not None:
+                region._auction_import_sale_trace_ids[good] = no_trade_event_id
             if good != Goods.food or (ta == 0 and emergency_surplus == 0):
                 update_price_ref(region, good, demand_ratio, local_asks=ta,
                                  imported_asks=imp_total, bids=tb,

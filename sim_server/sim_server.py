@@ -1512,10 +1512,12 @@ class SimServer:
         pop_series = (tile.total_population or [])[-30:]
         hs = [tile.hungry_log.get(gd, []) for gd in (Goods.food, Goods.wood, Goods.furniture)]
         hungry_series = [sum(row) for row in zip(*hs)][-30:] if any(hs) else []
-        exp = [tile.export_val.get(gd, []) for gd in (Goods.food, Goods.wood, Goods.furniture)]
-        imp = [tile.import_val.get(gd, []) for gd in (Goods.food, Goods.wood, Goods.furniture)]
-        tot_exp = [round(sum(row), 1) for row in zip(*exp)][-30:] if any(exp) else []
-        tot_imp = [round(sum(row), 1) for row in zip(*imp)][-30:] if any(imp) else []
+        tot_exp = [round(float(value), 1)
+                   for value in getattr(tile, 'export_value_log', [])[-30:]]
+        tot_imp = [round(float(value), 1)
+                   for value in getattr(tile, 'import_value_log', [])[-30:]]
+        trade_balance_series = [round(float(value), 1)
+                                for value in getattr(tile, 'net_trade_value_log', [])[-30:]]
 
         t_gov = getattr(tile, 'gov', None)
         t_income = getattr(t_gov, 'income_log', []) if t_gov is not None else []
@@ -1720,7 +1722,8 @@ class SimServer:
                     'prices': {'food': g_price(Goods.food), 'wood': g_price(Goods.wood), 'furniture': g_price(Goods.furniture)},
                     'pop_hunger': {'pop': pop_series, 'hungry': hungry_series},
                     'production': {'food': g_prod(Goods.food), 'wood': g_prod(Goods.wood), 'furniture': g_prod(Goods.furniture)},
-                    'trade_flow': {'export': tot_exp, 'import': tot_imp},
+                    'trade_flow': {'export': tot_exp, 'import': tot_imp,
+                                   'balance': trade_balance_series},
                     'gov_income': {'tax': tax_series, 'tariff': tariff_series, 'inheritance': inherit_series},
                     'gini_migration': {'gini': gini_series, 'migration': migr_series},
                     'inventories': {'food': g_inv(Goods.food), 'wood': g_inv(Goods.wood), 'furniture': g_inv(Goods.furniture)},

@@ -14,7 +14,7 @@ from region_logistics import post_exports_to_route, repoint_traders
 from region_market import clear_discriminatory, import_ask_price
 from run_trace import RunTrace
 from transporter import Route
-from world_trade import pending_imports
+from world_trade import pending_imports, settle_trade, TRADE_GOODS
 
 
 class MarketRouteTests(unittest.TestCase):
@@ -39,6 +39,36 @@ class MarketRouteTests(unittest.TestCase):
             IMPORT_MARGIN_MIN=0.05, IMPORT_MARGIN_MAX=0.30,
             _auction_import_sales={}, pending_imports=imports,
         )
+
+    def test_bilateral_trade_logs_only_the_imports_from_that_source(self):
+        source_a = SimpleNamespace(
+            name='Upland A', home_currency='A', trader_agents=[],
+            forex_desks={}, forex=None, agents=[],
+            export_vol={good: [] for good in TRADE_GOODS},
+            export_val={good: [] for good in TRADE_GOODS})
+        source_b = SimpleNamespace(
+            name='Upland B', home_currency='B', trader_agents=[],
+            forex_desks={}, forex=None, agents=[],
+            export_vol={good: [] for good in TRADE_GOODS},
+            export_val={good: [] for good in TRADE_GOODS})
+        destination = SimpleNamespace(
+            name='Lowland', home_currency='D', trader_agents=[], agents=[],
+            recipes={}, forex_desks={}, forex=None,
+            import_vol={good: [] for good in TRADE_GOODS},
+            import_val={good: [] for good in TRADE_GOODS},
+            _auction_import_sales={Goods.food: (7, 70.0)},
+            _auction_import_sales_by_source={
+                Goods.food: {
+                    source_a.name: {'quantity': 3, 'value': 30.0},
+                    source_b.name: {'quantity': 4, 'value': 40.0},
+                }})
+
+        self.assertEqual(settle_trade(1, destination, source_a), (3, 30.0))
+        self.assertEqual(settle_trade(1, destination, source_b), (4, 40.0))
+        self.assertEqual(source_a.export_vol[Goods.food][-1], 3)
+        self.assertEqual(source_a.export_val[Goods.food][-1], 30.0)
+        self.assertEqual(source_b.export_vol[Goods.food][-1], 4)
+        self.assertEqual(source_b.export_val[Goods.food][-1], 40.0)
 
     def test_trace_links_shipment_arrival_quote_and_paid_sale(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -236,6 +266,11 @@ class MarketRouteTests(unittest.TestCase):
         self.assertEqual(trader.inventory_foreign[Goods.cotton.value], 0)
         self.assertEqual(trader.import_lots[0]['quantity'], 0)
         self.assertEqual(destination_market._auction_import_sales[Goods.cotton], (3, paid))
+        attributed_sale = destination_market._auction_import_sales_by_source[
+            Goods.cotton][source.name]
+        self.assertEqual(attributed_sale['quantity'], 3)
+        self.assertAlmostEqual(attributed_sale['value'], paid)
+        self.assertIsInstance(attributed_sale['event_ids'], list)
         imported_sale = next(e for e in destination_market.economic_events
                              if e['kind'] == 'spot_sale')
         self.assertEqual(imported_sale['detail']['shipment_id'], shipment_id)

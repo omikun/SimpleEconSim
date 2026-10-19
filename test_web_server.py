@@ -372,6 +372,47 @@ class TestWebServerEndpoints(unittest.TestCase):
                         for key in ('tax', 'tariff', 'inheritance'))
         self.assertAlmostEqual(displayed, calculation['value_after'], places=1)
 
+    def test_trade_chart_points_have_turn_aligned_trace_records(self):
+        self.sim.step()
+        self.sim.step()
+        tile = self.sim.nations[0].tiles[0]
+        chart = self.sim.serialize_tile(tile, turn=self.sim.turn)['charts']
+        cases = (
+            ('trade.export_value', 'export', 'trade_export_value_calculation'),
+            ('trade.import_value', 'import', 'trade_import_value_calculation'),
+            ('trade.net_value', 'balance', 'trade_net_value_calculation'),
+        )
+        for metric, series, kind in cases:
+            points = chart['economic']['trade_flow'][series]
+            self.assertEqual(len(points), 2, metric)
+            for point_index, turn in enumerate((1, 2)):
+                query = urllib.parse.urlencode({
+                    'turn': turn, 'entity': f'tile:{tile.name}',
+                    'metric': metric, 'limit': 200})
+                handler = MockHttpRequestHandler(
+                    self.mock_server, 'GET', f'/api/trace?{query}')
+                payload = json.loads(handler.get_body())
+                calculations = [row for row in payload['events']
+                                if row['kind'] == kind]
+                self.assertEqual(len(calculations), 1, (metric, turn))
+                calculation = calculations[0]
+                displayed = points[point_index]
+                self.assertAlmostEqual(displayed, calculation['value_after'],
+                                       places=1, msg=(metric, turn))
+                inputs = calculation['inputs']
+                if metric == 'trade.export_value':
+                    replay = sum(row['value_in_home_currency']
+                                 for row in inputs['partner_settlements'])
+                    self.assertTrue(all(row['conversion_basis']
+                                        for row in inputs['partner_settlements']))
+                elif metric == 'trade.import_value':
+                    replay = sum(row['value'] for row in inputs['goods'])
+                    self.assertFalse(inputs['currency_conversion_applied'])
+                else:
+                    replay = (inputs['export_value_home_currency']
+                              - inputs['import_value_home_currency'])
+                self.assertAlmostEqual(replay, calculation['value_after'])
+
     def test_api_world_state(self):
         handler = MockHttpRequestHandler(self.mock_server, 'GET', '/api/state')
         self.assertEqual(handler.response_status, 200)

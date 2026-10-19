@@ -2172,3 +2172,26 @@ selected tile's turn-scoped calculation and checks shared-scope membership.
 The metric-catalog test and Node UI suite pass. Trade-flow charts remain
 unmapped pending a correction to their partner-currency and per-turn history
 semantics.
+
+## Phase 5 follow-up — Make trade charts turn-aligned and traceable (implemented)
+
+Imported auction sales are now attributed to their source tile before bilateral
+settlement. This avoids copying a destination's all-source import total into
+every neighbor's export history. The web chart now uses one point per turn for
+exports, imports, and net value. Export receipts are converted from each
+destination currency to the source tile's home currency at the current
+bilateral buy quote; imports stay in the destination tile's home currency.
+Both conversion rates and parity fallback reasons are recorded.
+
+Turn records show the partner values, goods, source sale event IDs, market
+summary IDs, currencies, and formula inputs. The net record links to the export
+and import calculations. The old route histories remain available, while the
+displayed flow now uses coherent per-turn totals. Gameplay market rules are
+unchanged.
+
+Verification: the integration test compares export, import, and net chart
+points with both turns' trace records and replays their formulas. A source
+attribution test verifies that two neighbors receive only their own sales.
+Trade-route/accounting, labor and government chart, history parity, and metric
+catalog checks passed (21 Python tests); Node UI, JavaScript syntax, Python
+compilation, and `git diff --check` passed.

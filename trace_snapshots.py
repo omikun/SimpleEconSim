@@ -334,6 +334,16 @@ def sample(tiles, nations):
                 getattr(tile, 'home_currency', None) or 'local_currency',
                 sum(float(income.get(key, 0.0))
                     for key in ('tax', 'tariff', 'inheritance')))
+        for metric_id, field in (
+                ('trade.export_value', 'export_value_log'),
+                ('trade.import_value', 'import_value_log'),
+                ('trade.net_value', 'net_trade_value_log')):
+            history = getattr(tile, field, ())
+            if history:
+                values[(metric_id, tile.name)] = (
+                    tile_subject,
+                    getattr(tile, 'home_currency', None) or 'local_currency',
+                    float(history[-1]))
         for metric_id, field, unit in (
                 ('labor.average_shift_hours', 'avg_shift_hours_log', 'hours'),
                 ('labor.average_alienation', 'avg_alienation_log', 'ratio'),

@@ -56,6 +56,8 @@ for (const [chartId, metricId] of Object.entries({
   respiratory_cases: 'health.disease_cases', chemical_cases: 'health.disease_cases',
   health_outlays: 'health.medical_spending',
   gov_income: 'finance.government_income',
+  trade: 'trade.net_value', trade_exports: 'trade.export_value',
+  trade_imports: 'trade.import_value',
   shift_hours: 'labor.average_shift_hours',
   exploitation: 'labor.exploitation_rate',
   alienation: 'labor.average_alienation',
@@ -80,6 +82,8 @@ assert.equal(globalThis.CoCCharts.getTraceBinding('alienation').chartScale, 100)
 assert.equal(globalThis.CoCCharts.getTraceBinding('consciousness').chartScale, 100);
 assert.deepEqual(globalThis.CoCCharts.getTraceBinding('strikes').tilePath,
   ['labor', 'workplace_resistance', 'strikers']);
+assert.deepEqual(globalThis.CoCCharts.getTraceBinding('trade').tilePath,
+  ['economic', 'trade_flow', 'balance']);
 assert.deepEqual(globalThis.CoCCharts.getTileSeries({ ecological: { healthcare_outlay: {
   private: [2, 3, 4], public: [5, 7, 11]
 } } }, globalThis.CoCCharts.getTraceBinding('health_outlays')), [7, 10, 15]);

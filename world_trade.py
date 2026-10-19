@@ -283,7 +283,17 @@ def settle_trade(t, destination_region, source_region):
 
     # 1. Log what the destination's priced auction sold for us this turn.
     for good in TRADE_GOODS:
-        aq, av = destination_region._auction_import_sales.get(good, (0, 0.0))
+        source_sales_by_good = getattr(
+            destination_region, '_auction_import_sales_by_source', {})
+        source_sales = source_sales_by_good.get(good)
+        if source_sales is None:
+            # Legacy/direct callers may only provide the all-source total.
+            aq, av = destination_region._auction_import_sales.get(
+                good, (0, 0.0))
+        else:
+            source_sale = source_sales.get(source_region.name, {})
+            aq = int(source_sale.get('quantity', 0))
+            av = float(source_sale.get('value', 0.0))
         if aq > 0 and (good in source_region.export_vol and good in destination_region.import_vol):
             source_region.export_vol[good].append(aq)
             source_region.export_val[good].append(av)
