@@ -59,10 +59,18 @@ class MetricCatalogTraceCoverageTests(unittest.TestCase):
             'collective_log': 'labor.collective_action',
             'grievance_sources_log': 'politics.grievance',
             'trade_flow_log': 'trade.net_value',
+            'workhouse_inmates_log': 'labor.workhouse_inmates',
         }
         for field, metric_id in expected.items():
             with self.subTest(field=field):
                 self.assertEqual(LEGACY_HISTORY_TO_METRIC[field], metric_id)
+                self.assertIn(metric_id, TRACE_INSTRUMENTED)
+
+    def test_workhouse_metrics_have_replayable_trace_coverage(self):
+        for metric_id in ('labor.workhouse_inmates',
+                          'labor.forced_labor_hours'):
+            with self.subTest(metric_id=metric_id):
+                self.assertIn(metric_id, METRICS)
                 self.assertIn(metric_id, TRACE_INSTRUMENTED)
 
 

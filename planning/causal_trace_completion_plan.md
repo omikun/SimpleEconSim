@@ -2586,3 +2586,18 @@ turn matches bank-equity and total-cash history points to calculation records
 whose formulas replay. The full run-trace and metric-catalog suites passed (39
 tests); banking, trade-accounting, and true-cost suites passed (19 tests);
 Python compilation and `git diff --check` passed.
+
+## Phase 5 follow-up — Trace workhouse confinement and forced labor (implemented)
+
+The workhouse step now records its before/after inmate census and compulsory
+hours as replayable calculations. Inputs retain inmate IDs, food required and
+provided, fed and starving groups, operation summaries, and zero sale revenue.
+The census links to same-turn resolved vagrancy cases and labor-status events;
+the forced-hours calculation remains a noncash labor quantity. The legacy
+`workhouse_inmates_log` history maps to the census metric.
+
+Verification: focused fixtures replay fed labor at eight hours per person and
+zero hours when inmates are unfed, and assert case/status/census links and zero
+sale revenue. Run-trace, labor-enforcement, metric-catalog, and
+enclosure/workhouse suites passed (56 tests, including a live RunTrace replay);
+`git diff --check` passed.

@@ -2113,3 +2113,16 @@ server turn matches the bank-equity and total-cash history values to replayable
 calculation events. The full run-trace and metric-catalog suites passed (39
 tests); banking, trade-accounting, and true-cost suites passed (19 tests).
 Python compilation and `git diff --check` passed.
+
+Phase 5 follow-up, 2026-10-19: workhouse turns now record the ending inmate
+census and fed inmates' compulsory labor hours as separate replayable metrics.
+The records retain before/after inmate IDs, food required/provided, hungry
+inmates, zero cash revenue, operation summaries, and links to same-turn
+vagrancy cases and labor-status changes. Confinement history maps to the inmate
+metric, while forced labor hours remain a noncash production measure.
+
+Verification: fixtures replay both the eight-hours-per-fed-inmate rule and
+zero hours for unfed inmates, confirm zero sale revenue, and link census
+changes to confinement cases and status records. The run-trace,
+labor-enforcement, metric-catalog, and enclosure/workhouse suites passed (56
+tests, including a live RunTrace replay); `git diff --check` passed.

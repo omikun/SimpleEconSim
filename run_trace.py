@@ -197,7 +197,8 @@ class RunTrace:
                 'goods.national_reference_price', 'goods.national_food_price',
                 'labor.firm_surplus_value', 'labor.surplus_value',
                 'labor.exploitation_rate', 'finance.bank_equity',
-                'finance.total_cash')):
+                'finance.total_cash', 'labor.workhouse_inmates',
+                'labor.forced_labor_hours')):
             from price_trace import replay_event
             replay = replay_event(row)
             if replay is not None:

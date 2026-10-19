@@ -1,4 +1,6 @@
 import json
+from pathlib import Path
+import tempfile
 import unittest
 from types import SimpleNamespace
 
@@ -21,6 +23,12 @@ class MemoryTrace:
         json.dumps(row, allow_nan=False)
         self.rows.append({'event_id': event_id, **row})
         return event_id
+
+    def latest_metric_event_id(self, metric_id, subject):
+        matches = [row for row in self.rows
+                   if row.get('metric_id') == metric_id
+                   and row.get('subject') == subject]
+        return matches[-1]['event_id'] if matches else None
 
 
 def _person(agent_id, *, cash=0.0, social_class='independent'):
@@ -171,6 +179,83 @@ class LaborEnforcementTraceTests(unittest.TestCase):
         self.assertEqual(status['after'], 'workhouse')
         self.assertEqual(status['cause_event_ids'], outcome['cause_event_ids'])
         self.assertEqual(transfer['inputs']['officer_id'], 22)
+
+        # Workhouse feeding converts confinement into compulsory hours, but
+        # the labor itself creates no sale revenue.
+        from price_trace import replay_event
+        from workhouse import step_workhouse
+
+        traced[0].gov.agent.inv_add(Goods.food, 1)
+        operations = step_workhouse(traced[0], 2)
+        self.assertTrue(any(row.get('event') == 'WORKHOUSE_OPERATIONS'
+                            for row in operations))
+        forced = next(row for row in traced[3].rows
+                      if row.get('metric_id') == 'labor.forced_labor_hours')
+        self.assertEqual(forced['after'], 8.0)
+        self.assertEqual(forced['inputs']['fed_inmate_ids'], [21])
+        self.assertEqual(forced['inputs']['starving_inmate_ids'], [])
+        self.assertEqual(forced['inputs']['cash_revenue'], 0.0)
+        self.assertEqual(replay_event({**forced,
+                                       'value_after': forced['after']})['matches'],
+                         True)
+        census = next(row for row in traced[3].rows
+                      if row.get('metric_id') == 'labor.workhouse_inmates')
+        self.assertEqual(census['before'], 1)
+        self.assertEqual(census['after'], 1)
+        self.assertEqual(census['inputs']['inmate_ids_after'], [21])
+        self.assertIn(outcome['event_id'], census['cause_event_ids'])
+        self.assertIn(status['event_id'], census['cause_event_ids'])
+        self.assertIn(forced['event_id'], census['cause_event_ids'])
+
+        # With no municipal food stock or affordable local source, confinement
+        # continues, but the inmate produces no forced hours.
+        traced[0].gov.agent.cash = 0.0
+        for person in traced[0].agents:
+            stock = int(person.inv_get(Goods.food, 0))
+            if stock:
+                person.inv_add(Goods.food, -stock)
+        stock = int(traced[0].gov.agent.inv_get(Goods.food, 0))
+        if stock:
+            traced[0].gov.agent.inv_add(Goods.food, -stock)
+        traced[0]._collective_trace_clock['turn'] = 3
+        events = step_workhouse(traced[0], 3)
+        self.assertTrue(any(row.get('event') == 'WORKHOUSE_BREAD_RIOT'
+                            for row in events))
+        starving = [row for row in traced[3].rows
+                    if row.get('metric_id') == 'labor.forced_labor_hours'][-1]
+        self.assertEqual(starving['after'], 0.0)
+        self.assertEqual(starving['inputs']['starving_inmate_ids'], [21])
+        self.assertEqual(replay_event({**starving,
+                                       'value_after': starving['after']})['matches'],
+                         True)
+
+    def test_live_trace_replays_workhouse_census_and_compulsory_hours(self):
+        from run_trace import RunTrace
+        from workhouse import step_workhouse
+
+        region, _pauper, _officer, _memory_trace = _vagrancy_fixture(
+            traced=False)
+        with tempfile.TemporaryDirectory() as tmp:
+            trace = RunTrace(Path(tmp) / 'workhouse.ctr', 'workhouse')
+            region._run_trace = trace
+            region._collective_trace_clock = {
+                'turn': 2, 'phase': 'labor_enforcement', 'next': 1}
+            region.gov.agent.inv_add(Goods.food, 1)
+
+            step_workhouse(region, 2)
+
+            forced = next(row for row in trace.recent
+                          if row.get('metric_id') == 'labor.forced_labor_hours')
+            census = next(row for row in trace.recent
+                          if row.get('metric_id') == 'labor.workhouse_inmates')
+            self.assertEqual(forced['value_after'], 8.0)
+            self.assertTrue(forced['formula_replay']['matches'])
+            self.assertEqual(census['value_after'], 1)
+            self.assertTrue(census['formula_replay']['matches'])
+            self.assertIn(forced['event_id'], census['cause_event_ids'])
+            self.assertTrue(any(row.get('metric_id') == 'labor.enforcement_case'
+                                and row['event_id'] in census['cause_event_ids']
+                                for row in trace.recent))
 
     def test_vagrancy_law_gate_and_unfunded_case_have_stable_reasons(self):
         disabled = _vagrancy_fixture(law_active=False)

@@ -216,6 +216,12 @@ def replay_event(row):
         expected = (float(inputs['agent_cash_total'])
                     + float(inputs['bank_equity'])
                     + float(inputs['charity_hand_cash']))
+    elif formula == 'labor.workhouse_inmate_census.v1':
+        expected = len(row['inputs']['inmate_ids_after'])
+    elif formula == 'labor.workhouse_hours_from_fed_inmates.v1':
+        inputs = row['inputs']
+        expected = (len(inputs['fed_inmate_ids'])
+                    * float(inputs['hours_per_fed_inmate']))
     elif formula == 'econsim.market_price.v1':
         expected = replay_econsim_market_price(row['inputs'])
     else:
