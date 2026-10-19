@@ -352,6 +352,7 @@ LEGACY_HISTORY_TO_METRIC = {
     'supply_log': 'goods.supply',
     'sold_log': 'goods.sold',
     'gdp_log': 'economy.gdp_nominal',
+    'gini_log': 'economy.gini',
     'cost_of_living_log': 'living.cost_of_living',
     'total_population': 'people.population',
     'protest_energy_log': 'politics.protest_energy',

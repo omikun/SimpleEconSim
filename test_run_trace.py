@@ -16,6 +16,39 @@ from trace_report import report, render, diff_snapshots
 
 
 class RunTraceTests(unittest.TestCase):
+    def test_gini_series_replays_cash_formula_and_ten_turn_hold(self):
+        from trace_snapshots import gini_metric_evidence
+
+        tile = SimpleNamespace(agents=[
+            SimpleNamespace(id=1, cash=0.0, output=Goods.food, is_trader=False),
+            SimpleNamespace(id=2, cash=10.0, output=Goods.food, is_trader=False),
+            SimpleNamespace(id=3, cash=30.0, output=Goods.food, is_trader=False),
+            SimpleNamespace(id=4, cash=100.0, output=Goods.food, is_trader=True),
+            SimpleNamespace(id=5, cash=50.0, output=Goods.wood, is_trader=False),
+        ])
+        refresh = gini_metric_evidence(tile, Goods.food, 10, None, 0.5)
+        self.assertEqual(refresh['formula_id'], 'gini.cash_by_output.v1')
+        self.assertEqual(refresh['record_class'], 'calculation')
+        self.assertEqual(refresh['inputs']['member_count'], 3)
+        self.assertEqual(refresh['inputs']['weighted_cash_sum'], 110.0)
+        self.assertTrue(refresh['inputs']['replay_matches'])
+
+        held = gini_metric_evidence(tile, Goods.food, 11, 0.5, 0.5)
+        self.assertEqual(held['formula_id'], 'gini.retain_previous_value.v1')
+        self.assertEqual(held['explanation_status'], 'held_between_refreshes')
+        self.assertTrue(held['inputs']['replay_matches'])
+
+        mismatch = gini_metric_evidence(tile, Goods.food, 10, None, 0.6)
+        self.assertEqual(mismatch['record_class'], 'observation')
+        self.assertEqual(mismatch['explanation_status'], 'replay_mismatch')
+
+        gov_tile = SimpleNamespace(agents=[SimpleNamespace(
+            id=6, cash=100.0, output=Goods.gov, is_trader=False)])
+        government_group = gini_metric_evidence(
+            gov_tile, Goods.gov, 10, None, 0.0)
+        self.assertEqual(government_group['inputs']['member_count'], 0)
+        self.assertTrue(government_group['inputs']['replay_matches'])
+
     def test_current_turn_tile_production_event_index(self):
         with tempfile.TemporaryDirectory() as tmp:
             trace = RunTrace(Path(tmp) / 'production-index.ctr',

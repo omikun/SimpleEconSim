@@ -7,7 +7,7 @@
       { id: 'gdp', name: 'Nominal GDP' }, { id: 'treasury', name: 'Treasury' },
       { id: 'food_price', name: 'Food Price' }, { id: 'pop', name: 'Pop/Hunger' },
       { id: 'production', name: 'Food Production' }, { id: 'trade', name: 'Trade Flow' },
-      { id: 'gov_income', name: 'Gov Revenue' }, { id: 'gini', name: 'Gini Inequality' },
+      { id: 'gov_income', name: 'Gov Revenue' }, { id: 'gini', name: 'Food Cash Inequality' },
       { id: 'inventories', name: 'Food Stocks' }, { id: 'unrest', name: 'Protest Energy' }
     ],
     ecological: [
@@ -50,6 +50,9 @@
     inventories: Object.freeze({ metricId: 'goods.producer_inventory',
       tilePath: ['economic', 'inventories', 'food'], good: 'food',
       label: 'Food producer inventory' }),
+    gini: Object.freeze({ metricId: 'economy.gini',
+      tilePath: ['economic', 'gini_migration', 'gini'], good: 'food',
+      chartScale: 100, displayUnit: '%', label: 'Food producer cash inequality' }),
     soil: Object.freeze({ metricId: 'ecology.soil_fertility',
       tilePath: ['ecological', 'soil_nutrition', 'soil'], chartScale: 100,
       displayUnit: '%', label: 'Soil fertility' }),

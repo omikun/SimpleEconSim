@@ -2106,3 +2106,19 @@ Verification: chart-binding tests cover all four disease IDs and the private
 plus public series sum. The web API tests verify each disease filter returns
 only the selected tile's case events. The focused API, renderer, JavaScript
 syntax, and UI utility checks passed (3 Python tests and the UI utility test).
+
+## Phase 5 follow-up — Explain the food-cash Gini chart (implemented)
+
+The tile food-cash inequality series now has an `economy.gini` trace metric.
+Every tenth turn, the recorder independently replays the existing coefficient
+from sorted cash holdings for food producers; intervening turns identify the
+held-previous-value branch. It records membership count, cash values, weighted
+sum, refresh cadence, and replay status. The chart binding labels its ×100
+display scale and filters to the food cohort. No game rules changed.
+
+Verification: the formula fixture covers a refresh, the between-refresh
+branch, and a mismatch. The web trace endpoint test links the turn-two chart
+point to its tile/good calculation record and confirms that the plotted value
+is the recorded ratio multiplied by 100. The metric-catalog, focused web and
+trace tests passed (3 Python tests), as did UI utility and JavaScript syntax
+checks.

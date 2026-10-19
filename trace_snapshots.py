@@ -312,6 +312,12 @@ def sample(tiles, nations):
             subject = {**tile_subject, 'profession': profession_name}
             values[('people.profession_population', tile.name, profession_name)] = (
                 subject, 'people', int(history[-1]))
+        for good, history in getattr(tile, 'gini_log', {}).items():
+            if not isinstance(good, Goods) or not history:
+                continue
+            subject = {**tile_subject, 'good': good.name}
+            values[('economy.gini', tile.name, good.name)] = (
+                subject, 'ratio', float(history[-1]))
         values[('people.population', tile.name)] = (
             tile_subject, 'people', tile.total_population[-1]
             if getattr(tile, 'total_population', None) else len(tile.agents))
@@ -473,6 +479,70 @@ def sample(tiles, nations):
             'mean_local_currency_per_unit',
             sum(food_history_values) / len(members) if members else 1.0)
     return values
+
+
+def gini_metric_evidence(tile, good, turn, before, after):
+    """Replay the existing 10-turn cash-Gini refresh or its held-value branch."""
+    members = (sorted(
+        ({'agent_id': str(agent.id), 'cash': float(agent.cash)}
+         for agent in getattr(tile, 'agents', ())
+         if not getattr(agent, 'is_trader', False)
+         and getattr(agent, 'output', None) == good),
+        key=lambda row: (row['cash'], row['agent_id']))
+        if good != Goods.gov else [])
+    cash_values = [row['cash'] for row in members]
+    count = len(cash_values)
+    total_cash = sum(cash_values)
+    weighted_cash = sum((index + 1) * cash
+                        for index, cash in enumerate(cash_values))
+    refresh_turn = int(turn) % 10 == 0
+    if refresh_turn:
+        replay = ((2.0 * weighted_cash) / (count * total_cash)
+                  - (count + 1.0) / count
+                  if count and total_cash > 0 else 0.0)
+        matches = replay == float(after)
+        return {
+            'kind': 'gini_series_calculation',
+            'record_class': 'calculation' if matches else 'observation',
+            'formula_id': 'gini.cash_by_output.v1',
+            'confidence': 'exact' if matches else 'unknown',
+            'explanation_status': ('recomputed_from_cash_holdings' if matches
+                                   else 'replay_mismatch'),
+            'inputs': {'refresh_interval_turns': 10,
+                       'recomputed_this_turn': True,
+                       'output_good': good.name,
+                       'member_count': count,
+                       'members_sorted_by_cash': members,
+                       'total_cash': total_cash,
+                       'weighted_cash_sum': weighted_cash,
+                       'formula_result': replay,
+                       'recorded_gini': float(after),
+                       'replay_matches': matches}}
+    if before is None:
+        return {
+            'kind': 'gini_series_initial_observation',
+            'record_class': 'observation',
+            'formula_id': 'gini.initial_log_value.v1',
+            'confidence': 'unknown',
+            'explanation_status': 'previous_series_value_unavailable',
+            'inputs': {'refresh_interval_turns': 10,
+                       'recomputed_this_turn': False,
+                       'output_good': good.name,
+                       'recorded_gini': float(after)}}
+    matches = float(before) == float(after)
+    return {
+        'kind': 'gini_series_calculation',
+        'record_class': 'calculation' if matches else 'observation',
+        'formula_id': 'gini.retain_previous_value.v1',
+        'confidence': 'exact' if matches else 'unknown',
+        'explanation_status': ('held_between_refreshes' if matches
+                               else 'unexpected_change_between_refreshes'),
+        'inputs': {'refresh_interval_turns': 10,
+                   'recomputed_this_turn': False,
+                   'output_good': good.name,
+                   'previous_gini': float(before),
+                   'recorded_gini': float(after),
+                   'replay_matches': matches}}
 
 
 def record(server):
@@ -875,6 +945,18 @@ def record(server):
             before = previous[key][2] if key in previous else None
             if key[0] == 'people.profession_population' and before == after:
                 continue
+            if key[0] == 'economy.gini':
+                tile = next((row for row in server.tiles
+                             if row.name == subject['id']), None)
+                good = next((candidate for candidate in getattr(tile, 'gini_log', {})
+                             if getattr(candidate, 'name', None) == subject.get('good')),
+                            None)
+                if tile is not None and good is not None:
+                    evidence = gini_metric_evidence(
+                        tile, good, clock.get('turn', 0), before, after)
+                    server.run_trace.emit(
+                        clock, subject=subject, metric_id=key[0], unit=unit,
+                        before=before, after=after, **evidence)
             if key[0] == 'goods.price':
                 server.run_trace.price_bridge(clock, subject=subject,
                                               before=before, after=after, unit=unit)

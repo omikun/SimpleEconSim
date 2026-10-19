@@ -48,7 +48,8 @@ for (const [chartId, metricId] of Object.entries({
   gdp: 'economy.gdp_nominal', treasury: 'finance.treasury',
   food_price: 'goods.national_food_price', pop: 'people.population',
   unrest: 'politics.protest_energy', production: 'goods.production',
-  inventories: 'goods.producer_inventory', soil: 'ecology.soil_fertility',
+  inventories: 'goods.producer_inventory', gini: 'economy.gini',
+  soil: 'ecology.soil_fertility',
   nutrition: 'ecology.nutrition_density', smog: 'ecology.pollution_air',
   effluent: 'ecology.pollution_water', illness_deaths: 'health.fatalities',
   malnutrition_cases: 'health.disease_cases', waterborne_cases: 'health.disease_cases',
@@ -60,6 +61,8 @@ for (const [chartId, metricId] of Object.entries({
 assert.deepEqual(globalThis.CoCCharts.getTraceBinding('gdp').tilePath, ['economic', 'gdp']);
 assert.equal(globalThis.CoCCharts.getTraceBinding('production').good, 'food');
 assert.equal(globalThis.CoCCharts.getTraceBinding('inventories').good, 'food');
+assert.equal(globalThis.CoCCharts.getTraceBinding('gini').good, 'food');
+assert.equal(globalThis.CoCCharts.getTraceBinding('gini').chartScale, 100);
 assert.equal(globalThis.CoCCharts.getTraceBinding('soil').chartScale, 100);
 assert.deepEqual(globalThis.CoCCharts.getTraceBinding('nutrition').tilePath,
   ['ecological', 'soil_nutrition', 'nutrition']);

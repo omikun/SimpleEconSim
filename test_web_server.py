@@ -277,6 +277,27 @@ class TestWebServerEndpoints(unittest.TestCase):
             self.assertTrue(all(row['subject']['disease'] == disease
                                 for row in payload['events']), disease)
 
+    def test_food_cash_gini_chart_point_has_a_trace_record(self):
+        self.sim.step()
+        self.sim.step()
+        tile = self.sim.nations[0].tiles[0]
+        query = urllib.parse.urlencode({
+            'turn': 2, 'entity': f'tile:{tile.name}',
+            'metric': 'economy.gini', 'good': 'food', 'limit': 200})
+        handler = MockHttpRequestHandler(
+            self.mock_server, 'GET', f'/api/trace?{query}')
+        payload = json.loads(handler.get_body())
+        calculations = [row for row in payload['events']
+                        if row['kind'] == 'gini_series_calculation']
+        self.assertTrue(calculations)
+        calculation = calculations[0]
+        self.assertEqual(calculation['formula_id'],
+                         'gini.retain_previous_value.v1')
+        self.assertTrue(calculation['inputs']['replay_matches'])
+        chart = self.sim.serialize_tile(tile, turn=self.sim.turn)['charts']
+        displayed = chart['economic']['gini_migration']['gini'][-1]
+        self.assertAlmostEqual(displayed, calculation['value_after'] * 100)
+
     def test_api_world_state(self):
         handler = MockHttpRequestHandler(self.mock_server, 'GET', '/api/state')
         self.assertEqual(handler.response_status, 200)
