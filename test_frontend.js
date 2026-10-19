@@ -309,6 +309,11 @@ test('every historical chart has a trace binding, including effective workday ca
         `missing Nation history key for ${entry.id}`);
     }
   }
+  for (const id of ['trade', 'trade_exports', 'trade_imports']) {
+    const binding = charts.getTraceBinding(id);
+    assert.ok(binding.historyKey, `missing Nation trade history for ${id}`);
+    assert.ok(binding.metricId.startsWith('trade.'));
+  }
 
   const binding = charts.getTraceBinding('workday_cap');
   assert.equal(binding.metricId, 'labor.statutory_workday');

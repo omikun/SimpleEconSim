@@ -272,7 +272,7 @@ def resident_population_bridges(previous, current, previous_roles, tiles, turn,
 
 
 def nation_chart_aggregation_rows(nation):
-    """Build the exact current-turn reducers used by the desktop Nation charts."""
+    """Build current-turn, traceable reducers for Nation chart histories."""
     tiles = list(getattr(nation, 'tiles', ()))
     if not tiles:
         return []
@@ -316,8 +316,15 @@ def nation_chart_aggregation_rows(nation):
                                       for tile in tiles],
                 'currency_conversion_applied': False,
                 'currency_semantics': (
-                    'raw local-currency sum without conversion'
-                    if unit == 'local_currency' else None)},
+                    'raw member-tile local-currency sum without conversion'
+                    if metric_id.startswith('trade.')
+                    or unit.startswith('local_currency')
+                    else None),
+                'unconverted_mixed_currency': (
+                    len({getattr(tile, 'home_currency', None) for tile in tiles
+                         if getattr(tile, 'home_currency', None) is not None}) > 1
+                    if metric_id.startswith('trade.')
+                    or unit.startswith('local_currency') else False)},
             'source_subject_filter': source_filter,
         })
 
@@ -366,6 +373,17 @@ def nation_chart_aggregation_rows(nation):
                 (getattr(tile, 'gini_log', {}) or {}).get(Goods.food, ())[i]
                 if i < len((getattr(tile, 'gini_log', {}) or {}).get(Goods.food, ()))
                 else None), {'good': Goods.food.name})
+
+    trade_length = max((len(getattr(tile, 'net_trade_value_log', ()) or ())
+                        for tile in tiles), default=0)
+    if trade_length:
+        index = trade_length - 1
+        for label, metric_id, field in (
+                ('net', 'trade.net_value', 'net_trade_value_log'),
+                ('exports', 'trade.export_value', 'export_value_log'),
+                ('imports', 'trade.import_value', 'import_value_log')):
+            add('trade', label, metric_id, 'local_currency_per_turn', 'sum',
+                index, lambda tile, i, name=field: series_value(tile, name, i))
 
     labor_length = max((len(getattr(tile, 'avg_shift_hours_log', ()) or ())
                         for tile in tiles), default=0)

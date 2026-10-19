@@ -28,9 +28,12 @@ from run_trace import RunTrace
 from pathlib import Path
 
 
-# Web chart keys fed by the Nation Citizen/Labor reducers also written into the
-# causal trace. Scales mirror the tile chart serialization.
+# Web chart keys fed by Nation trade, Citizen, and Labor reducers also written
+# into the causal trace. Scales mirror the tile chart serialization.
 _NATION_CHART_HISTORY_KEYS = {
+    ('trade', 'net'): ('trade', 1.0),
+    ('trade', 'exports'): ('trade_exports', 1.0),
+    ('trade', 'imports'): ('trade_imports', 1.0),
     ('citizen', 'serf'): ('class_serf', 1.0),
     ('citizen', 'tenant'): ('class_tenant', 1.0),
     ('citizen', 'worker'): ('class_worker', 1.0),

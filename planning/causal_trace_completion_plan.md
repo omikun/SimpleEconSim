@@ -2530,3 +2530,22 @@ context, two-turn history alignment, and trace-disabled history parity. The
 complete run-trace suite passed (36 tests); metric-catalog and web-server
 parity suites passed (25 tests); all 10 frontend tests passed. Python and
 JavaScript syntax checks and `git diff --check` passed.
+
+## Phase 5 follow-up — Bind Nation trade histories to trace records (implemented)
+
+The web Nation history now includes exports, imports, and net trade value.
+Each turn's series is the sum of the existing per-tile calculations over the
+Nation's current territories. Those calculations already express values in
+each tile's home currency, so the Nation rollup deliberately performs no extra
+FX conversion. Its trace records contributor values and links, turn-time
+membership and currencies, and flags mixed-currency sums. Selecting a point in
+the trade charts opens the matching Nation aggregate and its source tile
+calculations. Tile chart behavior and its converted export semantics are
+unchanged.
+
+Verification: Nation trade aggregation tests verify exports, imports, and net
+value arithmetic, including mixed-currency labeling; the web trace endpoint
+matches all three chart histories to their aggregate records. Frontend tests
+confirm each trade chart has a Nation history binding. Focused Python trace,
+web-server and serialization checks passed; all 10 frontend tests passed.
+Python/JavaScript syntax checks and `git diff --check` passed.

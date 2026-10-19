@@ -391,6 +391,11 @@ class TestWebServerEndpoints(unittest.TestCase):
              'avg commons %', 100.0),
             ('gini', 'economy.gini', None, 'food',
              'avg gini (x100)', 100.0),
+            ('trade', 'trade.net_value', None, None, 'net', 1.0),
+            ('trade_exports', 'trade.export_value', None, None,
+             'exports', 1.0),
+            ('trade_imports', 'trade.import_value', None, None,
+             'imports', 1.0),
         )
         for history_key, metric, class_group, good, chart_series, scale in cases:
             with self.subTest(history_key=history_key):
@@ -412,6 +417,13 @@ class TestWebServerEndpoints(unittest.TestCase):
                 self.assertAlmostEqual(
                     history[history_key][-1],
                     round(rows[0]['value_after'] * scale, 1), places=1)
+                if metric.startswith('trade.'):
+                    self.assertFalse(
+                        rows[0]['inputs']['currency_conversion_applied'])
+                    self.assertEqual(
+                        rows[0]['inputs']['currency_semantics'],
+                        'raw member-tile local-currency sum without conversion')
+                    self.assertIn('member_tiles', rows[0]['inputs'])
 
     def test_nation_good_price_histories_match_reference_price_aggregates(self):
         self.sim.step()

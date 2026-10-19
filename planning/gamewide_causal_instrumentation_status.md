@@ -223,8 +223,12 @@ binding, including dynamic goods. The web client's Nation-wide chart histories
 now include per-good reference prices and the Citizen and Labor series backed by
 the same per-turn Nation aggregates used by the trace. Available Nation-wide
 histories now cover GDP, treasury, population, legacy average food price,
-protest energy, per-good reference prices, Citizen, and Labor. Other economic
-and ecological series need explicit aggregation and trace evidence.
+protest energy, per-good reference prices, trade exports/imports/net value,
+Citizen, and Labor. The trade histories sum each current member tile's
+already-converted-to-tile-currency trade calculations without converting
+between territories; the aggregation records member values, membership,
+currencies, source links, and a mixed-currency flag. Other economic and
+ecological series need explicit aggregation and trace evidence.
 Desktop point-to-trace drilldown currently covers tile Economic, Ecology,
 Citizen Class & Tenure, and Labor charts, plus Nation Citizen and Labor charts.
 Nation selections replay the chart's sum or equal-tile mean from member-tile
@@ -1982,3 +1986,17 @@ The combined elite-planner, supply-control, capitalist, labor-law, route,
 triangular-trade, metric-catalog, and trace-reader run passed 142 tests. Python
 compilation and `git diff --check` passed. The legacy snapshot helper remains
 available for diagnostics but is not used by the simulation planner.
+
+Phase 5 follow-up, 2026-10-18: Nation-wide web history now includes trade
+exports, imports, and net value, each tied to the existing per-tile calculation
+records. The aggregate uses current Nation membership and deliberately sums the
+tile-home-currency values without additional conversion; trace inputs list
+member values, currencies, source event links, and mixed-currency status.
+Existing trade chart selections now show these Nation series when no tile is
+selected and open the selected aggregate's trace evidence.
+
+Verification: the aggregation fixture checks export/import/net sums and flags
+mixed-currency raw sums. The web trace endpoint matches all three history
+points with their Nation aggregate events, and the serialization and frontend
+binding tests pass. Python compilation, JavaScript syntax checks, and
+`git diff --check` passed.

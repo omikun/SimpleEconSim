@@ -61,6 +61,8 @@ class TestWebClientParity(unittest.TestCase):
         self.assertGreaterEqual(len(hist['turns']), 3)
         self.assertEqual(len(hist['turns']), len(hist['treasury']))
         self.assertEqual(len(hist['turns']), len(hist['gdp']))
+        for series in ('trade', 'trade_exports', 'trade_imports'):
+            self.assertEqual(len(hist[series]), len(hist['turns']) - 1)
 
     def test_tile_deep_inspection(self):
         inhabited = [t for t in self.sim.tiles if getattr(t, 'owner_nation', None) is not None][0]

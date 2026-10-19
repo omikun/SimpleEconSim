@@ -737,6 +737,7 @@ class RunTraceTests(unittest.TestCase):
         def tile(name, serf, commons, gini, shift, accidents):
             return SimpleNamespace(
                 name=name,
+                home_currency='NRC' if name == 'North' else 'SRC',
                 social_class_log=[{'serf': serf, 'proletarian': serf + 1}],
                 food_foraged_log=[serf * 2], food_purchased_log=[serf],
                 hungry_log={Goods.food: [serf], Goods.wood: [0],
@@ -748,7 +749,9 @@ class RunTraceTests(unittest.TestCase):
                 avg_alienation_log=[0.2], avg_health_attrition_log=[0.1],
                 workplace_accidents_log=[accidents], avg_consciousness_log=[0.4],
                 entertainment_log=[0.3], strikers_log=[serf],
-                broken_machinery_log=[1], sabotage_log=[1])
+                broken_machinery_log=[1], sabotage_log=[1],
+                export_value_log=[serf * 10], import_value_log=[serf * 4],
+                net_trade_value_log=[serf * 6])
 
         nation = SimpleNamespace(name='Republic', tiles=[
             tile('North', 2, 0.5, 0.2, 8.0, 1),
@@ -763,6 +766,15 @@ class RunTraceTests(unittest.TestCase):
                                0.3)
         self.assertEqual(by_series[('labor', 'avg shift hrs')]['after'], 9.0)
         self.assertEqual(by_series[('labor', 'accidents')]['after'], 3.0)
+        self.assertEqual(by_series[('trade', 'exports')]['after'], 60.0)
+        self.assertEqual(by_series[('trade', 'imports')]['after'], 24.0)
+        self.assertEqual(by_series[('trade', 'net')]['after'], 36.0)
+        net_trade = by_series[('trade', 'net')]
+        self.assertEqual(net_trade['inputs']['member_currencies'], ['NRC', 'SRC'])
+        self.assertTrue(net_trade['inputs']['unconverted_mixed_currency'])
+        self.assertEqual(
+            net_trade['inputs']['currency_semantics'],
+            'raw member-tile local-currency sum without conversion')
         self.assertEqual(
             by_series[('citizen', 'rent ($)')]['inputs']['currency_conversion_applied'],
             False)
