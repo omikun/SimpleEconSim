@@ -48,8 +48,10 @@ class ScenarioGeographyTraceTests(unittest.TestCase):
         world, egypt, britain, fleet, trace = _fixture()
         egypt_before = egypt.government.agent.cash
         britain_before = britain.government.agent.cash
+        trace_event_ids = []
 
-        self.assertTrue(move_fleet(world, 'Britain', 'Ismailia'))
+        self.assertTrue(move_fleet(world, 'Britain', 'Ismailia',
+                                   trace_event_ids=trace_event_ids))
 
         self.assertEqual(egypt.government.agent.cash, egypt_before + 2.0)
         self.assertEqual(britain.government.agent.cash, britain_before - 2.0)
@@ -77,6 +79,9 @@ class ScenarioGeographyTraceTests(unittest.TestCase):
         self.assertEqual((movement['before'], movement['after']),
                          ('Port Said', 'Ismailia'))
         self.assertEqual(movement['cause_event_ids'], [assessment['event_id']])
+        self.assertEqual(set(trace_event_ids),
+                         {payer['event_id'], payee['event_id'],
+                          assessment['event_id'], movement['event_id']})
 
     def test_toll_movement_state_is_identical_with_trace_disabled(self):
         traced = _fixture(True)

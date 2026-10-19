@@ -260,9 +260,29 @@ The remaining scenario-project gaps identified by this audit—reserve-recall
 social costs, grain-entitlement policy state, and per-turn delivery outcomes—
 are implemented in the latest progress entry below.
 
-Next Phase 3 audit target: review `scenario_campaign.advance_expedition` for
-landing-warning, transport-capacity and route/supply stop gates, including
-links between expedition upkeep, fleet movement, battle, and withdrawal.
+### Phase 3 follow-up — Trace Egyptian expedition steps (implemented)
+
+`scenario_campaign.advance_expedition` now records the landing-warning and
+transport-capacity gates, recurring supply affordability, each fleet route
+step and canal toll, Tel el Kebir battle result, and withdrawal. Step summaries
+link to the underlying household payment, route/toll, battle, territory-control,
+and withdrawal records. Failure reasons distinguish an absent or unready fleet,
+insufficient transports, unaffordable upkeep, denied or unaffordable canal
+transit, and a missing route. Existing movement and campaign rules are
+unchanged.
+
+Verification: campaign, geography, occupation, metric-catalog and scenario
+project suites passed (49 tests); three focused campaign playthroughs passed.
+They cover readiness and route failures, successful movement, upkeep and toll
+gates, battle-to-withdrawal causality, compact trace verification, and
+trace-on/off state parity. Compilation and `git diff --check` passed. The
+separate all-endings audit was stopped while its long integration subprocess
+was still running and is not counted as a pass.
+
+Next Phase 3 audit target: review `scenario_gunboat.resolve_naval_response` and
+its supporting naval-crisis transitions for rejected response gates, mediation,
+defense/blockade, and hold-out outcomes that lack complete decision-to-effect
+causal links.
 
 ## Phase 5 — Deliver explanations in web, desktop and CLI
 

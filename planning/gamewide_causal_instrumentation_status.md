@@ -1365,3 +1365,19 @@ bombardment or injury rules changed.
 Verification: campaign, occupation, metric-catalog and geography suites passed
 (27 tests), including bombardment gate, casualty/attrition caps, trace-on/off
 parity, and compact trace decoding. Compilation and `git diff --check` passed.
+
+Phase 3 follow-up, 2026-10-18: Egyptian expedition steps now record landing
+readiness, the 10-transport minimum, recurring British supply costs, each fleet
+route move and canal toll, the Tel el Kebir battle result, and withdrawal.
+Summary events link to their household funding/payment, fleet movement/toll,
+battle, territory-control, and withdrawal causes. Failure records distinguish
+missing or unready fleets, inadequate transports, supply failure, unavailable
+routes, denied canal access, and unaffordable tolls. No campaign rules changed.
+
+Verification: campaign, geography, occupation, metric-catalog, and scenario
+project suites passed (49 tests); three focused campaign playthroughs passed.
+They cover readiness and route failures, successful movement, upkeep and toll
+gates, battle-to-withdrawal causality, compact trace verification, and
+trace-on/off state parity. Compilation and `git diff --check` passed. The
+separate all-endings audit was stopped inside its long integration subprocess
+and is not counted as a pass.

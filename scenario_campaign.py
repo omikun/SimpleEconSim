@@ -279,55 +279,197 @@ def _battle(world, location, *, trace_event_ids=None):
             f'Egyptian losses {outcome["def_losses"]}.')
 
 
+def _expedition_operation_id(world):
+    tile = _tile(world, 'Alexandria')
+    clock = getattr(tile, '_collective_trace_clock', None)
+    ordinal = int(clock.get('next', 1)) if clock is not None else int(world['turn'])
+    return f'expedition-step:{int(world["turn"])}:{ordinal}'
+
+
+def _trace_expedition_step(world, *, operation_id, status, reason,
+                           before, after, details=None, cause_event_ids=None):
+    from run_trace import emit
+    tile = _tile(world, 'Alexandria')
+    record_class = 'decision' if status == 'gate_blocked' else 'outcome'
+    return emit(
+        tile, kind='expedition_step_resolved', record_class=record_class,
+        phase='campaign',
+        subject={'type': 'scenario/operation', 'id': operation_id},
+        metric_id='scenario.expedition_step', unit='stage',
+        before=before['expedition_stage'], after=after['expedition_stage'],
+        formula_id='campaign.expedition_step.v1',
+        inputs={'operation_id': operation_id, 'turn': int(world['turn']),
+                'status': status, 'reason': reason,
+                'state_before': before, 'state_after': after,
+                **(details or {})},
+        cause_event_ids=cause_event_ids)
+
+
+def _fleet_movement_failure_reason(world, nation_name, destination):
+    geography = world['scenario_state']['geography']
+    fleet = geography['fleets'].get(nation_name)
+    if fleet is None:
+        return 'fleet_missing'
+    if not fleet.get('supplied'):
+        return 'fleet_unsupplied'
+    if int(fleet.get('coal', 0)) <= 0:
+        return 'fleet_out_of_coal'
+    origin = fleet.get('location')
+    if destination not in geography['routes'].get(origin, ()):
+        return 'destination_not_on_route'
+    if destination in ('Tel el Kebir', 'Cairo', 'Nile Delta', 'Upper Egypt'):
+        return 'destination_is_army_route_not_navigable'
+    from scenario_geography import canal_access
+    if destination == 'Ismailia' and not canal_access(world, nation_name):
+        return 'canal_access_denied'
+    if destination == 'Ismailia' and nation_name != 'Egypt':
+        payer = next((n for n in world['nations'] if n.name == nation_name), None)
+        egypt = _nation(world, 'Egypt')
+        if payer is None or egypt is None:
+            return 'canal_toll_treasury_unavailable'
+        if payer.government.agent.cash < 2.0:
+            return 'canal_toll_unaffordable'
+    return 'fleet_movement_rejected'
+
+
 def advance_expedition(world):
     """Return True when campaign movement or a landing decision took the turn."""
     state = world['scenario_state']
     campaign = state['campaign']
     expedition = campaign['expedition']
     stage = expedition['stage']
+    turn = int(world['turn'])
     if stage == 'none' and state['naval_crisis'].get('stage') == 'blockaded':
         due = expedition.get('landing_due_turn')
-        if due is not None and int(world['turn']) >= due:
+        if due is not None and turn >= due:
+            before = _landing_action_state(world)
+            operation_id = _expedition_operation_id(world)
+            fleet = state['geography']['fleets'].get('Britain')
             if not fleet_at(world, 'Britain', 'Alexandria'):
+                if fleet is None:
+                    reason = 'british_fleet_missing'
+                elif fleet.get('location') != 'Alexandria':
+                    reason = 'british_fleet_not_at_alexandria'
+                elif int(fleet.get('ships', 0)) <= 0:
+                    reason = 'british_fleet_has_no_ships'
+                elif int(fleet.get('coal', 0)) <= 0:
+                    reason = 'british_fleet_out_of_coal'
+                else:
+                    reason = 'british_fleet_unsupplied'
+                _trace_expedition_step(
+                    world, operation_id=operation_id, status='gate_blocked',
+                    reason=reason, before=before, after=before,
+                    details={'landing_due_turn': int(due), 'turn': turn,
+                             'british_fleet_state': dict(fleet) if fleet else None,
+                             'required_location': 'Alexandria'})
                 return False
-            if state['geography']['fleets']['Britain']['transports'] < 10:
+            if fleet['transports'] < 10:
+                _trace_expedition_step(
+                    world, operation_id=operation_id, status='gate_blocked',
+                    reason='transport_capacity_below_minimum',
+                    before=before, after=before,
+                    details={'landing_due_turn': int(due), 'turn': turn,
+                             'transport_capacity': int(fleet['transports']),
+                             'minimum_transport_capacity': 10})
                 return False
             world['scenario_warning_modal'] = {'kind': 'landing_warning'}
             world['playing'] = False
+            after = _landing_action_state(world)
+            _trace_expedition_step(
+                world, operation_id=operation_id, status='landing_warning_opened',
+                reason='fleet_and_transport_gates_passed', before=before, after=after,
+                details={'landing_due_turn': int(due), 'turn': turn,
+                         'transport_capacity': int(fleet['transports']),
+                         'minimum_transport_capacity': 10,
+                         'warning_modal_opened': True, 'playing_after': False})
             return True
     if stage in ('sailing_canal', 'marching_tel'):
         fleet = state['geography']['fleets']['Britain']
+        before = _landing_action_state(world)
+        operation_id = _expedition_operation_id(world)
         from scenario_gunboat import _transfer_to_households, withdraw
+        from scenario_gunboat import _record
         from scenario_situation import situation_template
         cost = float(situation_template()['naval_crisis']['upkeep_per_turn'])
-        supply_event_ids = []
+        step_event_ids = []
         if not _transfer_to_households(
                 world, _nation(world, 'Britain'), cost,
                 source='british_canal_expedition_supply', phase='campaign',
-                trace_event_ids=supply_event_ids):
+                trace_event_ids=step_event_ids):
             expedition['stage'] = 'repelled'
             withdraw(world, 'Britain cannot supply its canal expedition; the squadron withdraws.',
                      cause='unsustainable',
-                     cause_event_ids=supply_event_ids or None)
+                     cause_event_ids=step_event_ids or None)
+            after = _landing_action_state(world)
+            _trace_expedition_step(
+                world, operation_id=operation_id,
+                status='supply_failure_withdrawal',
+                reason='expedition_supply_gate_failed', before=before, after=after,
+                details={'stage_at_start': stage, 'upkeep_requested': cost,
+                         'supply_event_ids': list(step_event_ids)},
+                cause_event_ids=step_event_ids or None)
             return True
+        details = {'stage_at_start': stage, 'upkeep_requested': cost,
+                   'upkeep_paid': True,
+                   'supply_event_ids': list(step_event_ids)}
         if stage == 'marching_tel':
-            message = _battle(world, 'Tel el Kebir')
-            from scenario_gunboat import _record
+            message = _battle(world, 'Tel el Kebir',
+                              trace_event_ids=step_event_ids)
             _record(world, message, 'WAR')
             if expedition['stage'] == 'repelled':
-                withdraw(world, 'Egyptian defenders hold Tel el Kebir; the British expedition withdraws.', cause='military_defeat')
+                withdraw(world, 'Egyptian defenders hold Tel el Kebir; the British expedition withdraws.',
+                         cause='military_defeat',
+                         cause_event_ids=step_event_ids or None)
+            after = _landing_action_state(world)
+            won = after['expedition_stage'] != 'repelled'
+            _trace_expedition_step(
+                world, operation_id=operation_id, status='battle_resolved',
+                reason=('british_force_gained_foothold' if won
+                        else 'egyptian_defense_repelled_british_force'),
+                before=before, after=after,
+                details={**details, 'battle_location': 'Tel el Kebir',
+                         'battle_result': dict(campaign['battles'][-1]),
+                         'result_message': message},
+                cause_event_ids=step_event_ids or None)
             return True
         route = {'Alexandria': 'Mediterranean', 'Mediterranean': 'Port Said',
                  'Port Said': 'Ismailia'}
-        destination = route.get(fleet['location'])
-        if destination is None or not move_fleet(world, 'Britain', destination):
+        origin = fleet['location']
+        destination = route.get(origin)
+        moved = (move_fleet(world, 'Britain', destination,
+                            trace_event_ids=step_event_ids)
+                 if destination is not None else False)
+        if not moved:
+            movement_reason = (_fleet_movement_failure_reason(
+                world, 'Britain', destination) if destination is not None
+                else 'no_mapped_fleet_destination')
             expedition['stage'] = 'repelled'
-            withdraw(world, 'Canal denial or lost supply stops the British landing campaign.', cause='deterrence')
+            withdraw(world, 'Canal denial or lost supply stops the British landing campaign.',
+                     cause='deterrence',
+                     cause_event_ids=step_event_ids or None)
+            after = _landing_action_state(world)
+            _trace_expedition_step(
+                world, operation_id=operation_id, status='movement_blocked',
+                reason=movement_reason, before=before, after=after,
+                details={**details, 'fleet_origin': origin,
+                         'planned_destination': destination,
+                         'fleet_state_after_supply': dict(fleet)},
+                cause_event_ids=step_event_ids or None)
             return True
         if destination == 'Ismailia':
             expedition['stage'] = 'marching_tel'
-            from scenario_gunboat import _record
-            _record(world, 'British troops land at Ismailia and prepare to march toward the Tel el Kebir line.', 'WAR')
+            message = 'British troops land at Ismailia and prepare to march toward the Tel el Kebir line.'
+            _record(world, message, 'WAR')
+        else:
+            message = f'British expedition advances from {origin} to {destination}.'
+        after = _landing_action_state(world)
+        _trace_expedition_step(
+            world, operation_id=operation_id, status='fleet_moved',
+            reason='supply_paid_and_route_step_completed', before=before, after=after,
+            details={**details, 'fleet_origin': origin,
+                     'fleet_destination': destination,
+                     'result_message': message},
+            cause_event_ids=step_event_ids or None)
         return True
     return False
 

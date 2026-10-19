@@ -9,7 +9,7 @@ from __future__ import annotations
 
 def _trace_canal_toll(world, payer, payee, *, amount, turn, origin, destination,
                       total_before, total_after, payer_before, payer_after,
-                      payee_before, payee_after):
+                      payee_before, payee_after, trace_event_ids=None):
     """Record the simulated canal toll, including its unconverted currency legs."""
     from finance_trace import account_ref, emit_treasury_leg, transfer_contract
     from run_trace import emit
@@ -70,9 +70,13 @@ def _trace_canal_toll(world, payer, payee, *, amount, turn, origin, destination,
         phase='scenario_geography',
         inputs={'turn': int(turn), 'origin': origin,
                 'destination': destination, 'operation_id': operation_id})
+    if trace_event_ids is not None:
+        trace_event_ids.extend(event_id for event_id in
+                               (payer_event_id, payee_event_id)
+                               if event_id is not None)
     causes = [event_id for event_id in (payer_event_id, payee_event_id)
               if event_id is not None]
-    return emit(
+    assessment_event_id = emit(
         trace_region, kind='canal_transit_toll_assessment',
         record_class='outcome', phase='scenario_geography',
         subject={'type': 'nation_pair/operation', 'id': operation_id},
@@ -90,6 +94,9 @@ def _trace_canal_toll(world, payer, payee, *, amount, turn, origin, destination,
                 'currency_conversion_applied': False,
                 'counterparty_currency_mismatch': payer_currency != payee_currency},
         cause_event_ids=causes or None)
+    if assessment_event_id is not None and trace_event_ids is not None:
+        trace_event_ids.append(assessment_event_id)
+    return assessment_event_id
 
 
 ROUTES = {
@@ -157,7 +164,7 @@ def fleet_at(world, nation_name, location):
                 and fleet['coal'] > 0 and fleet['supplied'])
 
 
-def move_fleet(world, nation_name, destination):
+def move_fleet(world, nation_name, destination, *, trace_event_ids=None):
     geography = world['scenario_state']['geography']
     fleet = geography['fleets'].get(nation_name)
     if not fleet or not fleet['supplied'] or fleet['coal'] <= 0:
@@ -191,7 +198,8 @@ def move_fleet(world, nation_name, destination):
             payer_before=payer_before,
             payer_after=float(payer.government.agent.cash),
             payee_before=egypt_before,
-            payee_after=float(egypt.government.agent.cash))
+            payee_after=float(egypt.government.agent.cash),
+            trace_event_ids=trace_event_ids)
     coal_before = int(fleet['coal'])
     fleet['coal'] -= 1
     fleet['location'] = destination
@@ -204,7 +212,7 @@ def move_fleet(world, nation_name, destination):
                                  if getattr(tile, '_run_trace', None) is not None), None)
             if trace_region is not None:
                 break
-    emit(
+    movement_event_id = emit(
         trace_region, kind='scenario_fleet_movement', record_class='outcome',
         phase='scenario_geography',
         subject={'type': 'nation/fleet', 'id': nation_name},
@@ -216,6 +224,8 @@ def move_fleet(world, nation_name, destination):
                 'toll_required': destination == 'Ismailia' and nation_name != 'Egypt',
                 'toll_event_id': toll_event_id},
         cause_event_ids=([toll_event_id] if toll_event_id is not None else None))
+    if movement_event_id is not None and trace_event_ids is not None:
+        trace_event_ids.append(movement_event_id)
     return True
 
 

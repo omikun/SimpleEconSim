@@ -2,9 +2,10 @@ import tempfile
 import unittest
 import copy
 from pathlib import Path
+from army import MilitaryUnit
 
 from run_trace import RunTrace, verify
-from scenario_campaign import bombard_alexandria, resolve_landing
+from scenario_campaign import advance_expedition, bombard_alexandria, resolve_landing
 from scenario_geography import create_fleet, move_fleet
 from worldview_engine import build_world_view
 
@@ -176,6 +177,10 @@ class ScenarioCampaignTraceTests(unittest.TestCase):
                 'turn': int(world['turn']), 'phase': 'campaign', 'next': 1}
 
             self.assertTrue(bombard_alexandria(world)[0])
+            campaign = world['scenario_state']['campaign']
+            campaign['expedition']['stage'] = 'sailing_canal'
+            world['scenario_state']['naval_crisis']['stage'] = 'campaign'
+            self.assertTrue(advance_expedition(world))
             self.assertTrue(resolve_landing(world, 'evacuate_port')[0])
 
             result = recorder.query(metric_id='scenario.landing_response')
@@ -184,6 +189,8 @@ class ScenarioCampaignTraceTests(unittest.TestCase):
                              world['scenario_feedback'])
             self.assertEqual(
                 recorder.query(metric_id='scenario.bombardment')['total'], 1)
+            self.assertEqual(
+                recorder.query(metric_id='scenario.expedition_step')['total'], 1)
             self.assertEqual(verify(trace_path)['checkpoints'], 0)
 
     def test_bombardment_explains_guns_battery_injuries_and_port_damage(self):
@@ -242,6 +249,138 @@ class ScenarioCampaignTraceTests(unittest.TestCase):
         self.assertEqual(
             [getattr(agent, 'health_attrition', 0.0) for agent in traced_tile.agents],
             [getattr(agent, 'health_attrition', 0.0) for agent in plain_tile.agents])
+
+    def test_expedition_readiness_traces_fleet_and_transport_gates(self):
+        missing, _tile, missing_trace = _fixture(fleet=False)
+        missing['scenario_state']['naval_crisis']['stage'] = 'blockaded'
+        missing['scenario_state']['campaign']['expedition']['landing_due_turn'] = int(
+            missing['turn'])
+        self.assertFalse(advance_expedition(missing))
+        missing_row = next(row for row in missing_trace.rows
+                           if row.get('metric_id') == 'scenario.expedition_step')
+        self.assertEqual(missing_row['inputs']['reason'],
+                         'british_fleet_missing')
+
+        small, _tile, small_trace = _fixture()
+        small['scenario_state']['naval_crisis']['stage'] = 'blockaded'
+        small['scenario_state']['campaign']['expedition']['landing_due_turn'] = int(
+            small['turn'])
+        small['scenario_state']['geography']['fleets']['Britain']['transports'] = 9
+        self.assertFalse(advance_expedition(small))
+        small_row = next(row for row in small_trace.rows
+                         if row.get('metric_id') == 'scenario.expedition_step')
+        self.assertEqual(small_row['inputs']['reason'],
+                         'transport_capacity_below_minimum')
+        self.assertEqual(small_row['inputs']['minimum_transport_capacity'], 10)
+
+        ready, _tile, ready_trace = _fixture()
+        ready['playing'] = True
+        ready['scenario_state']['naval_crisis']['stage'] = 'blockaded'
+        ready['scenario_state']['campaign']['expedition']['landing_due_turn'] = int(
+            ready['turn'])
+        self.assertTrue(advance_expedition(ready))
+        ready_row = next(row for row in ready_trace.rows
+                         if row.get('metric_id') == 'scenario.expedition_step')
+        self.assertEqual(ready_row['inputs']['status'], 'landing_warning_opened')
+        self.assertEqual(ready['scenario_warning_modal']['kind'], 'landing_warning')
+        self.assertFalse(ready['playing'])
+
+    def test_expedition_route_step_links_upkeep_and_fleet_movement(self):
+        world, _tile, trace = _fixture()
+        world['scenario_state']['campaign']['expedition']['stage'] = 'sailing_canal'
+        world['scenario_state']['naval_crisis']['stage'] = 'campaign'
+
+        self.assertTrue(advance_expedition(world))
+
+        row = next(row for row in trace.rows
+                   if row.get('metric_id') == 'scenario.expedition_step')
+        self.assertEqual(row['inputs']['status'], 'fleet_moved')
+        self.assertTrue(row['inputs']['upkeep_paid'])
+        self.assertEqual(row['inputs']['fleet_origin'], 'Alexandria')
+        self.assertEqual(row['inputs']['fleet_destination'], 'Mediterranean')
+        linked = set(row.get('cause_event_ids', []))
+        movement_ids = {event['event_id'] for event in trace.rows
+                        if event.get('metric_id') == 'military.fleet_position'}
+        supply_ids = {event['event_id'] for event in trace.rows
+                      if event.get('metric_id') == 'scenario.household_cost_payment'}
+        self.assertTrue(movement_ids.issubset(linked))
+        self.assertTrue(supply_ids.issubset(linked))
+        self.assertEqual(row['inputs']['state_after']['british_fleet']['location'],
+                         'Mediterranean')
+
+    def test_unaffordable_expedition_supply_explains_withdrawal(self):
+        world, _tile, trace = _fixture()
+        britain = next(n for n in world['nations'] if n.name == 'Britain')
+        britain.government.agent.cash = 0.0
+        world['scenario_state']['campaign']['expedition']['stage'] = 'sailing_canal'
+        world['scenario_state']['naval_crisis']['stage'] = 'campaign'
+
+        self.assertTrue(advance_expedition(world))
+
+        row = next(row for row in trace.rows
+                   if row.get('metric_id') == 'scenario.expedition_step')
+        funding = next(event for event in trace.rows
+                       if event.get('metric_id') == 'scenario.household_cost_funding')
+        self.assertEqual(row['inputs']['status'], 'supply_failure_withdrawal')
+        self.assertEqual(row['inputs']['reason'], 'expedition_supply_gate_failed')
+        self.assertEqual(funding['inputs']['reason'], 'treasury_cash_below_cost')
+        self.assertIn(funding['event_id'], row['cause_event_ids'])
+        self.assertEqual(row['inputs']['state_after']['expedition_stage'], 'repelled')
+        self.assertEqual(row['inputs']['state_after']['naval_crisis_stage'], 'withdrawn')
+
+    def test_canal_toll_failure_after_upkeep_names_the_binding_cost(self):
+        world, _tile, trace = _fixture()
+        britain = next(n for n in world['nations'] if n.name == 'Britain')
+        britain.government.agent.cash = 9.0
+        fleet = world['scenario_state']['geography']['fleets']['Britain']
+        fleet['location'] = 'Port Said'
+        world['scenario_state']['campaign']['expedition']['stage'] = 'sailing_canal'
+        world['scenario_state']['naval_crisis']['stage'] = 'campaign'
+
+        self.assertTrue(advance_expedition(world))
+
+        row = next(row for row in trace.rows
+                   if row.get('metric_id') == 'scenario.expedition_step')
+        self.assertEqual(row['inputs']['status'], 'movement_blocked')
+        self.assertEqual(row['inputs']['reason'], 'canal_toll_unaffordable')
+        self.assertEqual(row['inputs']['fleet_origin'], 'Port Said')
+        self.assertEqual(row['inputs']['planned_destination'], 'Ismailia')
+        self.assertAlmostEqual(
+            row['inputs']['state_after']['britain_treasury_cash'], 1.0)
+
+    def test_tel_el_kebir_battle_and_withdrawal_link_to_expedition_step(self):
+        world, _tile, trace = _fixture()
+        clock = {'turn': int(world['turn']), 'phase': 'campaign', 'next': 1}
+        for tile in world['tiles']:
+            tile._run_trace = trace
+            tile._collective_trace_clock = clock
+        egypt = next(n for n in world['nations'] if n.name == 'Egypt')
+        defense_tile_name = world['scenario_state']['geography']['sites'][
+            'Tel el Kebir']['tile']
+        defense_tile = next(tile for tile in world['tiles']
+                            if tile.name == defense_tile_name)
+        defense = MilitaryUnit('trace_test_canal_defense', 'Egypt',
+                               defense_tile.name, soldiers=1000)
+        egypt.military_units.append(defense)
+        defense_tile.military_units = []
+        defense_tile.military_units.append(defense)
+        world['scenario_state']['geography']['fleets']['Britain']['transports'] = 1
+        world['scenario_state']['campaign']['expedition']['stage'] = 'marching_tel'
+        world['scenario_state']['naval_crisis']['stage'] = 'campaign'
+
+        self.assertTrue(advance_expedition(world))
+
+        summary = next(row for row in trace.rows
+                       if row.get('metric_id') == 'scenario.expedition_step')
+        battle = next(row for row in trace.rows
+                      if row.get('metric_id') == 'war.battle')
+        withdrawal = next(row for row in trace.rows
+                          if row.get('metric_id') == 'scenario.naval_crisis_stage')
+        self.assertEqual(summary['inputs']['status'], 'battle_resolved')
+        self.assertIn(battle['event_id'], summary['cause_event_ids'])
+        self.assertIn(battle['event_id'], withdrawal['cause_event_ids'])
+        self.assertEqual(summary['inputs']['state_after']['expedition_stage'],
+                         'repelled')
 
 
 if __name__ == '__main__':
