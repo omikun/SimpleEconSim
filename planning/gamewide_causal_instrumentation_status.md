@@ -1300,3 +1300,18 @@ rejection gates, missing household receipts, and traced/untraced state parity.
 The bargaining, district, metric-catalog, and run-trace suites passed (45
 tests); the Egypt food-repair campaign playthrough also passed and reaches this
 bargaining action. Compilation and `git diff --check` passed.
+
+Phase 3 follow-up, 2026-10-18: Egypt district arrears relief now links each
+debtor's exact tax writeoff to the action result, including municipal and
+national shares, total forgiveness, local tax-rate reduction, and legitimacy
+gain. The no-arrears gate is recorded. District strike-breaking records the
+existing repression force gate, memory and grievance event, strike-flag
+clearing, and collective injury-memory count in one operation chain. The
+repression helper accepts an optional operation ID and event-ID collector;
+existing callers and its default return value are unchanged.
+
+Verification: arrears, district-effect, repression, bargaining, generic
+district-action, catalog, and actor-account writeoff probes passed (23 tests).
+They cover traced/untraced repression parity, unavailable force, missing
+arrears, exact public writeoff shares, and links from repression/writeoff
+records to the scenario action. Compilation and `git diff --check` passed.

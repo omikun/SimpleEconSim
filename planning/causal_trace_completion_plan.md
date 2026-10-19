@@ -236,11 +236,30 @@ bargaining, district, metric-catalog, and run-trace suites passed (45 tests).
 The Egypt food-repair campaign playthrough passed and exercises this action.
 Compilation and `git diff --check` passed.
 
-Next Phase 3 audit target: `scenario_political_economy.apply_action` still has
-untraced direct social-state effects in district arrears relief and strike
-repression. Trace their actual eligibility, fiscal/writeoff evidence, force
-use, injuries, strike clearing, unrest, and legitimacy without changing those
-rules.
+The previous source audit identified district arrears relief and strike
+repression as the next uncovered direct effects; the implementation and
+verification are recorded below.
+
+### Phase 3 follow-up — Trace district arrears relief and strike-breaking (implemented)
+
+For arrears relief, link each debtor writeoff and its municipal/national
+allocation to the successful action. Record the no-arrears gate, total forgiven
+amount, local tax-rate change and legitimacy change. For strike-breaking, record
+the no-force gate or link the existing repression outcome to cleared strike
+flags, scenario strike roster, and the collective injury-memory counter. Reuse
+the repression event's operation ID and keep all existing return values and
+gameplay rules.
+
+Verification: arrears, district-effect, repression, bargaining, generic
+district-action, metric-catalog and actor-account writeoff tests passed (23
+tests). They cover no-arrears and no-force gates, exact arrears allocation,
+trace-on/off repression parity and both action-to-source causal chains.
+Compilation and `git diff --check` passed.
+
+Next Phase 3 audit target: review the remaining fiscal and military scenario
+flows in `scenario_projects.py`, `scenario_occupation.py`,
+`scenario_geography.py`, and `scenario_gunboat.py` against the completion-plan
+inventory, then trace the first uncovered active mutation.
 
 ## Phase 5 — Deliver explanations in web, desktop and CLI
 

@@ -561,6 +561,44 @@ def _trace_worker_bargain_transfer(tile, *, operation_id, turn, currency,
                 'recipient_allocations': recipients})
 
 
+def _trace_district_economy_action(tile, nation, *, action_id, operation_id,
+                                  turn, success, reason, inputs,
+                                  cause_event_ids=None, labor_event_kind=None):
+    """Summarize a district political-economy action and its source evidence."""
+    from run_trace import emit
+
+    labor_event_id = None
+    if labor_event_kind is not None:
+        labor_event_id = emit(
+            tile, kind=labor_event_kind,
+            record_class='outcome' if success else 'decision',
+            phase='scenario_action',
+            subject={'type': 'tile/operation', 'id': operation_id,
+                     'tile': tile.name,
+                     'nation': getattr(nation, 'name', tile.name)},
+            metric_id='labor.collective_action', unit='event_kind',
+            before='strike_active',
+            after='strike_broken' if success else 'repression_rejected',
+            formula_id='scenario.district_break_strike.v1',
+            inputs={'operation_id': operation_id, 'action_id': action_id,
+                    'turn': int(turn), 'reason': reason, **inputs},
+            cause_event_ids=cause_event_ids)
+    return emit(
+        tile, kind=f'{action_id}_resolved', record_class='outcome',
+        phase='scenario_action',
+        subject={'type': 'tile', 'id': tile.name,
+                 'nation': getattr(nation, 'name', tile.name),
+                 'action_id': action_id},
+        metric_id='scenario.district_action', unit='success',
+        before=0, after=int(bool(success)),
+        formula_id='scenario_district.action_resolution.v1',
+        inputs={'operation_id': operation_id, 'action_id': action_id,
+                'turn': int(turn), 'success': bool(success), 'reason': reason,
+                'labor_event_id': labor_event_id, **inputs},
+        cause_event_ids=([labor_event_id] if labor_event_id is not None
+                         else cause_event_ids))
+
+
 def _assess_arrears(world, tile, assessed_ids):
     econ = _economy(world)
     rate = max(0.0, float(tile.gov.tax_rate))
@@ -1294,10 +1332,23 @@ def apply_action(world, nation, action_id, tile=None):
     people = _households(tile)
     collective = econ['collective_by_tile'][tile.name]
     if action_id == 'district_arrears_relief':
+        turn = int(world['turn'])
+        operation_id = f'district-arrears-relief:{tile.name}:{turn}'
         debtors = [a for a in people if econ['arrears'].get(a.id, {}).get('balance', 0) > 0]
         if not debtors:
+            _trace_district_economy_action(
+                tile, nation, action_id=action_id, operation_id=operation_id,
+                turn=turn, success=False, reason='no_recorded_cultivator_arrears',
+                inputs={'eligible_household_count': len(people),
+                        'debtor_count': 0})
             return False, 'No cultivator arrears are recorded here.'
+        tax_rate_before = float(tile.gov.tax_rate)
+        legitimacy_before = float(nation.legitimacy)
         forgiven = 0.0
+        writeoff_event_ids = []
+        debtor_rows = []
+        municipal_total = 0.0
+        national_total = 0.0
         for agent in debtors:
             row = econ['arrears'][agent.id]
             balance_before = float(row['balance'])
@@ -1306,6 +1357,8 @@ def apply_action(world, nation, action_id, tile=None):
             national_share = (round(balance_before * NATIONAL_CADASTRAL_SHARE, 6)
                               if getattr(tile, 'owner_nation', None) is not None else 0.0)
             local_share = balance_before - national_share
+            municipal_total += local_share
+            national_total += national_share
             allocations = (
                 ('municipal', getattr(getattr(tile, 'gov', None), 'agent', None), local_share),
                 ('national', getattr(getattr(nation, 'government', None), 'agent', None), national_share),
@@ -1329,23 +1382,51 @@ def apply_action(world, nation, action_id, tile=None):
             row['balance'] = 0.0
             row['missed'] = 0
             from run_trace import emit
-            emit(tile, kind='tax_arrears_forgiven', record_class='outcome',
-                 phase='scenario_policy',
-                 subject={'type': 'tile', 'id': tile.name,
-                          'agent_id': agent.id},
-                 metric_id='finance.tax_arrears_writeoff',
-                 unit=getattr(tile, 'home_currency', None) or nation.currency,
-                 before=balance_before, after=0.0,
-                 inputs={'debtor_id': agent.id,
-                         'creditor_tiers': [tier for tier, creditor, amount in allocations
-                                            if creditor is not None and amount > 0.0],
-                         'municipal_writeoff': local_share,
-                         'national_writeoff': national_share,
-                         'missed_assessments': missed_before,
-                         'economic_event_ids': event_ids,
-                         'action': 'district_arrears_relief'})
+            writeoff_event_id = emit(
+                tile, kind='tax_arrears_forgiven', record_class='outcome',
+                phase='scenario_policy',
+                subject={'type': 'tile', 'id': tile.name,
+                         'agent_id': agent.id},
+                metric_id='finance.tax_arrears_writeoff',
+                unit=getattr(tile, 'home_currency', None) or nation.currency,
+                before=balance_before, after=0.0,
+                inputs={'operation_id': operation_id, 'debtor_id': agent.id,
+                        'creditor_tiers': [tier for tier, creditor, amount in allocations
+                                           if creditor is not None and amount > 0.0],
+                        'municipal_writeoff': local_share,
+                        'national_writeoff': national_share,
+                        'missed_assessments': missed_before,
+                        'economic_event_ids': event_ids,
+                        'action': 'district_arrears_relief'})
+            if writeoff_event_id is not None:
+                writeoff_event_ids.append(writeoff_event_id)
+            debtor_rows.append({'debtor_id': str(agent.id),
+                                'balance_before': balance_before,
+                                'balance_after': float(row['balance']),
+                                'missed_before': missed_before,
+                                'municipal_writeoff': local_share,
+                                'national_writeoff': national_share,
+                                'economic_event_ids': event_ids,
+                                'writeoff_event_id': writeoff_event_id})
         tile.gov.tax_rate = max(0.0, float(tile.gov.tax_rate) - .03)
         nation.legitimacy = min(1.0, float(nation.legitimacy) + .015)
+        _trace_district_economy_action(
+            tile, nation, action_id=action_id, operation_id=operation_id,
+            turn=turn, success=True, reason='arrears_forgiven_and_tax_reduced',
+            inputs={'debtor_count': len(debtors), 'debtor_rows': debtor_rows,
+                    'forgiven_total': forgiven,
+                    'municipal_writeoff_total': municipal_total,
+                    'national_writeoff_total': national_total,
+                    'writeoff_event_ids': writeoff_event_ids,
+                    'tax_rate_before': tax_rate_before,
+                    'tax_rate_after': float(tile.gov.tax_rate),
+                    'tax_rate_reduction': tax_rate_before - float(tile.gov.tax_rate),
+                    'tax_rate_reduction_rule': 'max(0.0, tax_rate_before - 0.03)',
+                    'legitimacy_before': legitimacy_before,
+                    'legitimacy_after': float(nation.legitimacy),
+                    'legitimacy_increase': float(nation.legitimacy) - legitimacy_before,
+                    'legitimacy_increase_rule': 'min(1.0, legitimacy_before + 0.015)'},
+            cause_event_ids=writeoff_event_ids or None)
         return True, f'Forgave {forgiven:.1f} unpaid cadastral taxes for {len(debtors)} cultivators in {_name(tile)}; the next assessments fall.'
     if action_id == 'district_support_mutual_aid':
         donors = [a for a in people if a.inv_get(Goods.food, 0) >= 5
@@ -1541,15 +1622,68 @@ def apply_action(world, nation, action_id, tile=None):
         return True, f'Owners in {_name(tile)} raised offered wages by 0.5 and paid {payments:.1f} to petitioners; the local strike ended.'
     if action_id == 'district_break_strike':
         from unrest import apply_repression
-        if not (getattr(tile, 'police_employed', 0) or any(
-                getattr(unit, 'soldiers', 0) > 0 for unit in getattr(tile, 'military_units', []))):
+        turn = int(world['turn'])
+        operation_id = f'district-break-strike:{tile.name}:{turn}'
+        police_count = int(getattr(tile, 'police_employed', 0))
+        garrison_units = [unit for unit in getattr(tile, 'military_units', [])
+                          if getattr(unit, 'soldiers', 0) > 0]
+        force_inputs = {
+            'police_employed': police_count,
+            'garrison_units': [
+                {'id': str(getattr(unit, 'unit_id',
+                                   getattr(unit, 'name', index))),
+                 'soldiers': int(getattr(unit, 'soldiers', 0)),
+                 'strength': float(getattr(unit, 'strength', 0.0))}
+                for index, unit in enumerate(garrison_units)]}
+        if not (police_count or garrison_units):
+            _trace_district_economy_action(
+                tile, nation, action_id=action_id, operation_id=operation_id,
+                turn=turn, success=False, reason='no_police_or_garrison',
+                inputs={'active_striker_ids': [str(agent.id) for agent in people
+                                               if agent.is_striking],
+                        'strikers_before': int(collective['strikers']),
+                        **force_inputs},
+                labor_event_kind='district_strike_repression_gate_rejected')
             return False, 'No police or garrison is present to break the strike.'
-        injured = apply_repression(tile, int(world['turn']))
+        active_striker_ids = [str(agent.id) for agent in people
+                              if agent.is_striking]
+        strikers_before = int(collective['strikers'])
+        injuries_before = int(collective['injuries'])
+        scenario_strikers_before = [str(agent_id)
+                                    for agent_id in econ['scenario_strikers_by_tile'][tile.name]]
+        protest_log = getattr(tile, 'protest_energy_log', None)
+        protest_before = float(protest_log[-1]) if protest_log else None
+        legitimacy_before = float(nation.legitimacy)
+        repression_event_ids = []
+        injured = apply_repression(
+            tile, turn, operation_id=operation_id,
+            trace_event_ids=repression_event_ids)
         for agent in people:
             if agent.is_striking:
                 agent.is_striking = False
         collective['injuries'] += injured
         collective['strikers'] = 0
         econ['scenario_strikers_by_tile'][tile.name] = []
+        protest_after = float(protest_log[-1]) if protest_log else None
+        _trace_district_economy_action(
+            tile, nation, action_id=action_id, operation_id=operation_id,
+            turn=turn, success=True, reason='force_used_to_break_strike',
+            inputs={'active_striker_ids_before': active_striker_ids,
+                    'strikers_before': strikers_before,
+                    'strikers_after': int(collective['strikers']),
+                    'striker_flags_cleared': active_striker_ids,
+                    'injury_memory_count_before': injuries_before,
+                    'injury_memory_count_added': int(injured),
+                    'injury_memory_count_after': int(collective['injuries']),
+                    'scenario_striker_ids_before': scenario_strikers_before,
+                    'scenario_striker_ids_after': [],
+                    'repression_event_ids': repression_event_ids,
+                    'protest_energy_before': protest_before,
+                    'protest_energy_after': protest_after,
+                    'legitimacy_before': legitimacy_before,
+                    'legitimacy_after': float(nation.legitimacy),
+                    **force_inputs},
+            cause_event_ids=repression_event_ids or None,
+            labor_event_kind='district_strike_broken')
         return True, f'Police broke the {_name(tile)} strike; {injured} people received casualty memories and government support fell.'
     return False, 'Unknown political-economy decision.'

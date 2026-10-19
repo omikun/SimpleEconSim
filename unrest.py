@@ -321,7 +321,8 @@ def step_unrest(region, t):
     return events
 
 
-def apply_repression(region, t, cost_legitimacy=0.15, force_override=False):
+def apply_repression(region, t, cost_legitimacy=0.15, force_override=False,
+                     *, operation_id=None, trace_event_ids=None):
     """Quell protest via coercive force backed by standing garrisons or police.
 
     - Requires standing military units or employed police on the tile.
@@ -349,15 +350,16 @@ def apply_repression(region, t, cost_legitimacy=0.15, force_override=False):
                                    'factions', {}).values()
             for value in getattr(faction, 'grievances', {}).values())
         clock = getattr(region, '_collective_trace_clock', {})
-        operation_id = (f"repression:{getattr(region, 'name', 'unknown')}:{int(t)}:"
-                        f"{int(clock.get('next', 0))}")
-        return emit(
+        event_operation_id = (operation_id or
+                              f"repression:{getattr(region, 'name', 'unknown')}:{int(t)}:"
+                              f"{int(clock.get('next', 0))}")
+        event_id = emit(
             region, kind='repression_resolved', record_class='outcome',
             subject={'type': 'tile', 'id': region.name},
             metric_id='politics.repression', unit='agents',
             before=0, after=int(seeded),
             formula_id='unrest.apply_repression.v1',
-            inputs={'operation_id': operation_id, 'turn': int(t),
+            inputs={'operation_id': event_operation_id, 'turn': int(t),
                     'outcome': outcome, 'force_override': bool(force_override),
                     'police_employed': int(police_count),
                     'garrison_units': [
@@ -376,6 +378,9 @@ def apply_repression(region, t, cost_legitimacy=0.15, force_override=False):
                     'seeded_agent_ids': [str(agent_id)
                                          for agent_id in seeded_agent_ids],
                     'seeded_agent_count': int(seeded)})
+        if event_id is not None and trace_event_ids is not None:
+            trace_event_ids.append(event_id)
+        return event_id
 
     grievance_total_before = sum(
         float(value)
