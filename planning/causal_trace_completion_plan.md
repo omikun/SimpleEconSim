@@ -260,9 +260,9 @@ The remaining scenario-project gaps identified by this audit—reserve-recall
 social costs, grain-entitlement policy state, and per-turn delivery outcomes—
 are implemented in the latest progress entry below.
 
-Next Phase 3 audit target: review `scenario_campaign.resolve_landing` for
-untraced landing responses, especially Egyptian garrison relocation,
-occupation-force placement, and pre-landing settlement effects.
+Next Phase 3 audit target: review `scenario_campaign.bombard_alexandria` and
+`advance_expedition` for unexplained bombardment injuries/damage and expedition
+warning, transport, and supply-stop gates.
 
 ## Phase 5 — Deliver explanations in web, desktop and CLI
 
@@ -1783,3 +1783,23 @@ Verification: five focused fixtures cover four successful choices, all rejection
 gates, repeated same-turn operation IDs, and trace-on/off state parity. The
 occupation, metric-catalog, district-effect and geography suites passed (18
 tests). Compilation and `git diff --check` passed.
+
+## Phase 3 follow-up — Trace Guided Egypt landing responses (implemented)
+
+Every landing response now records the pending-warning and option affordability
+gates, a unique action operation ID, and before/after expedition, territory,
+fleet, garrison, government cash, legitimacy, autonomy, and debt state. Canal
+defense records canal access, work effectiveness, forecast upkeep, available
+British cash, and whether the invasion is rerouted, unaffordable, delayed, or
+funded. Evacuation records the garrison move and newly placed British force.
+Settlement records requested payment, debt-ledger entries, forgiven debt and
+fiscal-autonomy change; a partial failed payment still captures its state delta.
+Landing summaries link to battle and territory-control events. Gameplay rules
+and return values are unchanged.
+
+Verification: campaign fixtures cover evacuation, linked battle outcomes,
+pending-warning/unknown-order/unaffordable-settlement gates, funded and denied
+canal routes, and trace-on/off state parity. Campaign, occupation,
+metric-catalog and geography suites passed (25 tests), including compact trace
+decoding. Compilation and
+`git diff --check` passed.

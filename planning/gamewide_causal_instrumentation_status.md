@@ -1342,3 +1342,15 @@ Verification: occupation action, occupation regression, metric-catalog,
 district-effect and geography tests passed (18 tests), covering all player
 actions, rejection gates, unique operation IDs and trace-on/off state parity.
 Compilation and `git diff --check` passed.
+
+Phase 3 follow-up, 2026-10-18: Guided Egypt landing responses now trace warning
+and funding gates, canal-route calculations, garrison relocations, deployed
+occupation troops, settlement cash/debt/autonomy changes, and the final campaign
+state. Landing summaries link to their battle and territory-control outcomes;
+partial debt-settlement failure preserves the observed state delta. No campaign
+rules or response results changed.
+
+Verification: campaign, occupation, metric-catalog and geography suites passed
+(25 tests), covering evacuation, linked battle causes, rejected responses,
+canal funding and rerouting choices, trace-on/off state parity, and compact
+trace decoding. Compilation and `git diff --check` passed.

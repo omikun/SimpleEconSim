@@ -98,7 +98,7 @@ def _move_egypt_garrison(world, destination):
     return unit
 
 
-def _battle(world, location):
+def _battle(world, location, *, trace_event_ids=None):
     state = world['scenario_state']['campaign']
     fleet = world['scenario_state']['geography']['fleets']['Britain']
     egypt = _nation(world, 'Egypt')
@@ -123,14 +123,18 @@ def _battle(world, location):
     defense_strength_before = sum(unit.strength for unit in defenders) * bonus
     outcome = resolve_battle([attackers], defenders, defense_bonus=bonus)
     from run_trace import emit
-    emit(tile, kind='war_battle_outcome', record_class='outcome', phase='scenario',
-         subject={'type': 'tile', 'id': tile.name, 'attacker': 'Britain', 'defender': 'Egypt'},
-         metric_id='war.battle', unit='soldiers', before=soldiers_before,
-         after=attackers.soldiers + sum(unit.soldiers for unit in defenders),
-         inputs={'attack_strength_before': attack_strength_before,
-                 'defense_strength_before': defense_strength_before,
-                 'defense_bonus': bonus, 'location': location,
-                 'project_defense_bonus': project_bonus, **outcome})
+    battle_event_id = emit(
+        tile, kind='war_battle_outcome', record_class='outcome', phase='scenario',
+        subject={'type': 'tile', 'id': tile.name,
+                 'attacker': 'Britain', 'defender': 'Egypt'},
+        metric_id='war.battle', unit='soldiers', before=soldiers_before,
+        after=attackers.soldiers + sum(unit.soldiers for unit in defenders),
+        inputs={'attack_strength_before': attack_strength_before,
+                'defense_strength_before': defense_strength_before,
+                'defense_bonus': bonus, 'location': location,
+                'project_defense_bonus': project_bonus, **outcome})
+    if battle_event_id is not None and trace_event_ids is not None:
+        trace_event_ids.append(battle_event_id)
     fleet['transports'] = attackers.soldiers
     outcome.update(location=location, turn=int(world['turn']),
                    egyptian_defenders=sum(unit.soldiers for unit in defenders),
@@ -141,11 +145,14 @@ def _battle(world, location):
         damage_project(world, 'canal_line', location, .35)
     if outcome['winner'] == 'attacker':
         state['territorial_control'][location] = 'Britain'
-        emit(tile, kind='war_territory_transfer', record_class='outcome', phase='scenario',
-             subject={'type': 'tile', 'id': tile.name}, metric_id='war.territory_control',
-             before='Egypt', after='Britain',
-             inputs={'battle_winner': outcome['winner'], 'location': location,
-                     'operation': 'guided_landing'})
+        control_event_id = emit(
+            tile, kind='war_territory_transfer', record_class='outcome', phase='scenario',
+            subject={'type': 'tile', 'id': tile.name},
+            metric_id='war.territory_control', before='Egypt', after='Britain',
+            inputs={'battle_winner': outcome['winner'], 'location': location,
+                    'operation': 'guided_landing'})
+        if control_event_id is not None and trace_event_ids is not None:
+            trace_event_ids.append(control_event_id)
         state['expedition']['stage'] = 'foothold'
         state['expedition']['foothold_turn'] = int(world['turn'])
         britain.military_units.append(attackers)
@@ -214,23 +221,130 @@ def advance_expedition(world):
     return False
 
 
+def _landing_action_state(world):
+    state = world['scenario_state']
+    campaign = state['campaign']
+    expedition = campaign['expedition']
+    egypt = _nation(world, 'Egypt')
+    britain = _nation(world, 'Britain')
+    fleet = state.get('geography', {}).get('fleets', {}).get('Britain', {})
+    garrison_id = state.get('politics', {}).get('garrison_id')
+    garrison = next((unit for unit in getattr(egypt, 'military_units', [])
+                     if getattr(unit, 'unit_id', None) == garrison_id), None)
+    landing_units = [
+        {'unit_id': str(getattr(unit, 'unit_id', 'unknown')),
+         'region': str(getattr(unit, 'region_name', '')),
+         'soldiers': int(getattr(unit, 'soldiers', 0))}
+        for unit in getattr(britain, 'military_units', [])
+        if str(getattr(unit, 'unit_id', '')).startswith('guided_british_landing_')]
+    from scenario_debt import outstanding
+    return {
+        'expedition_stage': expedition.get('stage'),
+        'expedition_route': expedition.get('route'),
+        'landing_due_turn': expedition.get('landing_due_turn'),
+        'territorial_control': dict(campaign.get('territorial_control', {})),
+        'battle_count': len(campaign.get('battles', [])),
+        'last_battle': (dict(campaign['battles'][-1])
+                        if campaign.get('battles') else None),
+        'british_fleet': {key: fleet.get(key) for key in
+                          ('location', 'transports', 'damage', 'guns')},
+        'egyptian_garrison': (
+            {'unit_id': str(garrison.unit_id),
+             'region': str(garrison.region_name),
+             'soldiers': int(garrison.soldiers)} if garrison else None),
+        'british_landing_units': landing_units,
+        'egypt_treasury_cash': (float(egypt.government.agent.cash)
+                                if egypt is not None else None),
+        'britain_treasury_cash': (float(britain.government.agent.cash)
+                                  if britain is not None else None),
+        'egypt_legitimacy': (float(egypt.legitimacy)
+                             if egypt is not None else None),
+        'egypt_fiscal_autonomy': float(state.get('fiscal_autonomy', 0.0)),
+        'egypt_payment_status': state.get('payment_status'),
+        'debt_outstanding': float(outstanding(world)),
+        'debt_ledger_count': len(state.get('debt_ledger', [])),
+        'naval_crisis_stage': state.get('naval_crisis', {}).get('stage'),
+        'canal_open': state.get('geography', {}).get('canal_open'),
+    }
+
+
+def _landing_action_operation_id(world, response_id):
+    tile = _tile(world, 'Alexandria')
+    clock = getattr(tile, '_collective_trace_clock', None)
+    ordinal = int(clock.get('next', 1)) if clock is not None else int(world['turn'])
+    return f'landing-response:{response_id}:{int(world["turn"])}:{ordinal}'
+
+
+def _trace_landing_response(world, *, response_id, operation_id, success,
+                            reason, before, after, details=None,
+                            cause_event_ids=None):
+    from run_trace import emit
+    tile = _tile(world, 'Alexandria')
+    egypt = _nation(world, 'Egypt')
+    changed = before != after
+    return emit(
+        tile, kind=('landing_response_resolved' if success else
+                    'landing_response_rejected'),
+        record_class='outcome' if success or changed else 'decision',
+        phase='campaign',
+        subject={'type': 'nation/action',
+                 'id': f'{getattr(egypt, "name", "Egypt")}:{response_id}',
+                 'nation': getattr(egypt, 'name', 'Egypt'),
+                 'action_id': response_id},
+        metric_id='scenario.landing_response', unit='success',
+        before=0, after=int(bool(success)),
+        formula_id='campaign.landing_response.v1',
+        inputs={'operation_id': operation_id, 'response_id': response_id,
+                'turn': int(world['turn']), 'success': bool(success),
+                'reason': reason, 'state_before': before,
+                'state_after': after, **(details or {})},
+        cause_event_ids=cause_event_ids)
+
+
 def resolve_landing(world, response_id):
     state = world['scenario_state']
     expedition = state['campaign']['expedition']
-    if world.get('scenario_warning_modal', {}).get('kind') != 'landing_warning':
+    operation_id = _landing_action_operation_id(world, response_id)
+    before_state = _landing_action_state(world)
+    if (world.get('scenario_warning_modal') or {}).get('kind') != 'landing_warning':
+        _trace_landing_response(
+            world, response_id=response_id, operation_id=operation_id,
+            success=False, reason='no_landing_decision_pending',
+            before=before_state, after=before_state)
         return False, 'No landing decision is pending.'
     option = next((item for item in landing_options(world) if item['id'] == response_id), None)
     if not option or not option['enabled']:
+        details = {'option_found': option is not None,
+                   'option_enabled': bool(option and option['enabled'])}
+        reason = ('unknown_landing_response' if option is None
+                  else 'landing_response_funding_gate')
+        if response_id == 'negotiate_landing':
+            from scenario_debt import outstanding
+            egypt = _nation(world, 'Egypt')
+            amount = round(outstanding(world) * .5, 2)
+            details.update({
+                'required_cash': amount,
+                'egypt_treasury_cash': float(egypt.government.agent.cash),
+                'debt_outstanding': float(outstanding(world)),
+                'payment_gate_met': egypt.government.agent.cash >= amount})
+        _trace_landing_response(
+            world, response_id=response_id, operation_id=operation_id,
+            success=False, reason=reason, before=before_state,
+            after=before_state, details=details)
         return False, 'That landing order is unavailable.'
     from scenario_status import snapshot, record_change
     before = snapshot(world)
+    action_details = {'option_label': option['label'],
+                      'decision_basis': 'player_selected_landing_response'}
+    cause_event_ids = []
     if response_id == 'defend_alexandria':
-        message = _battle(world, 'Alexandria')
+        message = _battle(world, 'Alexandria', trace_event_ids=cause_event_ids)
+        action_details['battle_location'] = 'Alexandria'
         if expedition['stage'] == 'repelled':
             from scenario_gunboat import withdraw
             withdraw(world, message, cause='military_defeat')
     elif response_id == 'defend_canal':
-        _move_egypt_garrison(world, 'Tel el Kebir')
+        moved_garrison = _move_egypt_garrison(world, 'Tel el Kebir')
         from scenario_geography import canal_access
         from scenario_projects import effectiveness
         from scenario_situation import situation_template
@@ -239,23 +353,37 @@ def resolve_landing(world, response_id):
         line = effectiveness(world, 'canal_line', 'Tel el Kebir')
         upkeep = float(situation_template()['naval_crisis']['upkeep_per_turn'])
         forecast = 3 * upkeep + 2 + 12 * line
-        if not canal_access(world, 'Britain'):
-            message = _battle(world, 'Alexandria')
+        access = bool(canal_access(world, 'Britain'))
+        action_details.update({
+            'garrison_moved': moved_garrison is not None,
+            'garrison_unit_id': (str(moved_garrison.unit_id)
+                                 if moved_garrison is not None else None),
+            'canal_access': access, 'canal_line_effectiveness': float(line),
+            'upkeep_per_turn': upkeep, 'forecast_cash_required': forecast,
+            'british_cash_available': float(britain.government.agent.cash)})
+        if not access:
+            message = _battle(world, 'Alexandria',
+                              trace_event_ids=cause_event_ids)
             expedition['route'] = 'Alexandria after canal denial'
+            action_details['route_decision'] = 'canal_denial_reroutes_landing'
             if expedition['stage'] == 'repelled':
                 withdraw(world, message, cause='military_defeat')
         elif britain.government.agent.cash < forecast:
             expedition['stage'] = 'repelled'
+            action_details['route_decision'] = 'expedition_unaffordable'
             withdraw(world, 'Britain cannot fund a canal march against the prepared line.', cause='deterrence')
             message = world['scenario_feedback']
         elif line >= .5 and britain.government.agent.cash < forecast + 12:
             expedition['landing_due_turn'] = int(world['turn']) + 2
             state['naval_crisis']['last_offer_turn'] = int(world['turn'])
+            action_details['route_decision'] = 'delay_for_egyptian_terms'
+            action_details['delay_turns'] = 2
             message = ('Britain delays the canal march and maintains the costly blockade '
                        'while London weighs Egyptian terms.')
         else:
             expedition.update(stage='sailing_canal', route='Port Said–Ismailia–Tel el Kebir')
             state['naval_crisis']['stage'] = 'campaign'
+            action_details['route_decision'] = 'funded_canal_expedition'
             message = ('Egyptian troops hold Tel el Kebir; Britain must pay to sail via '
                        'Port Said and Ismailia before marching inland.')
         port = state['naval_crisis'].get('port_tile')
@@ -264,11 +392,12 @@ def resolve_landing(world, response_id):
         if port and manager.blockade_enforcers.get(port) == 'Britain':
             if expedition['stage'] == 'sailing_canal':
                 manager.lift_blockade(port, world, int(world['turn']))
+                action_details['blockade_lifted_at_port'] = port
         from scenario_gunboat import _record
         _record(world, message)
         message = world['scenario_feedback']
     elif response_id == 'evacuate_port':
-        _move_egypt_garrison(world, 'Cairo')
+        moved_garrison = _move_egypt_garrison(world, 'Cairo')
         state['campaign']['territorial_control']['Alexandria'] = 'Britain'
         expedition['stage'] = 'foothold'
         expedition['foothold_turn'] = int(world['turn'])
@@ -279,18 +408,40 @@ def resolve_landing(world, response_id):
                                food_per_soldier=0)
         _nation(world, 'Britain').military_units.append(landing)
         alexandria.military_units.append(landing)
+        action_details.update({
+            'garrison_moved': moved_garrison is not None,
+            'garrison_unit_id': (str(moved_garrison.unit_id)
+                                 if moved_garrison is not None else None),
+            'landing_unit_id': landing.unit_id,
+            'landing_unit_soldiers': int(landing.soldiers),
+            'landing_tile': alexandria.name})
         message = 'The Egyptian garrison withdraws to Cairo; Britain lands at an undefended Alexandria.'
     else:
         from scenario_debt import pay as pay_debt, outstanding
         amount = outstanding(world) * .5
         ok, reason = pay_debt(world, amount, kind='landing_settlement', forgive_remainder=True)
         if not ok:
+            after_state = _landing_action_state(world)
+            _trace_landing_response(
+                world, response_id=response_id, operation_id=operation_id,
+                success=False, reason='debt_settlement_payment_failed',
+                before=before_state, after=after_state,
+                details={**action_details, 'payment_reason': reason,
+                         'requested_payment': float(amount),
+                         'debt_ledger_entries_added': state.get(
+                             'debt_ledger', [])[before_state['debt_ledger_count']:]})
             return False, reason
         state['payment_status'] = 'restructured'
+        autonomy_before = float(state['fiscal_autonomy'])
         state['fiscal_autonomy'] = max(0.0, state['fiscal_autonomy'] - .10)
         expedition['stage'] = 'settled'
         from scenario_gunboat import withdraw
         withdraw(world, 'Cairo negotiates a settlement before the landing; the fleet withdraws.', cause='settlement')
+        action_details.update({'requested_payment': float(amount),
+                               'payment_status': 'paid_and_remaining_claim_forgiven',
+                               'fiscal_autonomy_before': autonomy_before,
+                               'fiscal_autonomy_after': float(state['fiscal_autonomy']),
+                               'fiscal_autonomy_rule': 'max(0.0, before - 0.10)'})
         message = world['scenario_feedback']
     from scenario_gunboat import _record
     _record(world, message, 'WAR')
@@ -299,4 +450,14 @@ def resolve_landing(world, response_id):
     record_change(world, response_id, before, snapshot(world))
     state.setdefault('actions_taken', []).append({'turn': int(world['turn']), 'action': response_id,
                                                    'message': message})
+    after_state = _landing_action_state(world)
+    action_details['result_message'] = message
+    if response_id == 'negotiate_landing':
+        action_details['debt_ledger_entries_added'] = state.get(
+            'debt_ledger', [])[before_state['debt_ledger_count']:]
+    _trace_landing_response(
+        world, response_id=response_id, operation_id=operation_id,
+        success=True, reason='landing_response_applied',
+        before=before_state, after=after_state, details=action_details,
+        cause_event_ids=cause_event_ids or None)
     return True, message
