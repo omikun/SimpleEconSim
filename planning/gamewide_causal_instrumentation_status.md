@@ -2054,3 +2054,10 @@ own trace metric while tile chart behavior stays unchanged.
 Verification: frontend binding tests check all nine fixed chart-to-good/history
 mappings, and the web history parity test confirms those backing series remain
 turn-aligned. JavaScript syntax and all 10 frontend tests passed.
+
+Phase 5 chart inventory guard: the frontend suite now checks that every chart
+in every web chart mode has a Nation history binding, in addition to a trace
+binding. This makes newly added chart series fail early if the Nation view
+cannot supply their history.
+
+Verification: all 10 frontend tests passed with the inventory assertion.

@@ -299,8 +299,10 @@ test('every historical chart has a trace binding, including effective workday ca
   const charts = ctx.window.CoCCharts;
   for (const entries of Object.values(charts.getChartCatalog())) {
     for (const entry of entries) {
-      assert.ok(charts.getTraceBinding(entry.id, 'food'),
-        `missing trace binding for chart ${entry.id}`);
+      const binding = charts.getTraceBinding(entry.id, 'food');
+      assert.ok(binding, `missing trace binding for chart ${entry.id}`);
+      assert.ok(binding.historyKey,
+        `missing Nation history for chart ${entry.id}`);
     }
   }
   for (const mode of ['labor', 'citizens']) {
