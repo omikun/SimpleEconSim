@@ -197,7 +197,10 @@ class SimServer:
                 fx.flush_pending_trader_float_traces(tile)
             from trace_snapshots import (entity_role_census, resident_census,
                                          sample)
-            self._trace_previous = sample(self.tiles, self.nations)
+            from labor_census_trace import capture_labor_censuses
+            self._trace_previous_labor_censuses = capture_labor_censuses(self.tiles)
+            self._trace_previous = sample(self.tiles, self.nations,
+                                         labor_censuses=self._trace_previous_labor_censuses)
             self._trace_previous_people = resident_census(self.tiles)
             self._trace_previous_roles = entity_role_census(self.tiles)
             self._trace_previous_nation_membership = {

@@ -301,6 +301,15 @@ def replay_event(row):
     elif formula in ('factions.support_history.v1', 'factions.grievance_history_decay.v1'):
         from faction_trace import replay_formula
         expected = replay_formula(formula, row['inputs'])
+    elif formula == 'labor.final_member_count.v1':
+        inputs = row['inputs']
+        dimension = inputs['dimension']
+        expected = sum(1 for person in inputs['adult_records']
+                       if (person['hungry_steps'] > 0 if dimension == 'hungry_steps'
+                           else person[dimension] == inputs['category']))
+    elif formula == 'labor.final_temporary_share_mean.v1':
+        adults = row['inputs']['adult_records']
+        expected = sum(person['temporary_work_share'] for person in adults) / max(1, len(adults))
     else:
         return None
     actual = row['value_after']

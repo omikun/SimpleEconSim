@@ -31,6 +31,7 @@ class RunTrace:
         self._treasury_flows = {}
         self._price_mutations = {}
         self._person_flow_events = {}
+        self._person_event_classes = {}
         self._previous_person_flow_events = {}
         self._turn_production_events = {}
         self._turn_tile_production_events = {}
@@ -79,6 +80,7 @@ class RunTrace:
             self._price_mutations.clear()
             self._previous_person_flow_events = self._person_flow_events
             self._person_flow_events = {}
+            self._person_event_classes = {}
             self._turn_production_events = {}
             self._turn_tile_production_events = {}
             self._turn_temporary_activity_events = {}
@@ -207,7 +209,9 @@ class RunTrace:
                 'innovation.domain_experience', 'innovation.bottleneck_pressure',
                 'innovation.breakthrough', 'innovation.diffusion_progress',
                 'innovation.bounty_escrow', 'politics.faction_support',
-                'politics.faction_grievance')):
+                'politics.faction_grievance', 'labor.primary_livelihood',
+                'labor.employment_status', 'labor.hungry_adults',
+                'labor.temporary_work_share')):
             from price_trace import replay_event
             replay = replay_event(row)
             if replay is not None:
@@ -266,7 +270,7 @@ class RunTrace:
         }
         if (self.write_error is None
                 and (kind in person_flow_kinds
-                     or metric_id in ('labor.occupation_change', 'people.role'))):
+                     or metric_id in ('labor.occupation_change', 'labor.status_change', 'people.role'))):
             event_inputs = row.get('inputs') or {}
             event_subject = row.get('subject') or {}
             person_id = (event_inputs.get('agent_id')
@@ -277,6 +281,9 @@ class RunTrace:
             if person_id is not None:
                 self._person_flow_events.setdefault(str(person_id), []).append(
                     row['event_id'])
+                self._person_event_classes[row['event_id']] = (
+                    'occupation' if metric_id == 'labor.occupation_change' else
+                    'status' if metric_id == 'labor.status_change' else 'resident')
         if (self.write_error is None and metric_id == 'goods.production'
                 and row.get('subject', {}).get('type') == 'agent'
                 and row.get('subject', {}).get('good') is not None):
@@ -343,6 +350,15 @@ class RunTrace:
     def food_intake_event_id(self, agent_id):
         """Return the current-turn food-intake calculation for one person."""
         return self._latest_food_intake_events.get(str(agent_id))
+
+    def person_event_ids(self, agent_id, *, categories=None):
+        """Current-turn recorded movements, roles, occupations and labor status."""
+        events = self._person_flow_events.get(str(agent_id), ())
+        return [event_id for event_id in events if categories is None
+                or self._person_event_classes.get(event_id) in categories]
+
+    def temporary_activity_event_id(self, agent_id):
+        return self._turn_temporary_activity_events.get(str(agent_id))
 
     def latest_metric_calculation_event_id(self, metric_id, subject):
         """Return the latest current-turn calculation for an exact subject."""

@@ -2731,3 +2731,22 @@ run-trace suites passed 86 tests. Three default turns produced a valid
 112,921-row / 6,452,658-byte trace with three checkpoints. Final bank stocks,
 treasury operation residuals, and four final labor rollups remain open in that
 live diagnostic; this is not a Phase 6 completion or performance claim.
+
+## Phase 4 follow-up — Close final labor census rollups (implemented)
+
+Final-world-turn livelihood, employment-status, hungry-adult, and temporary
+share metrics now replay from adult records and membership evidence. They
+retain exclusions, age-evaluation basis, status priority, previous/current
+members, and explicit zero closures. Person event links are typed so each
+metric's causes are limited to its actual inputs. Census capture is read-only,
+and the snapshot uses those same captured values.
+
+Fixtures cover age and status rules, migration, career and job changes,
+aging-in, hunger membership changes at unchanged totals, empty populations,
+zero category closure, replay, source links, and RNG/state neutrality. The
+census, run-trace, catalog, labor-cohort and web parity checks passed 74 tests;
+final core census/trace/catalog checks passed 47 tests. Three default turns
+explain all 56 changed values across these four metrics. Remaining live probe
+gaps are financial closing stocks and treasury residuals; source report:
+`tmp/trace_coverage_default_labor_closure_2026_10_19.json`. Compilation and
+`git diff --check` passed.

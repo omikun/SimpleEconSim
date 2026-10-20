@@ -2269,3 +2269,24 @@ transfers, web parity, and run-trace suites passed (86 tests). A repeated
 three-turn default run verified 112,921 rows / 6,452,658 compact bytes and
 three checkpoints. Treasury residuals remain visible; bank closing balances
 and four final labor rollups remain the next live-run coverage gaps.
+
+Phase 4 follow-up, 2026-10-19: final labor rollups now capture immutable adult
+and exclusion records, age-evaluation turn, status priority, livelihood/status
+members, hunger-step membership, temporary work shares, and opening/closing
+membership changes. Empty categories close explicitly at zero. Sources are
+typed: resident events affect location/eligibility, occupation events link
+livelihood, job-status events link employment, intake links hunger, and activity
+events link temporary shares. Related records are retained without labeling
+unrelated food/career events as causes of another metric. Sampling reuses the
+same census evidence and preserves the existing age and status rules.
+
+Verification: classification/age boundaries, migration, career and job changes,
+aging-in, hunger relief with unchanged total but changed members, category
+closure, empty populations, formula replay, source links, and read-only/random
+neutrality pass. Labor-census, trace, catalog, labor-cohort and web parity suites
+passed (74 tests); final core census/trace/catalog checks passed (47 tests).
+The repeated three-turn default probe has zero unexplained changes across all
+four labor metrics (56 changed values). Report:
+`tmp/trace_coverage_default_labor_closure_2026_10_19.json`. Remaining changed
+snapshot gaps in that probe are bank capital/deposits/liabilities/equity and
+national treasury. Python compilation and `git diff --check` passed.

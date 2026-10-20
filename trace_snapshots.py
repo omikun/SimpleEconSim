@@ -588,7 +588,7 @@ def nation_chart_aggregation_rows(nation, turn=None):
     return rows
 
 
-def sample(tiles, nations):
+def sample(tiles, nations, *, labor_censuses=None):
     values = {}
     for tile in tiles:
         tile_subject = {'type': 'tile', 'id': tile.name}
@@ -731,34 +731,21 @@ def sample(tiles, nations):
             tile_subject, 'people', sum(
                 1 for person in tile.agents if person.alive
                 and not person.is_corporation and not person.is_government))
-        adults = [person for person in tile.agents if person.alive
-                  and not person.is_corporation and not person.is_government
-                  and not (getattr(person, 'is_native_child', False)
-                           and person.age(getattr(tile, '_last_turn', 0)) < 14)]
-        livelihood_counts = {}
-        status_counts = {}
-        temporary_share = 0.0
-        for person in adults:
-            livelihood = getattr(getattr(person, 'primary_livelihood', None), 'name', 'none')
-            livelihood_counts[livelihood] = livelihood_counts.get(livelihood, 0) + 1
-            status = ('military' if getattr(person, 'military_unit_id', None) else
-                      'trader' if getattr(person, 'is_trader', False) else
-                      'constable' if getattr(person, 'social_class', None) == 'constable' else
-                      'workhouse' if getattr(person, 'in_workhouse', False) else
-                      'employed' if getattr(person, 'employer', None) is not None else 'independent')
-            status_counts[status] = status_counts.get(status, 0) + 1
-            temporary_share += float(getattr(person, 'temporary_work_share', 0.0))
-        for livelihood, count in livelihood_counts.items():
+        from labor_census_trace import tile_labor_census, census_groups
+        labor = (labor_censuses[tile.name] if labor_censuses is not None
+                 else tile_labor_census(tile))
+        adults = labor['adults']
+        for livelihood, member_ids in census_groups(labor, 'livelihood').items():
             values[('labor.primary_livelihood', tile.name, livelihood)] = (
-                {**tile_subject, 'livelihood': livelihood}, 'adults', count)
-        for status, count in status_counts.items():
+                {**tile_subject, 'livelihood': livelihood}, 'adults', len(member_ids))
+        for status, member_ids in census_groups(labor, 'status').items():
             values[('labor.employment_status', tile.name, status)] = (
-                {**tile_subject, 'status': status}, 'adults', count)
+                {**tile_subject, 'status': status}, 'adults', len(member_ids))
         values[('labor.hungry_adults', tile.name)] = (
-            tile_subject, 'adults', sum(1 for person in adults
-                                        if getattr(person, 'hungry_steps', 0) > 0))
+            tile_subject, 'adults', sum(1 for person in adults if person['hungry_steps'] > 0))
         values[('labor.temporary_work_share', tile.name)] = (
-            tile_subject, 'adult_turn_share', temporary_share / max(1, len(adults)))
+            tile_subject, 'adult_turn_share', sum(person['temporary_work_share'] for person in adults)
+            / max(1, len(adults)))
         if tile.protest_energy_log:
             values[('politics.protest_energy', tile.name)] = (
                 tile_subject, 'score', float(tile.protest_energy_log[-1]))
@@ -971,7 +958,9 @@ def gini_metric_evidence(tile, good, turn, before, after):
 
 
 def record(server):
-    current = sample(server.tiles, server.nations)
+    from labor_census_trace import capture_labor_censuses, record_labor_censuses
+    labor_censuses = capture_labor_censuses(server.tiles)
+    current = sample(server.tiles, server.nations, labor_censuses=labor_censuses)
     previous = getattr(server, '_trace_previous', {})
     previous_nation_membership = getattr(
         server, '_trace_previous_nation_membership', {})
@@ -988,7 +977,8 @@ def record(server):
     # return to a profession has a real before value, without snapshotting
     # unchanged zero categories every turn.
     for key, (subject, unit, _before) in previous.items():
-        if key[0] == 'people.profession_population' and key not in current:
+        if key[0] in ('people.profession_population', 'labor.primary_livelihood',
+                      'labor.employment_status') and key not in current:
             current[key] = (subject, unit, 0)
     current_people = resident_census(server.tiles)
     current_roles = entity_role_census(server.tiles)
@@ -997,6 +987,9 @@ def record(server):
     clock = getattr(server.tiles[0], '_collective_trace_clock', None) if server.tiles else None
     if clock is not None:
         clock['phase'] = 'snapshot'
+        record_labor_censuses(
+            server.run_trace, clock, labor_censuses,
+            getattr(server, '_trace_previous_labor_censuses', {}), previous)
         if previous_people is not None:
             for bridge in resident_population_bridges(
                     previous_people, current_people, previous_roles, server.tiles,
@@ -1426,6 +1419,7 @@ def record(server):
     server._trace_previous = current
     server._trace_previous_people = current_people
     server._trace_previous_roles = current_roles
+    server._trace_previous_labor_censuses = labor_censuses
     server._trace_previous_nation_membership = current_nation_membership
     server._trace_previous_tile_currencies = current_tile_currencies
     server._trace_previous_nation_currencies = {

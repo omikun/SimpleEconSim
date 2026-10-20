@@ -92,10 +92,10 @@ METRICS = {
     'labor.enforcement_case': ('tile/case/person', 'case_state', 'labor_cases.process_default_cases and process_vagrancy_cases; claim hearing, foreclosure, penalty enforcement, and workhouse confinement outcomes'),
     'labor.enforcement_gate': ('tile', 'status', 'labor_cases.process_vagrancy_cases; active law and workhouse availability gate'),
     'labor.enforcement_patrol': ('tile/constable', 'status', 'labor_frontier_labor._advance_restriction; bank-funded patrol checks, officer availability, public payroll, access closure, and suspension outcome'),
-    'labor.primary_livelihood': ('tile/livelihood', 'adults', 'trace_snapshots.sample'),
-    'labor.employment_status': ('tile/status', 'adults', 'trace_snapshots.sample'),
-    'labor.hungry_adults': ('tile', 'adults', 'trace_snapshots.sample'),
-    'labor.temporary_work_share': ('tile', 'adult_turn_share', 'trace_snapshots.sample'),
+    'labor.primary_livelihood': ('tile/livelihood', 'adults', 'labor_census_trace; final-world-turn adult membership count, with exclusions and person-event links'),
+    'labor.employment_status': ('tile/status', 'adults', 'labor_census_trace; final-world-turn adult status counts in military/trader/constable/workhouse/employed/independent priority order'),
+    'labor.hungry_adults': ('tile', 'adults', 'labor_census_trace; final-world-turn eligible adults whose hungry_steps is positive, with food-intake and person-event links'),
+    'labor.temporary_work_share': ('tile', 'adult_turn_share', 'labor_census_trace; final-world-turn sum of adult temporary-work shares divided by max(1, adult count)'),
     'labor.payroll_funding': ('tile/firm', 'workers', 'region_labor.borrow_or_layoff'),
     'labor.firm_incorporation': ('tile/firm', 'local_currency', 'region_labor.incorporate'),
     'labor.corporate_wage': ('tile/firm', 'local_currency_per_turn', 'region_labor.adjust_wages'),
@@ -465,6 +465,8 @@ EVENT_JOURNAL_TO_METRICS = {
 
 
 TRACE_INSTRUMENTED = set(LEGACY_HISTORY_TO_METRIC.values()) | {
+    'labor.primary_livelihood', 'labor.employment_status',
+    'labor.hungry_adults', 'labor.temporary_work_share',
     'innovation.domain_experience', 'innovation.bottleneck_pressure',
     'innovation.research_gate', 'innovation.breakthrough',
     'innovation.technology_known', 'innovation.diffusion_gate',
