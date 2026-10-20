@@ -242,6 +242,32 @@ def replay_event(row):
             expected = ((current - float(baseline)) / float(baseline)) * 100.0
     elif formula == 'population.rate_wilderness_zero.v1':
         expected = 0.0
+    elif formula == 'fiscal.reserve_deficit.v1':
+        inputs = row['inputs']
+        net_worth = (inputs['cash_after_debt_service']
+                     + inputs['deposits_after_debt_service']
+                     + inputs['food_inventory'] * inputs['food_price']
+                     - inputs['loans_outstanding'])
+        reserve = (inputs['target_food_reserve'] * inputs['food_price']
+                   * inputs['reserve_multiplier'])
+        expected = max(0.0, reserve - net_worth)
+    elif formula == 'fiscal.remaining_tax_gap.v1':
+        expected = max(0.0, row['inputs']['reserve_deficit']
+                       - row['inputs']['tax_collected'])
+    elif formula == 'fiscal.tax_rate_adjustment.v1':
+        inputs = row['inputs']
+        expected = inputs['prior_tax_rate']
+        if (inputs['turn'] % inputs['adjust_interval'] == 0
+                and inputs['borrow_history_count'] >= inputs['adjust_interval']):
+            gaps = inputs['recent_requested_gaps']
+            average = sum(gaps) / len(gaps)
+            reserve = inputs['target_cash_reserve']
+            if average > reserve * inputs['gap_threshold_fraction']:
+                expected *= inputs['increase_multiplier']
+            elif (average == 0 and inputs['net_worth_before_tax_and_borrowing']
+                  > reserve * inputs['surplus_reserve_multiplier']):
+                expected *= inputs['decrease_multiplier']
+            expected = max(inputs['rate_floor'], min(inputs['rate_ceiling'], expected))
     elif formula == 'econsim.market_price.v1':
         expected = replay_econsim_market_price(row['inputs'])
     else:

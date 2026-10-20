@@ -9,15 +9,16 @@ from logger import loginfo, logwarning
 from labor_contract import ensure_labor_agreement
 
 
-def _trace_treasury_flow(region, kind, amount, inputs):
+def _trace_treasury_flow(region, kind, amount, inputs, cause_event_ids=None):
     nation = getattr(region, 'owner_nation', None)
     if nation is None or amount == 0:
         return
     from run_trace import emit
-    emit(region, kind=kind, record_class='transfer',
+    return emit(region, kind=kind, record_class='transfer',
          subject={'type': 'nation', 'id': nation.name},
          metric_id='finance.treasury_flow', unit=nation.currency,
-         after=amount, inputs={'tile': region.name, **inputs})
+         after=amount, inputs={'tile': region.name, **inputs},
+         cause_event_ids=cause_event_ids)
 
 
 def pay_wages(region, t):
@@ -670,6 +671,7 @@ def collect_tax(region, t):
     food_price = region.food_price
 
     # ---- 1. Service existing government debt ----
+    debt_service_trace_ids = []
     for loan in gov.loans[:]:
         remaining = loan.principle - loan.principle_paid
         if remaining <= 0:
@@ -691,9 +693,12 @@ def collect_tax(region, t):
                                   payer_id=gov.id, amount=payment,
                                   detail={'public_debt_service': True,
                                           'principal_remaining_before': remaining})
-            _trace_treasury_flow(region, 'government_loan_service', -payment,
-                                 {'loan_principal_remaining_before': remaining,
-                                  'amount_due': amount_due})
+            service_id = _trace_treasury_flow(
+                region, 'government_loan_service', -payment,
+                {'loan_principal_remaining_before': remaining,
+                 'amount_due': amount_due})
+            if service_id is not None:
+                debt_service_trace_ids.append(service_id)
         if loan.isPaid():
             gov.loans.remove(loan)
             if loan in bank.loans:
@@ -705,6 +710,25 @@ def collect_tax(region, t):
                  + region.gov.food_inventory * food_price - loans_outstanding)
     reserve = region.gov.target_food_reserve * food_price * 2
     deficit = max(0.0, reserve - net_worth)
+    from run_trace import emit
+    budget_trace_id = emit(
+        region, kind='government_reserve_deficit_calculation',
+        record_class='calculation', phase='finance',
+        subject={'type': 'tile', 'id': region.name},
+        metric_id='finance.fiscal_deficit',
+        unit=getattr(region, 'home_currency', None) or 'local_currency',
+        after=deficit, formula_id='fiscal.reserve_deficit.v1',
+        inputs={'government': region.gov.name, 'turn': int(t),
+                'cash_after_debt_service': float(gov.cash),
+                'deposits_after_debt_service': float(bank.deposits.get(gov, 0)),
+                'food_inventory': float(region.gov.food_inventory),
+                'food_price': float(food_price),
+                'loans_outstanding': float(loans_outstanding),
+                'target_food_reserve': float(region.gov.target_food_reserve),
+                'reserve_multiplier': 2.0, 'net_worth': float(net_worth),
+                'target_cash_reserve': float(reserve),
+                'sample_point': 'after debt service, before income tax and borrowing'},
+        cause_event_ids=debt_service_trace_ids or None)
 
     # ---- 3. Tax top 10% just enough to cover the deficit ----
     tax_collected = 0.0
@@ -818,21 +842,39 @@ def collect_tax(region, t):
         'provincial': turn_prov_tax,
         'national': turn_nat_tax,
     })
-    _trace_treasury_flow(region, 'income_tax_collected', tax_collected,
+    tax_trace_id = _trace_treasury_flow(region, 'income_tax_collected', tax_collected,
                          {'municipal': turn_tile_tax, 'provincial': turn_prov_tax,
                           'national': turn_nat_tax, 'tax_rate': region.gov.tax_rate,
                           'deficit_before_tax': deficit, 'taxpayer_count': top_count})
 
     # ---- 4. If still short, borrow from the bank ----
     gap = max(0.0, deficit - tax_collected)
+    previous_gap = region.gov.borrow_log[-1] if region.gov.borrow_log else None
     region.gov.borrow_log.append(gap)
+    gap_trace_id = emit(
+        region, kind='government_remaining_financing_gap',
+        record_class='calculation', phase='finance',
+        subject={'type': 'tile', 'id': region.name},
+        metric_id='finance.fiscal_gap',
+        unit=getattr(region, 'home_currency', None) or 'local_currency',
+        before=previous_gap, after=gap,
+        formula_id='fiscal.remaining_tax_gap.v1',
+        inputs={'government': region.gov.name, 'turn': int(t),
+                'reserve_deficit': float(deficit),
+                'tax_collected': float(tax_collected),
+                'borrow_request_threshold': 0.01,
+                'borrowing_requested': bool(gap > 0.01),
+                'meaning': 'requested financing need before bank approval'},
+        cause_event_ids=[event_id for event_id in (budget_trace_id, tax_trace_id)
+                         if event_id is not None] or None)
     if gap > 0.01:
         before_liab = bank.total_liabilities
         bank.Borrow(t, gov, gap, trace_region=region)
         borrowed = bank.total_liabilities - before_liab
         _trace_treasury_flow(region, 'government_bank_borrowing', borrowed,
                              {'requested_gap': gap, 'bank_liabilities_before': before_liab,
-                              'bank_liabilities_after': bank.total_liabilities})
+                              'bank_liabilities_after': bank.total_liabilities},
+                             cause_event_ids=([gap_trace_id] if gap_trace_id else None))
         if borrowed > 0:
             loginfo(t, f"Government({region.gov.name}) borrowed ${borrowed:.2f} "
                     f"to cover deficit (gap ${gap:.2f})")
@@ -841,21 +883,55 @@ def collect_tax(region, t):
                           f"${gap:.2f} (bank capacity exhausted)")
 
     # ---- 5. Re-evaluate tax rate every interval ----
-    if (t % region.gov.tax_adjust_interval == 0
-            and len(region.gov.borrow_log) >= region.gov.tax_adjust_interval):
+    tax_rate_before = region.gov.tax_rate
+    interval_due = t % region.gov.tax_adjust_interval == 0
+    history_ready = len(region.gov.borrow_log) >= region.gov.tax_adjust_interval
+    recent_gaps = []
+    avg_gap = None
+    new_rate = tax_rate_before
+    rate_reason = 'interval_not_due' if not interval_due else 'insufficient_gap_history'
+    if interval_due and history_ready:
         recent_gaps = region.gov.borrow_log[-region.gov.tax_adjust_interval:]
         avg_gap = sum(recent_gaps) / len(recent_gaps)
         if avg_gap > reserve * 0.1:
             new_rate = region.gov.tax_rate * 1.5
+            rate_reason = 'persistent_financing_gap'
         elif avg_gap == 0 and net_worth > reserve * 2:
             new_rate = region.gov.tax_rate * 0.7
+            rate_reason = 'zero_gap_and_large_reserve_surplus'
         else:
             new_rate = region.gov.tax_rate
+            rate_reason = 'within_fiscal_band'
         region.gov.tax_rate = max(0.05, min(0.75, new_rate))
         region.gov.tax_rate_log.append((t, region.gov.tax_rate))
         print(f"  Region '{region.name}' fiscal: gov_net=${net_worth:.0f}, "
               f"reserve=${reserve:.0f}, avg_gap=${avg_gap:.2f}, "
               f"tax_rate={region.gov.tax_rate:.2f}")
+
+    emit(region, kind='government_tax_rate_decision',
+         record_class='calculation', phase='finance',
+         subject={'type': 'tile', 'id': region.name},
+         metric_id='finance.tax_rate', unit='ratio',
+         before=tax_rate_before, after=region.gov.tax_rate,
+         formula_id='fiscal.tax_rate_adjustment.v1',
+         inputs={'government': region.gov.name, 'turn': int(t),
+                 'prior_tax_rate': float(tax_rate_before),
+                 'adjust_interval': int(region.gov.tax_adjust_interval),
+                 'borrow_history_count': len(region.gov.borrow_log),
+                 'interval_due': bool(interval_due),
+                 'history_ready': bool(history_ready),
+                 'recent_requested_gaps': list(recent_gaps),
+                 'mean_requested_gap': avg_gap,
+                 'target_cash_reserve': float(reserve),
+                 'net_worth_before_tax_and_borrowing': float(net_worth),
+                 'gap_threshold_fraction': 0.1, 'surplus_reserve_multiplier': 2.0,
+                 'increase_multiplier': 1.5, 'decrease_multiplier': 0.7,
+                 'unclamped_rate': float(new_rate),
+                 'rate_floor': 0.05, 'rate_ceiling': 0.75,
+                 'clamp_applied': bool(interval_due and history_ready),
+                 'reason': rate_reason},
+         cause_event_ids=[event_id for event_id in (budget_trace_id, gap_trace_id)
+                          if event_id is not None] or None)
 
     if tax_collected > 0 and t % 50 == 0:
         print(f"  Region '{region.name}' TAX: ${tax_collected:.2f} from top "

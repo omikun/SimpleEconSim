@@ -260,7 +260,7 @@ class Government:
         self.tax_rate = 0.25
         # How often (in turns) the government re-evaluates its tax rate.
         self.tax_adjust_interval = 100
-        # Per-turn log of how much the gov borrowed (deficit financing).
+        # Per-turn requested financing gap after tax, before bank approval.
         self.borrow_log = []
         # Log of (turn, tax_rate) after each adjustment.
         self.tax_rate_log = []

@@ -2619,3 +2619,23 @@ full increasing/decreasing windows, zero baseline, and incomplete history; a
 wilderness fixture checks its three zero rules. Run-trace, metric-catalog, and
 market-route suites passed (61 tests); Python compilation and `git diff --check`
 passed.
+
+## Phase 4/5 follow-up — Explain automatic fiscal policy (implemented)
+
+Fiscal seats record replayable reserve deficits, remaining financing gaps, and
+tax-rate decisions. Budget inputs identify government cash/deposits after loan
+service, food valuation, debt, and reserve target. Gap calculations subtract
+collected income tax and link actual borrowing receipts; the legacy borrow log
+means requested financing need, even if the bank denies credit. Tax-rate
+records include schedule/history gates, the actual recent-gap samples,
+thresholds, pre-tax/pre-borrowing net worth, multipliers and bounds. Nonseat
+tiles skip duplicate evaluation. Inventory now includes nested government
+histories, including sparse tax-rate adjustments and retained income.
+
+Verification: six rate-policy cases cover increasing/decreasing decisions,
+both bounds, unchanged fiscal-band decisions, and schedule/history holds.
+Trace-on/off borrowing and debt-service states and random consumption match;
+frozen-credit and shared-government fixtures check denied borrowing and
+nonseat behavior. Fiscal-policy, metric-catalog, and run-trace suites passed
+(48 tests); federalism and public-transfer suites passed (8 tests). Python
+compilation and `git diff --check` passed.

@@ -59,6 +59,9 @@ METRICS = {
     'economy.gdp_nominal': ('tile', 'local_currency_per_turn', 'micro.region.stepper.log_gdp'),
     'economy.cash': ('tile', 'local_currency', 'micro.region.stepper.log_metrics'),
     'finance.total_cash': ('tile', 'local_currency', 'micro.region.stepper.step_economy; sum agent wallets, bank equity, and charity hand cash'),
+    'finance.fiscal_deficit': ('tile/fiscal_seat', 'local_currency', 'region_finance.collect_tax; food-price-valued target reserve less government net worth after debt service and before income tax or borrowing, floored at zero'),
+    'finance.fiscal_gap': ('tile/fiscal_seat', 'local_currency', 'region_finance.collect_tax; reserve deficit less collected income tax, floored at zero; requested financing need before bank approval, rather than actual borrowing'),
+    'finance.tax_rate': ('tile/fiscal_seat', 'ratio', 'region_finance.collect_tax; periodic tax-rate policy using prior rate, requested-gap history, reserve thresholds and bounds; shared governments emit at their fiscal seat'),
     'economy.gini': ('tile/nation/cohort', 'ratio', 'micro.region.stepper.log_metrics and trace_snapshots.nation_chart_aggregation_rows'),
     'labor.exploitation_rate': ('tile', 'ratio', 'labor_contract.aggregate_tile_surplus; total surplus divided by variable capital'),
     'labor.surplus_value': ('tile', 'local_currency_per_turn', 'micro.region.stepper.aggregate_tile_surplus; sum of current-turn firm surplus calculations, with prior-turn firm stats excluded and linked as inputs'),
@@ -392,6 +395,9 @@ LEGACY_HISTORY_TO_METRIC = {
     'population_change_rate_log': 'people.population_change_rate',
     'trader_cash_log': 'trade.trader_cash',
     'pipeline_depth_log': 'trade.pipeline_depth',
+    'borrow_log': 'finance.fiscal_gap',
+    'tax_rate_log': 'finance.tax_rate',
+    'income_log': 'finance.government_income',
     'cost_of_living_log': 'living.cost_of_living',
     'total_population': 'people.population',
     'population_log': 'people.profession_population',
@@ -450,6 +456,7 @@ TRACE_INSTRUMENTED = set(LEGACY_HISTORY_TO_METRIC.values()) | {
     'finance.occupation_transfer', 'finance.canal_toll', 'military.fleet_position',
     'finance.receivership_balance',
     'finance.government_income',
+    'finance.fiscal_deficit',
     'finance.enforcement_agent_funding', 'imperialism.receivership_state',
     'finance.tribute_value', 'goods.feudal_tribute',
     'finance.tax_arrears_balance', 'finance.tax_foreclosure_risk',
@@ -610,14 +617,18 @@ TRACE_INSTRUMENTED = set(LEGACY_HISTORY_TO_METRIC.values()) | {
 
 
 def inventory_region_histories(region):
-    """List all live legacy history fields, including those not yet explained."""
+    """List tile and government histories, including unexplained fields."""
     rows = []
-    for field in sorted(vars(region)):
-        if field.endswith('_log') or field.endswith('_history') or field in LEGACY_HISTORY_TO_METRIC:
-            metric_id = LEGACY_HISTORY_TO_METRIC.get(field)
-            rows.append({'field': field, 'metric_id': metric_id,
-                         'coverage': 'instrumented' if metric_id in TRACE_INSTRUMENTED
-                         else 'untraced'})
+    owners = [('', region)]
+    if getattr(region, 'gov', None) is not None:
+        owners.append(('gov.', region.gov))
+    for prefix, owner in owners:
+        for field in sorted(vars(owner)):
+            if field.endswith('_log') or field.endswith('_history') or field in LEGACY_HISTORY_TO_METRIC:
+                metric_id = LEGACY_HISTORY_TO_METRIC.get(field)
+                rows.append({'field': prefix + field, 'metric_id': metric_id,
+                             'coverage': 'instrumented' if metric_id in TRACE_INSTRUMENTED
+                             else 'untraced'})
     return rows
 
 

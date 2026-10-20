@@ -3,10 +3,11 @@
 import ast
 from pathlib import Path
 import subprocess
+from types import SimpleNamespace
 import unittest
 
 from metric_catalog import (LEGACY_HISTORY_TO_METRIC, METRICS,
-                            TRACE_INSTRUMENTED)
+                            TRACE_INSTRUMENTED, inventory_region_histories)
 
 
 class MetricCatalogTraceCoverageTests(unittest.TestCase):
@@ -64,11 +65,21 @@ class MetricCatalogTraceCoverageTests(unittest.TestCase):
             'population_change_rate_log': 'people.population_change_rate',
             'trader_cash_log': 'trade.trader_cash',
             'pipeline_depth_log': 'trade.pipeline_depth',
+            'borrow_log': 'finance.fiscal_gap',
+            'tax_rate_log': 'finance.tax_rate',
+            'income_log': 'finance.government_income',
         }
         for field, metric_id in expected.items():
             with self.subTest(field=field):
                 self.assertEqual(LEGACY_HISTORY_TO_METRIC[field], metric_id)
                 self.assertIn(metric_id, TRACE_INSTRUMENTED)
+
+    def test_inventory_includes_government_history_owners(self):
+        region = SimpleNamespace(gov=SimpleNamespace(
+            borrow_log=[], tax_rate_log=[], income_log=[]))
+        fields = {row['field']: row for row in inventory_region_histories(region)}
+        for field in ('gov.borrow_log', 'gov.tax_rate_log', 'gov.income_log'):
+            self.assertEqual(fields[field]['coverage'], 'instrumented')
 
     def test_workhouse_metrics_have_replayable_trace_coverage(self):
         for metric_id in ('labor.workhouse_inmates',

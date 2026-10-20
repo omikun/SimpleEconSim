@@ -664,6 +664,17 @@ def sample(tiles, nations):
         values[('people.births', tile.name)] = (
             tile_subject, 'people_per_turn', int(getattr(tile, 'births_this_turn', 0)))
         government = getattr(tile, 'gov', None)
+        is_fiscal_seat = (getattr(tile, 'province', None) is None
+                          or getattr(tile, '_seat_gov_agent', True))
+        if government is not None and is_fiscal_seat:
+            currency = getattr(tile, 'home_currency', None) or 'local_currency'
+            if hasattr(government, 'tax_rate'):
+                values[('finance.tax_rate', tile.name)] = (
+                    tile_subject, 'ratio', float(government.tax_rate))
+            gaps = getattr(government, 'borrow_log', ())
+            if gaps:
+                values[('finance.fiscal_gap', tile.name)] = (
+                    tile_subject, currency, float(gaps[-1]))
         income_history = getattr(government, 'income_log', ()) if government else ()
         if income_history:
             income = income_history[-1]

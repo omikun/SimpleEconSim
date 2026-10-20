@@ -2144,3 +2144,21 @@ Population fixtures cover increasing/decreasing full windows, a zero baseline,
 and an incomplete window. A wilderness fixture verifies its three zero-rule
 calculations. Run-trace, metric-catalog, and market-route suites passed (61
 tests); Python compilation and `git diff --check` passed.
+
+Phase 4/5 follow-up, 2026-10-19: regional fiscal seats now explain the target
+reserve shortfall from post-debt-service cash, deposits, public food value, and
+outstanding loans. A separate calculation records the financing need left
+after income tax; `gov.borrow_log` is explicitly this requested gap before bank
+approval. Borrowing receipts link to the gap. Every tax-rate evaluation records
+the interval/history gates, requested-gap samples, reserve thresholds,
+pre-tax/pre-borrowing net worth, multiplier, bounds, and selected reason,
+including unchanged rates. Shared-government nonseats emit no duplicate policy.
+The history inventory now includes government-owned histories.
+
+Verification: six rate-policy cases cover increases/decreases, both bounds,
+unchanged fiscal-band decisions, and schedule/history holds. Traced and untraced
+borrowing/debt-service fixtures match state and random-state consumption; a
+frozen bank preserves the requested gap while rejecting the loan. Fiscal,
+metric-catalog, and run-trace suites passed (48 tests); federalism and public
+transfer suites passed (8 tests). Python compilation and `git diff --check`
+passed.
