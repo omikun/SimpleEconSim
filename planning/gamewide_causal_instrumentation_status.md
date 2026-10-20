@@ -2204,3 +2204,10 @@ and draw counts match; a live server matches XP records and snapshots. The
 innovation, metric-catalog, run-trace, and two existing innovation-facing
 client checks passed (52 tests, client checks using the headless renderer
 fallback); Python compilation and `git diff --check` passed.
+
+Verification repair, 2026-10-19: the existing operational-mill staffing test
+expected fresh regions with no eligible staff to hire immediately. The same
+failure reproduced against committed source modules. The fixture now checks
+the unstaffed efficiency floor, supplies adults in each required profession,
+then checks full staffing and scaled production bonuses. The revised check
+passes against both committed and working source modules; gameplay is unchanged.

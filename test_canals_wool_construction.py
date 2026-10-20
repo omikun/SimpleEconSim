@@ -217,10 +217,23 @@ class TestCanalsWoolConstruction(unittest.TestCase):
         b.staff_ids = []
         b.operational_efficiency = 0.0
 
-        # Step staffing
+        # A fresh region has no eligible mill workers yet.
         b.step_operational_staffing(self.tile, t=1)
-        self.assertGreater(b.operational_efficiency, 0.2)
-        self.assertGreater(len(b.staff_ids), 0)
+        self.assertEqual(b.operational_efficiency, 0.2)
+        self.assertEqual(b.staff_ids, [])
+
+        # Supply the professions the facility actually requires.
+        eligible_ids = set()
+        for good, count in recipe.staff_required.items():
+            for _ in range(count):
+                worker = Agent(0)
+                initialize_agent(worker, good, 0, 4, 50.0)
+                worker.birth_round = -25
+                self.tile.agents.append(worker)
+                eligible_ids.add(worker.id)
+        b.step_operational_staffing(self.tile, t=2)
+        self.assertEqual(b.operational_efficiency, 1.0)
+        self.assertEqual(set(b.staff_ids), eligible_ids)
 
         # Bonuses scale with efficiency
         bonuses = b.production_bonuses
