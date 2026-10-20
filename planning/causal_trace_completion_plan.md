@@ -2673,9 +2673,28 @@ pairs record progress, pact/value thresholds, adoption, and removal of completed
 progress. XP, knowledge and active diffusion have read-only national snapshots.
 
 The [innovation follow-up plan](innovation_causal_trace_plan.md) documents the
-unchanged rule quirks and remaining bounty funding/payout work. Focused
+unchanged rule quirks and bounty funding/payout work covered below. Focused
 fixtures verify formulas, gates, successful/failed draws, callback counts,
 trace-on/off event/state parity, zero-trade diffusion, pair order, and adoption
 reset. The innovation, metric-catalog, run-trace, and two existing innovation
 client checks passed (52 tests; client checks used headless rendering fallback).
 Python compilation and `git diff --check` passed.
+
+## Phase 3/4 follow-up — Reconcile royal science prizes (implemented)
+
+Bounty offer gates, aggregate-treasury affordability, the sovereign cash debit,
+escrow reservation, research multiplier, per-agent awards, and escrow removal
+now have linked evidence. Empty capitals expose an unpaid removed prize.
+Active-bounty snapshots retain distinct operation IDs, and the discovery
+journal maps to its several metric sources. National trace contexts cover
+territory-loss gates. Knowledge additions remain available as cross-turn
+prerequisite/diffusion causes, and snapshots preserve those mutation links.
+Catalog output bonuses are labeled as declared metadata; the source audit
+found no current production consumer.
+
+Offer, funding, payout, no-recipient, duplicate-prize, snapshot, cross-turn, and
+lost-territory fixtures preserve traced/untraced outcomes and draws. The
+broader innovation, trace, catalog, web parity, infrastructure, fertilizer,
+and two innovation client checks passed (95 tests using headless rendering
+fallback for client checks). The final core innovation/trace/catalog run
+passed (54 tests); Python compilation and `git diff --check` passed.

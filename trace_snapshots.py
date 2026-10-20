@@ -824,6 +824,13 @@ def sample(tiles, nations):
             for tech_id, progress in innovation_system.diffusion_progress.get(nation.name, {}).items():
                 values[('innovation.diffusion_progress', nation.name, tech_id)] = (
                     {**subject, 'tech_id': tech_id}, 'progress_fraction', float(progress))
+            for index, bounty in enumerate(innovation_system.active_bounties):
+                if bounty.nation_name == nation.name:
+                    bounty_id = (bounty._trace_operation_id or
+                                 f'seeded:{nation.name}:{bounty.tech_id}:{bounty.offered_turn}:{index}')
+                    values[('innovation.bounty_escrow', nation.name, bounty_id)] = (
+                        {**subject, 'tech_id': bounty.tech_id, 'bounty_id': bounty_id},
+                        nation.currency, float(bounty.bounty_amount))
         values[('finance.treasury', nation.name)] = (
             subject, nation.currency, float(nation.treasury()['total']))
         values[('politics.legitimacy', nation.name)] = (

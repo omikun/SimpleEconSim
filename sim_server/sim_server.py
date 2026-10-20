@@ -190,6 +190,9 @@ class SimServer:
             for tile in self.tiles:
                 tile._run_trace = self.run_trace
                 tile._collective_trace_clock = setup_clock
+            for nation in self.nations:
+                nation._run_trace = self.run_trace
+                nation._collective_trace_clock = setup_clock
             for tile in self.tiles:
                 fx.flush_pending_trader_float_traces(tile)
             from trace_snapshots import (entity_role_census, resident_census,

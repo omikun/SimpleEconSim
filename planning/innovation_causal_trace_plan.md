@@ -28,11 +28,18 @@ Preserve research rules, random draws, iteration order, and monetary outcomes.
    behavior. Compare trace-on/off state, RNG state, callback counts, and event
    order. Run existing innovation-facing tests and document results.
 
-Progress: steps 1–3 are implemented, along with metric registration, formula
-replay, read-only snapshots, and focused state/RNG/callback parity checks.
-The combined innovation, metric-catalog, run-trace, and two existing innovation
-client checks passed 52 tests. Step 4 (bounty funding and payouts) remains open.
-The current
-`discovery_log` is an event journal spanning bounty offers, discoveries, bounty
-awards, and diffusion. It needs multiple registered metrics rather than a
-single scalar-history mapping.
+Progress: all five steps are implemented. The broader innovation, trace,
+metric-catalog, web parity, infrastructure, fertilizer, and two innovation
+client checks passed 95 tests; the final core innovation/trace/catalog run
+passed 54 tests. The discovery journal is inventoried against multiple metric
+sources. National trace context survives loss of all territory, and source
+knowledge and bounty links remain valid across turns and snapshots.
+
+The audit also found that catalog `production_modifiers` currently have no
+production-code consumer. Trace unlocks label these as declared catalog
+bonuses, rather than attributing realized output changes to them. Bounty
+affordability uses the aggregate national treasury while the debit uses only
+sovereign cash; traces preserve and expose a negative cash balance when that
+occurs. An empty capital removes the prize with no recipients; the unpaid
+escrow remainder is recorded explicitly. Gameplay/accounting changes to these
+rules are separate work.

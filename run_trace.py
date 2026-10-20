@@ -38,6 +38,7 @@ class RunTrace:
         self._turn_living_cost_events = {}
         self._latest_food_intake_events = {}
         self._latest_reference_price_events = {}
+        self._technology_events = {}
         self._shipment_departure_events = {}
         self._shipment_arrival_events = {}
         self._shipment_events_by_kind = {}
@@ -204,7 +205,8 @@ class RunTrace:
                 'finance.fiscal_gap', 'finance.tax_rate',
                 'finance.tax_assessment', 'finance.tax_distribution',
                 'innovation.domain_experience', 'innovation.bottleneck_pressure',
-                'innovation.breakthrough', 'innovation.diffusion_progress')):
+                'innovation.breakthrough', 'innovation.diffusion_progress',
+                'innovation.bounty_escrow')):
             from price_trace import replay_event
             replay = replay_event(row)
             if replay is not None:
@@ -250,6 +252,11 @@ class RunTrace:
                 self._latest_shipment_events[str(shipment_id)] = row['event_id']
         if self.write_error is None:
             self._known_event_ids.add(row['event_id'])
+            if (metric_id == 'innovation.technology_known' and after == 1
+                    and record_class == 'outcome'
+                    and subject is not None):
+                self._technology_events[(str(subject.get('id')),
+                                         str(subject.get('tech_id')))] = row['event_id']
         person_flow_kinds = {
             'birth', 'person_died', 'person_role_conversion',
             'migration_departure', 'migration_arrival',
@@ -323,6 +330,10 @@ class RunTrace:
     def latest_reference_price_event_id(self, tile_id, good_name):
         """Return the latest recorded local reference price for one good."""
         return self._latest_reference_price_events.get((str(tile_id), str(good_name)))
+
+    def technology_event_id(self, nation_name, tech_id):
+        """Find the latest knowledge addition, retaining links across turns."""
+        return self._technology_events.get((str(nation_name), str(tech_id)))
 
     def turn_living_cost_event_id(self, tile_id):
         """Return the current-turn local basket calculation for one tile."""

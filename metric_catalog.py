@@ -374,6 +374,8 @@ METRICS = {
     'innovation.technology_known': ('nation/technology', 'boolean', 'innovation.evaluate_breakthroughs and diffuse_technologies_along_trade; actual knowledge-set additions linked to discovery or diffusion evidence'),
     'innovation.diffusion_gate': ('nation/route', 'status', 'innovation.diffuse_technologies_along_trade; owner, same-nation, and unknown-source-technology gates'),
     'innovation.diffusion_progress': ('nation/technology', 'progress_fraction', 'innovation.diffuse_technologies_along_trade; directed trade-pair increments from source export values and trade pact, including adoption removal'),
+    'innovation.bounty_offer': ('nation/technology', 'boolean', 'innovation.post_royal_bounty; technology, knowledge, and total-treasury affordability gates'),
+    'innovation.bounty_escrow': ('nation/technology/bounty', 'local_currency', 'innovation.post_royal_bounty and evaluate_breakthroughs; treasury cash reservation, capital-agent payouts, removal, and any unpaid escrow remainder'),
     'trade.route_licensed_quantity': ('tile/charter/good', 'units', 'region_logistics; quantity permitted after route-charter enforcement leakage'),
     'trade.route_destination_decision': ('tile/trader', 'destination_good', 'region_logistics.repoint_traders; neighboring route evaluation from FX, fees, tariffs, drawback, freight, edge friction, local margin threshold, corporate input shortfall, demand bonus, and strict best-score selection'),
     'trade.triangular_voyage_decision': ('tile/agent/circuit', 'circuit_decision', 'economy.capitalist_planner.evaluate_triangular_trade_voyage; live arbitrage formulas, charter feasibility, pioneer bonus, strict candidate ranking, ROI threshold, and price causes'),
@@ -453,11 +455,18 @@ LEGACY_HISTORY_TO_METRIC = {
     'broken_machinery_log': 'labor.broken_machinery',
 }
 
+EVENT_JOURNAL_TO_METRICS = {
+    'discovery_log': ('innovation.bounty_offer', 'innovation.bounty_escrow',
+                      'innovation.technology_known', 'innovation.diffusion_progress'),
+}
+
+
 TRACE_INSTRUMENTED = set(LEGACY_HISTORY_TO_METRIC.values()) | {
     'innovation.domain_experience', 'innovation.bottleneck_pressure',
     'innovation.research_gate', 'innovation.breakthrough',
     'innovation.technology_known', 'innovation.diffusion_gate',
     'innovation.diffusion_progress',
+    'innovation.bounty_offer', 'innovation.bounty_escrow',
     'fx.bilateral_mid', 'politics.legitimacy', 'politics.coup_decision',
     'politics.coup_execution',
     'people.births', 'people.residents',
@@ -631,6 +640,24 @@ TRACE_INSTRUMENTED = set(LEGACY_HISTORY_TO_METRIC.values()) | {
 }
 
 
+def inventory_histories(owner, prefix=''):
+    """Classify scalar histories and journals with multiple metric sources."""
+    rows = []
+    for field in sorted(vars(owner)):
+        if field.endswith('_log') or field.endswith('_history') or field in LEGACY_HISTORY_TO_METRIC:
+            metric_id = LEGACY_HISTORY_TO_METRIC.get(field)
+            journal_metrics = EVENT_JOURNAL_TO_METRICS.get(field)
+            row = {'field': prefix + field, 'metric_id': metric_id,
+                   'coverage': 'instrumented' if metric_id in TRACE_INSTRUMENTED else 'untraced'}
+            if journal_metrics:
+                row.update(metric_ids=list(journal_metrics), history_kind='event_journal',
+                           coverage='instrumented' if all(metric in TRACE_INSTRUMENTED
+                                                          for metric in journal_metrics)
+                           else 'untraced')
+            rows.append(row)
+    return rows
+
+
 def inventory_region_histories(region):
     """List tile and government histories, including unexplained fields."""
     rows = []
@@ -638,12 +665,7 @@ def inventory_region_histories(region):
     if getattr(region, 'gov', None) is not None:
         owners.append(('gov.', region.gov))
     for prefix, owner in owners:
-        for field in sorted(vars(owner)):
-            if field.endswith('_log') or field.endswith('_history') or field in LEGACY_HISTORY_TO_METRIC:
-                metric_id = LEGACY_HISTORY_TO_METRIC.get(field)
-                rows.append({'field': prefix + field, 'metric_id': metric_id,
-                             'coverage': 'instrumented' if metric_id in TRACE_INSTRUMENTED
-                             else 'untraced'})
+        rows.extend(inventory_histories(owner, prefix))
     return rows
 
 

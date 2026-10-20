@@ -27,7 +27,7 @@ def _nation(name='Alpha', *, trace=None, clock=None):
         gov=SimpleNamespace(), military_units=[SimpleNamespace(id=1, strength=1),
                                              SimpleNamespace(id=2, strength=500)],
         elevation=0.6, all_adjacent_names=[])
-    nation = SimpleNamespace(name=name, tiles=[tile], provinces=[1, 2])
+    nation = SimpleNamespace(name=name, tiles=[tile], provinces=[1, 2], currency='D')
     tile.owner_nation = nation
     if trace is not None:
         tile._run_trace = trace
@@ -41,6 +41,16 @@ def _state(system, nations):
             deepcopy(system.discovery_log),
             [[person.cash for tile in nation.tiles for person in tile.agents]
              for nation in nations])
+
+
+def _funded_nation(*, trace=None, clock=None, cash=100.0, deposits=0.0):
+    nation = _nation(trace=trace, clock=clock)
+    nation.government = SimpleNamespace(name='Alpha Treasury',
+                                        agent=SimpleNamespace(cash=cash))
+    nation.treasury = Mock(side_effect=lambda: {
+        'cash': nation.government.agent.cash, 'deposits': deposits,
+        'total': nation.government.agent.cash + deposits})
+    return nation
 
 
 class InnovationTraceTests(unittest.TestCase):
@@ -255,6 +265,137 @@ class InnovationTraceTests(unittest.TestCase):
             self.assertIn(progress[0]['event_id'], progress[1]['cause_event_ids'])
             self.assertEqual(progress[-1]['value_after'], 0.0)
             self.assertTrue(all(row['formula_replay']['matches'] for row in progress))
+
+    def test_bounty_offer_gates_and_cash_only_funding_are_explicit(self):
+        cases = (('unknown', False, 100.0, 0.0, False, 'unknown_technology'),
+                 ('crop_rotation', True, 100.0, 0.0, False, 'technology_already_known'),
+                 ('crop_rotation', False, 10.0, 0.0, False, 'insufficient_total_treasury'),
+                 ('crop_rotation', False, 20.0, 100.0, True, 'affordable_from_total_treasury'))
+        with tempfile.TemporaryDirectory() as tmp:
+            for index, (tech, known, cash, deposits, expected, reason) in enumerate(cases):
+                trace = RunTrace(Path(tmp) / f'offer-{index}.ctr', f'offer-{index}')
+                clock = {'turn': 1, 'phase': 'innovation', 'next': 1}
+                nation = _funded_nation(trace=trace, clock=clock, cash=cash, deposits=deposits)
+                system = InnovationSystem()
+                if known:
+                    system.discovered_techs['Alpha'] = {tech}
+                self.assertEqual(system.post_royal_bounty(nation, tech, 60.0, 1), expected)
+                gate = next(row for row in trace.recent
+                            if row.get('metric_id') == 'innovation.bounty_offer')
+                self.assertEqual(gate['inputs']['reason'], reason)
+                self.assertEqual(nation.treasury.call_count, 0 if known or tech == 'unknown' else 1)
+                if expected:
+                    self.assertEqual(nation.government.agent.cash, -40.0)
+                    reservation = next(row for row in trace.recent
+                                       if row.get('metric_id') == 'innovation.bounty_escrow')
+                    self.assertEqual(reservation['value_after'], 60.0)
+                    self.assertTrue(reservation['formula_replay']['matches'])
+                    cash_row = next(row for row in trace.recent
+                                    if row['kind'] == 'innovation_bounty_treasury_reservation')
+                    self.assertEqual(cash_row['value_after'], -60.0)
+                    contract = cash_row['inputs']['transfer_contract']
+                    self.assertEqual(contract['payer_account']['balance_before'], 20.0)
+                    self.assertEqual(contract['payer_account']['balance_after'], -40.0)
+                else:
+                    self.assertEqual(nation.government.agent.cash, cash)
+                    self.assertFalse(system.active_bounties)
+
+    def test_diffusion_links_source_discovery_across_turns(self):
+        from innovation_trace import record_technology
+
+        with tempfile.TemporaryDirectory() as tmp:
+            trace = RunTrace(Path(tmp) / 'source-tech.ctr', 'source-tech')
+            clock = {'turn': 1, 'phase': 'innovation', 'next': 1}
+            source = _nation('Alpha', trace=trace, clock=clock)
+            destination = _nation('Beta', trace=trace, clock=clock)
+            system = InnovationSystem()
+            system.discovered_techs['Alpha'] = {'crop_rotation'}
+            discovery_id = record_technology(source, 'crop_rotation', 1, 'domestic_breakthrough')
+            trace.snapshot(clock, subject={'type': 'nation', 'id': source.name,
+                                           'tech_id': 'crop_rotation'},
+                           metric_id='innovation.technology_known', unit='boolean',
+                           before=None, after=1)
+            clock['turn'] = 2
+            with patch('diplomacy.get_diplomacy', return_value=SimpleNamespace(
+                    has_treaty=Mock(return_value=False))):
+                system.diffuse_technologies_along_trade(
+                    [(source.tiles[0], destination.tiles[0])], [source, destination], 2)
+            progress = next(row for row in trace.recent
+                            if row.get('metric_id') == 'innovation.diffusion_progress')
+            self.assertEqual(progress['inputs']['source_knowledge_event_id'], discovery_id)
+            self.assertIn(discovery_id, progress['cause_event_ids'])
+
+    def test_bounty_funding_payouts_and_empty_capital_match_without_trace(self):
+        tech = Technology('prize', 'Prize', TechDomain.AGRONOMY, '', 100.0)
+        with tempfile.TemporaryDirectory() as tmp, patch.object(innovation, 'TECH_CATALOG', {'prize': tech}):
+            for empty in (False, True):
+                results = []
+                trace = RunTrace(Path(tmp) / f'award-{empty}.ctr', f'award-{empty}')
+                clock = {'turn': 1, 'phase': 'innovation', 'next': 1}
+                for traced in (False, True):
+                    nation = _funded_nation(trace=trace if traced else None, clock=clock)
+                    if empty:
+                        nation.tiles[0].agents = []
+                    system = InnovationSystem()
+                    self.assertTrue(system.post_royal_bounty(nation, 'prize', 60.0, 1))
+                    system.domain_experience['Alpha'] = {'agronomy': 1000.0}
+                    clock['turn'] = 2
+                    draw = Mock(return_value=0.0)
+                    with patch.object(innovation, 'get_nation_resources', return_value=set()), \
+                            patch.object(innovation, 'rand', SimpleNamespace(random=draw)):
+                        system.evaluate_breakthroughs([nation], 2)
+                    draw.assert_called_once()
+                    self.assertEqual(nation.government.agent.cash, 40.0)
+                    self.assertFalse(system.active_bounties)
+                    results.append((_state(system, [nation]), nation.government.agent.cash))
+                    clock['turn'] = 1
+                self.assertEqual(results[0], results[1])
+                rows = list(trace.recent)
+                reserved = next(row for row in rows
+                                if row['kind'] == 'innovation_bounty_escrow_reserved')
+                removed = next(row for row in rows
+                               if row['kind'] == 'innovation_bounty_escrow_removed')
+                self.assertEqual(reserved['subject']['bounty_id'], removed['subject']['bounty_id'])
+                self.assertEqual(reserved['turn'], 1)
+                self.assertEqual(removed['turn'], 2)
+                self.assertTrue(removed['formula_replay']['matches'])
+                self.assertEqual(removed['inputs']['unpaid_escrow_removed'], 60.0 if empty else 0.0)
+                payments = [row for row in rows if row['kind'] == 'innovation_bounty_award_payment']
+                self.assertEqual(len(payments), 0 if empty else 12)
+                self.assertEqual(sum(row['value_after'] for row in payments), 0.0 if empty else 60.0)
+                self.assertIn(reserved['event_id'], removed['cause_event_ids'])
+                for payment in payments:
+                    self.assertIn(reserved['event_id'], payment['cause_event_ids'])
+                    self.assertEqual(payment['inputs']['transfer_contract']['payee_account']['balance_after'], 15.0)
+                self.assertEqual(len([row for row in rows
+                                      if row.get('metric_id') == 'finance.treasury_flow']), 1)
+
+    def test_bounty_snapshot_and_journal_inventory_share_recorded_identity(self):
+        from metric_catalog import inventory_histories
+        from sim_server.sim_server import SimServer
+        from trace_snapshots import sample
+
+        system = InnovationSystem()
+        with patch.object(innovation, '_INNOVATION_SYSTEM', system):
+            server = SimServer(seed=627, scenario_id='labor_frontier_rivalry')
+            nation = server.nations[0]
+            nation.government.agent.cash = 1000.0
+            self.assertTrue(system.post_royal_bounty(nation, 'crop_rotation', 60.0, 0))
+            self.assertTrue(system.post_royal_bounty(nation, 'crop_rotation', 60.0, 0))
+            first, second = system.active_bounties
+            self.assertNotEqual(first._trace_operation_id, second._trace_operation_id)
+            values = sample(server.tiles, server.nations)
+            for bounty in system.active_bounties:
+                key = ('innovation.bounty_escrow', nation.name, bounty._trace_operation_id)
+                self.assertEqual(values[key][2], 60.0)
+            fields = {row['field']: row for row in inventory_histories(system)}
+            self.assertEqual(fields['discovery_log']['history_kind'], 'event_journal')
+            self.assertEqual(fields['discovery_log']['coverage'], 'instrumented')
+            # Nation trace context remains usable after loss of all territory.
+            nation.tiles = []
+            system.evaluate_breakthroughs([nation], 0)
+            rows = server.run_trace.query(metric_id='innovation.research_gate', limit=1000)['events']
+            self.assertTrue(any(row['inputs']['reason'] == 'no_territory' for row in rows))
 
 
 if __name__ == '__main__':

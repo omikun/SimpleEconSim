@@ -502,6 +502,8 @@ class RoyalBounty:
     nation_name: str
     bounty_amount: float
     offered_turn: int
+    _trace_operation_id: str | None = field(default=None, compare=False, repr=False)
+    _trace_escrow_event_id: str | None = field(default=None, compare=False, repr=False)
 
 
 def _learning_sample(tile, field_name, good=None, *, owner=...):
@@ -543,19 +545,30 @@ class InnovationSystem:
 
     def post_royal_bounty(self, nation: Nation, tech_id: str, bounty_amount: float, t: int) -> bool:
         """Sovereign posts a cash prize from treasury to incentivize a breakthrough."""
+        from innovation_trace import record_bounty_gate, record_bounty_funding
+
         if tech_id not in TECH_CATALOG:
+            record_bounty_gate(nation, tech_id, t, bounty_amount, False, 'unknown_technology')
             return False
         if self.has_tech(nation.name, tech_id):
+            record_bounty_gate(nation, tech_id, t, bounty_amount, False, 'technology_already_known')
             return False
         treasury = nation.treasury()
         if treasury['total'] < bounty_amount:
+            record_bounty_gate(nation, tech_id, t, bounty_amount, False,
+                               'insufficient_total_treasury', treasury=dict(treasury))
             return False
 
         # Deduct bounty cash from government (held in escrow until awarded)
+        gate_id = record_bounty_gate(nation, tech_id, t, bounty_amount, True,
+                                    'affordable_from_total_treasury', treasury=dict(treasury))
+        cash_before = float(nation.government.agent.cash)
         nation.government.agent.cash -= bounty_amount
         bounty = RoyalBounty(tech_id=tech_id, nation_name=nation.name,
                              bounty_amount=bounty_amount, offered_turn=t)
         self.active_bounties.append(bounty)
+        record_bounty_funding(nation, bounty, cash_before,
+                              float(nation.government.agent.cash), treasury, gate_id)
         tech_name = TECH_CATALOG[tech_id].name
         self.discovery_log.append({
             't': t, 'event': 'BOUNTY_OFFERED',
@@ -640,6 +653,7 @@ class InnovationSystem:
     def evaluate_breakthroughs(self, nations: list[Nation], t: int) -> list[dict]:
         """Check if cumulative experience and economic bottleneck pressure trigger a breakthrough."""
         from innovation_trace import (emit_innovation, latest_innovation_event,
+                                      known_technology_event,
                                       record_pressure, record_research_gate,
                                       record_technology, trace_region)
 
@@ -718,6 +732,8 @@ class InnovationSystem:
                     success = draw < base_chance
                 learning_id = latest_innovation_event(
                     n, 'innovation.domain_experience', domain=tech.domain.value)
+                prerequisite_trace_ids = [known_technology_event(n, req)
+                                          for req in tech.required_techs]
                 evaluation_id = emit_innovation(
                     n, kind='innovation_breakthrough_evaluation', record_class='calculation',
                     subject_fields={'tech_id': tech_id}, metric_id='innovation.breakthrough',
@@ -727,6 +743,7 @@ class InnovationSystem:
                             'domain_experience': xp, 'bottleneck_multiplier': raw_pressure,
                             'bounty_active': bounty_obj is not None,
                             'bounty_amount': bounty_obj.bounty_amount if bounty_obj else None,
+                            'bounty_id': bounty_obj._trace_operation_id if bounty_obj else None,
                             'effective_experience': effective_xp,
                             'required_experience': tech.base_xp_required,
                             'threshold_met': effective_xp >= tech.base_xp_required,
@@ -735,14 +752,20 @@ class InnovationSystem:
                             'required_technologies': list(tech.required_techs),
                             'reason': ('discovered' if success else 'breakthrough_roll_failed'
                                        if draw is not None else 'experience_below_threshold')},
-                    cause_event_ids=[event_id for event_id in (learning_id, pressure_trace_id)
+                    cause_event_ids=[event_id for event_id in (
+                        learning_id, pressure_trace_id,
+                        bounty_obj._trace_escrow_event_id if bounty_obj else None,
+                        *prerequisite_trace_ids)
                                      if event_id is not None] or None)
                 if success:
                     discovered.add(tech_id)
-                    record_technology(
+                    discovery_id = record_technology(
                         n, tech_id, t, 'domestic_breakthrough',
-                        unlocked_buildings=list(tech.unlocked_buildings),
-                        production_modifiers={str(good): value for good, value in tech.production_modifiers.items()},
+                        declared_unlocked_buildings=list(tech.unlocked_buildings),
+                        declared_production_modifiers={
+                            getattr(Goods._value2member_map_.get(good), 'name', str(good)): value
+                            for good, value in tech.production_modifiers.items()},
+                        modifier_basis='technology_catalog_declaration',
                         cause_event_ids=([evaluation_id] if evaluation_id else None))
                     msg = f"BREAKTHROUGH: {n.name} discovered '{tech.name}' via {tech.domain.value} practice (Pressure: {pressure:.1f}x)!"
                     event = {'t': t, 'nation': n.name, 'tech_id': tech_id, 'tech_name': tech.name, 'event': 'DISCOVERY', 'message': msg}
@@ -752,10 +775,17 @@ class InnovationSystem:
                     if bounty_obj:
                         self.active_bounties.remove(bounty_obj)
                         cap_tile = nat_tiles[0]
+                        payments = []
                         if cap_tile.agents:
                             share = bounty_obj.bounty_amount / len(cap_tile.agents)
                             for a in cap_tile.agents:
+                                recipient_before = float(a.cash)
                                 a.cash += share
+                                payments.append({'agent_id': getattr(a, 'id', None), 'amount': float(share),
+                                                 'cash_before': recipient_before,
+                                                 'cash_after': float(a.cash)})
+                        from innovation_trace import record_bounty_award
+                        record_bounty_award(n, bounty_obj, t, cap_tile.name, payments, discovery_id)
                         self.discovery_log.append({
                             't': t, 'event': 'BOUNTY_AWARDED',
                             'message': f"Royal Bounty of ${bounty_obj.bounty_amount:,.0f} awarded to {cap_tile.name} inventors for '{tech.name}'!"
@@ -768,6 +798,7 @@ class InnovationSystem:
         events = []
         from diplomacy import get_diplomacy, TreatyType
         from innovation_trace import (emit_innovation, latest_innovation_event,
+                                      known_technology_event,
                                       record_diffusion_gate, record_technology)
         dip = get_diplomacy()
 
@@ -814,6 +845,7 @@ class InnovationSystem:
                 cur += base_diffusion
                 dst_prog[tech_id] = cur
                 previous_id = latest_innovation_event(n_dst, 'innovation.diffusion_progress', tech_id=tech_id)
+                source_knowledge_id = known_technology_event(n_src, tech_id)
                 progress_id = emit_innovation(
                     n_dst, kind='innovation_trade_diffusion_update', record_class='calculation',
                     subject_fields={'tech_id': tech_id}, metric_id='innovation.diffusion_progress',
@@ -825,9 +857,13 @@ class InnovationSystem:
                             'source_trade_samples': trade_samples, 'trade_pact': trade_pact,
                             'progress_increment': base_diffusion, 'adoption_threshold': 1.0,
                             'source_knows_technology': tech_id in src_techs,
+                            'source_knowledge_event_id': source_knowledge_id,
+                            'source_knowledge_trace_status': ('linked' if source_knowledge_id
+                                                              else 'no_knowledge_mutation_record'),
                             'prerequisite_resource_checks': 'not_applied_to_trade_diffusion',
                             'zero_trade_rule': 'positive baseline diffusion remains active'},
-                    cause_event_ids=([previous_id] if previous_id else None))
+                    cause_event_ids=[event_id for event_id in (previous_id, source_knowledge_id)
+                                     if event_id is not None] or None)
 
                 if cur >= 1.0:
                     # Fully adopted via trade diffusion!
@@ -836,6 +872,11 @@ class InnovationSystem:
                     adoption_id = record_technology(
                         n_dst, tech_id, t, 'trade_diffusion', source_nation=n_src.name,
                         source_tile=r.name, destination_tile=other.name,
+                        declared_unlocked_buildings=list(TECH_CATALOG[tech_id].unlocked_buildings),
+                        declared_production_modifiers={
+                            getattr(Goods._value2member_map_.get(good), 'name', str(good)): value
+                            for good, value in TECH_CATALOG[tech_id].production_modifiers.items()},
+                        modifier_basis='technology_catalog_declaration',
                         cause_event_ids=([progress_id] if progress_id else None))
                     emit_innovation(
                         n_dst, kind='innovation_diffusion_progress_removed', record_class='calculation',

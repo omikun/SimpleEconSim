@@ -2193,8 +2193,8 @@ callbacks retain observation status. National snapshots include XP, known
 technologies, and active diffusion without creating an innovation system.
 The trace exposes the legacy tax-log lookup, military unit-count proxy,
 positive zero-trade diffusion, and the diffusion path's omitted resource and
-prerequisite gates. Bounty funding and payout instrumentation remains in the
-[innovation follow-up plan](innovation_causal_trace_plan.md).
+prerequisite gates. Bounty funding and payouts are covered by the following
+entry and the [innovation follow-up plan](innovation_causal_trace_plan.md).
 
 Verification: fixtures check all built-in pressure models and bounds, five
 domain learning rules, absent finance sources, rejected research gates,
@@ -2211,3 +2211,24 @@ failure reproduced against committed source modules. The fixture now checks
 the unstaffed efficiency floor, supplies adults in each required profession,
 then checks full staffing and scaled production bonuses. The revised check
 passes against both committed and working source modules; gameplay is unchanged.
+
+Phase 3/4 follow-up, 2026-10-19: royal science prizes record rejected offer
+gates, the aggregate-treasury affordability basis, sovereign cash debit,
+reserved escrow, discovery multiplier, individual capital-agent credits, and
+escrow removal. Cross-turn links connect reservation to research and payout;
+empty capitals expose unpaid escrow removal. Active prizes have snapshot
+identities, duplicate offers have distinct operation IDs, and the discovery
+journal is inventoried as multiple metrics. National trace context supports
+gates even after all territory is lost. A persistent-in-run knowledge-event
+cache links later prerequisite and diffusion evidence to actual discoveries;
+snapshots cannot replace these mutation links. Catalog production bonuses are
+labeled as declarations: source audit found no production consumer for them.
+
+Verification: fixtures cover offer rejection, deposit-backed aggregate
+affordability with a negative cash-only balance, trace-on/off funding and
+awards, per-agent conservation, empty-capital removal, duplicate prizes,
+snapshot identity, cross-turn source discovery links, and lost-territory gates.
+The broader innovation, trace, catalog, web parity, infrastructure, fertilizer,
+and two innovation client checks passed (95 tests; client checks used headless
+fallback). The final core innovation/trace/catalog run passed (54 tests).
+Python compilation and `git diff --check` passed.

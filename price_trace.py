@@ -294,7 +294,8 @@ def replay_event(row):
     elif formula in ('innovation.learning_by_doing.v1',
                      'innovation.bottleneck.v1', 'innovation.breakthrough_draw.v1',
                      'innovation.trade_diffusion.v1',
-                     'innovation.diffusion_adoption_reset.v1'):
+                     'innovation.diffusion_adoption_reset.v1',
+                     'innovation.bounty_reservation.v1', 'innovation.bounty_removal.v1'):
         from innovation_trace import replay_formula
         expected = replay_formula(formula, row['inputs'])
     else:

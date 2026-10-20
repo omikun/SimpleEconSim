@@ -38,6 +38,12 @@ def step_turn(t: int, tiles: list, nations: list = None,
         trace_clock['phase'] = 'strategy'
     if nations is None:
         nations = []
+    trace_recorder = next((getattr(tile, '_run_trace', None) for tile in tiles
+                           if getattr(tile, '_run_trace', None) is not None), None)
+    if trace_recorder is not None and trace_clock is not None:
+        for nation in nations:
+            nation._run_trace = trace_recorder
+            nation._collective_trace_clock = trace_clock
     # Per-turn counters belong to the simulation boundary. Snapshot/reporting
     # must remain read-only, including when invoked more than once.
     for tile in tiles:
