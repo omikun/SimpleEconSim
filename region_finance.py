@@ -736,29 +736,63 @@ def collect_tax(region, t):
     turn_prov_tax = 0.0
     turn_tile_tax = 0.0
     top_count = 0
+    tax_bill_evidence = []
+    tax_receipts = []
+    wealth_ranking = []
+    living_count = None
+    total_taxable = 0.0
+    effective_rate = None
+    assessment_reason = 'no_reserve_deficit'
     if deficit > 0:
         living = [a for a in region.agents if a.alive]
+        living_count = len(living)
+        assessment_reason = 'population_at_most_ten'
         if len(living) > 10:
-            sorted_agents = sorted(living, key=lambda a: a.wealth(), reverse=True)
+            observed_wealth = {}
+
+            def tax_rank_wealth(agent):
+                wealth = agent.wealth()
+                observed_wealth[agent.id] = float(wealth)
+                return wealth
+
+            sorted_agents = sorted(living, key=tax_rank_wealth, reverse=True)
+            wealth_ranking = [{'agent_id': agent.id,
+                               'wealth': observed_wealth[agent.id]}
+                              for agent in sorted_agents]
             top_count = max(1, int(len(sorted_agents) * 0.1))
             top = sorted_agents[:top_count]
             tax_bills = []
-            total_taxable = 0.0
+            assessment_reason = 'no_positive_tax_base'
             for a in top:
                 net_income = a._delta_cash + a._delta_deposits
                 taxable = max(0.0, net_income + a.tax_loss_carryforward)
+                child_deduction = 0.0
                 if hasattr(region.gov, 'compute_child_tax_deduction'):
-                    taxable = max(0.0, taxable - region.gov.compute_child_tax_deduction(a))
-                tax_bills.append((a, taxable, net_income))
+                    child_deduction = region.gov.compute_child_tax_deduction(a)
+                    taxable = max(0.0, taxable - child_deduction)
+                bill = {'agent_id': a.id, 'net_income': float(net_income),
+                        'loss_carryforward_before': float(a.tax_loss_carryforward),
+                        'child_deduction': float(child_deduction),
+                        'taxable_income': float(taxable), 'amount_paid': 0.0,
+                        'cash_before_payment': None, 'deposit_before_payment': None,
+                        'payment_status': 'no_positive_total_tax_base'}
+                tax_bill_evidence.append(bill)
+                tax_bills.append((a, taxable, net_income, bill))
                 total_taxable += taxable
             if total_taxable > 0:
                 effective_rate = min(region.gov.tax_rate, deficit / total_taxable)
-                for a, taxable, net_income in tax_bills:
+                assessment_reason = 'income_tax_assessed'
+                for a, taxable, net_income, bill in tax_bills:
                     if taxable <= 0:
                         a.tax_loss_carryforward += net_income
+                        bill.update(loss_carryforward_after=float(a.tax_loss_carryforward),
+                                    payment_status='no_positive_tax_base')
                         continue
                     tax_amount = taxable * effective_rate
                     bank_balance = bank.deposits.get(a, 0)
+                    bill.update(cash_before_payment=float(a.cash),
+                                deposit_before_payment=float(bank_balance),
+                                assessed_amount=float(tax_amount))
                     actual = min(tax_amount, a.cash + bank_balance)
                     if actual > 0:
                         cash_taken = min(a.cash, actual)
@@ -776,6 +810,12 @@ def collect_tax(region, t):
                         except Exception:
                             pass
                     a.tax_loss_carryforward = 0.0
+                    bill.update(amount_paid=float(actual),
+                                cash_after_debit=float(a.cash),
+                                deposit_after_debit=float(bank.deposits.get(a, 0)),
+                                loss_carryforward_after=float(a.tax_loss_carryforward),
+                                payment_status=('paid' if actual >= tax_amount else
+                                                'limited_by_cash_and_deposits'))
 
                     # Multi-Tier Statutory Split: 50% National Sovereign, 30% Provincial, 20% Municipal
                     owner_nation = getattr(region, 'owner_nation', None)
@@ -787,6 +827,7 @@ def collect_tax(region, t):
 
                     if nat_gov is not None and nat_gov is not tile_gov:
                         if prov_gov is not None and prov_gov is not tile_gov and prov_gov is not nat_gov:
+                            split_rule = 'national_50_provincial_30_municipal_residual'
                             nat_share = round(actual * 0.50, 6)
                             prov_share = round(actual * 0.30, 6)
                             tile_share = actual - nat_share - prov_share
@@ -805,6 +846,7 @@ def collect_tax(region, t):
                             turn_tile_tax += tile_share
                         else:
                             # 2-Tier: 50% National, 50% Local/Provincial
+                            split_rule = 'national_50_municipal_residual'
                             nat_share = round(actual * 0.50, 6)
                             tile_share = actual - nat_share
 
@@ -818,10 +860,23 @@ def collect_tax(region, t):
                             turn_tile_tax += tile_share
                     else:
                         # Single-Tier / Independent
+                        split_rule = 'municipal_only'
                         tile_share = actual
                         tile_gov.agent.cash += actual
                         tile_gov.record_income(t, 'tax', actual)
                         turn_tile_tax += actual
+
+                    allocations = {'national': float(nat_share),
+                                   'provincial': float(prov_share),
+                                   'municipal': float(tile_share)}
+                    bill.update(split_rule=split_rule, allocations=allocations)
+                    tax_receipts.append({
+                        'payer_id': a.id, 'amount': float(actual),
+                        'allocations': allocations, 'split_rule': split_rule,
+                        'recipient_governments': {
+                            tier: getattr(treasury, 'name', None) for tier, treasury in
+                            (('national', nat_gov), ('provincial', prov_gov),
+                             ('municipal', tile_gov))}})
 
                     from economy.actor_accounts import record as record_economic_event
                     for treasury, share in ((nat_gov, nat_share), (prov_gov, prov_share),
@@ -834,6 +889,24 @@ def collect_tax(region, t):
 
                     tax_collected += actual
 
+    assessment_trace_id = emit(
+        region, kind='income_tax_assessment_calculation',
+        record_class='calculation', phase='finance',
+        subject={'type': 'tile', 'id': region.name},
+        metric_id='finance.tax_assessment',
+        unit=getattr(region, 'home_currency', None) or 'local_currency',
+        after=tax_collected, formula_id='fiscal.income_tax_assessment.v1',
+        inputs={'turn': int(t), 'government': region.gov.name,
+                'reason': assessment_reason, 'reserve_deficit': float(deficit),
+                'statutory_tax_rate': float(region.gov.tax_rate),
+                'eligible_living_count': living_count, 'minimum_population_exclusive': 10,
+                'eligibility_rule': 'all living agents, including institutions and corporations',
+                'wealth_ranking': wealth_ranking, 'top_population_fraction': 0.1,
+                'selected_count': top_count, 'bills': tax_bill_evidence,
+                'total_taxable_income': float(total_taxable),
+                'effective_rate': effective_rate,
+                'ranking_tie_rule': 'stable input-agent order'},
+        cause_event_ids=([budget_trace_id] if budget_trace_id else None))
     if not hasattr(region, 'tax_distribution_log'):
         region.tax_distribution_log = []
     region.tax_distribution_log.append({
@@ -845,7 +918,15 @@ def collect_tax(region, t):
     tax_trace_id = _trace_treasury_flow(region, 'income_tax_collected', tax_collected,
                          {'municipal': turn_tile_tax, 'provincial': turn_prov_tax,
                           'national': turn_nat_tax, 'tax_rate': region.gov.tax_rate,
-                          'deficit_before_tax': deficit, 'taxpayer_count': top_count})
+                          'deficit_before_tax': deficit, 'taxpayer_count': top_count},
+                         cause_event_ids=([assessment_trace_id]
+                                          if assessment_trace_id else None))
+    from finance_trace import emit_tax_distribution
+    emit_tax_distribution(
+        region, turn=t, closing=region.tax_distribution_log[-1],
+        receipts=tax_receipts, reason='income_tax_new_turn_total',
+        cause_event_ids=[event_id for event_id in (assessment_trace_id, tax_trace_id)
+                         if event_id is not None])
 
     # ---- 4. If still short, borrow from the bank ----
     gap = max(0.0, deficit - tax_collected)
@@ -865,7 +946,8 @@ def collect_tax(region, t):
                 'borrow_request_threshold': 0.01,
                 'borrowing_requested': bool(gap > 0.01),
                 'meaning': 'requested financing need before bank approval'},
-        cause_event_ids=[event_id for event_id in (budget_trace_id, tax_trace_id)
+        cause_event_ids=[event_id for event_id in (budget_trace_id, assessment_trace_id,
+                                                  tax_trace_id)
                          if event_id is not None] or None)
     if gap > 0.01:
         before_liab = bank.total_liabilities

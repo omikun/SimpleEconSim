@@ -2162,3 +2162,23 @@ frozen bank preserves the requested gap while rejecting the loan. Fiscal,
 metric-catalog, and run-trace suites passed (48 tests); federalism and public
 transfer suites passed (8 tests). Python compilation and `git diff --check`
 passed.
+
+Phase 4/5 follow-up, 2026-10-19: income-tax assessments now retain the wealth
+ranking captured during the actual sort, selected taxpayers, net income, loss
+carryforwards, child deductions, deficit-capped rate, payment limits, and
+cash/deposit outcomes. The existing eligibility is all living agents,
+including institutions and corporations; the record states this explicitly.
+Assessment calculations link the reserve shortfall to tax receipts and the
+remaining financing gap. The tax-distribution history has replayable total,
+municipal, provincial, and national components. Later cadastral collections
+and foreclosure recoveries link their payment/allocation evidence and the
+prior same-turn distribution calculation. Nonseat and wilderness zero entries
+are explicit, and end-of-turn snapshots include all four components.
+
+Verification: single/two/three-tier fixtures match traced and untraced tax
+outcomes and preserve the number/order of child-deduction calls. Payment
+fixtures cover deficit-limited rates, deposit/cash limits, deductions, loss
+carryforwards, and zero taxable income. Scenario fixtures replay and link
+cadastral collection and foreclosure recovery additions. Run-trace, fiscal,
+cadastral, metric-catalog, federalism, public-transfer, and wilderness-trade
+suites passed (63 tests); Python compilation and `git diff --check` passed.

@@ -236,6 +236,10 @@ def step_wilderness(region, t):
         region.tribute_collected_log.append(0.0)
     if hasattr(region, 'tax_distribution_log'):
         region.tax_distribution_log.append({'total': 0.0, 'municipal': 0.0, 'provincial': 0.0, 'national': 0.0})
+        from finance_trace import emit_tax_distribution
+        emit_tax_distribution(
+            region, turn=t, closing=region.tax_distribution_log[-1],
+            reason='wilderness_no_income_tax', phase='local')
     if hasattr(region, 'grievance_sources_log'):
         region.grievance_sources_log.append({
             'raw': {'overworked': 0.0, 'rent_enclosure': 0.0, 'hunger': 0.0, 'labor_resistance': 0.0, 'unemployment': 0.0, 'tax': 0.0, 'repression': 0.0, 'inequality': 0.0},

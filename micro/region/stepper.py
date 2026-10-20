@@ -315,6 +315,10 @@ def step_economy(region: Any, t: int):
     _fin.collect_tax(region, t)
     if len(region.tax_distribution_log) < len(region.rent_collected_log):
         region.tax_distribution_log.append({'total': 0.0, 'municipal': 0.0, 'provincial': 0.0, 'national': 0.0})
+        from finance_trace import emit_tax_distribution
+        emit_tax_distribution(
+            region, turn=t, closing=region.tax_distribution_log[-1],
+            reason='no_local_tax_collection_at_nonseat')
     audit_cash(region, t, "tax_done")
 
     log_gdp(region)

@@ -683,6 +683,13 @@ def sample(tiles, nations):
                 getattr(tile, 'home_currency', None) or 'local_currency',
                 sum(float(income.get(key, 0.0))
                     for key in ('tax', 'tariff', 'inheritance')))
+        tax_history = getattr(tile, 'tax_distribution_log', ())
+        if tax_history:
+            for tier in ('total', 'municipal', 'provincial', 'national'):
+                values[('finance.tax_distribution', tile.name, tier)] = (
+                    {**tile_subject, 'tax_tier': tier},
+                    getattr(tile, 'home_currency', None) or 'local_currency',
+                    float(tax_history[-1].get(tier, 0.0)))
         for metric_id, field in (
                 ('trade.export_value', 'export_value_log'),
                 ('trade.import_value', 'import_value_log'),

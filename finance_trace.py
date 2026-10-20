@@ -94,3 +94,37 @@ def emit_treasury_leg(region, *, kind, nation_name, currency, signed_amount,
         inputs={'operation_id': contract['operation_id'],
                 'transfer_contract': contract, **(inputs or {})},
         cause_event_ids=cause_event_ids)
+
+
+def emit_tax_distribution(region, *, turn, closing, receipts=(), opening=None,
+                          reason, phase='finance', cause_event_ids=None):
+    """Explain each component of the current-turn tax distribution history."""
+    from run_trace import emit
+
+    tiers = ('total', 'municipal', 'provincial', 'national')
+    opening = {tier: float((opening or {}).get(tier, 0.0)) for tier in tiers}
+    receipts = list(receipts)
+    recorder = getattr(region, '_run_trace', None)
+    latest = (getattr(recorder, 'latest_metric_calculation_event_id', None)
+              or getattr(recorder, 'latest_metric_event_id', None))
+    event_ids = []
+    for tier in tiers:
+        subject = {'type': 'tile', 'id': region.name, 'tax_tier': tier}
+        causes = list(cause_event_ids or ())
+        previous_id = latest('finance.tax_distribution', subject) if callable(latest) else None
+        if previous_id is not None:
+            causes.append(previous_id)
+        event_id = emit(
+            region, kind='tax_revenue_distribution_calculation',
+            record_class='calculation', phase=phase, subject=subject,
+            metric_id='finance.tax_distribution',
+            unit=getattr(region, 'home_currency', None) or 'local_currency',
+            before=opening[tier], after=float(closing.get(tier, 0.0)),
+            formula_id='fiscal.tax_distribution.v1',
+            inputs={'turn': int(turn), 'reason': reason, 'tax_tier': tier,
+                    'opening_components': opening, 'receipts': receipts,
+                    'aggregation_rule': 'opening plus receipt allocations; total uses receipt amount'},
+            cause_event_ids=list(dict.fromkeys(causes)) or None)
+        if event_id is not None:
+            event_ids.append(event_id)
+    return event_ids

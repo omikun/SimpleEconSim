@@ -1,5 +1,7 @@
 import unittest
 from copy import deepcopy
+from pathlib import Path
+import tempfile
 from types import SimpleNamespace
 
 from agent import Agent, initialize_agent
@@ -98,6 +100,39 @@ def _foreclosure_fixture(with_trace=True):
 
 
 class CadastralTaxTraceTests(unittest.TestCase):
+    def test_distribution_history_replays_and_links_later_scenario_receipts(self):
+        from finance_trace import emit_tax_distribution
+        from run_trace import RunTrace
+
+        with tempfile.TemporaryDirectory() as tmp:
+            for mode, expected_total in (('assessment', 2.0), ('foreclosure', 6.0)):
+                fixture = (_tax_fixture() if mode == 'assessment'
+                           else _foreclosure_fixture())
+                world, tile = fixture[:2]
+                trace = RunTrace(Path(tmp) / f'{mode}.ctr', mode)
+                tile._run_trace = trace
+                emit_tax_distribution(
+                    tile, turn=world['turn'], closing=tile.tax_distribution_log[-1],
+                    reason='opening_income_tax_total')
+                initial = {row['subject']['tax_tier']: row['event_id']
+                           for row in trace.recent
+                           if row.get('metric_id') == 'finance.tax_distribution'}
+                if mode == 'assessment':
+                    _assess_arrears(world, tile, set())
+                else:
+                    cultivator = fixture[5]
+                    _foreclose(world, tile, cultivator,
+                               {'balance': 6.0, 'missed': 3, 'plot_id': 'plot-a'})
+                latest = {row['subject']['tax_tier']: row for row in trace.recent
+                          if row.get('metric_id') == 'finance.tax_distribution'}
+                self.assertEqual(latest['total']['value_after'], expected_total)
+                for tier, row in latest.items():
+                    self.assertTrue(row['formula_replay']['matches'])
+                    self.assertEqual(row['value_after'],
+                                     tile.tax_distribution_log[-1].get(tier, 0.0))
+                    self.assertIn(initial[tier], row['cause_event_ids'])
+                    self.assertGreater(len(row['cause_event_ids']), 1)
+
     def test_assessment_traces_household_payment_treasury_split_and_arrears(self):
         world, tile, nation, local, national, taxpayer, trace = _tax_fixture()
 

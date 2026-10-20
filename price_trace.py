@@ -254,6 +254,27 @@ def replay_event(row):
     elif formula == 'fiscal.remaining_tax_gap.v1':
         expected = max(0.0, row['inputs']['reserve_deficit']
                        - row['inputs']['tax_collected'])
+    elif formula == 'fiscal.income_tax_assessment.v1':
+        inputs = row['inputs']
+        bases = [max(0.0, max(0.0, bill['net_income']
+                             + bill['loss_carryforward_before'])
+                     - bill['child_deduction']) for bill in inputs['bills']]
+        taxable = sum(bases)
+        if inputs['reserve_deficit'] <= 0 or not taxable:
+            expected = 0.0
+        else:
+            rate = min(inputs['statutory_tax_rate'],
+                       inputs['reserve_deficit'] / taxable)
+            expected = sum(min(base * rate, bill['cash_before_payment']
+                               + bill['deposit_before_payment'])
+                           for bill, base in zip(inputs['bills'], bases) if base > 0)
+    elif formula == 'fiscal.tax_distribution.v1':
+        inputs = row['inputs']
+        tier = inputs['tax_tier']
+        expected = inputs['opening_components'][tier] + sum(
+            receipt['amount'] if tier == 'total'
+            else receipt['allocations'].get(tier, 0.0)
+            for receipt in inputs['receipts'])
     elif formula == 'fiscal.tax_rate_adjustment.v1':
         inputs = row['inputs']
         expected = inputs['prior_tax_rate']

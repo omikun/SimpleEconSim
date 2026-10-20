@@ -68,6 +68,7 @@ class MetricCatalogTraceCoverageTests(unittest.TestCase):
             'borrow_log': 'finance.fiscal_gap',
             'tax_rate_log': 'finance.tax_rate',
             'income_log': 'finance.government_income',
+            'tax_distribution_log': 'finance.tax_distribution',
         }
         for field, metric_id in expected.items():
             with self.subTest(field=field):

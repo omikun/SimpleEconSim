@@ -2639,3 +2639,25 @@ frozen-credit and shared-government fixtures check denied borrowing and
 nonseat behavior. Fiscal-policy, metric-catalog, and run-trace suites passed
 (48 tests); federalism and public-transfer suites passed (8 tests). Python
 compilation and `git diff --check` passed.
+
+## Phase 4/5 follow-up — Trace tax assessment and revenue allocation (implemented)
+
+Income-tax records capture wealth ranking during the real sort, actual selected
+agents, income/loss carryforwards, child deductions, effective rates capped by
+the reserve deficit, cash/deposit payment limits, and recipient-tier splits.
+The all-living-agent eligibility rule is explicit, including institutions and
+corporations when present. Assessment evidence links reserve deficit to tax
+receipts and financing gaps.
+
+Tax-distribution history now records total, municipal, provincial, and national
+flows from receipt allocations. Cadastral collections and foreclosure
+recoveries update the same history with source-operation links and previous
+same-turn calculation links. Nonseat and wilderness zero entries are recorded;
+snapshot coverage includes each tier.
+
+Verification: traced/untraced single/two/three-tier collections match and call
+child deductions in the same order/count. Fixtures cover deficit-limited
+rates, liquidity-limited payments, deductions, loss carryforwards, zero tax
+bases, and linked cadastral/foreclosure additions. Run-trace, fiscal-policy,
+cadastral, metric-catalog, federalism, public-transfer, and wilderness-trade
+suites passed (63 tests); Python compilation and `git diff --check` passed.

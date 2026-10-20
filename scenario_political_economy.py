@@ -759,6 +759,7 @@ def _assess_arrears(world, tile, assessed_ids):
                          if event_id is not None]
             _foreclose(world, tile, agent, row, cause_event_ids=cause_ids)
     if collected:
+        allocation_trace_ids = []
         national = round(collected * NATIONAL_CADASTRAL_SHARE, 6)
         local = collected - national
         if nation is not None:
@@ -766,13 +767,15 @@ def _assess_arrears(world, tile, assessed_ids):
             nation.government.agent.cash += national
             national_after = float(nation.government.agent.cash)
             pool_after_national = collected - national
-            _trace_tax_treasury_allocation(
+            allocation_id = _trace_tax_treasury_allocation(
                 tile, nation.government, nation=nation, tier='national',
                 amount=national, turn=turn,
                 collection_operation_id=collection_operation_id,
                 pool_before=collected, pool_after=pool_after_national,
                 treasury_before=national_before, treasury_after=national_after,
                 payment_event_ids=payment_event_ids)
+            if allocation_id is not None:
+                allocation_trace_ids.append(allocation_id)
             nation.government.record_income(turn, 'tax', national)
         else:
             local = collected
@@ -781,17 +784,30 @@ def _assess_arrears(world, tile, assessed_ids):
         local_before = float(tile.gov.agent.cash)
         tile.gov.agent.cash += local
         local_after = float(tile.gov.agent.cash)
-        _trace_tax_treasury_allocation(
+        allocation_id = _trace_tax_treasury_allocation(
             tile, tile.gov, nation=nation, tier='municipal', amount=local,
             turn=turn, collection_operation_id=collection_operation_id,
             pool_before=pool_after_national, pool_after=0.0,
             treasury_before=local_before, treasury_after=local_after,
             payment_event_ids=payment_event_ids)
+        if allocation_id is not None:
+            allocation_trace_ids.append(allocation_id)
         tile.gov.record_income(turn, 'tax', local)
         if getattr(tile, 'tax_distribution_log', None):
+            distribution_before = dict(tile.tax_distribution_log[-1])
             tile.tax_distribution_log[-1]['total'] += collected
             tile.tax_distribution_log[-1]['national'] += national
             tile.tax_distribution_log[-1]['municipal'] += local
+            from finance_trace import emit_tax_distribution
+            emit_tax_distribution(
+                tile, turn=turn, opening=distribution_before,
+                closing=tile.tax_distribution_log[-1],
+                receipts=[{'operation_id': collection_operation_id,
+                           'amount': float(collected),
+                           'allocations': {'national': float(national),
+                                           'municipal': float(local)}}],
+                reason='cadastral_tax_collection', phase='scenario_economy',
+                cause_event_ids=allocation_trace_ids + payment_event_ids)
 
 
 def _foreclose(world, tile, cultivator, row, *, cause_event_ids=None):
@@ -888,8 +904,17 @@ def _foreclose(world, tile, cultivator, row, *, cause_event_ids=None):
                 cash_event_ids.append(recovery_event_id)
         tile.gov.record_income(int(world['turn']), 'tax', recovery)
         if getattr(tile, 'tax_distribution_log', None):
+            distribution_before = dict(tile.tax_distribution_log[-1])
             tile.tax_distribution_log[-1]['total'] += recovery
             tile.tax_distribution_log[-1]['municipal'] += recovery
+            from finance_trace import emit_tax_distribution
+            emit_tax_distribution(
+                tile, turn=turn, opening=distribution_before,
+                closing=tile.tax_distribution_log[-1],
+                receipts=[{'operation_id': operation_id, 'amount': float(recovery),
+                           'allocations': {'municipal': float(recovery)}}],
+                reason='tax_foreclosure_recovery', phase='scenario_economy',
+                cause_event_ids=cash_event_ids)
         cultivator_cash_before = float(cultivator.cash)
         cultivator.cash += price - recovery
         if refund > 0:

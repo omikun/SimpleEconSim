@@ -8,6 +8,9 @@ import tempfile
 from types import SimpleNamespace
 import unittest
 
+from agent import Agent, initialize_agent
+from goods import Goods
+from government import Government
 from region import Region
 from region_finance import collect_tax
 from run_trace import RunTrace
@@ -38,7 +41,113 @@ def _state(region):
                   for loan in region.gov.agent.loans))
 
 
+def _income_region(tiers=3, *, limited_cash=False, deduction=0.0,
+                   incomes=(100.0, 100.0), carry=0.0):
+    region = _region()
+    region.gov.tax_adjust_interval = 100
+    region.agents = []
+    for index in range(20):
+        person = Agent(0)
+        person.id = index + 1
+        cash = ((1.0, 0.5) if limited_cash else (30.0, 20.0))
+        initialize_agent(person, Goods.food, 0, 0,
+                         cash[index] if index < 2 else 0.0)
+        person._delta_cash = incomes[index] if index < 2 else 0.0
+        person._delta_deposits = 0.0
+        person.tax_loss_carryforward = carry if index == 0 else 0.0
+        person._bank_ref = region.bank
+        region.agents.append(person)
+    if limited_cash:
+        region.bank.deposits[region.agents[0]] = 1.0
+        region.bank.total_deposits = 1.0
+    if tiers >= 2:
+        region.owner_nation.government = Government('National', 0, initial_cash=0)
+    if tiers == 3:
+        region.province = SimpleNamespace(
+            gov=Government('Provincial', 0, initial_cash=0))
+        region._seat_gov_agent = True
+    deduction_calls = []
+
+    def child_deduction(person):
+        deduction_calls.append(person.id)
+        return deduction
+
+    region.gov.compute_child_tax_deduction = child_deduction
+    return region, deduction_calls
+
+
 class FiscalPolicyTraceTests(unittest.TestCase):
+    def test_assessment_and_all_treasury_splits_match_untraced_outcomes(self):
+        expected_splits = {
+            1: {'total': 20.0, 'national': 0.0, 'provincial': 0.0, 'municipal': 20.0},
+            2: {'total': 20.0, 'national': 10.0, 'provincial': 0.0, 'municipal': 10.0},
+            3: {'total': 20.0, 'national': 10.0, 'provincial': 6.0, 'municipal': 4.0}}
+        with tempfile.TemporaryDirectory() as tmp:
+            for tiers in (1, 2, 3):
+                traced, calls = _income_region(tiers)
+                plain, plain_calls = _income_region(tiers)
+                trace = RunTrace(Path(tmp) / f'split-{tiers}.ctr', f'split-{tiers}')
+                traced._run_trace = trace
+                traced._collective_trace_clock = {
+                    'turn': 1, 'phase': 'finance', 'next': 1}
+                collect_tax(traced, 1)
+                collect_tax(plain, 1)
+                self.assertEqual(_state(traced), _state(plain))
+                self.assertEqual([(a.cash, a.tax_loss_carryforward)
+                                  for a in traced.agents],
+                                 [(a.cash, a.tax_loss_carryforward)
+                                  for a in plain.agents])
+                self.assertEqual(calls, plain_calls)
+                self.assertEqual(calls, [1, 2])
+                self.assertEqual(traced.tax_distribution_log[-1], expected_splits[tiers])
+                assessment = next(row for row in trace.recent
+                                  if row.get('metric_id') == 'finance.tax_assessment')
+                self.assertTrue(assessment['formula_replay']['matches'])
+                self.assertEqual(assessment['inputs']['effective_rate'], 0.1)
+                self.assertEqual([bill['agent_id'] for bill in
+                                  assessment['inputs']['bills']], [1, 2])
+                self.assertEqual([row['agent_id'] for row in
+                                  assessment['inputs']['wealth_ranking'][:2]], [1, 2])
+                distributions = [row for row in trace.recent
+                                 if row.get('metric_id') == 'finance.tax_distribution']
+                self.assertEqual(len(distributions), 4)
+                for row in distributions:
+                    tier = row['subject']['tax_tier']
+                    self.assertEqual(row['value_after'], expected_splits[tiers][tier])
+                    self.assertTrue(row['formula_replay']['matches'])
+                    self.assertIn(assessment['event_id'], row['cause_event_ids'])
+                snapshots = sample([traced], [])
+                for tier, expected in expected_splits[tiers].items():
+                    self.assertEqual(snapshots[(
+                        'finance.tax_distribution', traced.name, tier)][2], expected)
+
+    def test_tax_bases_capture_deductions_losses_and_liquidity_limits(self):
+        cases = (
+            ({'limited_cash': True}, 2.5, 'income_tax_assessed'),
+            ({'deduction': 10.0, 'incomes': (50.0, -10.0), 'carry': -20.0},
+             5.0, 'income_tax_assessed'),
+            ({'incomes': (0.0, 0.0)}, 0.0, 'no_positive_tax_base'))
+        with tempfile.TemporaryDirectory() as tmp:
+            for index, (options, expected, reason) in enumerate(cases):
+                region, calls = _income_region(1, **options)
+                trace = RunTrace(Path(tmp) / f'bases-{index}.ctr', f'bases-{index}')
+                region._run_trace = trace
+                region._collective_trace_clock = {
+                    'turn': 1, 'phase': 'finance', 'next': 1}
+                collect_tax(region, 1)
+                assessment = next(row for row in trace.recent
+                                  if row.get('metric_id') == 'finance.tax_assessment')
+                self.assertEqual(assessment['value_after'], expected)
+                self.assertTrue(assessment['formula_replay']['matches'])
+                self.assertEqual(assessment['inputs']['reason'], reason)
+                self.assertEqual(calls, [1, 2])
+                if options.get('limited_cash'):
+                    first = assessment['inputs']['bills'][0]
+                    self.assertEqual(first['payment_status'],
+                                     'limited_by_cash_and_deposits')
+                    self.assertEqual(first['deposit_before_payment'], 1.0)
+                    self.assertEqual(first['deposit_after_debit'], 0.0)
+
     def test_rate_reasons_bounds_and_hold_gates_replay(self):
         cases = (
             (0.0, 0.6, [20.0], 2, 0.75, 'persistent_financing_gap'),
