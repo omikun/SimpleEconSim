@@ -1068,6 +1068,8 @@ def record(server):
                                           'municipal_cash': treasury['municipal_cash'],
                                           'cash_total': treasury['cash'],
                                           'deposits': treasury['deposits'],
+                                          'government_accounts': treasury.get('accounts'),
+                                          'aggregation_rule': 'unique governments and government-bank deposit accounts',
                                           'member_tiles': members})
             for metric_id, unit, values_by_tile, reducer in (
                     ('people.population', 'people',

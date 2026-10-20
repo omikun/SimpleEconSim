@@ -2251,3 +2251,21 @@ factions with retained support, and policy/history separation. Faction,
 run-trace, catalog, anti-truck, and labor-law suites passed (50 tests); final
 faction/catalog checks passed (8 tests). Python compilation and
 `git diff --check` passed.
+
+Accounting repair, 2026-10-19: the default 80-tile, three-nation diagnostic
+exposed duplicate public-money aggregation in `Nation.treasury()`. The report
+now counts each sovereign/provincial/municipal government and government-bank
+deposit account once, and includes distinct provincial treasuries previously
+omitted from the aggregate. Cash tier subtotals, unique deposits, food, and
+serializable account evidence are retained. The repair changes displayed and
+AI-visible totals without moving money or pooling local balances into
+sovereign cash. Details and reproducible probe settings are in the
+[treasury repair plan](treasury_accounting_repair_plan.md).
+
+Verification: shared institutions, distinct tiers, same-named governments,
+multi-bank deposits, removal of one shared tile, sovereign aliases, and
+read-only reporting pass. Treasury, federalism, funding, banking, public
+transfers, web parity, and run-trace suites passed (86 tests). A repeated
+three-turn default run verified 112,921 rows / 6,452,658 compact bytes and
+three checkpoints. Treasury residuals remain visible; bank closing balances
+and four final labor rollups remain the next live-run coverage gaps.

@@ -2716,3 +2716,18 @@ pruning, support bounds, empty groups/populations, and policy/history separation
 Faction, run-trace, catalog, anti-truck and labor-law suites passed (50 tests);
 final faction/catalog checks passed (8 tests). Python compilation and
 `git diff --check` passed.
+
+## Phase 0/3 follow-up — Correct duplicate treasury aggregation (implemented)
+
+The default-world probe exposed public accounts counted once per member tile.
+`Nation.treasury()` now deduplicates governments and government-bank deposit
+accounts, counts distinct provincial tiers, and exposes account components.
+The [repair plan](treasury_accounting_repair_plan.md) records changed
+AI/displayed totals, tests and before/after probe measurements. No money is
+moved, and no synthetic flow erases the remaining reconciliation residuals.
+
+The treasury, fiscal, funding, banking, public-transfer, web parity and
+run-trace suites passed 86 tests. Three default turns produced a valid
+112,921-row / 6,452,658-byte trace with three checkpoints. Final bank stocks,
+treasury operation residuals, and four final labor rollups remain open in that
+live diagnostic; this is not a Phase 6 completion or performance claim.

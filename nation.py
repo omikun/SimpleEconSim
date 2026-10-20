@@ -162,39 +162,66 @@ class Nation:
     def treasury(self) -> dict:
         """Nation-level treasury snapshot across all tiles.
 
-        Sums the sovereign government's own cash/deposits plus each tile
-        government's cash/deposits and food inventory.  Deposits are read
-        from each tile's bank.  Conserved-money view: this never moves money,
-        it only tallies.
+        Count each sovereign/provincial/municipal government and bank deposit
+        account once, even when several tiles share their institutions.
+        Values retain the model's existing unconverted currency semantics.
+        Deposit bank-reference indices are local to this report.
         """
-        gov = self.government
-        bank = getattr(gov, '_bank_ref', None)
-        sovereign_cash = gov.agent.cash
-        cash = sovereign_cash
-        provincial_cash = 0.0
-        municipal_cash = 0.0
-        deposits = 0.0
-        if bank is not None:
-            deposits = bank.deposits.get(gov.agent, 0.0)
-        food = int(getattr(gov, 'food_inventory', 0))
+        governments = []
+        seen_governments = set()
+        banks = []
+        seen_banks = set()
 
-        seen_prov_govs = set()
+        def add_bank(bank):
+            if bank is not None and id(bank) not in seen_banks:
+                seen_banks.add(id(bank))
+                banks.append(bank)
+
+        def add_government(government, tier):
+            if government is None or id(government) in seen_governments:
+                return
+            seen_governments.add(id(government))
+            governments.append((government, tier))
+            add_bank(getattr(government, '_bank_ref', None))
+            add_bank(getattr(government.agent, '_bank_ref', None))
+
+        add_government(self.government, 'sovereign')
+        # Provincial references precede municipal aliases, so a shared
+        # government is classified at its highest tier.
         for region in self.tiles:
             province = getattr(region, 'province', None)
-            prov_gov = getattr(province, 'gov', None) if province else None
-            if prov_gov is not None and prov_gov not in seen_prov_govs and prov_gov is not gov:
-                seen_prov_govs.add(prov_gov)
-                provincial_cash += prov_gov.agent.cash
+            if province is not None:
+                add_government(getattr(province, 'gov', None), 'provincial')
+                add_bank(getattr(province, 'bank', None))
+        for region in self.tiles:
+            add_government(getattr(region, 'gov', None), 'municipal')
+            add_bank(getattr(region, 'bank', None))
 
-            rgov = getattr(region, 'gov', None)
-            if rgov is not None and rgov is not gov:
-                if rgov not in seen_prov_govs:
-                    municipal_cash += rgov.agent.cash
-                cash += rgov.agent.cash
-                rbank = getattr(region, 'bank', None)
-                if rbank is not None:
-                    deposits += rbank.deposits.get(rgov.agent, 0.0)
-                food += int(getattr(rgov, 'food_inventory', 0))
+        accounts = []
+        for government, tier in governments:
+            deposit_accounts = []
+            for index, bank in enumerate(banks):
+                balance = bank.deposits.get(government.agent, 0.0)
+                if balance:
+                    bank_gov = getattr(bank, 'gov', None)
+                    deposit_accounts.append({
+                        'bank_reference_index': index,
+                        'bank_government': getattr(bank_gov, 'name', None),
+                        'balance': float(balance)})
+            accounts.append({
+                'government_id': getattr(government.agent, 'id', government.name),
+                'government': government.name, 'tier': tier,
+                'cash': float(government.agent.cash),
+                'deposits': sum(row['balance'] for row in deposit_accounts),
+                'deposit_accounts': deposit_accounts,
+                'food': int(getattr(government, 'food_inventory', 0))})
+
+        sovereign_cash = sum(row['cash'] for row in accounts if row['tier'] == 'sovereign')
+        provincial_cash = sum(row['cash'] for row in accounts if row['tier'] == 'provincial')
+        municipal_cash = sum(row['cash'] for row in accounts if row['tier'] == 'municipal')
+        cash = sovereign_cash + provincial_cash + municipal_cash
+        deposits = sum(row['deposits'] for row in accounts)
+        food = sum(row['food'] for row in accounts)
 
         return {
             'name': self.name,
@@ -206,6 +233,7 @@ class Nation:
             'deposits': deposits,
             'food': food,
             'total': cash + deposits,
+            'accounts': accounts,
         }
 
     # ------------------------------------------------------------------
