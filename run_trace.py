@@ -202,7 +202,9 @@ class RunTrace:
                 'people.population_change_rate', 'trade.trader_cash',
                 'trade.pipeline_depth', 'finance.fiscal_deficit',
                 'finance.fiscal_gap', 'finance.tax_rate',
-                'finance.tax_assessment', 'finance.tax_distribution')):
+                'finance.tax_assessment', 'finance.tax_distribution',
+                'innovation.domain_experience', 'innovation.bottleneck_pressure',
+                'innovation.breakthrough', 'innovation.diffusion_progress')):
             from price_trace import replay_event
             replay = replay_event(row)
             if replay is not None:

@@ -1,6 +1,7 @@
 """Read-only end-of-turn observations and explicit provenance gaps."""
 
 from goods import Goods
+import sys
 
 
 def _agent_role(agent):
@@ -810,8 +811,19 @@ def sample(tiles, nations):
         if getattr(tile, 'cost_of_living', None) is not None:
             values[('living.cost_of_living', tile.name)] = (
                 tile_subject, 'local_currency_per_basket', float(tile.cost_of_living))
+    innovation_system = getattr(sys.modules.get('innovation'), '_INNOVATION_SYSTEM', None)
     for nation in nations:
         subject = {'type': 'nation', 'id': nation.name}
+        if innovation_system is not None:
+            for domain, experience in innovation_system.domain_experience.get(nation.name, {}).items():
+                values[('innovation.domain_experience', nation.name, domain)] = (
+                    {**subject, 'domain': domain}, 'experience_points', float(experience))
+            for tech_id in sorted(innovation_system.discovered_techs.get(nation.name, ())):
+                values[('innovation.technology_known', nation.name, tech_id)] = (
+                    {**subject, 'tech_id': tech_id}, 'boolean', 1)
+            for tech_id, progress in innovation_system.diffusion_progress.get(nation.name, {}).items():
+                values[('innovation.diffusion_progress', nation.name, tech_id)] = (
+                    {**subject, 'tech_id': tech_id}, 'progress_fraction', float(progress))
         values[('finance.treasury', nation.name)] = (
             subject, nation.currency, float(nation.treasury()['total']))
         values[('politics.legitimacy', nation.name)] = (

@@ -64,12 +64,22 @@ class Technology:
 # Bottleneck Pressure Calculators (Real-World Economic Incentives)
 # -----------------------------------------------------------------------------
 
-def _eval_food_bottleneck(nation: Nation, tiles: list[Region]) -> float:
+def _eval_food_bottleneck(nation: Nation, tiles: list[Region], *, evidence=None) -> float:
     """High food price inflation & hunger accelerate agricultural breakthroughs."""
     if not tiles:
+        if evidence is not None:
+            evidence.update(model='food', no_tiles=True)
         return 1.0
-    avg_food_price = sum(r.recipes.get(Goods.food, {}).get('price', 1.0) for r in tiles) / len(tiles)
-    hungry_count = sum(sum(1 for a in r.agents if getattr(a, 'hungry_steps', 0) > 0) for r in tiles)
+    prices = [{'tile': getattr(r, 'name', 'unknown'),
+               'price': r.recipes.get(Goods.food, {}).get('price', 1.0)} for r in tiles]
+    avg_food_price = sum(row['price'] for row in prices) / len(tiles)
+    hungry_agents = [{'tile': getattr(r, 'name', 'unknown'), 'agent_id': getattr(a, 'id', None)}
+                     for r in tiles for a in r.agents
+                     if getattr(a, 'hungry_steps', 0) > 0]
+    hungry_count = len(hungry_agents)
+    if evidence is not None:
+        evidence.update(model='food', tile_food_prices=prices,
+                        hungry_agents=hungry_agents)
     multiplier = 1.0
     if avg_food_price > 1.8:
         multiplier += (avg_food_price - 1.8) * 1.5
@@ -78,12 +88,17 @@ def _eval_food_bottleneck(nation: Nation, tiles: list[Region]) -> float:
     return min(4.0, multiplier)
 
 
-def _eval_mountain_bottleneck(nation: Nation, tiles: list[Region]) -> float:
+def _eval_mountain_bottleneck(nation: Nation, tiles: list[Region], *, evidence=None) -> float:
     """High elevation, impassable cliffs, and mountain borders accelerate blasting & tunneling."""
     if not tiles:
+        if evidence is not None:
+            evidence.update(model='mountain', no_tiles=True)
         return 1.0
-    high_tiles = sum(1 for r in tiles if getattr(r, 'elevation', 0.0) >= 0.50)
+    high_tile_names = [getattr(r, 'name', 'unknown') for r in tiles
+                       if getattr(r, 'elevation', 0.0) >= 0.50]
+    high_tiles = len(high_tile_names)
     blocked_edges = 0
+    blocked_adjacencies = []
     from terrain_edges import get_edge_manager
     em = get_edge_manager()
     if em:
@@ -92,27 +107,44 @@ def _eval_mountain_bottleneck(nation: Nation, tiles: list[Region]) -> float:
                 edge = em.get_edge(r.name, other_name)
                 if edge and not edge.passable:
                     blocked_edges += 1
+                    blocked_adjacencies.append([r.name, other_name])
+    if evidence is not None:
+        evidence.update(model='mountain', high_tiles=high_tile_names,
+                        blocked_adjacencies=blocked_adjacencies,
+                        counting_rule='each blocked tile adjacency, including repeated undirected edges')
     multiplier = 1.0 + (high_tiles * 0.4) + (blocked_edges * 0.3)
     return min(4.5, multiplier)
 
 
-def _eval_wage_labor_bottleneck(nation: Nation, tiles: list[Region]) -> float:
+def _eval_wage_labor_bottleneck(nation: Nation, tiles: list[Region], *, evidence=None) -> float:
     """High worker wages and labor shortages accelerate mechanization & labor-saving tools."""
     if not tiles:
+        if evidence is not None:
+            evidence.update(model='wages', no_tiles=True)
         return 1.0
-    wages = [a.wage for r in tiles for a in getattr(r, 'agents', []) if hasattr(a, 'wage') and a.wage > 0]
+    wage_rows = [{'tile': getattr(r, 'name', 'unknown'),
+                 'agent_id': getattr(a, 'id', None), 'wage': a.wage}
+                 for r in tiles for a in getattr(r, 'agents', [])
+                 if hasattr(a, 'wage') and a.wage > 0]
+    wages = [row['wage'] for row in wage_rows]
     avg_wage = (sum(wages) / len(wages)) if wages else 1.0
+    if evidence is not None:
+        evidence.update(model='wages', positive_wages=wage_rows,
+                        eligibility_rule='all agents with a positive wage field')
     multiplier = 1.0
     if avg_wage > 2.0:
         multiplier += (avg_wage - 2.0) * 1.2
     return min(3.5, multiplier)
 
 
-def _eval_war_bottleneck(nation: Nation, tiles: list[Region]) -> float:
+def _eval_war_bottleneck(nation: Nation, tiles: list[Region], *, evidence=None) -> float:
     """Active wars and military threats accelerate military doctrine & supply logistics."""
     from diplomacy import get_diplomacy
     dip = get_diplomacy()
-    active_wars = len([w for w in dip.active_wars if nation.name in w])
+    wars = [w for w in dip.active_wars if nation.name in w]
+    active_wars = len(wars)
+    if evidence is not None:
+        evidence.update(model='war', active_wars=[list(w) for w in wars])
     if active_wars > 0:
         return 2.5 + active_wars * 1.0
     return 1.0
@@ -472,6 +504,18 @@ class RoyalBounty:
     offered_turn: int
 
 
+def _learning_sample(tile, field_name, good=None, *, owner=...):
+    owner = tile if owner is ... else owner
+    series = getattr(owner, field_name, {} if good is not None else ())
+    history = series.get(good, ()) if good is not None else series
+    return {'tile': tile.name, 'source_field': field_name,
+            'good': getattr(good, 'name', str(good)) if good is not None else None,
+            'quantity': history[-1] if history else 0,
+            'sample_index': len(history) - 1 if history else None,
+            'source_available': bool(history),
+            'source_metric_id': 'goods.production' if field_name == 'production_log' else None}
+
+
 class InnovationSystem:
     """Orchestrator for domain practice, induced bottlenecks, bounties, and trade diffusion."""
 
@@ -521,6 +565,8 @@ class InnovationSystem:
 
     def accumulate_learning_by_doing(self, tiles: list[Region], nations: list[Nation], t: int):
         """Accumulate domain practice from actual economic production and activity."""
+        from innovation_trace import record_learning
+
         for n in nations:
             nat_tiles = n.tiles
             if not nat_tiles:
@@ -528,53 +574,128 @@ class InnovationSystem:
             nat_xp = self.domain_experience.setdefault(n.name, {})
             for d in TechDomain:
                 nat_xp.setdefault(d.value, 0.0)
+            opening_xp = dict(nat_xp)
 
             # 1. Agronomy: Calibrated so ~200 food/turn yields ~3.0 XP/turn
-            food_produced = sum(r.production_log.get(Goods.food, [0])[-1] if getattr(r, 'production_log', {}).get(Goods.food) else 0 for r in nat_tiles)
+            food_samples = [_learning_sample(r, 'production_log', Goods.food) for r in nat_tiles]
+            food_produced = sum(row['quantity'] for row in food_samples)
             nat_xp[TechDomain.AGRONOMY.value] += food_produced * 0.015
+            record_learning(n, TechDomain.AGRONOMY.value,
+                            opening_xp[TechDomain.AGRONOMY.value],
+                            nat_xp[TechDomain.AGRONOMY.value],
+                            [{'quantity': food_produced, 'coefficient': 0.015,
+                              'source': 'food_output', 'tile_samples': food_samples}], turn=t)
 
             # 2. Manufacturing: Timber and Furniture production (~2.5 XP/turn)
-            wood_p = sum(r.production_log.get(Goods.wood, [0])[-1] if getattr(r, 'production_log', {}).get(Goods.wood) else 0 for r in nat_tiles)
-            furn_p = sum(r.production_log.get(Goods.furniture, [0])[-1] if getattr(r, 'production_log', {}).get(Goods.furniture) else 0 for r in nat_tiles)
+            wood_samples = [_learning_sample(r, 'production_log', Goods.wood) for r in nat_tiles]
+            furniture_samples = [_learning_sample(r, 'production_log', Goods.furniture) for r in nat_tiles]
+            wood_p = sum(row['quantity'] for row in wood_samples)
+            furn_p = sum(row['quantity'] for row in furniture_samples)
             nat_xp[TechDomain.MANUFACTURING.value] += (wood_p * 0.02 + furn_p * 0.035)
+            record_learning(n, TechDomain.MANUFACTURING.value,
+                            opening_xp[TechDomain.MANUFACTURING.value],
+                            nat_xp[TechDomain.MANUFACTURING.value],
+                            [{'quantity': wood_p, 'coefficient': 0.02,
+                              'source': 'wood_output', 'tile_samples': wood_samples},
+                             {'quantity': furn_p, 'coefficient': 0.035,
+                              'source': 'furniture_output', 'tile_samples': furniture_samples}], turn=t)
 
             # 3. Civil Engineering: Freight volume across terrain (~2.0 XP/turn)
-            trade_vol = sum(sum(r.export_vol[g][-1] for g in r.export_vol if r.export_vol[g]) for r in nat_tiles)
+            exports_by_tile = [[_learning_sample(r, 'export_vol', good)
+                                for good in r.export_vol if r.export_vol[good]] for r in nat_tiles]
+            export_samples = [row for rows in exports_by_tile for row in rows]
+            trade_vol = sum(sum(row['quantity'] for row in rows) for rows in exports_by_tile)
             nat_xp[TechDomain.CIVIL_ENGINEERING.value] += trade_vol * 0.02
+            record_learning(n, TechDomain.CIVIL_ENGINEERING.value,
+                            opening_xp[TechDomain.CIVIL_ENGINEERING.value],
+                            nat_xp[TechDomain.CIVIL_ENGINEERING.value],
+                            [{'quantity': trade_vol, 'coefficient': 0.02,
+                              'source': 'export_units', 'tile_samples': export_samples}], turn=t)
 
             # 4. Finance: Commercial transactions & tax collections (~1.5 XP/turn)
-            taxes = sum(getattr(r.gov, 'tax_revenue_log', [0.0])[-1] if getattr(r.gov, 'tax_revenue_log', None) else 0.0 for r in nat_tiles)
+            tax_samples = [_learning_sample(r, 'tax_revenue_log', owner=r.gov) for r in nat_tiles]
+            taxes = sum(row['quantity'] for row in tax_samples)
             nat_xp[TechDomain.FINANCE.value] += (taxes * 0.01 + len(n.provinces) * 0.25)
+            record_learning(n, TechDomain.FINANCE.value,
+                            opening_xp[TechDomain.FINANCE.value], nat_xp[TechDomain.FINANCE.value],
+                            [{'quantity': taxes, 'coefficient': 0.01,
+                              'source': 'legacy_tax_revenue_log', 'tile_samples': tax_samples},
+                             {'quantity': len(n.provinces), 'coefficient': 0.25,
+                              'source': 'province_count'}], turn=t)
 
             # 5. Military: Active soldiers & garrisons (~1.5 XP/turn)
-            soldiers = sum(len(getattr(r, 'military_units', [])) * 10 for r in nat_tiles)
+            military_samples = [
+                {'tile': r.name, 'quantity': len(getattr(r, 'military_units', [])) * 10,
+                 'unit_ids': [getattr(unit, 'id', None) for unit in getattr(r, 'military_units', [])],
+                 'counting_rule': 'ten soldier-equivalents per unit object; ignores unit strength'}
+                for r in nat_tiles]
+            soldiers = sum(row['quantity'] for row in military_samples)
             nat_xp[TechDomain.MILITARY.value] += (soldiers * 0.02 + 0.2)
+            record_learning(n, TechDomain.MILITARY.value,
+                            opening_xp[TechDomain.MILITARY.value], nat_xp[TechDomain.MILITARY.value],
+                            [{'quantity': soldiers, 'coefficient': 0.02,
+                              'source': 'soldier_equivalents', 'tile_samples': military_samples}],
+                            turn=t, fixed_increment=0.2)
 
     def evaluate_breakthroughs(self, nations: list[Nation], t: int) -> list[dict]:
         """Check if cumulative experience and economic bottleneck pressure trigger a breakthrough."""
+        from innovation_trace import (emit_innovation, latest_innovation_event,
+                                      record_pressure, record_research_gate,
+                                      record_technology, trace_region)
+
         events = []
         for n in nations:
             discovered = self.get_discovered_techs(n.name)
             nat_tiles = n.tiles
             if not nat_tiles:
+                fallback = next((trace_region(other) for other in nations
+                                 if trace_region(other) is not None), None)
+                record_research_gate(n, '*', t, 'no_territory', region_override=fallback)
                 continue
 
             for tech_id, tech in TECH_CATALOG.items():
                 if tech_id in discovered:
+                    record_research_gate(n, tech_id, t, 'already_known')
                     continue
 
                 # 1. Technology prerequisites check
-                if tech.required_techs and not all(req in discovered for req in tech.required_techs):
+                missing_techs = [req for req in tech.required_techs if req not in discovered]
+                if missing_techs:
+                    record_research_gate(n, tech_id, t, 'missing_prerequisites',
+                                         missing_technologies=missing_techs,
+                                         resource_gate='not_evaluated_after_prerequisite_gate')
                     continue
 
                 # 2. Natural resource prerequisites check (domestic ownership or trade imports)
                 nat_res = get_nation_resources(n, nat_tiles)
-                if tech.required_resources and not all(res in nat_res for res in tech.required_resources):
+                missing_resources = [res for res in tech.required_resources if res not in nat_res]
+                if missing_resources:
+                    record_research_gate(
+                        n, tech_id, t, 'missing_resources',
+                        available_resources=sorted(getattr(res, 'value', str(res)) for res in nat_res),
+                        missing_resources=[getattr(res, 'value', str(res)) for res in missing_resources])
                     continue
 
                 xp = self.get_domain_xp(n.name, tech.domain)
                 # Calculate bottleneck pressure multiplier (e.g. 1.0x to 3.5x)
-                pressure = tech.bottleneck_evaluator(n, nat_tiles) if tech.bottleneck_evaluator else 1.0
+                evaluator = tech.bottleneck_evaluator
+                pressure_inputs = {}
+                known_formula = evaluator is None or evaluator in (
+                    _eval_food_bottleneck, _eval_mountain_bottleneck,
+                    _eval_wage_labor_bottleneck, _eval_war_bottleneck)
+                if evaluator is None:
+                    pressure = 1.0
+                    pressure_inputs['model'] = 'none'
+                elif known_formula:
+                    pressure = evaluator(n, nat_tiles, evidence=pressure_inputs)
+                else:
+                    pressure = evaluator(n, nat_tiles)
+                    pressure_inputs.update(model='custom',
+                                           evaluator=getattr(evaluator, '__name__', 'custom'),
+                                           evidence_status='callback_result_only')
+                raw_pressure = pressure
+                pressure_trace_id = record_pressure(
+                    n, tech_id, t, raw_pressure, pressure_inputs, known_formula=known_formula)
 
                 # Check if a royal bounty exists for this tech (adds massive 3.5x focused acceleration)
                 bounty_obj = next((b for b in self.active_bounties if b.nation_name == n.name and b.tech_id == tech_id), None)
@@ -584,33 +705,61 @@ class InnovationSystem:
                 effective_xp = xp * pressure
 
                 # Threshold check & probabilistic breakthrough
+                base_chance = None
+                draw = None
+                success = False
                 if effective_xp >= tech.base_xp_required:
                     # Measured chance per turn: 6% baseline once threshold reached, boosted up to 35% with bounty
                     base_chance = 0.06 + 0.12 * min(1.0, (effective_xp - tech.base_xp_required) / tech.base_xp_required)
                     if bounty_obj:
                         base_chance = min(0.40, base_chance + 0.20)
 
-                    if rand.random() < base_chance:
-                        # Breakthrough achieved!
-                        discovered.add(tech_id)
-                        msg = f"BREAKTHROUGH: {n.name} discovered '{tech.name}' via {tech.domain.value} practice (Pressure: {pressure:.1f}x)!"
-                        event = {'t': t, 'nation': n.name, 'tech_id': tech_id, 'tech_name': tech.name, 'event': 'DISCOVERY', 'message': msg}
-                        events.append(event)
-                        self.discovery_log.append(event)
+                    draw = rand.random()
+                    success = draw < base_chance
+                learning_id = latest_innovation_event(
+                    n, 'innovation.domain_experience', domain=tech.domain.value)
+                evaluation_id = emit_innovation(
+                    n, kind='innovation_breakthrough_evaluation', record_class='calculation',
+                    subject_fields={'tech_id': tech_id}, metric_id='innovation.breakthrough',
+                    unit='boolean', after=int(success),
+                    formula_id='innovation.breakthrough_draw.v1',
+                    inputs={'turn': int(t), 'domain': tech.domain.value,
+                            'domain_experience': xp, 'bottleneck_multiplier': raw_pressure,
+                            'bounty_active': bounty_obj is not None,
+                            'bounty_amount': bounty_obj.bounty_amount if bounty_obj else None,
+                            'effective_experience': effective_xp,
+                            'required_experience': tech.base_xp_required,
+                            'threshold_met': effective_xp >= tech.base_xp_required,
+                            'chance': base_chance, 'random_draw': draw,
+                            'available_resources': sorted(getattr(res, 'value', str(res)) for res in nat_res),
+                            'required_technologies': list(tech.required_techs),
+                            'reason': ('discovered' if success else 'breakthrough_roll_failed'
+                                       if draw is not None else 'experience_below_threshold')},
+                    cause_event_ids=[event_id for event_id in (learning_id, pressure_trace_id)
+                                     if event_id is not None] or None)
+                if success:
+                    discovered.add(tech_id)
+                    record_technology(
+                        n, tech_id, t, 'domestic_breakthrough',
+                        unlocked_buildings=list(tech.unlocked_buildings),
+                        production_modifiers={str(good): value for good, value in tech.production_modifiers.items()},
+                        cause_event_ids=([evaluation_id] if evaluation_id else None))
+                    msg = f"BREAKTHROUGH: {n.name} discovered '{tech.name}' via {tech.domain.value} practice (Pressure: {pressure:.1f}x)!"
+                    event = {'t': t, 'nation': n.name, 'tech_id': tech_id, 'tech_name': tech.name, 'event': 'DISCOVERY', 'message': msg}
+                    events.append(event)
+                    self.discovery_log.append(event)
 
-                        # Award royal bounty if active (conserve money by paying inventing citizens)
-                        if bounty_obj:
-                            self.active_bounties.remove(bounty_obj)
-                            # Disburse cash to the citizens of the capital tile
-                            cap_tile = nat_tiles[0]
-                            if cap_tile.agents:
-                                share = bounty_obj.bounty_amount / len(cap_tile.agents)
-                                for a in cap_tile.agents:
-                                    a.cash += share
-                            self.discovery_log.append({
-                                't': t, 'event': 'BOUNTY_AWARDED',
-                                'message': f"Royal Bounty of ${bounty_obj.bounty_amount:,.0f} awarded to {cap_tile.name} inventors for '{tech.name}'!"
-                            })
+                    if bounty_obj:
+                        self.active_bounties.remove(bounty_obj)
+                        cap_tile = nat_tiles[0]
+                        if cap_tile.agents:
+                            share = bounty_obj.bounty_amount / len(cap_tile.agents)
+                            for a in cap_tile.agents:
+                                a.cash += share
+                        self.discovery_log.append({
+                            't': t, 'event': 'BOUNTY_AWARDED',
+                            'message': f"Royal Bounty of ${bounty_obj.bounty_amount:,.0f} awarded to {cap_tile.name} inventors for '{tech.name}'!"
+                        })
 
         return events
 
@@ -618,6 +767,8 @@ class InnovationSystem:
         """Diffuse unlocked innovations to trading partners based on trade intimacy and bilateral treaties."""
         events = []
         from diplomacy import get_diplomacy, TreatyType
+        from innovation_trace import (emit_innovation, latest_innovation_event,
+                                      record_diffusion_gate, record_technology)
         dip = get_diplomacy()
 
         nations_by_name = {n.name: n for n in nations}
@@ -626,6 +777,11 @@ class InnovationSystem:
             n_src = getattr(r, 'owner_nation', None)
             n_dst = getattr(other, 'owner_nation', None)
             if n_src is None or n_dst is None or n_src.name == n_dst.name:
+                anchor = n_dst if n_dst is not None else n_src
+                if anchor is not None:
+                    record_diffusion_gate(
+                        anchor, t, 'missing_owner' if n_src is None or n_dst is None else 'same_nation',
+                        r.name, other.name)
                 continue
 
             src_techs = self.get_discovered_techs(n_src.name)
@@ -634,27 +790,62 @@ class InnovationSystem:
             # Technologies that src has but dst does not
             diffusable = src_techs - dst_techs
             if not diffusable:
+                record_diffusion_gate(n_dst, t, 'no_unknown_source_technologies', r.name, other.name)
                 continue
 
             # Trade intimacy calculation (~25-35 turns to fully diffuse)
-            turn_trade = sum(r.export_val[g][-1] for g in r.export_val if r.export_vol[g])
+            trade_samples = [{'good': getattr(g, 'name', str(g)),
+                              'value': r.export_val[g][-1],
+                              'sample_index': len(r.export_val[g]) - 1}
+                             for g in r.export_val if r.export_vol[g]]
+            turn_trade = sum(sample['value'] for sample in trade_samples)
             base_diffusion = 0.008
             if turn_trade > 25.0:
                 base_diffusion += 0.012
-            if dip.has_treaty(n_src.name, n_dst.name, TreatyType.TRADE_PACT.value):
+            trade_pact = dip.has_treaty(n_src.name, n_dst.name, TreatyType.TRADE_PACT.value)
+            if trade_pact:
                 base_diffusion += 0.015
 
             dst_prog = self.diffusion_progress.setdefault(n_dst.name, {})
 
             for tech_id in diffusable:
                 cur = dst_prog.get(tech_id, 0.0)
+                prior_progress = cur
                 cur += base_diffusion
                 dst_prog[tech_id] = cur
+                previous_id = latest_innovation_event(n_dst, 'innovation.diffusion_progress', tech_id=tech_id)
+                progress_id = emit_innovation(
+                    n_dst, kind='innovation_trade_diffusion_update', record_class='calculation',
+                    subject_fields={'tech_id': tech_id}, metric_id='innovation.diffusion_progress',
+                    unit='progress_fraction', before=prior_progress, after=cur,
+                    formula_id='innovation.trade_diffusion.v1',
+                    inputs={'turn': int(t), 'prior_progress': prior_progress,
+                            'source_nation': n_src.name, 'source_tile': r.name,
+                            'destination_tile': other.name, 'source_trade_value': turn_trade,
+                            'source_trade_samples': trade_samples, 'trade_pact': trade_pact,
+                            'progress_increment': base_diffusion, 'adoption_threshold': 1.0,
+                            'source_knows_technology': tech_id in src_techs,
+                            'prerequisite_resource_checks': 'not_applied_to_trade_diffusion',
+                            'zero_trade_rule': 'positive baseline diffusion remains active'},
+                    cause_event_ids=([previous_id] if previous_id else None))
 
                 if cur >= 1.0:
                     # Fully adopted via trade diffusion!
                     dst_techs.add(tech_id)
                     dst_prog.pop(tech_id, None)
+                    adoption_id = record_technology(
+                        n_dst, tech_id, t, 'trade_diffusion', source_nation=n_src.name,
+                        source_tile=r.name, destination_tile=other.name,
+                        cause_event_ids=([progress_id] if progress_id else None))
+                    emit_innovation(
+                        n_dst, kind='innovation_diffusion_progress_removed', record_class='calculation',
+                        subject_fields={'tech_id': tech_id}, metric_id='innovation.diffusion_progress',
+                        unit='progress_fraction', before=cur, after=0.0,
+                        formula_id='innovation.diffusion_adoption_reset.v1',
+                        inputs={'turn': int(t), 'adopted': True,
+                                'removed_progress': cur, 'reason': 'technology_now_known'},
+                        cause_event_ids=[event_id for event_id in (progress_id, adoption_id)
+                                         if event_id is not None] or None)
                     tech_name = TECH_CATALOG[tech_id].name
                     msg = f"TRADE DIFFUSION: {n_dst.name} adopted '{tech_name}' via trade with {n_src.name}!"
                     event = {'t': t, 'nation': n_dst.name, 'tech_id': tech_id, 'tech_name': tech_name, 'event': 'DIFFUSION', 'message': msg}

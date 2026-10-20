@@ -291,6 +291,12 @@ def replay_event(row):
             expected = max(inputs['rate_floor'], min(inputs['rate_ceiling'], expected))
     elif formula == 'econsim.market_price.v1':
         expected = replay_econsim_market_price(row['inputs'])
+    elif formula in ('innovation.learning_by_doing.v1',
+                     'innovation.bottleneck.v1', 'innovation.breakthrough_draw.v1',
+                     'innovation.trade_diffusion.v1',
+                     'innovation.diffusion_adoption_reset.v1'):
+        from innovation_trace import replay_formula
+        expected = replay_formula(formula, row['inputs'])
     else:
         return None
     actual = row['value_after']

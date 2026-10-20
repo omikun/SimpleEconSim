@@ -1145,6 +1145,19 @@ class RunTraceTests(unittest.TestCase):
                                        float(getattr(tile, field)[-1]))
         from trace_snapshots import sample
         snapshot_values = sample(server.tiles, server.nations)
+        from innovation import get_innovation_system
+        innovation_system = get_innovation_system()
+        learning_rows = [row for row in rows
+                         if row.get('kind') == 'innovation_learning_calculation']
+        self.assertEqual(len(learning_rows), len(server.nations) * 5)
+        self.assertTrue(all(row['formula_replay']['matches'] for row in learning_rows))
+        for row in learning_rows:
+            nation_name = row['subject']['id']
+            domain = row['subject']['domain']
+            self.assertEqual(row['value_after'],
+                             innovation_system.domain_experience[nation_name][domain])
+            self.assertEqual(snapshot_values[(
+                'innovation.domain_experience', nation_name, domain)][2], row['value_after'])
         for metric_id, field in history_metrics:
             for tile in server.tiles:
                 history = getattr(tile, field, ())

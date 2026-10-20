@@ -2182,3 +2182,25 @@ carryforwards, and zero taxable income. Scenario fixtures replay and link
 cadastral collection and foreclosure recovery additions. Run-trace, fiscal,
 cadastral, metric-catalog, federalism, public-transfer, and wilderness-trade
 suites passed (63 tests); Python compilation and `git diff --check` passed.
+
+Phase 4 follow-up, 2026-10-19: innovation now records domain learning from its
+actual source samples, built-in bottleneck inputs, research eligibility gates,
+XP thresholds, bounty multipliers, existing random draws, discoveries, and
+trade diffusion/adoption. Learning links available production calculations;
+discovery links learning and pressure; ordered diffusion increments link prior
+progress, knowledge adoption, and completed-progress removal. Custom pressure
+callbacks retain observation status. National snapshots include XP, known
+technologies, and active diffusion without creating an innovation system.
+The trace exposes the legacy tax-log lookup, military unit-count proxy,
+positive zero-trade diffusion, and the diffusion path's omitted resource and
+prerequisite gates. Bounty funding and payout instrumentation remains in the
+[innovation follow-up plan](innovation_causal_trace_plan.md).
+
+Verification: fixtures check all built-in pressure models and bounds, five
+domain learning rules, absent finance sources, rejected research gates,
+successful/failed rolls, custom callback counts, diffusion thresholds, pair
+order, and adoption reset. Trace-on/off discovery/diffusion states, events,
+and draw counts match; a live server matches XP records and snapshots. The
+innovation, metric-catalog, run-trace, and two existing innovation-facing
+client checks passed (52 tests, client checks using the headless renderer
+fallback); Python compilation and `git diff --check` passed.

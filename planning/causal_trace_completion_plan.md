@@ -2661,3 +2661,21 @@ rates, liquidity-limited payments, deductions, loss carryforwards, zero tax
 bases, and linked cadastral/foreclosure additions. Run-trace, fiscal-policy,
 cadastral, metric-catalog, federalism, public-transfer, and wilderness-trade
 suites passed (63 tests); Python compilation and `git diff --check` passed.
+
+## Phase 4 follow-up — Trace innovation learning, discovery and diffusion (implemented)
+
+Learning records retain actual production, export, legacy tax, province-count,
+and military-proxy inputs and coefficients. Built-in pressure calculations
+record food/hunger, wage, terrain adjacency, and war inputs during their real
+evaluation. Research gates and original random draws link XP and pressure to
+new knowledge. Custom pressure callbacks remain observations. Directed trade
+pairs record progress, pact/value thresholds, adoption, and removal of completed
+progress. XP, knowledge and active diffusion have read-only national snapshots.
+
+The [innovation follow-up plan](innovation_causal_trace_plan.md) documents the
+unchanged rule quirks and remaining bounty funding/payout work. Focused
+fixtures verify formulas, gates, successful/failed draws, callback counts,
+trace-on/off event/state parity, zero-trade diffusion, pair order, and adoption
+reset. The innovation, metric-catalog, run-trace, and two existing innovation
+client checks passed (52 tests; client checks used headless rendering fallback).
+Python compilation and `git diff --check` passed.

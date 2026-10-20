@@ -367,6 +367,13 @@ METRICS = {
     'trade.trader_cash': ('tile', 'local_currency', 'micro.region.stepper.log_metrics; cash held by the tile trader cohort, summed from its current member wallets'),
     'trade.pipeline_depth': ('tile', 'goods_units', 'micro.region.stepper.log_metrics; food, wood, and furniture units currently in route transit; excludes pending and parked cargo'),
     'land.pasture_fraction': ('tile', 'fraction_of_tile', 'micro.region.stepper.step_economy; sum of plot fractions with production_type pasture'),
+    'innovation.domain_experience': ('nation/domain', 'experience_points', 'innovation.accumulate_learning_by_doing; last production/export/legacy-tax samples, province count, military unit-count proxy, and fixed military increment'),
+    'innovation.bottleneck_pressure': ('nation/technology', 'multiplier', 'innovation built-in pressure evaluators; food/hunger, mountain adjacency, positive wage fields, or active wars; custom callbacks remain observations'),
+    'innovation.research_gate': ('nation/technology', 'status', 'innovation.evaluate_breakthroughs; territory, known technology, prerequisite and resource gates in catalog order'),
+    'innovation.breakthrough': ('nation/technology', 'boolean', 'innovation.evaluate_breakthroughs; experience times bottleneck and bounty multipliers, eligibility threshold, chance, and original random draw'),
+    'innovation.technology_known': ('nation/technology', 'boolean', 'innovation.evaluate_breakthroughs and diffuse_technologies_along_trade; actual knowledge-set additions linked to discovery or diffusion evidence'),
+    'innovation.diffusion_gate': ('nation/route', 'status', 'innovation.diffuse_technologies_along_trade; owner, same-nation, and unknown-source-technology gates'),
+    'innovation.diffusion_progress': ('nation/technology', 'progress_fraction', 'innovation.diffuse_technologies_along_trade; directed trade-pair increments from source export values and trade pact, including adoption removal'),
     'trade.route_licensed_quantity': ('tile/charter/good', 'units', 'region_logistics; quantity permitted after route-charter enforcement leakage'),
     'trade.route_destination_decision': ('tile/trader', 'destination_good', 'region_logistics.repoint_traders; neighboring route evaluation from FX, fees, tariffs, drawback, freight, edge friction, local margin threshold, corporate input shortfall, demand bonus, and strict best-score selection'),
     'trade.triangular_voyage_decision': ('tile/agent/circuit', 'circuit_decision', 'economy.capitalist_planner.evaluate_triangular_trade_voyage; live arbitrage formulas, charter feasibility, pioneer bonus, strict candidate ranking, ROI threshold, and price causes'),
@@ -447,6 +454,10 @@ LEGACY_HISTORY_TO_METRIC = {
 }
 
 TRACE_INSTRUMENTED = set(LEGACY_HISTORY_TO_METRIC.values()) | {
+    'innovation.domain_experience', 'innovation.bottleneck_pressure',
+    'innovation.research_gate', 'innovation.breakthrough',
+    'innovation.technology_known', 'innovation.diffusion_gate',
+    'innovation.diffusion_progress',
     'fx.bilateral_mid', 'politics.legitimacy', 'politics.coup_decision',
     'politics.coup_execution',
     'people.births', 'people.residents',
