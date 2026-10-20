@@ -60,6 +60,10 @@ class MetricCatalogTraceCoverageTests(unittest.TestCase):
             'grievance_sources_log': 'politics.grievance',
             'trade_flow_log': 'trade.net_value',
             'workhouse_inmates_log': 'labor.workhouse_inmates',
+            'pasture_fraction_log': 'land.pasture_fraction',
+            'population_change_rate_log': 'people.population_change_rate',
+            'trader_cash_log': 'trade.trader_cash',
+            'pipeline_depth_log': 'trade.pipeline_depth',
         }
         for field, metric_id in expected.items():
             with self.subTest(field=field):

@@ -175,6 +175,43 @@ def step_wilderness(region, t):
     region.trader_cash_log.append(0.0)
     region.pipeline_depth_log.append(0)
     region.population_change_rate_log.append(0.0)
+    from run_trace import emit
+    emit(region, kind='trader_cash_total_calculation',
+         record_class='calculation', phase='demographics',
+         subject={'type': 'tile', 'id': region.name},
+         metric_id='trade.trader_cash', unit='local_currency',
+         before=(region.trader_cash_log[-2]
+                 if len(region.trader_cash_log) > 1 else None),
+         after=0.0, formula_id='trade.trader_cash_sum_wallets.v1',
+         inputs={'traders': [], 'trader_count': 0,
+                 'currency': None, 'wilderness_cash_rule': 'no trader wallets'})
+    emit(region, kind='trade_pipeline_depth_calculation',
+         record_class='calculation', phase='demographics',
+         subject={'type': 'tile', 'id': region.name},
+         metric_id='trade.pipeline_depth', unit='goods_units',
+         before=(region.pipeline_depth_log[-2]
+                 if len(region.pipeline_depth_log) > 1 else None),
+         after=0, formula_id='trade.pipeline_depth_in_transit_goods.v1',
+         inputs={'routes': [], 'shipments': [],
+                 'included_goods': ['food', 'wood', 'furniture'],
+                 'included_state': 'in_transit',
+                 'excluded_states': ['pending', 'parked'],
+                 'aggregation_rule': 'sum quantities across listed goods and routes',
+                 'wilderness_route_rule': 'wilderness has no market routes'})
+    emit(region, kind='population_change_rate_calculation',
+         record_class='calculation', phase='demographics',
+         subject={'type': 'tile', 'id': region.name},
+         metric_id='people.population_change_rate',
+         unit='percent_over_sample_window',
+         before=(region.population_change_rate_log[-2]
+                 if len(region.population_change_rate_log) > 1 else None),
+         after=0.0, formula_id='population.rate_wilderness_zero.v1',
+         inputs={'turn': int(t), 'population_samples': [],
+                 'sample_count': 0, 'window_sample_count': 10,
+                 'baseline_population': None,
+                 'current_population': len(region.agents),
+                 'window_status': 'wilderness_series_fixed_zero',
+                 'rule': 'wilderness writer stores zero growth'})
     region.forage_log.append((t, foraged, len(region.agents)))
     region.tenure_log.append(1.0)
     region.social_class_log.append({'serf': len(region.agents)})

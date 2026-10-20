@@ -280,8 +280,25 @@ def step_economy(region: Any, t: int):
              for claim in getattr(region, 'cash_obligations', [])
              if claim.origin == 'rent' and claim.status == 'active']},
          cause_event_ids=obligation_settlement_trace_ids.get('rent'))
-    pasture_f = region.tenure.pasture_fraction if hasattr(region, 'tenure') and region.tenure else 0.0
+    tenure = getattr(region, 'tenure', None)
+    pasture_plots = [
+        {'plot_id': str(plot.plot_id), 'fraction': float(plot.fraction),
+         'production_type': str(getattr(plot, 'production_type', 'arable'))}
+        for plot in getattr(tenure, 'plots', ())]
+    pasture_f = tenure.pasture_fraction if tenure else 0.0
     region.pasture_fraction_log.append(pasture_f)
+    from run_trace import emit
+    emit(region, kind='pasture_fraction_calculation',
+         record_class='calculation', phase='local',
+         subject={'type': 'tile', 'id': region.name},
+         metric_id='land.pasture_fraction', unit='fraction_of_tile',
+         before=(region.pasture_fraction_log[-2]
+                 if len(region.pasture_fraction_log) > 1 else None),
+         after=pasture_f, formula_id='land.pasture_fraction_from_plots.v1',
+         inputs={'turn': int(t), 'plots': pasture_plots,
+                 'included_plot_ids': [plot['plot_id'] for plot in pasture_plots
+                                       if plot['production_type'] == 'pasture'],
+                 'formula': 'sum plot fractions whose production type is pasture'})
     audit_cash(region, t, "rent_done")
 
     # Unpaid claims become named cases and cannot resolve until a later turn.
@@ -545,7 +562,7 @@ def step_economy(region: Any, t: int):
                  'charity_hand_cash': charity_cash,
                  'included_components': ['agent_wallets', 'bank_equity',
                                          'charity_hand_cash']})
-    log_population_rate(region)
+    log_population_rate(region, turn=t)
 
     for p in region.goods:
         for g in region.goods:
@@ -847,14 +864,31 @@ def log_metrics(region: Any, t: int):
     region.production_log['trader'].append(0)
     region.gdp_by_profession_log['trader'].append(0)
 
-    region.trader_cash_log.append(sum(a.cash for a in trader_agents))
+    trader_cash_by_agent = [{'agent_id': int(agent.id),
+                             'cash': float(agent.cash)}
+                            for agent in trader_agents]
+    trader_cash_total = sum(row['cash'] for row in trader_cash_by_agent)
+    region.trader_cash_log.append(trader_cash_total)
+    from run_trace import emit
+    emit(region, kind='trader_cash_total_calculation',
+         record_class='calculation', phase='demographics',
+         subject={'type': 'tile', 'id': region.name},
+         metric_id='trade.trader_cash',
+         unit=getattr(region, 'home_currency', None) or 'local_currency',
+         before=(region.trader_cash_log[-2]
+                 if len(region.trader_cash_log) > 1 else None),
+         after=trader_cash_total,
+         formula_id='trade.trader_cash_sum_wallets.v1',
+         inputs={'traders': trader_cash_by_agent,
+                 'trader_count': len(trader_cash_by_agent),
+                 'currency': getattr(region, 'home_currency', None)
+                 or 'local_currency'})
     hunger_groups = {}
     for good in (Goods.food, Goods.wood, Goods.furniture):
         history = region.hungry_log.get(good, ())
         hunger_groups[good.name] = int(history[-1]) if history else 0
     trader_hunger = region.hungry_log.get('trader', ())
     hunger_groups['trader'] = int(trader_hunger[-1]) if trader_hunger else 0
-    from run_trace import emit
     emit(region, kind='population_hunger_count_calculation',
          record_class='calculation', phase='demographics',
          subject={'type': 'tile', 'id': region.name},
@@ -865,13 +899,54 @@ def log_metrics(region: Any, t: int):
                  'included_groups': list(hunger_groups),
                  'counting_rule': 'sum disjoint producer-output and trader cohorts',
                  'source': 'Live hunger histories for this turn'})
+    pipeline_goods = [Goods.food, Goods.wood, Goods.furniture]
+    pipeline_routes = []
+    pipeline_shipments = []
     pipeline_qty = 0
-    for rt in _logistics.all_routes(region):
-        pipeline_qty += sum(
-            rt.in_transit_total(g)
-            for g in [Goods.food, Goods.wood, Goods.furniture]
-        )
+    for route in _logistics.all_routes(region):
+        goods_totals = {good.name: route.in_transit_total(good)
+                        for good in pipeline_goods}
+        route_total = sum(goods_totals.values())
+        pipeline_qty += route_total
+        pipeline_routes.append({
+            'route': str(route.name), 'destination': route.dst.name,
+            'goods_units': goods_totals, 'total_goods_units': route_total})
+        for entry in getattr(route, 'in_transit', ()):
+            if entry[1] not in pipeline_goods:
+                continue
+            shipment_id = entry[5] if len(entry) > 5 else None
+            pipeline_shipments.append({
+                'shipment_id': shipment_id,
+                'trader_id': int(getattr(entry[0], 'id', -1)),
+                'good': entry[1].name, 'quantity': entry[2],
+                'turns_remaining': int(entry[3]), 'route': str(route.name)})
     region.pipeline_depth_log.append(pipeline_qty)
+    pipeline_causes = []
+    shipment_event = getattr(getattr(region, '_run_trace', None),
+                             'shipment_event_id', None)
+    if callable(shipment_event):
+        for shipment in pipeline_shipments:
+            event_id = shipment_event(shipment['shipment_id'], 'departure')
+            shipment['departure_event_id'] = event_id
+            shipment['departure_trace_status'] = (
+                'linked' if event_id is not None else 'no_departure_record')
+            if event_id is not None:
+                pipeline_causes.append(event_id)
+    emit(region, kind='trade_pipeline_depth_calculation',
+         record_class='calculation', phase='demographics',
+         subject={'type': 'tile', 'id': region.name},
+         metric_id='trade.pipeline_depth', unit='goods_units',
+         before=(region.pipeline_depth_log[-2]
+                 if len(region.pipeline_depth_log) > 1 else None),
+         after=pipeline_qty,
+         formula_id='trade.pipeline_depth_in_transit_goods.v1',
+         inputs={'routes': pipeline_routes,
+                 'shipments': pipeline_shipments,
+                 'included_goods': [good.name for good in pipeline_goods],
+                 'included_state': 'in_transit',
+                 'excluded_states': ['pending', 'parked'],
+                 'aggregation_rule': 'sum quantities across listed goods and routes'},
+         cause_event_ids=pipeline_causes or None)
     infant_fatalities = getattr(region, 'infant_fatalities_this_turn', 0)
     region.infant_fatalities_log.append(infant_fatalities)
     from run_trace import emit
@@ -884,11 +959,38 @@ def log_metrics(region: Any, t: int):
     region.infant_fatalities_this_turn = 0
 
 
-def log_population_rate(region: Any):
-    if len(region.total_population) >= 10:
-        pop_10_ago = region.total_population[-10]
-        current_pop = region.total_population[-1]
-        population_change_pct = ((current_pop - pop_10_ago) / pop_10_ago * 100) if pop_10_ago > 0 else 0
+def log_population_rate(region: Any, turn: int | None = None):
+    history = list(getattr(region, 'total_population', ()))
+    population_samples = [int(value) for value in history[-10:]]
+    baseline = population_samples[0] if len(population_samples) >= 10 else None
+    current = population_samples[-1] if population_samples else 0
+    if baseline is not None and baseline > 0:
+        population_change_pct = (current - baseline) / baseline * 100
+        window_status = 'full_window'
+    elif baseline == 0:
+        population_change_pct = 0
+        window_status = 'zero_baseline'
     else:
         population_change_pct = 0
+        window_status = 'insufficient_history'
+    previous = (region.population_change_rate_log[-1]
+                if region.population_change_rate_log else None)
     region.population_change_rate_log.append(population_change_pct)
+    from run_trace import emit
+    emit(region, kind='population_change_rate_calculation',
+         record_class='calculation', phase='demographics',
+         subject={'type': 'tile', 'id': region.name},
+         metric_id='people.population_change_rate',
+         unit='percent_over_sample_window', before=previous,
+         after=population_change_pct,
+         formula_id='population.rate_from_last_ten_samples.v1',
+         inputs={'turn': int(turn if turn is not None else
+                             getattr(region, '_last_turn', 0)),
+                 'population_samples': population_samples,
+                 'sample_count': len(population_samples),
+                 'window_sample_count': 10,
+                 'baseline_population': baseline,
+                 'current_population': current,
+                 'window_status': window_status,
+                 'population_basis': 'total_population profession-count history',
+                 'formula': '(current - baseline) / baseline * 100; zero if fewer than ten samples or baseline is zero'})

@@ -222,6 +222,26 @@ def replay_event(row):
         inputs = row['inputs']
         expected = (len(inputs['fed_inmate_ids'])
                     * float(inputs['hours_per_fed_inmate']))
+    elif formula == 'land.pasture_fraction_from_plots.v1':
+        expected = sum(float(plot['fraction']) for plot in row['inputs']['plots']
+                       if plot['production_type'] == 'pasture')
+    elif formula == 'trade.trader_cash_sum_wallets.v1':
+        expected = sum(float(trader['cash'])
+                       for trader in row['inputs']['traders'])
+    elif formula == 'trade.pipeline_depth_in_transit_goods.v1':
+        expected = sum(quantity for route in row['inputs']['routes']
+                       for quantity in route['goods_units'].values())
+    elif formula == 'population.rate_from_last_ten_samples.v1':
+        inputs = row['inputs']
+        samples = inputs['population_samples']
+        baseline = samples[0] if len(samples) >= 10 else None
+        current = samples[-1] if samples else 0
+        if baseline is None or baseline <= 0:
+            expected = 0.0
+        else:
+            expected = ((current - float(baseline)) / float(baseline)) * 100.0
+    elif formula == 'population.rate_wilderness_zero.v1':
+        expected = 0.0
     elif formula == 'econsim.market_price.v1':
         expected = replay_econsim_market_price(row['inputs'])
     else:

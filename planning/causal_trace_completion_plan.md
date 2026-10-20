@@ -2601,3 +2601,21 @@ zero hours when inmates are unfed, and assert case/status/census links and zero
 sale revenue. Run-trace, labor-enforcement, metric-catalog, and
 enclosure/workhouse suites passed (56 tests, including a live RunTrace replay);
 `git diff --check` passed.
+
+## Phase 5 follow-up — Trace operational trend histories (implemented)
+
+Mapped and replayed pasture fraction, trader cash, pipeline depth, and the
+population change rate from the latest ten logged population samples (the
+profession-count series). The pipeline
+calculation lists route-level quantities, included goods, individual
+shipments, remaining transit time, and known departure event links. Wilderness
+tiles retain their established zero histories with explicit zero-rule records.
+End-of-turn snapshots now include all four values for coverage comparison.
+
+Verification: a live server turn confirms each metric's replay, history value,
+and snapshot parity. A loaded-route fixture checks nonzero pipeline quantities,
+shipment links, and pending/other-good exclusions. Population fixtures cover
+full increasing/decreasing windows, zero baseline, and incomplete history; a
+wilderness fixture checks its three zero rules. Run-trace, metric-catalog, and
+market-route suites passed (61 tests); Python compilation and `git diff --check`
+passed.

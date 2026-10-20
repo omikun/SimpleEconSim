@@ -637,6 +637,19 @@ def sample(tiles, nations):
         values[('people.population', tile.name)] = (
             tile_subject, 'people', tile.total_population[-1]
             if getattr(tile, 'total_population', None) else len(tile.agents))
+        for metric_id, field, unit in (
+                ('land.pasture_fraction', 'pasture_fraction_log',
+                 'fraction_of_tile'),
+                ('people.population_change_rate',
+                 'population_change_rate_log',
+                 'percent_over_sample_window'),
+                ('trade.trader_cash', 'trader_cash_log',
+                 getattr(tile, 'home_currency', None) or 'local_currency'),
+                ('trade.pipeline_depth', 'pipeline_depth_log', 'goods_units')):
+            history = getattr(tile, field, ())
+            if history:
+                values[(metric_id, tile.name)] = (
+                    tile_subject, unit, float(history[-1]))
         hungry_history = getattr(tile, 'hungry_log', {}) or {}
         hungry_groups = {
             good.name: int(hungry_history.get(good, ())[-1])

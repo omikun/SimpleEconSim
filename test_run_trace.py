@@ -1076,7 +1076,9 @@ class RunTraceTests(unittest.TestCase):
         self.assertEqual(inventory['gdp_log']['coverage'], 'instrumented')
         for field in ('bank_cash_log', 'total_cash_log', 'demand_ratio_log',
                       'market_demand_ratio_chart_log', 'population_log',
-                      'collective_log', 'grievance_sources_log', 'trade_flow_log'):
+                      'collective_log', 'grievance_sources_log', 'trade_flow_log',
+                      'pasture_fraction_log', 'population_change_rate_log',
+                      'trader_cash_log', 'pipeline_depth_log'):
             self.assertEqual(inventory[field]['coverage'], 'instrumented', field)
         self.assertEqual(inventory['surplus_value_log']['coverage'], 'instrumented')
         server.step()
@@ -1124,6 +1126,32 @@ class RunTraceTests(unittest.TestCase):
             tile = next(tile for tile in server.tiles
                         if tile.name == row['subject']['id'])
             self.assertEqual(row['value_after'], tile.total_cash_log[-1])
+        history_metrics = (
+            ('land.pasture_fraction', 'pasture_fraction_log'),
+            ('people.population_change_rate', 'population_change_rate_log'),
+            ('trade.trader_cash', 'trader_cash_log'),
+            ('trade.pipeline_depth', 'pipeline_depth_log'))
+        for metric_id, field in history_metrics:
+            metric_rows = [row for row in rows
+                           if row.get('metric_id') == metric_id
+                           and row.get('formula_id') is not None]
+            self.assertTrue(metric_rows, metric_id)
+            self.assertTrue(all(row['formula_replay']['matches']
+                                for row in metric_rows), metric_id)
+            for row in metric_rows:
+                tile = next(tile for tile in server.tiles
+                            if tile.name == row['subject']['id'])
+                self.assertAlmostEqual(row['value_after'],
+                                       float(getattr(tile, field)[-1]))
+        from trace_snapshots import sample
+        snapshot_values = sample(server.tiles, server.nations)
+        for metric_id, field in history_metrics:
+            for tile in server.tiles:
+                history = getattr(tile, field, ())
+                if history:
+                    self.assertAlmostEqual(
+                        snapshot_values[(metric_id, tile.name)][2],
+                        float(history[-1]))
         buyer_orders = [row for row in rows
                         if row['kind'] == 'market_buyer_order_submitted']
         seller_orders = [row for row in rows
@@ -1177,6 +1205,7 @@ class RunTraceTests(unittest.TestCase):
             self.assertEqual(
                 sum(group['count'] for group in inputs['sellers_by_reason']),
                 inputs['zero_seller_count'])
+
             related = [row for row in rows
                        if row.get('subject') == summary.get('subject')]
             if inputs['zero_buyer_count']:
@@ -1321,6 +1350,22 @@ class RunTraceTests(unittest.TestCase):
                     if row['kind'] == 'route_shipment_arrival']
         self.assertTrue(departures)
         self.assertTrue(arrivals)
+        pipeline_rows = [row for row in all_rows
+                         if row['kind'] == 'trade_pipeline_depth_calculation']
+        self.assertTrue(pipeline_rows)
+        for pipeline in pipeline_rows:
+            self.assertTrue(pipeline['formula_replay']['matches'])
+            self.assertEqual(pipeline['value_after'], sum(
+                shipment['quantity'] for shipment in
+                pipeline['inputs']['shipments']))
+            for shipment in pipeline['inputs']['shipments']:
+                departure_id = shipment.get('departure_event_id')
+                if departure_id is not None:
+                    self.assertIn(departure_id,
+                                  pipeline.get('cause_event_ids', []))
+                    self.assertEqual(
+                        all_rows_by_id[departure_id]['subject']['id'],
+                        shipment['shipment_id'])
         for shipment_event in departures + arrivals:
             self.assertEqual(shipment_event['metric_id'],
                              'trade.shipment_quantity')
@@ -1384,6 +1429,99 @@ class RunTraceTests(unittest.TestCase):
             quotes = server.run_trace.query(metric_id=metric, limit=10000)['events']
             self.assertTrue(all(replay_event(row)['matches'] for row in quotes
                                 if replay_event(row)))
+
+    def test_pipeline_history_links_in_transit_cargo_and_excludes_other_pools(self):
+        from region import Region
+        from transporter import Route
+
+        with tempfile.TemporaryDirectory() as tmp:
+            trace = RunTrace(Path(tmp) / 'pipeline.ctr', 'pipeline')
+            source = Region('Upland', t=0, number_of_agents=0)
+            destination = SimpleNamespace(name='Lowland')
+            source._run_trace = trace
+            source._collective_trace_clock = {
+                'turn': 1, 'phase': 'trade', 'next': 1}
+            trader = Agent(0)
+            initialize_agent(trader, Goods.food, 0, 0, 12.5)
+            trader.is_trader = True
+            source.agents = source.trader_agents = [trader]
+            route = Route('Upland->Lowland', source, destination, base_delay=2)
+            source.routes = {destination.name: route}
+            for good, quantity in ((Goods.food, 4), (Goods.furniture, 2),
+                                   (Goods.cotton, 3)):
+                trader.inventory_export[good.value] = quantity
+                route.post(trader, good, quantity)
+            route.deliver_pending()
+            trader.inventory_export[Goods.wood.value] = 5
+            route.post(trader, Goods.wood, 5)
+
+            source._log_metrics(1)
+
+            row = next(row for row in trace.recent
+                       if row.get('metric_id') == 'trade.pipeline_depth')
+            self.assertEqual(source.pipeline_depth_log[-1], 6)
+            self.assertEqual(row['value_after'], 6)
+            self.assertTrue(row['formula_replay']['matches'])
+            self.assertEqual({shipment['good'] for shipment in
+                              row['inputs']['shipments']}, {'food', 'furniture'})
+            self.assertEqual(len(row['cause_event_ids']), 2)
+            self.assertTrue(all(shipment['departure_event_id'] in
+                                row['cause_event_ids'] for shipment in
+                                row['inputs']['shipments']))
+            self.assertEqual(len(route.pending), 1)
+            cash_row = next(row for row in trace.recent
+                            if row.get('metric_id') == 'trade.trader_cash')
+            self.assertEqual(cash_row['value_after'], 12.5)
+            self.assertTrue(cash_row['formula_replay']['matches'])
+
+    def test_population_rate_replays_full_and_incomplete_windows(self):
+        from micro.region.stepper import log_population_rate
+
+        cases = (([100] * 9 + [125], 25.0, 'full_window'),
+                 ([100] * 9 + [80], -20.0, 'full_window'),
+                 ([0] * 9 + [4], 0.0, 'zero_baseline'),
+                 ([100, 125], 0.0, 'insufficient_history'))
+        with tempfile.TemporaryDirectory() as tmp:
+            trace = RunTrace(Path(tmp) / 'growth.ctr', 'growth')
+            clock = {'turn': 1, 'phase': 'local', 'next': 1}
+            for index, (samples, expected, status) in enumerate(cases, 1):
+                clock['turn'] = index
+                region = SimpleNamespace(
+                    name='Delta', total_population=samples,
+                    population_change_rate_log=[], _run_trace=trace,
+                    _collective_trace_clock=clock)
+                log_population_rate(region, turn=index)
+                row = trace.recent[-1]
+                self.assertEqual(region.population_change_rate_log, [expected])
+                self.assertEqual(row['value_after'], expected)
+                self.assertEqual(row['inputs']['window_status'], status)
+                self.assertTrue(row['formula_replay']['matches'])
+
+    def test_wilderness_telemetry_records_zero_trader_and_pipeline_stocks(self):
+        from region import Region
+
+        with tempfile.TemporaryDirectory() as tmp:
+            trace = RunTrace(Path(tmp) / 'wilderness.ctr', 'wilderness')
+            region = Region('Frontier', t=0, wilderness=True,
+                            wilderness_pop=30)
+            region._run_trace = trace
+            region._collective_trace_clock = {
+                'turn': 1, 'phase': 'local', 'next': 1}
+
+            region.step(1)
+
+            rows = [row for row in trace.recent
+                    if row.get('metric_id') in (
+                        'trade.trader_cash', 'trade.pipeline_depth',
+                        'people.population_change_rate')
+                    and row.get('formula_id') is not None]
+            self.assertEqual(len(rows), 3)
+            self.assertTrue(all(row['formula_replay']['matches'] for row in rows))
+            self.assertTrue(all(row['value_after'] == 0 for row in rows))
+            growth = next(row for row in rows
+                          if row['metric_id'] == 'people.population_change_rate')
+            self.assertEqual(growth['formula_id'],
+                             'population.rate_wilderness_zero.v1')
 
     def test_career_switch_emits_typed_trace_event(self):
         import agent as agent_mod
