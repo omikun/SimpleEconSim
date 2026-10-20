@@ -2698,3 +2698,21 @@ broader innovation, trace, catalog, web parity, infrastructure, fertilizer,
 and two innovation client checks passed (95 tests using headless rendering
 fallback for client checks). The final core innovation/trace/catalog run
 passed (54 tests); Python compilation and `git diff --check` passed.
+
+## Phase 4/5 follow-up — Explain faction support and grievance histories (implemented)
+
+Faction history records now retain membership/eligibility changes, overlapping
+membership, weighted policy demand satisfaction and concessions, grievance
+sources before decay, the drag applied to support, and the later decay/pruning
+used by grievance histories. History-field subjects distinguish these samples
+from subsequent live policy mutations. Empty-member and empty-population
+branches show the existing stored-support retention behavior. Snapshot
+coverage uses the same recorded history basis; evidence copies are skipped
+when tracing is disabled.
+
+Traced/untraced states, histories and random consumption match. Fixtures verify
+membership changes, concessions, pre-decay support versus post-decay grievance,
+pruning, support bounds, empty groups/populations, and policy/history separation.
+Faction, run-trace, catalog, anti-truck and labor-law suites passed (50 tests);
+final faction/catalog checks passed (8 tests). Python compilation and
+`git diff --check` passed.

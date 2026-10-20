@@ -74,7 +74,7 @@ def refresh_faction_membership(region):
             if cf: cf.membership.add(a.id)
 
 
-def apply_policy_satisfaction(region):
+def apply_policy_satisfaction(region, *, evidence=None):
     """Map the tile government's existing policy knobs and land tenure to faction demand satisfaction."""
     gov = region.gov
     tax_sat = max(0.0, min(1.0, 1.0 - gov.tax_rate / 0.75))
@@ -117,6 +117,16 @@ def apply_policy_satisfaction(region):
                 d.satisfied = free_labor_sat
             if d.name in getattr(region, 'compromise_concessions', ()):
                 d.satisfied = max(d.satisfied, 0.85)
+    if evidence is not None:
+        evidence.update(
+            tax_rate=gov.tax_rate, tax_cut_satisfaction=tax_sat,
+            welfare_satisfaction=welfare_sat, tariff_satisfaction=tariff_sat,
+            immigration_satisfaction=imm_sat, native_rights_satisfaction=native_sat,
+            commons_access=commons, enclosure_satisfaction=enclosure_sat,
+            commons_protection_satisfaction=commons_sat,
+            statute_active=bool(statute_active), wage_cap_satisfaction=wage_cap_sat,
+            free_labor_satisfaction=free_labor_sat,
+            compromise_concessions=sorted(getattr(region, 'compromise_concessions', ())))
 
 
 def accumulate_grievances(region, t):
@@ -303,15 +313,26 @@ def protest_energy(adds):
 
 def step_factions(region, t):
     """One turn of faction bookkeeping: membership, policy satisfaction, support, and grievances."""
+    from faction_trace import faction_state, record_faction_histories
+
+    trace_enabled = (getattr(region, '_run_trace', None) is not None
+                     and getattr(region, '_collective_trace_clock', None) is not None)
+    opening = ({name: faction_state(faction) for name, faction in region.factions.factions.items()}
+               if trace_enabled else None)
     refresh_faction_membership(region)
-    apply_policy_satisfaction(region)
+    policy_inputs = {} if trace_enabled else None
+    apply_policy_satisfaction(region, evidence=policy_inputs)
     eligible = {a.id for a in region.agents if getattr(a, 'alive', True)}
     adds = accumulate_grievances(region, t)
+    prepared = ({name: faction_state(faction) for name, faction in region.factions.factions.items()}
+                if trace_enabled else None)
     region.factions.step(eligible)
     snap = {name: f.support for name, f in region.factions.factions.items()}
     region.faction_support_log.append(snap)
     gv = {name: f.total_grievance() for name, f in region.factions.factions.items()}
     region.faction_grievance_log.append(gv)
+    if trace_enabled:
+        record_faction_histories(region, t, opening, prepared, eligible, policy_inputs)
     pe = protest_energy(adds)
     region.protest_energy_log.append(pe)
     from run_trace import emit

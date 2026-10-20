@@ -298,6 +298,9 @@ def replay_event(row):
                      'innovation.bounty_reservation.v1', 'innovation.bounty_removal.v1'):
         from innovation_trace import replay_formula
         expected = replay_formula(formula, row['inputs'])
+    elif formula in ('factions.support_history.v1', 'factions.grievance_history_decay.v1'):
+        from faction_trace import replay_formula
+        expected = replay_formula(formula, row['inputs'])
     else:
         return None
     actual = row['value_after']

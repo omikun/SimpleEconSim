@@ -206,7 +206,8 @@ class RunTrace:
                 'finance.tax_assessment', 'finance.tax_distribution',
                 'innovation.domain_experience', 'innovation.bottleneck_pressure',
                 'innovation.breakthrough', 'innovation.diffusion_progress',
-                'innovation.bounty_escrow')):
+                'innovation.bounty_escrow', 'politics.faction_support',
+                'politics.faction_grievance')):
             from price_trace import replay_event
             replay = replay_event(row)
             if replay is not None:

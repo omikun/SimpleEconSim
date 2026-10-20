@@ -691,6 +691,15 @@ def sample(tiles, nations):
                     {**tile_subject, 'tax_tier': tier},
                     getattr(tile, 'home_currency', None) or 'local_currency',
                     float(tax_history[-1].get(tier, 0.0)))
+        for metric_id, field, unit in (
+                ('politics.faction_support', 'faction_support_log', 'ratio'),
+                ('politics.faction_grievance', 'faction_grievance_log', 'score')):
+            history = getattr(tile, field, ())
+            if history:
+                for faction_name, value in history[-1].items():
+                    values[(metric_id, tile.name, faction_name, field)] = (
+                        {'type': 'tile/faction', 'id': faction_name,
+                         'tile': tile.name, 'history_field': field}, unit, float(value))
         for metric_id, field in (
                 ('trade.export_value', 'export_value_log'),
                 ('trade.import_value', 'import_value_log'),

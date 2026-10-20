@@ -1930,6 +1930,8 @@ construction cash-gate explanation. The elite-planner, capitalist,
 supply-control, metric-catalog, and trace-reader suites passed (110 tests);
 Python compilation and `git diff --check` passed.
 
+
+
 Phase 4 follow-up, 2026-10-18: the lord's actual transformation scan now
 records every operator considered in iteration order, including feasibility
 reasons, category exclusions, return formulas and component values, the best
@@ -2232,3 +2234,20 @@ The broader innovation, trace, catalog, web parity, infrastructure, fertilizer,
 and two innovation client checks passed (95 tests; client checks used headless
 fallback). The final core innovation/trace/catalog run passed (54 tests).
 Python compilation and `git diff --check` passed.
+
+Phase 4/5 follow-up, 2026-10-19: faction support and grievance histories now
+record refreshed membership, eligible agents, overlapping-group semantics,
+weighted demand satisfaction, policy/concession inputs, fresh sources,
+pre-decay grievance drag, 0.95 decay, and small-source pruning. History
+subjects carry their history field so later policy mutations do not replace
+evidence for an earlier chart sample. Snapshot coverage retains that same
+sample basis. Empty factions explicitly record the existing early-return rule
+that retains stored support. Evidence copies are skipped when tracing is off.
+
+Verification: traced/untraced faction state and histories match without random
+consumption. Fixtures cover changed membership, concessions, support before
+decay, grievance pruning, both support bounds, empty populations, empty
+factions with retained support, and policy/history separation. Faction,
+run-trace, catalog, anti-truck, and labor-law suites passed (50 tests); final
+faction/catalog checks passed (8 tests). Python compilation and
+`git diff --check` passed.
