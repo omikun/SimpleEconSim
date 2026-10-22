@@ -238,6 +238,10 @@ class BuildIntent(Intent):
                 take = min(remaining_needed, g.agent.cash)
                 cash_before = float(g.agent.cash)
                 g.agent.cash -= take
+                from finance_trace import emit_public_account_flow
+                emit_public_account_flow(region, g.agent, kind='public_construction_cash_debit',
+                                         signed_amount=-take,
+                                         inputs={'operation_id': operation_id, 'building_type': self.building_type})
                 remaining_needed -= take
                 funding_sources.append((g.agent, take))
                 source_legs.append({
@@ -270,6 +274,12 @@ class BuildIntent(Intent):
                                 reason='public_project_funding',
                                 trace_event_ids=withdrawal_ids)
                             g.agent.cash -= take_dep
+                            from finance_trace import emit_public_account_flow
+                            emit_public_account_flow(region, g.agent, kind='public_construction_deposit_funding_debit',
+                                                     signed_amount=-take_dep,
+                                                     inputs={'operation_id': operation_id, 'requested_withdrawal': take_dep,
+                                                             'settled_withdrawal': settled},
+                                                     cause_event_ids=withdrawal_ids or None)
                             remaining_needed -= take_dep
                             funding_sources.append((g.agent, take_dep))
                             bank_withdrawal_event_ids.extend(withdrawal_ids)
@@ -343,6 +353,9 @@ class BuildIntent(Intent):
                 for src_agent, amt in funding_sources:
                     cash_before_rollback = float(src_agent.cash)
                     src_agent.cash += amt
+                    from finance_trace import emit_public_account_flow
+                    emit_public_account_flow(region, src_agent, kind='public_construction_rollback_refund',
+                                             signed_amount=amt, inputs={'operation_id': operation_id})
                     rollback_legs.append({
                         'account_id': getattr(src_agent, 'id', None),
                         'amount_restored': float(amt),

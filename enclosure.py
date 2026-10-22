@@ -65,13 +65,24 @@ def _record_enclosure_cash_transfer(tile, *, kind, operation_type, payer,
                             'plot_id': plot_id},
         currency_conversion_applied=False,
         unconverted_currency_mismatch=(currency != payee_currency))
-    return emit_cash_transfer(
+    transfer_event_id = emit_cash_transfer(
         tile, kind=kind, contract=contract, phase='policy_action',
         subject={'type': 'tile/plot', 'id': str(plot_id), 'tile': tile.name},
         inputs={'turn': int(turn), 'plot_id': str(plot_id),
                 'actor_account_event_id': journal_event['id'],
                 'detail': detail},
         cause_event_ids=cause_event_ids)
+    from finance_trace import emit_public_account_flow
+    causes = [transfer_event_id] if transfer_event_id else None
+    emit_public_account_flow(tile, payer, kind=f'{kind}_treasury_payment',
+                             signed_amount=float(payer.cash) - float(payer_before),
+                             inputs={'operation_id': operation_id, 'plot_id': str(plot_id)},
+                             cause_event_ids=causes)
+    emit_public_account_flow(tile, payee, kind=f'{kind}_treasury_receipt',
+                             signed_amount=float(payee.cash) - float(payee_before),
+                             inputs={'operation_id': operation_id, 'plot_id': str(plot_id)},
+                             cause_event_ids=causes)
+    return transfer_event_id
 
 
 def calculate_charter_fee(plot: LandPlot) -> float:

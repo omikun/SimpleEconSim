@@ -134,6 +134,25 @@ class BankClosingTraceTests(unittest.TestCase):
         self.assertTrue({'estate_shareholder_loss', 'estate_depositor_loss',
                          'estate_treasury_recapitalization'} <= kinds)
 
+    def test_emergency_food_policy_bank_funding_closes(self):
+        from nation import Nation
+        from region import Region
+        from worldview_policies import _execute_city_emergency_food
+        trace, clock, bank, _tiles, _person = self.make_world()
+        nation = Nation('Policy', 'C', initial_cash=0, register=False)
+        tile = Region('City', 0, 0)
+        nation.add_tile(tile)
+        tile.bank = bank
+        tile.gov.agent.cash = 0
+        tile._run_trace, tile._collective_trace_clock = trace, clock
+        before = bank.capital
+        _execute_city_emergency_food({'tiles': [tile], 'nations': [nation]}, tile)
+        trace.bank_book.close([tile], clock, {})
+        self.assertEqual(before - 50, bank.capital)
+        capital = next(row for row in trace.recent if row['kind'] == 'bank_closing_balance'
+                       and row['metric_id'] == 'finance.bank_capital')
+        self.assertTrue(capital['formula_replay']['matches'])
+
     def test_trace_does_not_change_rules_or_rng(self):
         trace, clock, bank, tiles, person = self.make_world()
         other, agent = Bank(), Agent(0)

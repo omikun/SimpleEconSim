@@ -291,7 +291,11 @@ def _execute_city_emergency_food(world, target):
         payer.cash -= cost
         source_balance_after = float(payer.cash)
     elif source == 'tile_bank_capital':
+        from bank_trace import begin_change, finish_change
+        bank_change = begin_change(payer, region)
         payer.capital -= cost
+        finish_change(payer, bank_change, 'policy_food_bank_funding',
+                      inputs={'amount': cost, 'funding_source': source})
         source_balance_after = float(payer.capital)
     elif source == 'owner_national_treasury':
         payer.cash -= cost

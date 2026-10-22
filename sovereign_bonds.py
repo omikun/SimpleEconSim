@@ -716,7 +716,12 @@ class SovereignBondMarket:
                         if issuer_banks:
                             share_p = bond.principal / len(issuer_banks)
                             for b_inst in issuer_banks:
+                                from bank_trace import begin_change, finish_change
+                                bank_change = begin_change(b_inst)
                                 b_inst.capital += share_p
+                                finish_change(b_inst, bank_change, 'sovereign_bond_principal_redemption',
+                                              inputs={'bond_id': bond.bond_id, 'issuer': issuer.name,
+                                                      'principal_share': share_p})
                                 b_inst.sovereign_bonds_held = [x for x in getattr(b_inst, 'sovereign_bonds_held', []) if x.get('bond_id') != bond.bond_id]
                     bond.status = "matured"
                     _trace_bond(issuer, 'sovereign_bond_maturity_paid', t, bond,

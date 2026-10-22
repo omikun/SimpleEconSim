@@ -2771,3 +2771,27 @@ probe explained all 144 changed bank-stock snapshots with three verified
 checkpoints. The nine national treasury changes remain unexplained. A short
 probe does not establish full phase acceptance, long-run performance, or complete
 upstream causal provenance for every metric.
+
+
+## Phase 3 follow-up — Complete observed public-account flow sums (implemented)
+
+2026-10-21: default treasury residuals came from missing construction funding,
+enclosure receipts, individual government deposit-interest receipts, automatic
+bank credit, and ordinary loan repayment. Each now emits a signed flow at the
+actual write. Fiscal credit suppresses the automatic duplicate and keeps its
+financing-gap link. Failed construction refunds and frozen deposit funding
+preserve and expose the existing rules. A broader bank writer audit also added
+emergency-food bank funding and domestic bond principal redemption.
+
+The bank/public-flow/construction/fiscal/public-transfer/enclosure/estate/FX
+suite passed 40 tests; recorder/catalog checks passed 44 tests. In the fresh
+three-turn default seed-4242 diagnostic, all nine national flow sums reconcile
+within floating-point tolerance and all 144 changed bank snapshots remain
+explained. The trace has 114,064 rows and three verified checkpoints. Report:
+`tmp/trace_coverage_default_treasury_flows_2026_10_21.json`.
+
+This closes the observed sum residuals, not full public-account causality.
+The nine treasury snapshots remain source_missing until ordered account
+continuity and account/territory membership are independently verified. See
+`planning/treasury_flow_completion_plan.md`. Full scenario acceptance,
+persistence/index testing and long-run performance gates remain open.

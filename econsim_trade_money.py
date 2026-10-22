@@ -172,7 +172,7 @@ class Bank():
         """Real countable net worth: capital + deposits - loans outstanding."""
         return self.capital + self.total_deposits - self.total_liabilities
 
-    def Borrow(self, t, agent, amount, trace_region=None):
+    def Borrow(self, t, agent, amount, trace_region=None, *, trace_treasury=True):
         if getattr(self, 'is_frozen', False):
             loginfo(t, "Borrowing blocked: Bank is under Corralito deposit freeze.")
             if trace_region is not None:
@@ -235,6 +235,13 @@ class Bank():
             'borrower_id': getattr(agent, 'id', None), 'requested_amount': requested_amount,
             'settled_amount': amount, 'interest_rate': self.interest_rate},
             cause_event_ids=[credit_event_id] if credit_event_id else None)
+        if trace_treasury:
+            from finance_trace import emit_public_account_flow
+            region = trace_region or self._region_for_account(agent)
+            emit_public_account_flow(region, agent, kind='government_automatic_bank_credit',
+                                     signed_amount=amount,
+                                     inputs={'requested_amount': requested_amount, 'interest_rate': self.interest_rate},
+                                     cause_event_ids=[credit_event_id] if credit_event_id else None)
         return amount
 
     def pay_principle(self, amount):
@@ -569,6 +576,13 @@ class Bank():
                 if interest > 0:
                     agent.cash += interest
                     self.capital -= interest
+                    from finance_trace import emit_public_account_flow
+                    region = trace_region or self._region_for_account(agent)
+                    emit_public_account_flow(
+                        region, agent, kind='government_deposit_interest_received',
+                        signed_amount=interest,
+                        inputs={'deposit_balance': amount, 'rate': self.deposit_interest_rate,
+                                'funded_from_bank_capital': True})
                     self.total_deposit_interest_paid += interest
                     total_payout += interest
                     self._record_account_event(agent, 'bank_deposit_interest',
@@ -643,6 +657,11 @@ def PayLoans(agent, bank=None, trace_region=None, t=None):
             bank.Withdraw(agent, needed_from_bank, trace_region=trace_region,
                           t=t, reason='bank_loan_repayment')
         agent.cash -= total_paid
+        from finance_trace import emit_public_account_flow
+        region = trace_region or bank._region_for_account(agent)
+        emit_public_account_flow(region, agent, kind='government_ordinary_loan_repayment',
+                                 signed_amount=-total_paid,
+                                 inputs={'cash_after': agent.cash, 'deposits_after': bank.deposits.get(agent, 0)})
         bank._record_account_event(agent, 'bank_loan_repayment', float(total_paid),
                                    payer=True, detail={
                                        'principal_repaid': sum(loan.principle_paid for loan in active_loans)

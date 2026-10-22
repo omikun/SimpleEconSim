@@ -128,3 +128,31 @@ def emit_tax_distribution(region, *, turn, closing, receipts=(), opening=None,
         if event_id is not None:
             event_ids.append(event_id)
     return event_ids
+
+
+def emit_public_account_flow(region, agent, *, kind, signed_amount, inputs=None,
+                             cause_event_ids=None):
+    """Record an external cash/deposit change for a counted public account.
+
+    Internal cash/deposit movements must not call this helper. Membership is
+    checked against the same unique accounts used by Nation.treasury().
+    """
+    if region is None or not signed_amount or not getattr(agent, 'is_government', False):
+        return None
+    nation = getattr(region, 'owner_nation', None)
+    if nation is None or getattr(region, '_run_trace', None) is None:
+        return None
+    accounts = nation.treasury()['accounts']
+    account = next((row for row in accounts if row['government_id'] == agent.id), None)
+    if account is None:
+        return None
+    from run_trace import emit
+    return emit(
+        region, kind=kind, record_class='transfer', phase='finance',
+        subject={'type': 'nation', 'id': nation.name},
+        metric_id='finance.treasury_flow', unit=nation.currency,
+        after=float(signed_amount),
+        inputs={'government_id': agent.id, 'government_tier': account['tier'],
+                'source_tile': region.name, 'currency_conversion_applied': False,
+                'currency_semantics': 'unconverted_public_cash_plus_deposits',
+                **(inputs or {})}, cause_event_ids=cause_event_ids)
