@@ -23,6 +23,8 @@ class RunTrace:
         self.write_error = None
         self.count = 0
         self.digest = '0' * 64
+        from bank_trace import BankTraceBook
+        self.bank_book = BankTraceBook(self)
         self._active_turn = None
         self._calculated = set()
         self._calculated_values = {}
@@ -72,6 +74,7 @@ class RunTrace:
         clock['next'] += 1
         if self._active_turn != clock.get('turn', 0):
             self._active_turn = clock.get('turn', 0)
+            self.bank_book.start_turn(self._active_turn)
             self._calculated.clear()
             self._calculated_values.clear()
             self._latest_calculation_event_ids.clear()
@@ -200,6 +203,7 @@ class RunTrace:
                 'goods.national_reference_price', 'goods.national_food_price',
                 'labor.firm_surplus_value', 'labor.surplus_value',
                 'labor.exploitation_rate', 'finance.bank_equity',
+                'finance.bank_capital', 'finance.bank_deposits', 'finance.bank_liabilities',
                 'finance.total_cash', 'labor.workhouse_inmates',
                 'labor.forced_labor_hours', 'land.pasture_fraction',
                 'people.population_change_rate', 'trade.trader_cash',

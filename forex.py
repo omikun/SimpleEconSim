@@ -680,7 +680,11 @@ def _give_working_capital(trader, bank, currency, amount, rate,
     # Home leg: draw from trader deposit first, then cash
     from_deposit = min(home, bank.deposits.get(trader, 0))
     if from_deposit > 0:
+        from bank_trace import begin_change, finish_change
+        bank_trace_change = begin_change(bank, trace_region)
         bank.total_deposits -= from_deposit
+        finish_change(bank, bank_trace_change, 'trader_fx_float_deposit_debit',
+                      inputs={'agent_id': trader.id, 'deposit_paid': from_deposit, 'foreign_currency': currency, 'foreign_amount': amount})
         bank.deposits[trader] -= from_deposit
     home_cash = home - from_deposit
     if home_cash > 0:

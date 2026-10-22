@@ -207,6 +207,20 @@ def replay_event(row):
         variable_capital = float(inputs['total_variable_capital'])
         expected = (float(inputs['total_surplus_value']) / variable_capital
                     if variable_capital > 0.0 else 0.0)
+    elif formula == 'bank.opening_plus_transitions.v1':
+        inputs = row['inputs']
+        expected = inputs['opening_balance'] + sum(
+            step['after'] - step['before'] for step in inputs['operations'])
+        running = inputs['opening_balance']
+        continuous = True
+        for step in inputs['operations']:
+            continuous = continuous and math.isclose(running, step['before'], rel_tol=1e-10, abs_tol=1e-8)
+            running = step['after']
+        continuous = continuous and math.isclose(running, row['value_after'], rel_tol=1e-10, abs_tol=1e-8)
+        return {'expected': expected, 'actual': row['value_after'],
+                'matches': continuous and math.isclose(expected, row['value_after'], rel_tol=1e-10, abs_tol=1e-8)}
+    elif formula == 'bank.tile_closing_alias.v1':
+        expected = row['inputs']['bank_closing_balance']
     elif formula == 'finance.bank_equity_balance_sheet.v1':
         inputs = row['inputs']
         expected = (float(inputs['capital']) + float(inputs['deposits'])

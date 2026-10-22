@@ -304,7 +304,11 @@ def execute_fiscal_transfer_and_policy(world, nation_name: str, region_name: str
     elif transfer_source == 'bank_loan':
         bank = getattr(region, 'bank', None)
         if bank:
+            from bank_trace import begin_change, finish_change
+            bank_trace_change = begin_change(bank, region)
             bank.capital -= transfer_amount
+            finish_change(bank, bank_trace_change, 'policy_bank_capital_transfer',
+                          inputs={'amount': transfer_amount, 'policy_id': policy_id})
             rgov.agent.cash += transfer_amount
 
     # Enact the policy decree

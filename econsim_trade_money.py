@@ -5,6 +5,7 @@ from collections import defaultdict
 from goods import Goods
 from logger import *
 from econsim_states import recipes
+from bank_trace import begin_change, finish_change
 
 inventory_limit = 10
 
@@ -64,12 +65,16 @@ class Loan:
         # bank — destroying deposits without any cash transfer.  Clamp to 0.
         if amount <= 0:
             return
+        trace_change = begin_change(self.bank, self.bank._region_for_account(self.agent))
         interest_paid = min(self.getInterest(), amount)
         principle_paid = max(0, amount - interest_paid)
         self.principle_paid += principle_paid
         self.interest_paid += interest_paid
         self.bank.pay_principle(principle_paid)
         self.bank.pay_interest(interest_paid)
+        finish_change(self.bank, trace_change, 'loan_payment', inputs={
+            'borrower_id': getattr(self.agent, 'id', None),
+            'payment': amount, 'principal_paid': principle_paid, 'interest_paid': interest_paid})
 
 
 class Bank():
@@ -203,6 +208,7 @@ class Bank():
                              'bank_capital': self.capital, 'bank_liabilities': self.total_liabilities,
                              'bank_deposits': self.total_deposits})
             return amount
+        trace_change = begin_change(self, trace_region)
         loan = Loan(self, agent, amount, self.interest_rate)
         agent.cash += amount
         agent.loans.append(loan)
@@ -210,9 +216,10 @@ class Bank():
         self.total_liabilities += amount
         self._record_account_event(agent, 'bank_loan', float(amount), recipient=True,
                                    detail={'loan_principal': amount}, region=trace_region)
+        credit_event_id = None
         if trace_region is not None:
             from run_trace import emit
-            emit(trace_region, kind='bank_loan_issued', record_class='transfer',
+            credit_event_id = emit(trace_region, kind='bank_loan_issued', record_class='transfer',
                  subject={'type': 'tile', 'id': trace_region.name,
                           'agent_id': getattr(agent, 'id', None)},
                  metric_id='finance.bank_loan', unit='local_currency', after=amount,
@@ -224,6 +231,10 @@ class Bank():
                          'borrower_is_government': bool(getattr(agent, 'is_government', False)),
                          'bank_capital': self.capital, 'bank_liabilities_after': self.total_liabilities,
                          'bank_deposits': self.total_deposits})
+        finish_change(self, trace_change, 'loan_issued', inputs={
+            'borrower_id': getattr(agent, 'id', None), 'requested_amount': requested_amount,
+            'settled_amount': amount, 'interest_rate': self.interest_rate},
+            cause_event_ids=[credit_event_id] if credit_event_id else None)
         return amount
 
     def pay_principle(self, amount):
@@ -247,6 +258,7 @@ class Bank():
         cash_before = float(agent.cash)
         deposit_before = float(self.deposits[agent])
         total_before = float(self.total_deposits)
+        trace_change = begin_change(self, region)
         agent.cash -= requested
         self.total_deposits += requested
         self.deposits[agent] += requested
@@ -261,10 +273,13 @@ class Bank():
                   'bank_deposits_after': total_after}
         self._record_account_event(agent, 'bank_deposit', requested, payer=True,
                                    detail=detail, region=region, turn=t)
-        self._trace_cash_savings(region, 'bank_deposit', agent, requested,
+        event_id = self._trace_cash_savings(region, 'bank_deposit', agent, requested,
                                  requested, cash_before, cash_after,
                                  deposit_before, deposit_after,
                                  total_before, total_after, turn=t, reason=reason)
+        finish_change(self, trace_change, 'deposit', inputs={
+            'agent_id': getattr(agent, 'id', None), 'amount': requested, 'reason': reason},
+            cause_event_ids=[event_id] if event_id else None)
         return requested
 
     def Withdraw(self, agent, amount, *, trace_region=None, t=None,
@@ -290,6 +305,7 @@ class Bank():
                 if trace_event_ids is not None and event_id is not None:
                     trace_event_ids.append(event_id)
             return 0.0
+        trace_change = begin_change(self, region)
         agent.cash += settled
         self.total_deposits -= settled
         self.deposits[agent] -= settled
@@ -314,6 +330,9 @@ class Bank():
             frozen_cap=frozen_cap)
         if trace_event_ids is not None and event_id is not None:
             trace_event_ids.append(event_id)
+        finish_change(self, trace_change, 'withdrawal', inputs={
+            'agent_id': getattr(agent, 'id', None), 'amount': settled, 'reason': reason},
+            cause_event_ids=[event_id] if event_id else None)
         return settled
 
     def write_down_bonds(self, loss_amount: float, trace_region=None, *,
@@ -323,6 +342,7 @@ class Bank():
 
         If capital is depleted (<= 0), triggers emergency Corralito deposit freeze.
         """
+        trace_change = begin_change(self, trace_region)
         loss_amount = float(loss_amount)
         capital_before = self.capital
         deposit_freeze_before = bool(getattr(self, 'is_frozen', False))
@@ -366,6 +386,7 @@ class Bank():
                           'bond_id': bond_id, 'issuer': issuer_nation},
                  metric_id='finance.bank_bond_writeoff', unit='local_currency',
                  after=loss_amount, inputs=details)
+        finish_change(self, trace_change, 'bond_write_down', inputs=details)
         return self.is_frozen
 
     def recapitalize(self, amount: float, trace_region=None, *,
@@ -374,6 +395,7 @@ class Bank():
 
         If capital is restored (> 0), lifts emergency deposit freeze.
         """
+        trace_change = begin_change(self, trace_region)
         capital_before = self.capital
         self.capital += amount
         if self.capital > 0.0:
@@ -389,6 +411,9 @@ class Bank():
                 before=capital_before, after=self.capital,
                 inputs={'injection': amount, 'deposit_freeze_after': self.is_frozen,
                         'operation_id': operation_id})
+        finish_change(self, trace_change, 'recapitalization', inputs={
+            'injection': amount, 'operation_id': operation_id},
+            cause_event_ids=[event_id] if event_id else None)
         result = not self.is_frozen
         return (result, event_id) if return_event_id else result
 
@@ -398,6 +423,7 @@ class Bank():
 
         Converts uninsured deposit liabilities into Tier-1 shareholder equity.
         """
+        trace_change = begin_change(self, trace_region)
         total_haircut = 0.0
         affected = []
         bailin_event_ids = []
@@ -500,6 +526,10 @@ class Bank():
                          'deposit_freeze_after': self.is_frozen})
         else:
             aggregate_event_id = None
+        finish_change(self, trace_change, 'deposit_bail_in', inputs={
+            'haircut_fraction': haircut_pct, 'exemption_floor': exemption_floor,
+            'affected_depositors': affected, 'total_haircut': total_haircut},
+            cause_event_ids=[aggregate_event_id] if aggregate_event_id else None)
         return ((total_haircut, aggregate_event_id) if return_event_id
                 else total_haircut)
 
@@ -513,6 +543,7 @@ class Bank():
         and to available capital so capital never turns negative.
         """
         capital_before = self.capital
+        trace_change = begin_change(self, trace_region)
         total_interest_before = self.total_deposit_interest_paid
         circulating_cash = max(1, sum(agent.cash for agent in agents))
         deposit_ratio = self.total_deposits / circulating_cash
@@ -543,9 +574,10 @@ class Bank():
                     self._record_account_event(agent, 'bank_deposit_interest',
                                                float(interest), recipient=True,
                                                detail={'funded_from_bank_capital': True})
+        interest_event_id = None
         if trace_region is not None:
             from run_trace import emit
-            emit(trace_region, kind='bank_deposit_interest_payout', record_class='transfer',
+            interest_event_id = emit(trace_region, kind='bank_deposit_interest_payout', record_class='transfer',
                  subject={'type': 'tile', 'id': trace_region.name},
                  metric_id='finance.bank_deposit_interest', unit='local_currency',
                  after=total_payout,
@@ -556,6 +588,10 @@ class Bank():
                          'capital_before': capital_before, 'capital_after': self.capital,
                          'cumulative_interest_paid_before': total_interest_before,
                          'cumulative_interest_paid_after': self.total_deposit_interest_paid})
+        finish_change(self, trace_change, 'deposit_interest', inputs={
+            'total_payout': total_payout, 'deposit_interest_rate': self.deposit_interest_rate,
+            'payout_cap': max_total_payout},
+            cause_event_ids=[interest_event_id] if interest_event_id else None)
         return total_payout
 
 

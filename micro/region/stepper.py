@@ -527,7 +527,8 @@ def step_economy(region: Any, t: int):
                           if region.bank_cash_log else None)
     region.bank_cash_log.append(bank_equity)
     emit(region, kind='bank_equity_calculation', record_class='calculation',
-         phase='finance', subject={'type': 'tile', 'id': region.name},
+         phase='finance', subject={'type': 'tile', 'id': region.name,
+                                   'history_field': 'bank_cash_log'},
          metric_id='finance.bank_equity',
          unit=getattr(region, 'home_currency', None) or 'local_currency',
          before=bank_equity_before, after=bank_equity,

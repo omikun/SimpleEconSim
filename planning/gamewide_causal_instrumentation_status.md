@@ -2290,3 +2290,24 @@ four labor metrics (56 changed values). Report:
 `tmp/trace_coverage_default_labor_closure_2026_10_19.json`. Remaining changed
 snapshot gaps in that probe are bank capital/deposits/liabilities/equity and
 national treasury. Python compilation and `git diff --check` passed.
+
+
+## Phase 3/5 follow-up — Reconcile physical bank closing stocks (implemented)
+
+2026-10-21: registered physical banks once with trace-local IDs and starting
+balances. Core bank transactions and direct construction, policy, frontier,
+FX, estate and sovereign coupon writers capture actual capital/deposit/liability
+transitions. Closing replay checks both arithmetic and continuity; offsetting
+missing changes remain gaps. Shared tiles link to the same institution close,
+and earlier local equity-history records cannot substitute for world close.
+Simulation rules and RNG draws are preserved.
+
+The implementation plan is `planning/bank_closing_trace_plan.md`. Dedicated
+bank tests cover eight cases; the broad recorder/catalog/labor/estate/FX/bond/web
+suite passed 92 tests before the final three bank regressions were added, and
+the final bank/bond suite passed 13 tests. Construction, banking, public-transfer,
+fiscal and treasury checks passed 28 tests. A fresh default three-turn seed-4242
+probe explained all 144 changed bank-stock snapshots with three verified
+checkpoints. The nine national treasury changes remain unexplained. A short
+probe does not establish full phase acceptance, long-run performance, or complete
+upstream causal provenance for every metric.

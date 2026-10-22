@@ -309,7 +309,11 @@ class BuildIntent(Intent):
                               if bank is not None else None)
             if bank is not None and capital_before >= remaining_needed:
                 capital_used = float(remaining_needed)
+                from bank_trace import begin_change, finish_change
+                bank_trace_change = begin_change(bank, region)
                 bank.capital -= capital_used
+                finish_change(bank, bank_trace_change, 'construction_capital_funding',
+                              inputs={'amount': capital_used, 'turn': t})
                 source_legs.append({
                     'source_kind': 'target_bank_capital',
                     'bank_id': f'bank:{region.name}',
@@ -1015,7 +1019,11 @@ def execute_fiscal_transfer_and_build(world, nation_name: str, region_name: str,
         bank = getattr(region, 'bank', None)
         if bank is None or getattr(bank, 'capital', 0.0) < transfer_amount:
             return False, f"Municipal bank has insufficient capital for loan (${getattr(bank, 'capital', 0.0):.2f} < ${transfer_amount:.2f})."
+        from bank_trace import begin_change, finish_change
+        bank_trace_change = begin_change(bank, region)
         bank.capital -= transfer_amount
+        finish_change(bank, bank_trace_change, 'municipal_construction_transfer',
+                      inputs={'amount': transfer_amount, 'turn': t})
         rgov.agent.cash += transfer_amount
 
     # 2. Now execute BuildIntent

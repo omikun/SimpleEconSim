@@ -436,7 +436,11 @@ def forgive_bad_debt(bank, amount, t, *, region=None, debtor=None):
     capital_before = float(bank.capital)
     capital_absorb = min(amount, max(0.0, bank.capital))
     if capital_absorb > 0:
+        from bank_trace import begin_change, finish_change
+        bank_trace_change = begin_change(bank, region)
         bank.capital -= capital_absorb
+        finish_change(bank, bank_trace_change, 'estate_shareholder_loss',
+                      inputs={'operation_id': operation_id, 'debtor_id': debtor_id, 'amount': capital_absorb})
         from run_trace import emit
         event_id = emit(
             region, kind='estate_bank_shareholder_loss_absorption',
@@ -514,7 +518,11 @@ def forgive_bad_debt(bank, amount, t, *, region=None, debtor=None):
                             'bad_debt_operation_id': operation_id})
                 if event_id is not None:
                     component_event_ids.append(event_id)
+            from bank_trace import begin_change, finish_change
+            bank_trace_change = begin_change(bank, region)
             bank.total_deposits -= dep_absorb
+            finish_change(bank, bank_trace_change, 'estate_depositor_loss',
+                          inputs={'operation_id': operation_id, 'debtor_id': debtor_id, 'amount': dep_absorb})
             logwarning(t, f"DEPOSITOR BAIL-IN: ${dep_absorb:.2f} of "
                           f"${amount:.2f} bad debt absorbed by depositors "
                           f"(shareholders took ${capital_absorb:.2f})")
@@ -532,7 +540,11 @@ def forgive_bad_debt(bank, amount, t, *, region=None, debtor=None):
     # 4. Genuine bank failure -> negative equity.
     if remaining > 1e-9:
         residual_capital_before = float(bank.capital)
+        from bank_trace import begin_change, finish_change
+        bank_trace_change = begin_change(bank, region)
         bank.capital -= remaining
+        finish_change(bank, bank_trace_change, 'estate_unabsorbed_loss',
+                      inputs={'operation_id': operation_id, 'debtor_id': debtor_id, 'amount': remaining})
         from run_trace import emit
         event_id = emit(
             region, kind='estate_bank_unabsorbed_loss',
@@ -598,7 +610,11 @@ def recapitalize(bank, shortfall, t, *, region=None, debtor=None,
     treasury_before = float(gov.agent.cash)
     capital_before = float(bank.capital)
     gov.agent.cash -= take
+    from bank_trace import begin_change, finish_change
+    bank_trace_change = begin_change(bank, region)
     bank.capital += take
+    finish_change(bank, bank_trace_change, 'estate_treasury_recapitalization',
+                  inputs={'debtor_id': getattr(debtor, 'id', None), 'treasury_debit': take})
     if operation_id is None:
         operation_id = (f'estate-bank-recapitalization:{getattr(region, "name", "untraced")}:'
                         f'{int(t)}:{getattr(gov.agent, "id", None)}:'
@@ -814,7 +830,11 @@ def handle_debt_inheritance(ctx, t, agent, living_descendants):
         remaining_principle = sum(l.principle - l.principle_paid for l in blist)
         if remaining_principle <= 0:
             continue
+        from bank_trace import begin_change, finish_change
+        bank_trace_change = begin_change(bank, region)
         bank.total_liabilities -= remaining_principle
+        finish_change(bank, bank_trace_change, 'estate_deceased_debt_removal',
+                      inputs={'debtor_id': agent.id, 'principal': remaining_principle})
         bank.loans = [l for l in bank.loans if l not in blist]
         if len(living_descendants) > 0:
             principle_share = remaining_principle / len(living_descendants)
@@ -824,7 +844,11 @@ def handle_debt_inheritance(ctx, t, agent, living_descendants):
                                       bank.interest_rate)
                 descendent.loans.append(new_loan)
                 bank.loans.append(new_loan)
+                from bank_trace import begin_change, finish_change
+                bank_trace_change = begin_change(bank, region)
                 bank.total_liabilities += principle_share
+                finish_change(bank, bank_trace_change, 'estate_heir_debt_transfer',
+                              inputs={'debtor_id': agent.id, 'heir_id': descendent.id, 'principal': principle_share})
                 _record_debt_event(
                     region, 'bank_debt_inheritance', t, payer=agent,
                     recipient=descendent, amount=principle_share,

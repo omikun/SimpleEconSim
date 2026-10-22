@@ -265,7 +265,11 @@ def check_and_apply_claims(t, tiles, nations):
                 sub = min(max(0.0, a.cash), 10.0) * 0.05   # 5% of cash, cap $10
                 if sub > 0.0:
                     a.cash -= sub
+                    from bank_trace import begin_change, finish_change
+                    bank_trace_change = begin_change(prov.bank, tile)
                     prov.bank.capital += sub
+                    finish_change(prov.bank, bank_trace_change, 'frontier_bank_subscription',
+                                  inputs={'subscriber_id': a.id, 'amount': sub, 'turn': t})
 
             # 4. Connect ForexDesks with claimed neighbors & mass convert foreign wallets
             for other in tile.neighbors.values():
