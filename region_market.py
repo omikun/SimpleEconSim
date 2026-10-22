@@ -1981,7 +1981,7 @@ def trade(region, t):
                             public_food_before = int(region.gov.food_inventory)
                             seller.inv_add(Goods.food, -bought)
                             seller.cash += purchase_amount
-                            region.gov.pay_for_food(purchase_amount)
+                            region.gov.pay_for_food(purchase_amount, trace_region=region)
                             region.gov.receive_food(bought)
                             purchase_event_id, purchase_operation_id = _trace_government_food_purchase(
                                 region, seller, quantity=bought, unit_price=price,

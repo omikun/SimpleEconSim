@@ -4,6 +4,7 @@ Supports multiple governments for future multi-nation simulation.
 Each Government has configurable population policy attributes that gate
 pronatalist measures, enabling/disabling specific mechanisms at runtime.
 """
+from treasury_trace import begin_public_change, finish_public_change
 
 import math
 import random
@@ -300,8 +301,12 @@ class Government:
         if self.agent.cash < self.baby_bonus_amount:
             loginfo(t, f"Government({self.name}) insufficient cash for baby bonus")
             return 0.0
+        public_change = begin_public_change(self, self.agent)
         self.agent.cash -= self.baby_bonus_amount
+        finish_public_change(public_change, 'government_provide_baby_bonus_cash')
+        public_change = begin_public_change(self, parent)
         parent.cash += self.baby_bonus_amount
+        finish_public_change(public_change, 'government_provide_baby_bonus_cash')
         treasury_event_id = _trace_public_transfer(
             self, 'baby_bonus_paid', self.baby_bonus_amount, [parent.id],
             newborn_id=str(newborn.id),
@@ -336,11 +341,15 @@ class Government:
                 continue
             if not self._is_citizen(agent):
                 continue
+            public_change = begin_public_change(self, agent)
             agent.cash += self.ubi_amount_per_turn
+            finish_public_change(public_change, 'government_distribute_ubi_cash')
             total += self.ubi_amount_per_turn
 
         if total > 0 and self.agent.cash >= total:
+            public_change = begin_public_change(self, self.agent)
             self.agent.cash -= total
+            finish_public_change(public_change, 'government_distribute_ubi_cash')
             logdebug(t, f"Government({self.name}) distributed ${total:.2f} UBI "
                      f"to {len([a for a in agents if self._is_citizen(a) and not a.is_corporation])} citizens")
         elif total > 0:
@@ -356,12 +365,18 @@ class Government:
                         continue
                     if not self._is_citizen(agent):
                         continue
+                    public_change = begin_public_change(self, agent)
                     agent.cash -= self.ubi_amount_per_turn  # undo
+                    finish_public_change(public_change, 'government_distribute_ubi_cash')
                     paid = self.ubi_amount_per_turn * scale
+                    public_change = begin_public_change(self, agent)
                     agent.cash += paid
+                    finish_public_change(public_change, 'government_distribute_ubi_cash')
             else:
                 paid_fraction = 0.0
+            public_change = begin_public_change(self, self.agent)
             self.agent.cash = 0.0
+            finish_public_change(public_change, 'government_distribute_ubi_cash')
             logwarning(t, f"Government({self.name}) UBI shortfall ${shortfall:.2f}, scaled payments")
             total -= shortfall
         if total > 0:
@@ -458,7 +473,9 @@ class Government:
             seed_traits(immigrant, parent=parent)
             initialize_agent(immigrant, parent.output, 0, 0, share)
 
+            public_change = begin_public_change(self, parent)
             parent.cash -= share
+            finish_public_change(public_change, 'government_spawn_immigrants_cash')
             if parent.descendants is None:
                 parent.descendants = []
             parent.descendants.append(immigrant)
@@ -532,8 +549,12 @@ class Government:
             if self.agent.cash < pay:
                 pay = max(0.0, self.agent.cash)
             if pay > 0:
+                public_change = begin_public_change(self, self.agent)
                 self.agent.cash -= pay
+                finish_public_change(public_change, 'government_process_parental_leave_cash')
+                public_change = begin_public_change(self, agent)
                 agent.cash += pay
+                finish_public_change(public_change, 'government_process_parental_leave_cash')
                 total += pay
                 recipients.append(agent.id)
                 payments.append((agent, pay))
@@ -616,7 +637,9 @@ class Government:
     def collect_tax(self, t, amount):
         """Receive tax revenue. Returns amount received."""
         if amount > 0:
+            public_change = begin_public_change(self, self.agent)
             self.agent.cash += amount
+            finish_public_change(public_change, 'government_collect_tax_cash')
             self.record_income(t, 'tax', amount)
             _trace_public_transfer(self, 'legacy_tax_collected', amount, [],
                                    outflow=False, tax_source='legacy_collect_tax',
@@ -654,7 +677,9 @@ class Government:
         if nat_gov is not None and nat_gov is not self:
             nat_share = round(amount * 0.80, 6)
             local_share = amount - nat_share
+            public_change = begin_public_change(region or self, nat_gov.agent)
             nat_gov.agent.cash += nat_share
+            finish_public_change(public_change, 'government_receive_tariff_cash')
             _trace_public_transfer(
                 nat_gov, 'tariff_collected', nat_share, [], outflow=False,
                 trace_region=region, operation_id=operation_id, turn=t,
@@ -665,7 +690,9 @@ class Government:
                 if owner_nation else None, national_share=nat_share,
                 local_share=local_share, source='import_customs')
             nat_gov.record_income(t, 'tariff', nat_share)
+            public_change = begin_public_change(region or self, self.agent)
             self.agent.cash += local_share
+            finish_public_change(public_change, 'government_receive_tariff_cash')
             _trace_public_transfer(
                 self, 'tariff_collected', local_share, [], outflow=False,
                 trace_region=region, operation_id=operation_id, turn=t,
@@ -677,7 +704,9 @@ class Government:
                 local_share=local_share, source='import_customs')
             self.record_income(t, 'tariff', local_share)
         else:
+            public_change = begin_public_change(region or self, self.agent)
             self.agent.cash += amount
+            finish_public_change(public_change, 'government_receive_tariff_cash')
             if owner_nation is not None and region is not None:
                 _trace_public_transfer(
                     self, 'tariff_collected', amount, [], outflow=False,
@@ -772,9 +801,11 @@ class Government:
         """Record food purchased during trade."""
         self.food_inventory += quantity
 
-    def pay_for_food(self, cost):
+    def pay_for_food(self, cost, *, trace_region=None):
         """Deduct cash for food purchased."""
+        public_change = begin_public_change(trace_region or self, self.agent, cash=True)
         self.agent.cash -= cost
+        finish_public_change(public_change, 'public_food_purchase')
 
     def deposit_remaining(self, bank, *, trace_region=None, t=None):
         """Deposit leftover hand cash back into bank."""
@@ -1130,10 +1161,14 @@ class Government:
         welfare = distributable / len(starving_agents)
         total_distributed = 0
         for agent in starving_agents:
+            public_change = begin_public_change(region or self, agent)
             agent.cash += welfare
+            finish_public_change(public_change, 'government_distribute_welfare_cash')
             total_distributed += welfare
 
+        public_change = begin_public_change(region or self, self.agent)
         self.agent.cash -= total_distributed
+        finish_public_change(public_change, 'government_distribute_welfare_cash')
         treasury_event_id = _trace_public_transfer(
             self, 'welfare_distributed', total_distributed,
             [agent.id for agent in starving_agents],

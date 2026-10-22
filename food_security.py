@@ -1,6 +1,7 @@
 """Conserved public response to food shortages and unequal food access."""
 
 from __future__ import annotations
+from treasury_trace import begin_public_change, finish_public_change
 
 from goods import Goods
 from nutrition import basic_food_units
@@ -143,8 +144,12 @@ def enact_nation_food_response(nation, turn: int) -> list[dict]:
         funding_event_id = None
         if amount > 0 and gov is not nation.government:
             before_sovereign, before_local = sovereign.cash, gov.agent.cash
+            sovereign_change = begin_public_change(tile, sovereign)
+            local_change = begin_public_change(tile, gov.agent)
             sovereign.cash -= amount
             gov.agent.cash += amount
+            finish_public_change(sovereign_change, 'national_food_relief_grant_debit')
+            finish_public_change(local_change, 'national_food_relief_grant_receipt')
             transfer_budget -= amount
             operation_id = (f'nation-food-response:{nation.name}:'
                             f'{int(turn)}:{tile.name}')

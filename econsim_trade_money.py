@@ -1,3 +1,4 @@
+from treasury_trace import begin_public_change, finish_public_change
 import math
 import bisect
 import random
@@ -210,7 +211,9 @@ class Bank():
             return amount
         trace_change = begin_change(self, trace_region)
         loan = Loan(self, agent, amount, self.interest_rate)
+        public_change = begin_public_change(trace_region or self._region_for_account(agent), agent, bank=self, cash=True)
         agent.cash += amount
+        finish_public_change(public_change, 'bank_credit')
         agent.loans.append(loan)
         self.loans.append(loan)
         self.total_liabilities += amount
@@ -266,9 +269,11 @@ class Bank():
         deposit_before = float(self.deposits[agent])
         total_before = float(self.total_deposits)
         trace_change = begin_change(self, region)
+        public_change = begin_public_change(region, agent, bank=self, cash=True, deposit=True)
         agent.cash -= requested
         self.total_deposits += requested
         self.deposits[agent] += requested
+        finish_public_change(public_change, 'cash_to_deposit')
         cash_after = float(agent.cash)
         deposit_after = float(self.deposits[agent])
         total_after = float(self.total_deposits)
@@ -313,9 +318,11 @@ class Bank():
                     trace_event_ids.append(event_id)
             return 0.0
         trace_change = begin_change(self, region)
+        public_change = begin_public_change(region, agent, bank=self, cash=True, deposit=True)
         agent.cash += settled
         self.total_deposits -= settled
         self.deposits[agent] -= settled
+        finish_public_change(public_change, 'deposit_to_cash')
         cash_after = float(agent.cash)
         deposit_after = float(self.deposits[agent])
         total_after = float(self.total_deposits)
@@ -443,7 +450,9 @@ class Bank():
                 if cut > 0:
                     depositor_balance_before = float(dep)
                     bank_capital_before = float(self.capital)
+                    public_change = begin_public_change(trace_region, agent, bank=self, cash=False, deposit=True)
                     self.deposits[agent] -= cut
+                    finish_public_change(public_change, 'statutory_deposit_bail_in')
                     self.total_deposits -= cut
                     self.capital += cut
                     total_haircut += cut
@@ -574,7 +583,9 @@ class Bank():
                 remaining_capacity = max(0, max_total_payout - total_payout)
                 interest = min(interest, remaining_capacity)
                 if interest > 0:
+                    public_change = begin_public_change(trace_region or self._region_for_account(agent), agent, bank=self, cash=True)
                     agent.cash += interest
+                    finish_public_change(public_change, 'deposit_interest')
                     self.capital -= interest
                     from finance_trace import emit_public_account_flow
                     region = trace_region or self._region_for_account(agent)
@@ -656,7 +667,9 @@ def PayLoans(agent, bank=None, trace_region=None, t=None):
             needed_from_bank = total_paid - agent.cash
             bank.Withdraw(agent, needed_from_bank, trace_region=trace_region,
                           t=t, reason='bank_loan_repayment')
+        public_change = begin_public_change(trace_region or bank._region_for_account(agent), agent, bank=bank, cash=True)
         agent.cash -= total_paid
+        finish_public_change(public_change, 'ordinary_loan_repayment')
         from finance_trace import emit_public_account_flow
         region = trace_region or bank._region_for_account(agent)
         emit_public_account_flow(region, agent, kind='government_ordinary_loan_repayment',

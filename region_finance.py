@@ -1,6 +1,7 @@
 """
 Corporate wages, profit distributions, owner bailouts, taxation, and consumption multipliers.
 """
+from treasury_trace import begin_public_change, finish_public_change
 
 import math
 import forex as _fx
@@ -686,7 +687,9 @@ def collect_tax(region, t):
             if gov.cash < payment:
                 bank.Withdraw(gov, payment - gov.cash, trace_region=region, t=t,
                               reason='government_debt_service')
+            public_change = begin_public_change(region, gov, cash=True)
             gov.cash -= payment
+            finish_public_change(public_change, 'fiscal_debt_service')
             loan.pay(payment)
             from economy.actor_accounts import record as record_economic_event
             record_economic_event(region, 'bank_loan_repayment', turn=t,
@@ -832,13 +835,19 @@ def collect_tax(region, t):
                             prov_share = round(actual * 0.30, 6)
                             tile_share = actual - nat_share - prov_share
 
+                            public_change = begin_public_change(region, nat_gov.agent, cash=True)
                             nat_gov.agent.cash += nat_share
+                            finish_public_change(public_change, 'national_income_tax_receipt')
                             nat_gov.record_income(t, 'tax', nat_share)
 
+                            public_change = begin_public_change(region, prov_gov.agent, cash=True)
                             prov_gov.agent.cash += prov_share
+                            finish_public_change(public_change, 'provincial_income_tax_receipt')
                             prov_gov.record_income(t, 'tax', prov_share)
 
+                            public_change = begin_public_change(region, tile_gov.agent, cash=True)
                             tile_gov.agent.cash += tile_share
+                            finish_public_change(public_change, 'local_income_tax_receipt')
                             tile_gov.record_income(t, 'tax', tile_share)
 
                             turn_nat_tax += nat_share
@@ -850,10 +859,14 @@ def collect_tax(region, t):
                             nat_share = round(actual * 0.50, 6)
                             tile_share = actual - nat_share
 
+                            public_change = begin_public_change(region, nat_gov.agent, cash=True)
                             nat_gov.agent.cash += nat_share
+                            finish_public_change(public_change, 'national_income_tax_receipt')
                             nat_gov.record_income(t, 'tax', nat_share)
 
+                            public_change = begin_public_change(region, tile_gov.agent, cash=True)
                             tile_gov.agent.cash += tile_share
+                            finish_public_change(public_change, 'local_income_tax_receipt')
                             tile_gov.record_income(t, 'tax', tile_share)
 
                             turn_nat_tax += nat_share
@@ -862,7 +875,9 @@ def collect_tax(region, t):
                         # Single-Tier / Independent
                         split_rule = 'municipal_only'
                         tile_share = actual
+                        public_change = begin_public_change(region, tile_gov.agent, cash=True)
                         tile_gov.agent.cash += actual
+                        finish_public_change(public_change, 'local_income_tax_receipt')
                         tile_gov.record_income(t, 'tax', actual)
                         turn_tile_tax += actual
 

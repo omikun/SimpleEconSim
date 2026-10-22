@@ -2335,3 +2335,30 @@ The nine treasury snapshots remain source_missing until ordered account
 continuity and account/territory membership are independently verified. See
 `planning/treasury_flow_completion_plan.md`. Full scenario acceptance,
 persistence/index testing and long-run performance gates remain open.
+
+
+## Phase 3/5 follow-up — Verify ordered public-account closure (implemented)
+
+2026-10-22: treasury tracing now inventories physical public cash and bank deposit
+accounts using the same unique government/bank enumeration as Nation.treasury().
+Actual supported writes capture before/after balances and operation kinds.
+Closing replay verifies every account transition before aggregating a nation.
+Unrecorded offsetting writes cannot disappear into a matching national total.
+Shared accounts are counted once, bank references use the physical bank IDs,
+and repeated reports retain the original turn opening. Account or territorial
+membership changes remain explicit audits pending composition bridges.
+
+The public/bank/fiscal/food-response/government/estate/construction/enclosure/
+emergency-food suites passed 78 tests; recorder/catalog/web parity passed 68.
+The final three-turn default seed-4242 diagnostic verifies all nine national
+account closures and changed treasury snapshots, with all 144 changed bank
+stock snapshots still explained and three valid compact checkpoints. Report:
+`tmp/trace_coverage_default_treasury_chains_2026_10_22.json`.
+
+The [account closure plan](treasury_account_closure_plan.md) lists implemented
+writers, ten dedicated tests, reader commands and remaining direct-writer and
+membership gaps. Coverage reports distinguish account closure from signed-flow
+sum reconciliation. Military, political, sovereign cash and scenario/manual
+public writes still need further stock probes; missing writes remain gaps.
+Full scenario, persistence/index/recovery and long-run performance gates remain
+open. This is not a claim of gamewide completion.

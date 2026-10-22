@@ -47,3 +47,10 @@ UI test crashed in the native graphics layer; isolated non-UI suites passed.
 The earlier isolated bond suite passed, but this is not a claim that every
 combined graphics test arrangement is stable. Scenario/public-transfer coverage and persistent trace acceptance
 remain separate gates in the overall completion plan.
+
+
+2026-10-22 follow-up: ordered account closure is now implemented for the default
+diagnostic. All nine treasury snapshots verify through account chains and stable
+membership, independently of the flow sum. See
+[the account closure plan](treasury_account_closure_plan.md) for implementation,
+tests and the remaining direct-writer/composition gaps.

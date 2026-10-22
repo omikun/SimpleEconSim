@@ -207,6 +207,12 @@ def replay_event(row):
         variable_capital = float(inputs['total_variable_capital'])
         expected = (float(inputs['total_surplus_value']) / variable_capital
                     if variable_capital > 0.0 else 0.0)
+    elif formula == 'treasury.account_chain.v1':
+        from treasury_trace import replay_chain
+        return replay_chain(row['inputs'], row['value_after'])
+    elif formula == 'treasury.closed_accounts.v1':
+        from treasury_trace import replay_aggregate
+        return replay_aggregate(row['inputs'], row['value_after'])
     elif formula == 'bank.opening_plus_transitions.v1':
         inputs = row['inputs']
         expected = inputs['opening_balance'] + sum(

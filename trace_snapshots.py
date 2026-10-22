@@ -988,6 +988,7 @@ def record(server):
     if clock is not None:
         clock['phase'] = 'snapshot'
         server.run_trace.bank_book.close(server.tiles, clock, previous)
+        server.run_trace.treasury_book.close(server.nations, clock, previous)
         record_labor_censuses(
             server.run_trace, clock, labor_censuses,
             getattr(server, '_trace_previous_labor_censuses', {}), previous)

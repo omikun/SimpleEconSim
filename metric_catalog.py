@@ -264,6 +264,7 @@ METRICS = {
     'finance.obligation_payment': ('tile/origin', 'local_currency', 'livelihood_access.settle_obligations'),
     'finance.rent_collected': ('tile/nation', 'local_currency', 'micro.region.stepper.settle_obligations; unconverted Nation chart sum in trace_snapshots'),
     'finance.rent_arrears': ('tile/nation', 'local_currency', 'micro.region.stepper.active_rent_claims; unconverted Nation chart sum in trace_snapshots'),
+    'finance.public_account_balance': ('public_account', 'local_currency', 'treasury_trace.TreasuryTraceBook'),
     'finance.bank_registration': ('bank', 'balance_sheet', 'bank_trace.BankTraceBook.register'),
     'finance.bank_balance_operation': ('bank', 'balance_sheet', 'bank_trace.BankTraceBook.operation'),
     'finance.bank_loan': ('tile/agent', 'local_currency', 'econsim_trade_money.Bank.Borrow'),
@@ -608,7 +609,7 @@ TRACE_INSTRUMENTED = set(LEGACY_HISTORY_TO_METRIC.values()) | {
     # Literal metric IDs emitted by production trace call sites (catalog audit).
     'construction.progress', 'contract.crop_delivery', 'diplomacy.relation',
     'economy.cash', 'finance.bank_bond_writeoff', 'finance.bank_capital',
-    'finance.bank_registration', 'finance.bank_balance_operation',
+    'finance.bank_registration', 'finance.bank_balance_operation', 'finance.public_account_balance',
     'finance.bank_deposits', 'finance.bank_liabilities',
     'finance.bank_debt_inheritance', 'finance.bank_deposit_interest',
     'finance.bank_loan', 'finance.bank_loan_repayment',

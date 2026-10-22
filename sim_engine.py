@@ -44,6 +44,8 @@ def step_turn(t: int, tiles: list, nations: list = None,
         for nation in nations:
             nation._run_trace = trace_recorder
             nation._collective_trace_clock = trace_clock
+        if getattr(trace_recorder, 'treasury_book', None) is not None:
+            trace_recorder.treasury_book.register_nations(nations, trace_clock, basis='turn_boundary')
     # Per-turn counters belong to the simulation boundary. Snapshot/reporting
     # must remain read-only, including when invoked more than once.
     for tile in tiles:

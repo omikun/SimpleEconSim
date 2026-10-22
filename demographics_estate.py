@@ -2,6 +2,7 @@
 Demographics estate: death determination, corporate succession, debt resolution,
 bad debt forgiveness & write-downs, wealth inheritance, and escheat.
 """
+from treasury_trace import begin_public_change, finish_public_change
 
 import sys
 import traceback
@@ -471,7 +472,9 @@ def forgive_bad_debt(bank, amount, t, *, region=None, debtor=None):
                     continue
                 share = bal * (dep_absorb / pool)
                 deposit_after = max(0.0, bal - share)
+                public_change = begin_public_change(region, owner, bank=bank, cash=False, deposit=True)
                 bank.deposits[owner] = deposit_after
+                finish_public_change(public_change, 'estate_deposit_loss')
                 bank._record_account_event(owner, 'bank_deposit_haircut',
                                            float(share), payer=True,
                                            detail={'bad_debt_bail_in': True,
@@ -609,7 +612,9 @@ def recapitalize(bank, shortfall, t, *, region=None, debtor=None,
         return (0.0, []) if return_event_ids else 0.0
     treasury_before = float(gov.agent.cash)
     capital_before = float(bank.capital)
+    public_change = begin_public_change(region, gov.agent)
     gov.agent.cash -= take
+    finish_public_change(public_change, 'estate_treasury_bank_recapitalization')
     from bank_trace import begin_change, finish_change
     bank_trace_change = begin_change(bank, region)
     bank.capital += take
@@ -934,7 +939,9 @@ def handle_wealth_inheritance(ctx, t, agent, living_descendants):
             recipient_wallet_before = (fx.fx_balance(descendent, decedent_currency)
                                        if decedent_currency else 0.0)
             if getattr(descendent, '_bank_ref', None) is ctx.bank and ctx.bank is not None:
+                public_change = begin_public_change(region, descendent)
                 descendent.cash += inherited_cash
+                finish_public_change(public_change, 'estate_public_cash_receipt')
                 settlement = 'cash'
             elif decedent_currency:
                 wallet_before = fx.fx_balance(descendent, decedent_currency)
@@ -942,7 +949,9 @@ def handle_wealth_inheritance(ctx, t, agent, living_descendants):
                 wallet_after = fx.fx_balance(descendent, decedent_currency)
                 settlement = 'foreign_wallet'
             else:
+                public_change = begin_public_change(region, descendent)
                 descendent.cash += inherited_cash
+                finish_public_change(public_change, 'estate_public_cash_receipt')
                 settlement = 'cash'
             recipient_cash_after = float(getattr(descendent, 'cash', 0.0))
             recipient_wallet_after = (fx.fx_balance(descendent, decedent_currency)
@@ -1121,7 +1130,9 @@ def handle_wealth_inheritance(ctx, t, agent, living_descendants):
                          or 'local_currency')
         if government is not None:
             gov_cash_before = float(getattr(government.agent, 'cash', 0.0))
+            public_change = begin_public_change(region, government.agent)
             government.agent.cash += gov_share
+            finish_public_change(public_change, 'estate_public_cash_receipt')
             gov_cash_after = float(getattr(government.agent, 'cash', 0.0))
             cash_event = None
             if gov_share > 0:
@@ -1169,7 +1180,9 @@ def handle_wealth_inheritance(ctx, t, agent, living_descendants):
         elif charity is None:
             if government is not None and charity_share > 0:
                 gov_cash_before = float(getattr(government.agent, 'cash', 0.0))
+                public_change = begin_public_change(region, government.agent)
                 government.agent.cash += charity_share
+                finish_public_change(public_change, 'estate_public_cash_receipt')
                 gov_cash_after = float(getattr(government.agent, 'cash', 0.0))
                 government.record_income(t, 'inheritance', charity_share)
                 cash_event = None
@@ -1250,8 +1263,10 @@ def handle_wealth_inheritance(ctx, t, agent, living_descendants):
                          inheritance_deposits, 'heirless-no-state-deposit')
             if government is not None and deposit_gov > 0:
                 recipient_before = float(ctx.bank.deposits.get(government.agent, 0.0))
+                public_change = begin_public_change(region, government.agent, bank=ctx.bank, cash=False, deposit=True)
                 ctx.bank.deposits[government.agent] = \
                     ctx.bank.deposits.get(government.agent, 0) + deposit_gov
+                finish_public_change(public_change, 'estate_probate_deposit_receipt')
                 recipient_after = float(ctx.bank.deposits[government.agent])
                 deposit_allocations.append({
                     'recipient': government.agent, 'amount': deposit_gov,
@@ -1269,8 +1284,10 @@ def handle_wealth_inheritance(ctx, t, agent, living_descendants):
                     'destination': 'charity'})
             elif charity is None and government is not None and deposit_charity > 0:
                 recipient_before = float(ctx.bank.deposits.get(government.agent, 0.0))
+                public_change = begin_public_change(region, government.agent, bank=ctx.bank, cash=False, deposit=True)
                 ctx.bank.deposits[government.agent] = \
                     ctx.bank.deposits.get(government.agent, 0) + deposit_charity
+                finish_public_change(public_change, 'estate_fallback_deposit_receipt')
                 recipient_after = float(ctx.bank.deposits[government.agent])
                 deposit_allocations.append({
                     'recipient': government.agent, 'amount': deposit_charity,

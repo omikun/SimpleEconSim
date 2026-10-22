@@ -12,8 +12,17 @@ def coverage(path):
                                   'explained': 0, 'unexplained': 0})
     treasury_reconciliations = {'turns': 0, 'fully_attributed': 0,
                                 'unattributed_absolute_total': 0.0}
+    public_account_closure = {'nation_closes': 0, 'verified': 0, 'gaps': 0,
+                              'membership_changes': 0}
     for payload in iter_payloads(path):
         row = json.loads(payload)
+        if row.get('kind') == 'treasury_account_closure':
+            public_account_closure['nation_closes'] += 1
+            verified = (row.get('record_class') == 'calculation'
+                        and row.get('formula_replay', {}).get('matches') is True)
+            public_account_closure['verified' if verified else 'gaps'] += 1
+            if not row.get('inputs', {}).get('membership_unchanged', False):
+                public_account_closure['membership_changes'] += 1
         if row.get('kind') == 'treasury_reconciliation':
             treasury_reconciliations['turns'] += 1
             residual = row.get('inputs', {}).get('unattributed_residual', 0.0)
@@ -33,6 +42,7 @@ def coverage(path):
                 entry['unexplained'] += 1
     result = dict(sorted(counts.items()))
     result['_treasury_reconciliation'] = treasury_reconciliations
+    result['_treasury_account_closure'] = public_account_closure
     return result
 
 

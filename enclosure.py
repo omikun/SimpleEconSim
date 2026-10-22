@@ -13,6 +13,7 @@ Consequences of enclosure:
   5. Grievances spike on identity and class factions, raising protest energy.
   6. Dispossessed serfs become dependent on the wage-labor market.
 """
+from treasury_trace import begin_public_change, finish_public_change
 
 from goods import Goods
 from land_tenure import TenureStatus, LandPlot
@@ -265,7 +266,9 @@ def execute_enclosure(tile, plot_id: str, t: int, rent_rate: float = DEFAULT_CAS
     lord_cash_before = float(lord.cash)
     government_cash_before = float(gov.agent.cash)
     lord.cash -= fee
+    public_change = begin_public_change(tile, gov.agent, cash=True)
     gov.agent.cash += fee
+    finish_public_change(public_change, 'enclosure_charter_receipt')
     charter_event_id = _record_enclosure_cash_transfer(
         tile, kind='enclosure_charter_fee',
         operation_type='enclosure_charter_fee', payer=lord,

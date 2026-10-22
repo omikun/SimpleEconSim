@@ -159,14 +159,8 @@ class Nation:
     # Treasury
     # ------------------------------------------------------------------
 
-    def treasury(self) -> dict:
-        """Nation-level treasury snapshot across all tiles.
-
-        Count each sovereign/provincial/municipal government and bank deposit
-        account once, even when several tiles share their institutions.
-        Values retain the model's existing unconverted currency semantics.
-        Deposit bank-reference indices are local to this report.
-        """
+    def _treasury_entities(self):
+        """Unique live government and bank objects backing treasury reports."""
         governments = []
         seen_governments = set()
         banks = []
@@ -196,6 +190,17 @@ class Nation:
         for region in self.tiles:
             add_government(getattr(region, 'gov', None), 'municipal')
             add_bank(getattr(region, 'bank', None))
+        return governments, banks
+
+    def treasury(self) -> dict:
+        """Nation-level treasury snapshot across all tiles.
+
+        Count each sovereign/provincial/municipal government and bank deposit
+        account once, even when several tiles share their institutions.
+        Values retain the model's existing unconverted currency semantics.
+        Deposit bank-reference indices are local to this report.
+        """
+        governments, banks = self._treasury_entities()
 
         accounts = []
         for government, tier in governments:

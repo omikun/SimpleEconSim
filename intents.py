@@ -15,6 +15,7 @@ Provides a unified Command Pattern architecture:
 """
 
 from __future__ import annotations
+from treasury_trace import begin_public_change, finish_public_change
 import uuid
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -237,7 +238,9 @@ class BuildIntent(Intent):
             if g.agent.cash > 0:
                 take = min(remaining_needed, g.agent.cash)
                 cash_before = float(g.agent.cash)
+                public_change = begin_public_change(region, g.agent, cash=True)
                 g.agent.cash -= take
+                finish_public_change(public_change, 'construction_cash_funding')
                 from finance_trace import emit_public_account_flow
                 emit_public_account_flow(region, g.agent, kind='public_construction_cash_debit',
                                          signed_amount=-take,
@@ -273,7 +276,9 @@ class BuildIntent(Intent):
                                 g.agent, take_dep, trace_region=b_tile, t=t,
                                 reason='public_project_funding',
                                 trace_event_ids=withdrawal_ids)
+                            public_change = begin_public_change(region, g.agent, cash=True)
                             g.agent.cash -= take_dep
+                            finish_public_change(public_change, 'construction_deposit_funding')
                             from finance_trace import emit_public_account_flow
                             emit_public_account_flow(region, g.agent, kind='public_construction_deposit_funding_debit',
                                                      signed_amount=-take_dep,
@@ -352,7 +357,9 @@ class BuildIntent(Intent):
                 rollback_legs = []
                 for src_agent, amt in funding_sources:
                     cash_before_rollback = float(src_agent.cash)
+                    public_change = begin_public_change(region, src_agent, cash=True)
                     src_agent.cash += amt
+                    finish_public_change(public_change, 'construction_rollback')
                     from finance_trace import emit_public_account_flow
                     emit_public_account_flow(region, src_agent, kind='public_construction_rollback_refund',
                                              signed_amount=amt, inputs={'operation_id': operation_id})
