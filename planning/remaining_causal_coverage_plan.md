@@ -763,3 +763,15 @@ pass together. The separate campaign suite exposes one existing funding-source
 fixture failure; running it after hex-world tests also exposes a topology-global
 fixture dependency. Both remain in the follow-up queue rather than being counted
 as passing verification.
+
+### Acceptance fixture and alternate delta repair (2026-10-23)
+
+The campaign fixture now selects/restores its required Voronoi topology and
+attaches its test recorder to every native tile/nation. Funding sampled on a
+different tile is therefore visible to the action's source checks. The combined
+coup/campaign suite passes 17 tests, including the previously missing funding
+record. The Egypt delta keeps its existing preferred-coast searches, then tries
+a bounded nearby northern outlet on either side only when both fail. A geography
+regression verifies distinct coastal outlets, a continuous connected branch and
+idempotence for release seeds 1877/1878. Full seed-1878 simulation acceptance
+still requires a rerun. This map correction is separate from trace allocation.

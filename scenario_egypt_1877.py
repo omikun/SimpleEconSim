@@ -207,7 +207,7 @@ def shape_nile_delta(gen) -> None:
     fork = main_corners[-5]
     main_set = set(main_corners)
 
-    def find_branch(*, allow_existing_river):
+    def find_branch(*, allow_existing_river, preferred_coast=True):
         queue = [(0.0, fork.index, fork)]
         distances = {fork: 0.0}
         previous = {}
@@ -217,14 +217,18 @@ def shape_nile_delta(gen) -> None:
                 continue
             if corner.ocean:
                 separation = hypot(corner.x - mouth.x, corner.y - mouth.y)
-                if (65.0 <= separation <= 145.0 and corner.x > mouth.x + 65.0
-                        and corner.y > mouth.y - 65.0):
+                preferred = (65.0 <= separation <= 145.0 and corner.x > mouth.x + 65.0
+                             and corner.y > mouth.y - 65.0)
+                alternate = (65.0 <= separation <= 220.0
+                             and corner.y > mouth.y - 120.0)
+                eligible = preferred if preferred_coast else alternate
+                if eligible:
                     return corner, previous
                 continue
             for neighbor in corner.adjacent:
                 if neighbor in main_set and neighbor is not fork:
                     continue
-                if neighbor.x < fork.x - 15.0 or neighbor.y < fork.y - 25.0:
+                if preferred_coast and (neighbor.x < fork.x - 15.0 or neighbor.y < fork.y - 25.0):
                     continue
                 edge = next((edge for edge in corner.protrudes
                              if edge.v0 is neighbor or edge.v1 is neighbor), None)
@@ -237,7 +241,7 @@ def shape_nile_delta(gen) -> None:
                 new_cost = (cost + step
                             + max(0.0, neighbor.elevation - corner.elevation) * 80.0)
                 if (new_cost < distances.get(neighbor, float("inf"))
-                        and new_cost < 300.0):
+                        and new_cost < (300.0 if preferred_coast else 450.0)):
                     distances[neighbor] = new_cost
                     previous[neighbor] = (corner, edge)
                     heappush(queue, (new_cost, neighbor.index, neighbor))
@@ -250,6 +254,12 @@ def shape_nile_delta(gen) -> None:
         # other generated rivers. Reuse the cheapest connected side channel to
         # reach the second coast instead of rejecting the entire campaign map.
         outlet, previous = find_branch(allow_existing_river=True)
+        used_existing_river = outlet is not None
+    if outlet is None:
+        # A north-eastern main mouth can have no further eastern coast in the
+        # preferred narrow band. Use a nearby northern outlet on either side,
+        # retaining the same fork and a continuous, bounded side channel.
+        outlet, previous = find_branch(allow_existing_river=True, preferred_coast=False)
         used_existing_river = outlet is not None
     if outlet is None:
         raise ValueError("Egypt's river needs a second coastal outlet for its delta.")

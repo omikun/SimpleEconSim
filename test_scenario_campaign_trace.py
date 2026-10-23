@@ -8,6 +8,7 @@ from run_trace import RunTrace, verify
 from scenario_campaign import advance_expedition, bombard_alexandria, resolve_landing
 from scenario_geography import create_fleet, move_fleet
 from worldview_engine import build_world_view
+from world_config import get_map_topology, set_map_topology
 
 
 class MemoryTrace:
@@ -22,7 +23,12 @@ class MemoryTrace:
 
 
 def _fixture(*, traced=True, landing_warning=True, fleet=True):
-    world = build_world_view(scenario_id='egypt_1877')
+    previous_topology = get_map_topology()
+    try:
+        set_map_topology('voronoi')
+        world = build_world_view(scenario_id='egypt_1877', trace_enabled=False)
+    finally:
+        set_map_topology(previous_topology)
     if fleet:
         create_fleet(world, 'Britain')
         move_fleet(world, 'Britain', 'Alexandria')
@@ -32,9 +38,12 @@ def _fixture(*, traced=True, landing_warning=True, fleet=True):
     tile = next(tile for tile in world['tiles'] if tile.name == tile_name)
     trace = MemoryTrace()
     if traced:
-        tile._run_trace = trace
-        tile._collective_trace_clock = {
-            'turn': int(world['turn']), 'phase': 'campaign', 'next': 1}
+        clock = {'turn': int(world['turn']), 'phase': 'campaign', 'next': 1}
+        # Funding may be sampled at Port Said while the action is in Alexandria.
+        # Match native recording: every tile and nation shares one recorder.
+        for source in [*world['tiles'], *world['nations']]:
+            source._run_trace = trace
+            source._collective_trace_clock = clock
     return world, tile, trace
 
 
