@@ -3,6 +3,7 @@ micro/region/core.py — Region class definition and subsystem orchestration.
 """
 
 from __future__ import annotations
+from treasury_composition import traced_membership_mutation
 import copy
 import random
 from collections import defaultdict
@@ -341,6 +342,7 @@ class Region:
         return bank
 
     @bank.setter
+    @traced_membership_mutation
     def bank(self, value):
         if getattr(self, '_institutions', None) is None:
             return
@@ -353,6 +355,7 @@ class Region:
         return self._institutions.gov
 
     @gov.setter
+    @traced_membership_mutation
     def gov(self, value):
         if getattr(self, '_institutions', None) is None:
             return

@@ -207,6 +207,9 @@ def replay_event(row):
         variable_capital = float(inputs['total_variable_capital'])
         expected = (float(inputs['total_surplus_value']) / variable_capital
                     if variable_capital > 0.0 else 0.0)
+    elif formula == 'treasury.timed_composition.v1':
+        from treasury_composition import replay
+        return replay(row['inputs'], row['value_after'])
     elif formula == 'treasury.account_chain.v1':
         from treasury_trace import replay_chain
         return replay_chain(row['inputs'], row['value_after'])

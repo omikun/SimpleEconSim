@@ -22,6 +22,7 @@ M0 scope:
 """
 
 from __future__ import annotations
+from treasury_composition import traced_membership_mutation
 
 import econsim_states
 from government import Government
@@ -100,6 +101,7 @@ class Nation:
     # Tile membership
     # ------------------------------------------------------------------
 
+    @traced_membership_mutation
     def add_tile(self, region) -> None:
         """Take sovereignty of *region*.
 
@@ -133,6 +135,7 @@ class Nation:
             if getattr(agent, 'origin_nation', None) is None:
                 agent.origin_nation = self.name
 
+    @traced_membership_mutation
     def remove_tile(self, region) -> bool:
         """Release sovereignty over *region* without transferring it.
 
@@ -280,6 +283,7 @@ class Nation:
         self._reparent_tile(region, old_gov, new_gov, new_nation)
         return True
 
+    @traced_membership_mutation
     def _reparent_tile(self, region, old_gov, new_gov, new_nation) -> None:
         """Migrate *region* from old_gov to new_gov jurisdiction.
 

@@ -66,6 +66,8 @@ class TreasuryTraceBook:
     def __init__(self, trace):
         self.trace = trace
         self.accounts = {}
+        self.nations = {}
+        self.transitions = []
         self.operations = {}
         self.turn = None
         self.observed_memberships = {}
@@ -83,6 +85,7 @@ class TreasuryTraceBook:
             return
         self.turn = turn
         self.operations = {}
+        self.transitions = []
         self.opening_memberships = {name: dict(rows) for name, rows in self.observed_memberships.items()}
         self.opening_territories = {name: list(tiles) for name, tiles in self.observed_territories.items()}
         for info in self.accounts.values():
@@ -130,6 +133,7 @@ class TreasuryTraceBook:
         for nation in nations:
             if not callable(getattr(nation, '_treasury_entities', None)):
                 continue
+            self.nations[nation.name] = nation
             rows = self.membership(nation, clock, basis=basis)
             if basis == 'world_setup':
                 self.observed_memberships[nation.name] = rows
@@ -148,7 +152,7 @@ class TreasuryTraceBook:
                     'account_kind': key[0], 'bank_id': info['bank_id'], **inputs},
             cause_event_ids=causes)
         self.operations.setdefault(info['id'], []).append(
-            {'event_id': event_id, 'operation_kind': kind, 'before': before, 'after': after})
+            {'event_id': event_id, 'sequence': clock['next']-1, 'operation_kind': kind, 'before': before, 'after': after})
         return event_id
 
     def close(self, nations, clock, previous_values):
@@ -212,6 +216,21 @@ class TreasuryTraceBook:
             membership_same = current == prior and territory_same
             complete = (membership_same and before is not None and same(before, opening_sum)
                         and all(row['complete'] for row in rows) and same(actual, closing_sum))
+            from treasury_composition import closing_inputs, replay
+            composition = closing_inputs(self, nation, results, current, before)
+            if composition is not None:
+                verified = replay(composition, actual)['matches']
+                subject = {'type': 'nation', 'id': nation.name}
+                self.trace._calculated_values.pop(('finance.treasury', json.dumps(subject, sort_keys=True)), None)
+                self.trace.emit(
+                    clock, kind='treasury_account_closure', record_class='calculation' if verified else 'audit',
+                    phase='snapshot', subject=subject, metric_id='finance.treasury', unit=nation.currency,
+                    before=before, after=actual, formula_id='treasury.timed_composition.v1',
+                    inputs={**composition, 'membership_unchanged': False},
+                    explanation_status='timed_composition_verified' if verified else 'composition_chain_gap',
+                    cause_event_ids=[step['event_id'] for step in composition['steps']]
+                    + [row['source_event_id'] for row in composition['required_accounts']])
+                continue
             subject = {'type': 'nation', 'id': nation.name}
             self.trace._calculated_values.pop(('finance.treasury', json.dumps(subject, sort_keys=True)), None)
             self.trace.emit(

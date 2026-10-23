@@ -16,6 +16,7 @@ once per province per turn.
 """
 
 from __future__ import annotations
+from treasury_composition import traced_membership_mutation
 
 import government as govmod
 import econsim_trade_money as _tm
@@ -103,6 +104,7 @@ class Province:
     def charity(self):
         return self.institutions.charity
 
+    @traced_membership_mutation
     def add_tile(self, region):
         """Adopt *region*, repointing it at this province's shared bundle.
 

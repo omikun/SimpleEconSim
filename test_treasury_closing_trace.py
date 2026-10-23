@@ -114,7 +114,7 @@ class TreasuryClosingTraceTests(unittest.TestCase):
     def test_new_bank_association_and_departed_accounts_are_visible(self):
         from econsim_trade_money import Bank
         nation, tile, trace, clock, before = self.world()
-        tile.bank = Bank(tile.gov)
+        tile._institutions.bank = Bank(tile.gov)
         tile.gov._bank_ref = None
         tile.gov.agent._bank_ref = None
         trace.treasury_book.close([nation], clock, before)
@@ -127,7 +127,9 @@ class TreasuryClosingTraceTests(unittest.TestCase):
     def test_territory_change_with_shared_accounts_stays_an_audit(self):
         nation, tile, trace, clock, before = self.world()
         other = Region('Annex', 0, 0, institutions=tile._institutions)
-        nation.add_tile(other)
+        # Deliberately bypass the instrumented ownership API.
+        nation.tiles.append(other)
+        other.owner_nation = nation
         trace.treasury_book.close([nation], clock, before)
         closure = self.closes(trace)[-1]
         self.assertEqual('audit', closure['record_class'])
@@ -138,8 +140,6 @@ class TreasuryClosingTraceTests(unittest.TestCase):
         nation, tile, trace, clock, before = self.world()
         other = Region('Shared', 0, 0, institutions=tile._institutions)
         nation.add_tile(other)
-        # Explicit setup baseline includes both aliases.
-        trace.treasury_book.register_nations([nation], clock, basis='world_setup')
         trace.treasury_book.close([nation], clock, before)
         self.assertEqual(4, len(trace.treasury_book.accounts))
         public_bank_ids = {info['bank_id'] for info in trace.treasury_book.accounts.values()
