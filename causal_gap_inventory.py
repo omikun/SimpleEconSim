@@ -34,6 +34,14 @@ class Discover(ast.NodeVisitor):
         self.path, self.scope, self.rows, self.counts = path, [], [], Counter()
         self.histories = []
         self.guards = []
+        self.source_probe_literals = set()
+
+    def visit_Dict(self, node):
+        for key, value in zip(node.keys, node.values):
+            if (isinstance(key, ast.Constant) and key.value == 'source_writer'
+                    and isinstance(value, ast.Constant) and isinstance(value.value, str)):
+                self.source_probe_literals.add(value.value)
+        self.generic_visit(node)
 
     def visit_If(self, node):
         self.visit(node.test)
@@ -124,6 +132,9 @@ def inventory(root=ROOT):
     for path in production_paths(root):
         visitor = Discover(path)
         visitor.visit(ast.parse((root / path).read_text(), filename=path))
+        for row in visitor.rows:
+            row['source_probe'] = ('writer_literal_present' if row['id'] in visitor.source_probe_literals
+                                   else 'not_detected_by_literal_scan')
         rows.extend(visitor.rows)
         histories.extend(visitor.histories)
     reviews = json.loads(REVIEWS.read_text()) if REVIEWS.exists() else {'writers': {}}
@@ -154,7 +165,7 @@ def inventory(root=ROOT):
     ui_references = {}
     pattern = re.compile(r'''(['"])([a-z_]+(?:\.[a-z_]+)+)\1''')
     for path in sorted(paths):
-        if not (path.startswith(('client/', 'sim_server/')) or Path(path).name.startswith('worldview')):
+        if not (path.startswith(('client/', 'sim_server/', 'web_client/')) or Path(path).name.startswith('worldview')):
             continue
         for match in pattern.finditer((root / path).read_text()):
             metric = match.group(2)
@@ -165,6 +176,7 @@ def inventory(root=ROOT):
     return {'schema_version': 1, 'writers': rows, 'metrics': metrics, 'histories': history_rows,
             'limits': ['Candidate discovery is not a public-account or active-path classification.',
                        'Reflection, aliases to dictionaries and mutation through external helpers require source review.',
+                       'A source_writer literal locates a probe candidate; it does not prove execution, scope or transfer closure.',
                        'Metric declarations are not UI bindings or runtime provenance evidence.'],
             'scenarios': {name: {'status': 'inventory_incomplete',
                                 'unreviewed_candidates': sum(row['review'] == 'needs_review' for row in rows),
@@ -179,6 +191,7 @@ def render(data):
              f"- Financial write candidates: {len(data['writers'])}",
              f"- Reviewed: {sum(value for key, value in counts.items() if key != 'needs_review')}",
              f"- Needs review: {counts['needs_review']}",
+             f"- Writer IDs present in probe literals: {sum(row['source_probe'] == 'writer_literal_present' for row in data['writers'])}",
              f"- Declared metrics: {len(data['metrics'])}",
              f"- History fields requiring semantic review: {len(data['histories'])}", '',
              '## Scenario inventory status', '']

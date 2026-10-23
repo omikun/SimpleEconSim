@@ -33,9 +33,15 @@ bindings remain open until their fixtures and sampling semantics are checked.
 
 ## Current execution slice (2026-10-22)
 
+Update 2026-10-23: 507 candidates, 44 source reviews and 463 pending reviews;
+384 metric declarations and 89 history fields. A separate literal scan locates
+363 writer IDs in probe inputs; this does not establish their execution or
+semantic closure. Literal UI references include `web_client/` directly.
+The dated findings below remain historical evidence for the earlier slice.
+
 - 508 financial-write candidates: 11 source-reviewed military/medical writes,
   497 awaiting classification. There are 381 metric declarations and 89 history
-  fields; these counts are discovery totals, not coverage percentages.
+fields; these counts are discovery totals, not coverage percentages.
 - Runtime probes cover full/partial military payroll, ration procurement,
   public/private treatment, government provider receipts and self-refunds.
   Existing payment records link to returned public-account write IDs. A medical

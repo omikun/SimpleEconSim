@@ -52,11 +52,11 @@ annexation, many scenario actions, save/resume or long-run performance.
 
 | Phase | Implemented evidence | Remaining gate |
 |---|---|---|
-| 0 | Writer/metric/history inventory; 31 source reviews of 507 financial candidates | 476 reviews, active-path and complete history/UI classifications |
+| 0 | Writer/metric/history inventory; 44 source reviews of 507 financial candidates; 363 writer IDs located in probe literals | 463 reviews, active-path and complete history/UI classifications |
 | 1–2 | Military/medical/sovereign/rescue/subsidy fixtures; 127 further public probes; command boundaries | Rare branches and complete semantic payment-to-write contracts |
 | 3 | Timed native ownership/institution setters with shared-account fixtures | Additional nation creation/direct edits and scenario acceptance |
 | 4 | Independent economic replay, stock/source contracts and linked snapshots | Unsupported AI/scenario formulas and complete per-metric provenance |
-| 5 | Atomic full SimServer saves, branches, recovery; full economic graph/RNG/action equality in fresh-process default continuation | All-scenario continuation acceptance |
+| 5 | Atomic full SimServer saves, branches, recovery; full economic graph/RNG/action equality in default and both authored server scenarios | Native Egypt continuation acceptance |
 | 6 | Block index/rebuild, stable queries/export, bounded identity cache and streamed CLI comparisons | Measured memory/query/runtime budgets and retired-reference audit |
 | 7 | Shared web/desktop/CLI explanations, native recording, F11 inspector, historical membership and iPad browser checks | Full scenario/history acceptance and physical-device follow-up if available |
 | 8 | Short probes and deterministic negative fixtures | Multi-seed 30/100-turn acceptance, off/on state/actions and published budgets/report |
@@ -812,3 +812,12 @@ Both authored SimServer scenarios now also pass full economic-graph continuation
 in fresh processes and in the saving process, with RNG, shared references,
 histories and command retry identities preserved (seven focused semantic and
 continuation tests). Native desktop Egypt continuation remains open.
+
+### Inventory precision update (2026-10-23)
+
+The register now distinguishes 363 writer IDs found in explicit probe literals
+from the 44 reviewed writers (507 total, 463 still needing review). Literal
+discovery does not promote scope, execution or closure status. Web-client metric
+references now include the actual `web_client/` sources instead of depending on
+the client static symlink. Four inventory fixtures pass, including probe-literal
+discovery without review promotion and a real web binding candidate.

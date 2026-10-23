@@ -31,6 +31,16 @@ def settle(treasury, payer, bank, actor):
         self.assertNotEqual(original, discover_source(source.replace('-= 1','-= 2'), 'writer.py')[0]['id'])
         self.assertNotEqual(original, discover_source(source.replace('> 0','> 5'), 'writer.py')[0]['id'])
 
+    def test_source_probe_literal_is_discovery_without_promoting_review(self):
+        from causal_gap_inventory import Discover
+        import ast
+        visitor = Discover('writer.py')
+        visitor.visit(ast.parse("def pay(actor):\n actor.cash -= 1\n"))
+        writer_id = visitor.rows[0]['id']
+        visitor.visit(ast.parse(repr({'source_writer': writer_id})))
+        self.assertIn(writer_id, visitor.source_probe_literals)
+        self.assertEqual('needs_review', visitor.rows[0]['review'])
+
     def test_current_writes_match_review_baseline(self):
         state = random.getstate()
         data = inventory()
@@ -47,6 +57,8 @@ def settle(treasury, payer, bank, actor):
                     self.assertEqual('not_applicable',row['closure'])
                 else:self.assertTrue(row['fixtures'])
         self.assertTrue(all(row['closure'] == 'not_verified_by_inventory' for row in data['metrics']))
+        self.assertTrue(any(row['source_probe'] == 'writer_literal_present' for row in data['writers']))
+        self.assertTrue(any('web_client/client.js' in row['ui_reference_candidates'] for row in data['metrics']))
         self.assertTrue(all(row['status'] == 'inventory_incomplete' for row in data['scenarios'].values()))
         fields = {row['field'] for row in data['histories']}
         self.assertTrue({'cash_log','bought_log','forage_log','gdp_by_profession_log'} <= fields)
