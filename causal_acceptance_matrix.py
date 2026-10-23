@@ -52,7 +52,19 @@ def main():
     parser.add_argument('--profile',choices=('smoke','release'),default='smoke')
     parser.add_argument('--out',type=Path,required=True)
     parser.add_argument('--source-commit',default='HEAD')
+    parser.add_argument('--case', action='append', default=[], metavar='SCENARIO:SEED:TURNS',
+                        help='run selected native on/off pairs instead of the full profile')
     args=parser.parse_args()
+    selected=[]
+    for value in args.case:
+        try:
+            scenario, seed, turns = value.split(':')
+            seed, turns = int(seed), int(turns)
+            if scenario not in SCENARIOS or turns < 1:
+                raise ValueError
+        except ValueError:
+            parser.error('--case must be SCENARIO:SEED:TURNS with a known scenario and positive turns')
+        selected.append((scenario,seed,turns))
     out=args.out.resolve();out.mkdir(parents=True,exist_ok=True)
     commit=subprocess.check_output(['git','rev-parse',args.source_commit],cwd=ROOT,text=True).strip()
     source=out/'source'
@@ -65,11 +77,12 @@ def main():
     env=dict(os.environ,PYTHONHASHSEED='0',MPLCONFIGDIR='/private/tmp/plunder-mpl',
              SDL_VIDEODRIVER='dummy',SDL_AUDIODRIVER='dummy',COC_ACCEPTANCE_SOURCE_COMMIT=commit)
     result={'source_commit':commit,'profile':args.profile,'cases':[],'failures':[],'complete':False}
+    if selected:result['selected_cases']=[list(case) for case in selected]
     def publish():
         temporary=out/'matrix.json.pending';temporary.write_text(json.dumps(result,indent=2,sort_keys=True))
         temporary.replace(out/'matrix.json')
     publish()
-    for scenario,seed,turns in cases(args.profile):
+    for scenario,seed,turns in selected or cases(args.profile):
         reports={}
         for mode in ('on','off'):
             stem=f'{scenario}-{seed}-{turns}-{mode}';report=out/(stem+'.json')
