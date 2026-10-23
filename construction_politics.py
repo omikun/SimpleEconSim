@@ -77,6 +77,8 @@ def find_or_emerge_contractor(region: Region, budget: float, t: int) -> Agent:
              inputs={'agent_id': founder.id, 'tile': region.name})
         founder.social_class = 'contractor'
         founder_name = getattr(founder, 'name', f"Citizen #{founder.id}")
+        if callable(founder_name):
+            founder_name = founder_name()
         founder.company_name = f"{founder_name}'s Contracting Syndicate"
         founder.projects_completed = getattr(founder, 'projects_completed', 0)
         founder.idle_turns = 0

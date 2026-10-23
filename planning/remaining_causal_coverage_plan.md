@@ -555,3 +555,12 @@ renderings were visually checked (`tmp/desktop-causal-evidence.png`,
 commands and evidence labels: [inspection guide](trace_inspection_guide.md).
 The gate table above remains authoritative; full scenario/provenance/performance
 acceptance is still pending.
+
+
+### Stable contractor names before semantic acceptance (2026-10-23)
+
+The acceptance review found contractor names interpolated a bound `Agent.name`
+method, embedding a process address in company names and logs. The founder's
+name method is now called; string-name fixtures remain supported. This display
+correction is isolated from instrumentation. Ten construction/treasury-flow
+checks and a native founder-name assertion passed.
