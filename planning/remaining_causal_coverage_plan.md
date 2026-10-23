@@ -52,7 +52,7 @@ annexation, many scenario actions, save/resume or long-run performance.
 
 | Phase | Implemented evidence | Remaining gate |
 |---|---|---|
-| 0 | Writer/metric/history inventory; 66 source reviews of 507 financial candidates; 363 writer IDs located in probe literals | 441 reviews, active-path and complete history/UI classifications |
+| 0 | Writer/metric/history inventory; 80 source reviews of 507 financial candidates; 363 writer IDs located in probe literals | 427 reviews, active-path and complete history/UI classifications |
 | 1–2 | Military/medical/sovereign/rescue/subsidy fixtures; 127 further public probes; command boundaries | Rare branches and complete semantic payment-to-write contracts |
 | 3 | Timed native ownership/institution setters with shared-account fixtures | Additional nation creation/direct edits and scenario acceptance |
 | 4 | Independent economic replay, stock/source contracts and linked snapshots | Unsupported AI/scenario formulas and complete per-metric provenance |
@@ -927,3 +927,16 @@ correction is separate from food/Gini observation changes. A regression checks
 empty/negative treasury balances, no recipient minting/debt erasure and recorder
 parity; 65 benefit, transfer, strategy and treasury tests pass. The financial
 writer baseline remains unchanged because the existing mutations are untouched.
+
+### Benefit and customs source review (2026-10-23)
+
+Reviewed 14 benefit/customs writes: baby bonuses, provisional/proportional UBI,
+parental leave, hunger welfare and national/local tariff receipts. Entries name
+the actual lifecycle/market callers and receipt kinds, account owner, local
+currency and sampling point. Existing benefit fixtures exercise actual paid
+recipient amounts, payer links, partial funding and newly corrected unfunded
+behavior; customs fixtures exercise the national/local split. Entries explicitly
+leave exact payment-to-public-write contracts, all recipient aliases and
+single-treasury/interception branches with public-book closure unfinished.
+The register is now 80 source-reviewed candidates and 427 pending; these counts
+are not runtime completeness percentages. Four inventory checks pass.

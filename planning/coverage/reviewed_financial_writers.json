@@ -1062,6 +1062,395 @@
       "unit": "existing_bank_local_currency",
       "writer": "bank_scope_and_conditional_public_scope"
     },
+    "government.py:Government.distribute_ubi:1ae03a8f96cfbcb9:1": {
+      "account_type": "public_cash",
+      "calling_path": "econsim_live.Live -> each configured government.distribute_ubi",
+      "closure": "public_stock_probe_installed; policy_branch_closure_not_comprehensively_forced",
+      "definition": "Eligible living non-corporate citizens receive provisional credits. Positive short funding undoes and scales them before treasury close. Empty/negative funding now returns without minting or erasing debt.",
+      "fixtures": [
+        "test_public_benefit_trace.PublicBenefitTraceTests"
+      ],
+      "formula": "transfer_amount_recorded; universal_policy_replay_incomplete",
+      "links": "recipient_receipts_link_aggregate_treasury; write_to_payment_contracts_incomplete",
+      "missing_work": "Force all eligibility/recipient aliases and tariff single-treasury/interception branches with public-book closure. Link semantic transfer records to exact public write IDs; complete policy/source contracts and UI binding acceptance.",
+      "owner": "government.Government.distribute_ubi",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "immediately_before_and_after_native_write",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "semantic_records": [
+        "ubi_distributed",
+        "public_ubi_payment_receipt"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_region_or_nation_local_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "government.py:Government.distribute_ubi:5099091b7f096eaf:1": {
+      "account_type": "recipient_cash_conditional_public_owner",
+      "calling_path": "econsim_live.Live -> each configured government.distribute_ubi",
+      "closure": "public_stock_probe_installed; policy_branch_closure_not_comprehensively_forced",
+      "definition": "Eligible living non-corporate citizens receive provisional credits. Positive short funding undoes and scales them before treasury close. Empty/negative funding now returns without minting or erasing debt.",
+      "fixtures": [
+        "test_public_benefit_trace.PublicBenefitTraceTests"
+      ],
+      "formula": "transfer_amount_recorded; universal_policy_replay_incomplete",
+      "links": "recipient_receipts_link_aggregate_treasury; write_to_payment_contracts_incomplete",
+      "missing_work": "Force all eligibility/recipient aliases and tariff single-treasury/interception branches with public-book closure. Link semantic transfer records to exact public write IDs; complete policy/source contracts and UI binding acceptance.",
+      "owner": "government.Government.distribute_ubi",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "immediately_before_and_after_native_write",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "semantic_records": [
+        "ubi_distributed",
+        "public_ubi_payment_receipt"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_region_or_nation_local_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "government.py:Government.distribute_ubi:7a20b1c2c5bcefc9:1": {
+      "account_type": "recipient_cash_conditional_public_owner",
+      "calling_path": "econsim_live.Live -> each configured government.distribute_ubi",
+      "closure": "public_stock_probe_installed; policy_branch_closure_not_comprehensively_forced",
+      "definition": "Eligible living non-corporate citizens receive provisional credits. Positive short funding undoes and scales them before treasury close. Empty/negative funding now returns without minting or erasing debt.",
+      "fixtures": [
+        "test_public_benefit_trace.PublicBenefitTraceTests"
+      ],
+      "formula": "transfer_amount_recorded; universal_policy_replay_incomplete",
+      "links": "recipient_receipts_link_aggregate_treasury; write_to_payment_contracts_incomplete",
+      "missing_work": "Force all eligibility/recipient aliases and tariff single-treasury/interception branches with public-book closure. Link semantic transfer records to exact public write IDs; complete policy/source contracts and UI binding acceptance.",
+      "owner": "government.Government.distribute_ubi",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "immediately_before_and_after_native_write",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "semantic_records": [
+        "ubi_distributed",
+        "public_ubi_payment_receipt"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_region_or_nation_local_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "government.py:Government.distribute_ubi:a39b4a26e6e62e8d:1": {
+      "account_type": "recipient_cash_conditional_public_owner",
+      "calling_path": "econsim_live.Live -> each configured government.distribute_ubi",
+      "closure": "public_stock_probe_installed; policy_branch_closure_not_comprehensively_forced",
+      "definition": "Eligible living non-corporate citizens receive provisional credits. Positive short funding undoes and scales them before treasury close. Empty/negative funding now returns without minting or erasing debt.",
+      "fixtures": [
+        "test_public_benefit_trace.PublicBenefitTraceTests"
+      ],
+      "formula": "transfer_amount_recorded; universal_policy_replay_incomplete",
+      "links": "recipient_receipts_link_aggregate_treasury; write_to_payment_contracts_incomplete",
+      "missing_work": "Force all eligibility/recipient aliases and tariff single-treasury/interception branches with public-book closure. Link semantic transfer records to exact public write IDs; complete policy/source contracts and UI binding acceptance.",
+      "owner": "government.Government.distribute_ubi",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "immediately_before_and_after_native_write",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "semantic_records": [
+        "ubi_distributed",
+        "public_ubi_payment_receipt"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_region_or_nation_local_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "government.py:Government.distribute_ubi:e480c24bc4cf7ce2:1": {
+      "account_type": "public_cash",
+      "calling_path": "econsim_live.Live -> each configured government.distribute_ubi",
+      "closure": "public_stock_probe_installed; policy_branch_closure_not_comprehensively_forced",
+      "definition": "Eligible living non-corporate citizens receive provisional credits. Positive short funding undoes and scales them before treasury close. Empty/negative funding now returns without minting or erasing debt.",
+      "fixtures": [
+        "test_public_benefit_trace.PublicBenefitTraceTests"
+      ],
+      "formula": "transfer_amount_recorded; universal_policy_replay_incomplete",
+      "links": "recipient_receipts_link_aggregate_treasury; write_to_payment_contracts_incomplete",
+      "missing_work": "Force all eligibility/recipient aliases and tariff single-treasury/interception branches with public-book closure. Link semantic transfer records to exact public write IDs; complete policy/source contracts and UI binding acceptance.",
+      "owner": "government.Government.distribute_ubi",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "immediately_before_and_after_native_write",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "semantic_records": [
+        "ubi_distributed",
+        "public_ubi_payment_receipt"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_region_or_nation_local_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "government.py:Government.distribute_welfare:5ee0b62e2e94a843:1": {
+      "account_type": "recipient_cash_conditional_public_owner",
+      "calling_path": "econsim_live.Live post-lifecycle -> distribute_welfare",
+      "closure": "public_stock_probe_installed; policy_branch_closure_not_comprehensively_forced",
+      "definition": "Positive cash above the reserve is divided over hungry non-corporate agents, credited individually, and debited from government as the actual summed payments.",
+      "fixtures": [
+        "test_public_benefit_trace.PublicBenefitTraceTests.test_parental_leave_and_starvation_welfare_have_linked_receipts"
+      ],
+      "formula": "transfer_amount_recorded; universal_policy_replay_incomplete",
+      "links": "recipient_receipts_link_aggregate_treasury; write_to_payment_contracts_incomplete",
+      "missing_work": "Force all eligibility/recipient aliases and tariff single-treasury/interception branches with public-book closure. Link semantic transfer records to exact public write IDs; complete policy/source contracts and UI binding acceptance.",
+      "owner": "government.Government.distribute_welfare",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "immediately_before_and_after_native_write",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "semantic_records": [
+        "welfare_distributed",
+        "public_welfare_payment_receipt"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_region_or_nation_local_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "government.py:Government.distribute_welfare:e7dbaf55fa6458ee:1": {
+      "account_type": "public_cash",
+      "calling_path": "econsim_live.Live post-lifecycle -> distribute_welfare",
+      "closure": "public_stock_probe_installed; policy_branch_closure_not_comprehensively_forced",
+      "definition": "Positive cash above the reserve is divided over hungry non-corporate agents, credited individually, and debited from government as the actual summed payments.",
+      "fixtures": [
+        "test_public_benefit_trace.PublicBenefitTraceTests.test_parental_leave_and_starvation_welfare_have_linked_receipts"
+      ],
+      "formula": "transfer_amount_recorded; universal_policy_replay_incomplete",
+      "links": "recipient_receipts_link_aggregate_treasury; write_to_payment_contracts_incomplete",
+      "missing_work": "Force all eligibility/recipient aliases and tariff single-treasury/interception branches with public-book closure. Link semantic transfer records to exact public write IDs; complete policy/source contracts and UI binding acceptance.",
+      "owner": "government.Government.distribute_welfare",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "immediately_before_and_after_native_write",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "semantic_records": [
+        "welfare_distributed",
+        "public_welfare_payment_receipt"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_region_or_nation_local_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "government.py:Government.process_parental_leave:2d7a56782b93e546:1": {
+      "account_type": "recipient_cash_conditional_public_owner",
+      "calling_path": "econsim_live.Live -> process_parental_leave",
+      "closure": "public_stock_probe_installed; policy_branch_closure_not_comprehensively_forced",
+      "definition": "Enabled leave pays each living non-corporate agent with remaining entitlement, capped by actual treasury hand cash; duration is decremented even when unfunded.",
+      "fixtures": [
+        "test_public_benefit_trace.PublicBenefitTraceTests.test_parental_leave_and_starvation_welfare_have_linked_receipts"
+      ],
+      "formula": "transfer_amount_recorded; universal_policy_replay_incomplete",
+      "links": "recipient_receipts_link_aggregate_treasury; write_to_payment_contracts_incomplete",
+      "missing_work": "Force all eligibility/recipient aliases and tariff single-treasury/interception branches with public-book closure. Link semantic transfer records to exact public write IDs; complete policy/source contracts and UI binding acceptance.",
+      "owner": "government.Government.process_parental_leave",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "immediately_before_and_after_native_write",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "semantic_records": [
+        "parental_leave_paid",
+        "public_parental_leave_receipt"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_region_or_nation_local_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "government.py:Government.process_parental_leave:81154d3b4ff07948:1": {
+      "account_type": "public_cash",
+      "calling_path": "econsim_live.Live -> process_parental_leave",
+      "closure": "public_stock_probe_installed; policy_branch_closure_not_comprehensively_forced",
+      "definition": "Enabled leave pays each living non-corporate agent with remaining entitlement, capped by actual treasury hand cash; duration is decremented even when unfunded.",
+      "fixtures": [
+        "test_public_benefit_trace.PublicBenefitTraceTests.test_parental_leave_and_starvation_welfare_have_linked_receipts"
+      ],
+      "formula": "transfer_amount_recorded; universal_policy_replay_incomplete",
+      "links": "recipient_receipts_link_aggregate_treasury; write_to_payment_contracts_incomplete",
+      "missing_work": "Force all eligibility/recipient aliases and tariff single-treasury/interception branches with public-book closure. Link semantic transfer records to exact public write IDs; complete policy/source contracts and UI binding acceptance.",
+      "owner": "government.Government.process_parental_leave",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "immediately_before_and_after_native_write",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "semantic_records": [
+        "parental_leave_paid",
+        "public_parental_leave_receipt"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_region_or_nation_local_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "government.py:Government.provide_baby_bonus:806341d38075a0a4:1": {
+      "account_type": "recipient_cash_conditional_public_owner",
+      "calling_path": "demographics_reproduction.handle_reproduction -> provide_baby_bonus",
+      "closure": "public_stock_probe_installed; policy_branch_closure_not_comprehensively_forced",
+      "definition": "Enabled, positive, fully funded bonus debits government then credits parent; newborn identity is in the receipt.",
+      "fixtures": [
+        "test_public_benefit_trace.PublicBenefitTraceTests.test_baby_bonus_receipt_links_to_treasury_outflow"
+      ],
+      "formula": "transfer_amount_recorded; universal_policy_replay_incomplete",
+      "links": "recipient_receipts_link_aggregate_treasury; write_to_payment_contracts_incomplete",
+      "missing_work": "Force all eligibility/recipient aliases and tariff single-treasury/interception branches with public-book closure. Link semantic transfer records to exact public write IDs; complete policy/source contracts and UI binding acceptance.",
+      "owner": "government.Government.provide_baby_bonus",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "immediately_before_and_after_native_write",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "semantic_records": [
+        "baby_bonus_paid",
+        "public_baby_bonus_receipt"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_region_or_nation_local_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "government.py:Government.provide_baby_bonus:bcee66617fa2c644:1": {
+      "account_type": "public_cash",
+      "calling_path": "demographics_reproduction.handle_reproduction -> provide_baby_bonus",
+      "closure": "public_stock_probe_installed; policy_branch_closure_not_comprehensively_forced",
+      "definition": "Enabled, positive, fully funded bonus debits government then credits parent; newborn identity is in the receipt.",
+      "fixtures": [
+        "test_public_benefit_trace.PublicBenefitTraceTests.test_baby_bonus_receipt_links_to_treasury_outflow"
+      ],
+      "formula": "transfer_amount_recorded; universal_policy_replay_incomplete",
+      "links": "recipient_receipts_link_aggregate_treasury; write_to_payment_contracts_incomplete",
+      "missing_work": "Force all eligibility/recipient aliases and tariff single-treasury/interception branches with public-book closure. Link semantic transfer records to exact public write IDs; complete policy/source contracts and UI binding acceptance.",
+      "owner": "government.Government.provide_baby_bonus",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "immediately_before_and_after_native_write",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "semantic_records": [
+        "baby_bonus_paid",
+        "public_baby_bonus_receipt"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_region_or_nation_local_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "government.py:Government.receive_tariff:bd888233457b5519:1": {
+      "account_type": "public_cash",
+      "calling_path": "region_market import customs -> Government.receive_tariff",
+      "closure": "public_stock_probe_installed; policy_branch_closure_not_comprehensively_forced",
+      "definition": "Imperial interception first reduces proceeds. Remaining receipt is 80 percent national rounded to six decimals plus exact local remainder, or one local credit when there is no separate sovereign treasury.",
+      "fixtures": [
+        "test_government_transfer_trace.GovernmentTransferTraceTests.test_tariff_receipt_traces_national_and_local_treasury_shares"
+      ],
+      "formula": "transfer_amount_recorded; universal_policy_replay_incomplete",
+      "links": "recipient_receipts_link_aggregate_treasury; write_to_payment_contracts_incomplete",
+      "missing_work": "Force all eligibility/recipient aliases and tariff single-treasury/interception branches with public-book closure. Link semantic transfer records to exact public write IDs; complete policy/source contracts and UI binding acceptance.",
+      "owner": "government.Government.receive_tariff",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "immediately_before_and_after_native_write",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "semantic_records": [
+        "tariff_collected"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_region_or_nation_local_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "government.py:Government.receive_tariff:cba3f66150baf818:1": {
+      "account_type": "public_cash",
+      "calling_path": "region_market import customs -> Government.receive_tariff",
+      "closure": "public_stock_probe_installed; policy_branch_closure_not_comprehensively_forced",
+      "definition": "Imperial interception first reduces proceeds. Remaining receipt is 80 percent national rounded to six decimals plus exact local remainder, or one local credit when there is no separate sovereign treasury.",
+      "fixtures": [
+        "test_government_transfer_trace.GovernmentTransferTraceTests.test_tariff_receipt_traces_national_and_local_treasury_shares"
+      ],
+      "formula": "transfer_amount_recorded; universal_policy_replay_incomplete",
+      "links": "recipient_receipts_link_aggregate_treasury; write_to_payment_contracts_incomplete",
+      "missing_work": "Force all eligibility/recipient aliases and tariff single-treasury/interception branches with public-book closure. Link semantic transfer records to exact public write IDs; complete policy/source contracts and UI binding acceptance.",
+      "owner": "government.Government.receive_tariff",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "immediately_before_and_after_native_write",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "semantic_records": [
+        "tariff_collected"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_region_or_nation_local_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "government.py:Government.receive_tariff:d49ba3d84aed245d:1": {
+      "account_type": "public_cash",
+      "calling_path": "region_market import customs -> Government.receive_tariff",
+      "closure": "public_stock_probe_installed; policy_branch_closure_not_comprehensively_forced",
+      "definition": "Imperial interception first reduces proceeds. Remaining receipt is 80 percent national rounded to six decimals plus exact local remainder, or one local credit when there is no separate sovereign treasury.",
+      "fixtures": [
+        "test_government_transfer_trace.GovernmentTransferTraceTests.test_tariff_receipt_traces_national_and_local_treasury_shares"
+      ],
+      "formula": "transfer_amount_recorded; universal_policy_replay_incomplete",
+      "links": "recipient_receipts_link_aggregate_treasury; write_to_payment_contracts_incomplete",
+      "missing_work": "Force all eligibility/recipient aliases and tariff single-treasury/interception branches with public-book closure. Link semantic transfer records to exact public write IDs; complete policy/source contracts and UI binding acceptance.",
+      "owner": "government.Government.receive_tariff",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "immediately_before_and_after_native_write",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "semantic_records": [
+        "tariff_collected"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_region_or_nation_local_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
     "labor_laws.py:submit_law_petition:706cda858af3e6a5:1": {
       "calling_path": "submit_law_petition",
       "closure": "scenario_rerun_pending",
