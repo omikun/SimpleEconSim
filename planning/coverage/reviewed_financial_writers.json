@@ -1451,6 +1451,492 @@
       "unit": "existing_region_or_nation_local_currency",
       "writer": "explicit_conditional_public_probe"
     },
+    "labor_frontier_market.py:_buy_cotton:0b855e1386359680:1": {
+      "account_type": "scenario_cash_conditional_public_actor",
+      "calling_path": "scenario_labor_frontier_rivalry.advance_after_engine -> settle_markets -> _buy_cotton",
+      "closure": "verified_native_public_chains_in_named_fixture; rare actor aliases not forced",
+      "definition": "mill pays delivered quote; grower receives origin price less 4 percent sales tax rounded to six decimals; municipality receives tax and actual carrier receives freight",
+      "fixtures": [
+        "test_labor_frontier_rivalry.LaborFrontierRivalryTest.test_captured_cotton_pays_new_sovereign_only_when_sold"
+      ],
+      "formula": "quote/stock replay available; payment-to-write contracts incomplete",
+      "links": "price quote/settlement links; full monetary counterparty/write links incomplete",
+      "missing_work": "Force public buyer/seller/carrier aliases and every funding/route rejection; link semantic monetary records to exact public write IDs. Complete long-run scenario and field/UI sampling acceptance.",
+      "owner": "labor_frontier_market._buy_cotton",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "native_mutation_point",
+      "scenarios": [
+        "labor_frontier_rivalry"
+      ],
+      "semantic_records": [
+        "scenario_cotton_paid_price",
+        "scenario_cotton_sales_tax",
+        "public_account_write"
+      ],
+      "ui": "shared_frontier_projection_and_generic_trace_inspector",
+      "unit": "Frontier_Crown_shared_scenario_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "labor_frontier_market.py:_buy_cotton:369888dd373af367:1": {
+      "account_type": "scenario_cash_conditional_public_actor",
+      "calling_path": "scenario_labor_frontier_rivalry.advance_after_engine -> settle_markets -> _buy_cotton",
+      "closure": "verified_native_public_chains_in_named_fixture; rare actor aliases not forced",
+      "definition": "mill pays delivered quote; grower receives origin price less 4 percent sales tax rounded to six decimals; municipality receives tax and actual carrier receives freight",
+      "fixtures": [
+        "test_labor_frontier_rivalry.LaborFrontierRivalryTest.test_captured_cotton_pays_new_sovereign_only_when_sold"
+      ],
+      "formula": "quote/stock replay available; payment-to-write contracts incomplete",
+      "links": "price quote/settlement links; full monetary counterparty/write links incomplete",
+      "missing_work": "Force public buyer/seller/carrier aliases and every funding/route rejection; link semantic monetary records to exact public write IDs. Complete long-run scenario and field/UI sampling acceptance.",
+      "owner": "labor_frontier_market._buy_cotton",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "native_mutation_point",
+      "scenarios": [
+        "labor_frontier_rivalry"
+      ],
+      "semantic_records": [
+        "scenario_cotton_paid_price",
+        "scenario_cotton_sales_tax",
+        "public_account_write"
+      ],
+      "ui": "shared_frontier_projection_and_generic_trace_inspector",
+      "unit": "Frontier_Crown_shared_scenario_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "labor_frontier_market.py:_buy_cotton:5e00da7d5c59b139:1": {
+      "account_type": "scenario_cash_conditional_public_actor",
+      "calling_path": "scenario_labor_frontier_rivalry.advance_after_engine -> settle_markets -> _buy_cotton",
+      "closure": "verified_native_public_chains_in_named_fixture; rare actor aliases not forced",
+      "definition": "mill pays delivered quote; grower receives origin price less 4 percent sales tax rounded to six decimals; municipality receives tax and actual carrier receives freight",
+      "fixtures": [
+        "test_labor_frontier_rivalry.LaborFrontierRivalryTest.test_captured_cotton_pays_new_sovereign_only_when_sold"
+      ],
+      "formula": "quote/stock replay available; payment-to-write contracts incomplete",
+      "links": "price quote/settlement links; full monetary counterparty/write links incomplete",
+      "missing_work": "Force public buyer/seller/carrier aliases and every funding/route rejection; link semantic monetary records to exact public write IDs. Complete long-run scenario and field/UI sampling acceptance.",
+      "owner": "labor_frontier_market._buy_cotton",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "native_mutation_point",
+      "scenarios": [
+        "labor_frontier_rivalry"
+      ],
+      "semantic_records": [
+        "scenario_cotton_paid_price",
+        "scenario_cotton_sales_tax",
+        "public_account_write"
+      ],
+      "ui": "shared_frontier_projection_and_generic_trace_inspector",
+      "unit": "Frontier_Crown_shared_scenario_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "labor_frontier_market.py:_buy_cotton:dc8a97fcba1c7e46:1": {
+      "account_type": "scenario_cash_conditional_public_actor",
+      "calling_path": "scenario_labor_frontier_rivalry.advance_after_engine -> settle_markets -> _buy_cotton",
+      "closure": "verified_native_public_chains_in_named_fixture; rare actor aliases not forced",
+      "definition": "mill pays delivered quote; grower receives origin price less 4 percent sales tax rounded to six decimals; municipality receives tax and actual carrier receives freight",
+      "fixtures": [
+        "test_labor_frontier_rivalry.LaborFrontierRivalryTest.test_captured_cotton_pays_new_sovereign_only_when_sold"
+      ],
+      "formula": "quote/stock replay available; payment-to-write contracts incomplete",
+      "links": "price quote/settlement links; full monetary counterparty/write links incomplete",
+      "missing_work": "Force public buyer/seller/carrier aliases and every funding/route rejection; link semantic monetary records to exact public write IDs. Complete long-run scenario and field/UI sampling acceptance.",
+      "owner": "labor_frontier_market._buy_cotton",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "native_mutation_point",
+      "scenarios": [
+        "labor_frontier_rivalry"
+      ],
+      "semantic_records": [
+        "scenario_cotton_paid_price",
+        "scenario_cotton_sales_tax",
+        "public_account_write"
+      ],
+      "ui": "shared_frontier_projection_and_generic_trace_inspector",
+      "unit": "Frontier_Crown_shared_scenario_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "labor_frontier_market.py:_sell_cloth:4dc9a021841186ce:1": {
+      "account_type": "scenario_cash_conditional_public_actor",
+      "calling_path": "scenario_labor_frontier_rivalry.advance_after_engine -> settle_markets -> _sell_cloth",
+      "closure": "verified_native_public_chains_in_named_fixture; rare actor aliases not forced",
+      "definition": "funded household selects an affordable connected offer below the delivered ceiling; seller and carrier split delivered cash, then seller funds 6 percent municipal tax",
+      "fixtures": [
+        "test_labor_frontier_rivalry.LaborFrontierRivalryTest.test_funded_cloth_orders_choose_available_lower_price"
+      ],
+      "formula": "quote/stock replay available; payment-to-write contracts incomplete",
+      "links": "price quote/settlement links; full monetary counterparty/write links incomplete",
+      "missing_work": "Force public buyer/seller/carrier aliases and every funding/route rejection; link semantic monetary records to exact public write IDs. Complete long-run scenario and field/UI sampling acceptance.",
+      "owner": "labor_frontier_market._sell_cloth",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "native_mutation_point",
+      "scenarios": [
+        "labor_frontier_rivalry"
+      ],
+      "semantic_records": [
+        "scenario_cloth_paid_price",
+        "scenario_cloth_sales_tax",
+        "public_account_write"
+      ],
+      "ui": "shared_frontier_projection_and_generic_trace_inspector",
+      "unit": "Frontier_Crown_shared_scenario_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "labor_frontier_market.py:_sell_cloth:c0391410efa932ef:1": {
+      "account_type": "scenario_cash_conditional_public_actor",
+      "calling_path": "scenario_labor_frontier_rivalry.advance_after_engine -> settle_markets -> _sell_cloth",
+      "closure": "verified_native_public_chains_in_named_fixture; rare actor aliases not forced",
+      "definition": "funded household selects an affordable connected offer below the delivered ceiling; seller and carrier split delivered cash, then seller funds 6 percent municipal tax",
+      "fixtures": [
+        "test_labor_frontier_rivalry.LaborFrontierRivalryTest.test_funded_cloth_orders_choose_available_lower_price"
+      ],
+      "formula": "quote/stock replay available; payment-to-write contracts incomplete",
+      "links": "price quote/settlement links; full monetary counterparty/write links incomplete",
+      "missing_work": "Force public buyer/seller/carrier aliases and every funding/route rejection; link semantic monetary records to exact public write IDs. Complete long-run scenario and field/UI sampling acceptance.",
+      "owner": "labor_frontier_market._sell_cloth",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "native_mutation_point",
+      "scenarios": [
+        "labor_frontier_rivalry"
+      ],
+      "semantic_records": [
+        "scenario_cloth_paid_price",
+        "scenario_cloth_sales_tax",
+        "public_account_write"
+      ],
+      "ui": "shared_frontier_projection_and_generic_trace_inspector",
+      "unit": "Frontier_Crown_shared_scenario_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "labor_frontier_market.py:_sell_cloth:d848f47def9c018b:1": {
+      "account_type": "scenario_cash_conditional_public_actor",
+      "calling_path": "scenario_labor_frontier_rivalry.advance_after_engine -> settle_markets -> _sell_cloth",
+      "closure": "verified_native_public_chains_in_named_fixture; rare actor aliases not forced",
+      "definition": "funded household selects an affordable connected offer below the delivered ceiling; seller and carrier split delivered cash, then seller funds 6 percent municipal tax",
+      "fixtures": [
+        "test_labor_frontier_rivalry.LaborFrontierRivalryTest.test_funded_cloth_orders_choose_available_lower_price"
+      ],
+      "formula": "quote/stock replay available; payment-to-write contracts incomplete",
+      "links": "price quote/settlement links; full monetary counterparty/write links incomplete",
+      "missing_work": "Force public buyer/seller/carrier aliases and every funding/route rejection; link semantic monetary records to exact public write IDs. Complete long-run scenario and field/UI sampling acceptance.",
+      "owner": "labor_frontier_market._sell_cloth",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "native_mutation_point",
+      "scenarios": [
+        "labor_frontier_rivalry"
+      ],
+      "semantic_records": [
+        "scenario_cloth_paid_price",
+        "scenario_cloth_sales_tax",
+        "public_account_write"
+      ],
+      "ui": "shared_frontier_projection_and_generic_trace_inspector",
+      "unit": "Frontier_Crown_shared_scenario_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "labor_frontier_market.py:_sell_cloth:e5a09a48194829b0:1": {
+      "account_type": "scenario_cash_conditional_public_actor",
+      "calling_path": "scenario_labor_frontier_rivalry.advance_after_engine -> settle_markets -> _sell_cloth",
+      "closure": "verified_native_public_chains_in_named_fixture; rare actor aliases not forced",
+      "definition": "funded household selects an affordable connected offer below the delivered ceiling; seller and carrier split delivered cash, then seller funds 6 percent municipal tax",
+      "fixtures": [
+        "test_labor_frontier_rivalry.LaborFrontierRivalryTest.test_funded_cloth_orders_choose_available_lower_price"
+      ],
+      "formula": "quote/stock replay available; payment-to-write contracts incomplete",
+      "links": "price quote/settlement links; full monetary counterparty/write links incomplete",
+      "missing_work": "Force public buyer/seller/carrier aliases and every funding/route rejection; link semantic monetary records to exact public write IDs. Complete long-run scenario and field/UI sampling acceptance.",
+      "owner": "labor_frontier_market._sell_cloth",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "native_mutation_point",
+      "scenarios": [
+        "labor_frontier_rivalry"
+      ],
+      "semantic_records": [
+        "scenario_cloth_paid_price",
+        "scenario_cloth_sales_tax",
+        "public_account_write"
+      ],
+      "ui": "shared_frontier_projection_and_generic_trace_inspector",
+      "unit": "Frontier_Crown_shared_scenario_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "labor_frontier_market.py:_sell_cloth:f23a1cef8d1f0b24:1": {
+      "account_type": "scenario_cash_conditional_public_actor",
+      "calling_path": "scenario_labor_frontier_rivalry.advance_after_engine -> settle_markets -> _sell_cloth",
+      "closure": "verified_native_public_chains_in_named_fixture; rare actor aliases not forced",
+      "definition": "funded household selects an affordable connected offer below the delivered ceiling; seller and carrier split delivered cash, then seller funds 6 percent municipal tax",
+      "fixtures": [
+        "test_labor_frontier_rivalry.LaborFrontierRivalryTest.test_funded_cloth_orders_choose_available_lower_price"
+      ],
+      "formula": "quote/stock replay available; payment-to-write contracts incomplete",
+      "links": "price quote/settlement links; full monetary counterparty/write links incomplete",
+      "missing_work": "Force public buyer/seller/carrier aliases and every funding/route rejection; link semantic monetary records to exact public write IDs. Complete long-run scenario and field/UI sampling acceptance.",
+      "owner": "labor_frontier_market._sell_cloth",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "native_mutation_point",
+      "scenarios": [
+        "labor_frontier_rivalry"
+      ],
+      "semantic_records": [
+        "scenario_cloth_paid_price",
+        "scenario_cloth_sales_tax",
+        "public_account_write"
+      ],
+      "ui": "shared_frontier_projection_and_generic_trace_inspector",
+      "unit": "Frontier_Crown_shared_scenario_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "labor_frontier_market.py:_sweep_sales_tax:16a024f28524d64e:1": {
+      "account_type": "public_to_public_same_nation_cash",
+      "calling_path": "settle_markets -> _sweep_sales_tax",
+      "closure": "verified_native_public_chains_in_named_fixture; rare actor aliases not forced",
+      "definition": "remit half the actual scenario sales tax, capped by municipal hand cash, to the current sovereign. This moves public cash internally within the nation",
+      "fixtures": [
+        "test_labor_frontier_rivalry.LaborFrontierRivalryTest.test_thirty_turn_audit_preserves_cash_people_contracts_and_supply"
+      ],
+      "formula": "quote/stock replay available; payment-to-write contracts incomplete",
+      "links": "price quote/settlement links; full monetary counterparty/write links incomplete",
+      "missing_work": "Force public buyer/seller/carrier aliases and every funding/route rejection; link semantic monetary records to exact public write IDs. Complete long-run scenario and field/UI sampling acceptance.",
+      "owner": "labor_frontier_market._sweep_sales_tax",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "native_mutation_point",
+      "scenarios": [
+        "labor_frontier_rivalry"
+      ],
+      "semantic_records": [
+        "public_account_write"
+      ],
+      "ui": "shared_frontier_projection_and_generic_trace_inspector",
+      "unit": "Frontier_Crown_shared_scenario_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "labor_frontier_market.py:_sweep_sales_tax:20c96f7a06fbcd43:1": {
+      "account_type": "public_to_public_same_nation_cash",
+      "calling_path": "settle_markets -> _sweep_sales_tax",
+      "closure": "verified_native_public_chains_in_named_fixture; rare actor aliases not forced",
+      "definition": "remit half the actual scenario sales tax, capped by municipal hand cash, to the current sovereign. This moves public cash internally within the nation",
+      "fixtures": [
+        "test_labor_frontier_rivalry.LaborFrontierRivalryTest.test_thirty_turn_audit_preserves_cash_people_contracts_and_supply"
+      ],
+      "formula": "quote/stock replay available; payment-to-write contracts incomplete",
+      "links": "price quote/settlement links; full monetary counterparty/write links incomplete",
+      "missing_work": "Force public buyer/seller/carrier aliases and every funding/route rejection; link semantic monetary records to exact public write IDs. Complete long-run scenario and field/UI sampling acceptance.",
+      "owner": "labor_frontier_market._sweep_sales_tax",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "native_mutation_point",
+      "scenarios": [
+        "labor_frontier_rivalry"
+      ],
+      "semantic_records": [
+        "public_account_write"
+      ],
+      "ui": "shared_frontier_projection_and_generic_trace_inspector",
+      "unit": "Frontier_Crown_shared_scenario_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "labor_frontier_market.py:initialize_market:affe9419d54e8684:1": {
+      "account_type": "private_household_setup_endowment",
+      "calling_path": "scenario_labor_frontier_rivalry.create_world -> initialize_market",
+      "closure": "verified_native_public_chains_in_named_fixture; rare actor aliases not forced",
+      "definition": "setup endowment: each named ordinary capital household receives 120 Frontier Crowns before the currency baseline; no refills",
+      "fixtures": [
+        "test_labor_frontier_rivalry.LaborFrontierRivalryTest.test_one_world_turn_uses_single_engine_tick"
+      ],
+      "formula": "quote/stock replay available; payment-to-write contracts incomplete",
+      "links": "price quote/settlement links; full monetary counterparty/write links incomplete",
+      "missing_work": "Force public buyer/seller/carrier aliases and every funding/route rejection; link semantic monetary records to exact public write IDs. Complete long-run scenario and field/UI sampling acceptance.",
+      "owner": "labor_frontier_market.initialize_market",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "initial_currency_baseline",
+      "scenarios": [
+        "labor_frontier_rivalry"
+      ],
+      "semantic_records": [],
+      "ui": "shared_frontier_projection_and_generic_trace_inspector",
+      "unit": "Frontier_Crown_shared_scenario_currency",
+      "writer": "explicit_initial_stock"
+    },
+    "labor_frontier_market.py:start_machinery_project:20ba43b3021ec194:1": {
+      "account_type": "scenario_cash_conditional_public_actor",
+      "calling_path": "labor_frontier_labor.apply_action/_owner_decision -> start_machinery_project",
+      "closure": "verified_native_public_chains_in_named_fixture; rare actor aliases not forced",
+      "definition": "owner plus sovereign fund exactly 45 cash; firm pays physical input suppliers and an artisan. Project reserves purchased iron/coal until due, outside saleable firm stock",
+      "fixtures": [
+        "test_public_actor_alias_trace.PublicActorAliasTraceTests.test_authored_project_reserves_survive_market_ticks_and_retry"
+      ],
+      "formula": "quote/stock replay available; payment-to-write contracts incomplete",
+      "links": "price quote/settlement links; full monetary counterparty/write links incomplete",
+      "missing_work": "Force public buyer/seller/carrier aliases and every funding/route rejection; link semantic monetary records to exact public write IDs. Complete long-run scenario and field/UI sampling acceptance.",
+      "owner": "labor_frontier_market.start_machinery_project",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "native_mutation_point",
+      "scenarios": [
+        "labor_frontier_rivalry"
+      ],
+      "semantic_records": [
+        "machinery_public_funding",
+        "scenario_machinery_material_reserved",
+        "public_account_write"
+      ],
+      "ui": "shared_frontier_projection_and_generic_trace_inspector",
+      "unit": "Frontier_Crown_shared_scenario_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "labor_frontier_market.py:start_machinery_project:455e4aaec8281444:1": {
+      "account_type": "scenario_cash_conditional_public_actor",
+      "calling_path": "labor_frontier_labor.apply_action/_owner_decision -> start_machinery_project",
+      "closure": "verified_native_public_chains_in_named_fixture; rare actor aliases not forced",
+      "definition": "owner plus sovereign fund exactly 45 cash; firm pays physical input suppliers and an artisan. Project reserves purchased iron/coal until due, outside saleable firm stock",
+      "fixtures": [
+        "test_public_actor_alias_trace.PublicActorAliasTraceTests.test_authored_project_reserves_survive_market_ticks_and_retry"
+      ],
+      "formula": "quote/stock replay available; payment-to-write contracts incomplete",
+      "links": "price quote/settlement links; full monetary counterparty/write links incomplete",
+      "missing_work": "Force public buyer/seller/carrier aliases and every funding/route rejection; link semantic monetary records to exact public write IDs. Complete long-run scenario and field/UI sampling acceptance.",
+      "owner": "labor_frontier_market.start_machinery_project",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "native_mutation_point",
+      "scenarios": [
+        "labor_frontier_rivalry"
+      ],
+      "semantic_records": [
+        "machinery_public_funding",
+        "scenario_machinery_material_reserved",
+        "public_account_write"
+      ],
+      "ui": "shared_frontier_projection_and_generic_trace_inspector",
+      "unit": "Frontier_Crown_shared_scenario_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "labor_frontier_market.py:start_machinery_project:9e806d4d39fd2c45:1": {
+      "account_type": "scenario_cash_conditional_public_actor",
+      "calling_path": "labor_frontier_labor.apply_action/_owner_decision -> start_machinery_project",
+      "closure": "verified_native_public_chains_in_named_fixture; rare actor aliases not forced",
+      "definition": "owner plus sovereign fund exactly 45 cash; firm pays physical input suppliers and an artisan. Project reserves purchased iron/coal until due, outside saleable firm stock",
+      "fixtures": [
+        "test_public_actor_alias_trace.PublicActorAliasTraceTests.test_authored_project_reserves_survive_market_ticks_and_retry"
+      ],
+      "formula": "quote/stock replay available; payment-to-write contracts incomplete",
+      "links": "price quote/settlement links; full monetary counterparty/write links incomplete",
+      "missing_work": "Force public buyer/seller/carrier aliases and every funding/route rejection; link semantic monetary records to exact public write IDs. Complete long-run scenario and field/UI sampling acceptance.",
+      "owner": "labor_frontier_market.start_machinery_project",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "native_mutation_point",
+      "scenarios": [
+        "labor_frontier_rivalry"
+      ],
+      "semantic_records": [
+        "machinery_public_funding",
+        "scenario_machinery_material_reserved",
+        "public_account_write"
+      ],
+      "ui": "shared_frontier_projection_and_generic_trace_inspector",
+      "unit": "Frontier_Crown_shared_scenario_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "labor_frontier_market.py:start_machinery_project:a4daf06b9eb67316:1": {
+      "account_type": "scenario_cash_conditional_public_actor",
+      "calling_path": "labor_frontier_labor.apply_action/_owner_decision -> start_machinery_project",
+      "closure": "verified_native_public_chains_in_named_fixture; rare actor aliases not forced",
+      "definition": "owner plus sovereign fund exactly 45 cash; firm pays physical input suppliers and an artisan. Project reserves purchased iron/coal until due, outside saleable firm stock",
+      "fixtures": [
+        "test_public_actor_alias_trace.PublicActorAliasTraceTests.test_authored_project_reserves_survive_market_ticks_and_retry"
+      ],
+      "formula": "quote/stock replay available; payment-to-write contracts incomplete",
+      "links": "price quote/settlement links; full monetary counterparty/write links incomplete",
+      "missing_work": "Force public buyer/seller/carrier aliases and every funding/route rejection; link semantic monetary records to exact public write IDs. Complete long-run scenario and field/UI sampling acceptance.",
+      "owner": "labor_frontier_market.start_machinery_project",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "native_mutation_point",
+      "scenarios": [
+        "labor_frontier_rivalry"
+      ],
+      "semantic_records": [
+        "machinery_public_funding",
+        "scenario_machinery_material_reserved",
+        "public_account_write"
+      ],
+      "ui": "shared_frontier_projection_and_generic_trace_inspector",
+      "unit": "Frontier_Crown_shared_scenario_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "labor_frontier_market.py:start_machinery_project:c9a0bf5df4aaf146:1": {
+      "account_type": "scenario_cash_conditional_public_actor",
+      "calling_path": "labor_frontier_labor.apply_action/_owner_decision -> start_machinery_project",
+      "closure": "verified_native_public_chains_in_named_fixture; rare actor aliases not forced",
+      "definition": "owner plus sovereign fund exactly 45 cash; firm pays physical input suppliers and an artisan. Project reserves purchased iron/coal until due, outside saleable firm stock",
+      "fixtures": [
+        "test_public_actor_alias_trace.PublicActorAliasTraceTests.test_authored_project_reserves_survive_market_ticks_and_retry"
+      ],
+      "formula": "quote/stock replay available; payment-to-write contracts incomplete",
+      "links": "price quote/settlement links; full monetary counterparty/write links incomplete",
+      "missing_work": "Force public buyer/seller/carrier aliases and every funding/route rejection; link semantic monetary records to exact public write IDs. Complete long-run scenario and field/UI sampling acceptance.",
+      "owner": "labor_frontier_market.start_machinery_project",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "native_mutation_point",
+      "scenarios": [
+        "labor_frontier_rivalry"
+      ],
+      "semantic_records": [
+        "machinery_public_funding",
+        "scenario_machinery_material_reserved",
+        "public_account_write"
+      ],
+      "ui": "shared_frontier_projection_and_generic_trace_inspector",
+      "unit": "Frontier_Crown_shared_scenario_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "labor_frontier_market.py:start_machinery_project:e9c40f02059daa9e:1": {
+      "account_type": "scenario_cash_conditional_public_actor",
+      "calling_path": "labor_frontier_labor.apply_action/_owner_decision -> start_machinery_project",
+      "closure": "verified_native_public_chains_in_named_fixture; rare actor aliases not forced",
+      "definition": "owner plus sovereign fund exactly 45 cash; firm pays physical input suppliers and an artisan. Project reserves purchased iron/coal until due, outside saleable firm stock",
+      "fixtures": [
+        "test_public_actor_alias_trace.PublicActorAliasTraceTests.test_authored_project_reserves_survive_market_ticks_and_retry"
+      ],
+      "formula": "quote/stock replay available; payment-to-write contracts incomplete",
+      "links": "price quote/settlement links; full monetary counterparty/write links incomplete",
+      "missing_work": "Force public buyer/seller/carrier aliases and every funding/route rejection; link semantic monetary records to exact public write IDs. Complete long-run scenario and field/UI sampling acceptance.",
+      "owner": "labor_frontier_market.start_machinery_project",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "native_mutation_point",
+      "scenarios": [
+        "labor_frontier_rivalry"
+      ],
+      "semantic_records": [
+        "machinery_public_funding",
+        "scenario_machinery_material_reserved",
+        "public_account_write"
+      ],
+      "ui": "shared_frontier_projection_and_generic_trace_inspector",
+      "unit": "Frontier_Crown_shared_scenario_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "labor_frontier_market.py:start_machinery_project:ec3ef6c5c9b405cd:1": {
+      "account_type": "scenario_cash_conditional_public_actor",
+      "calling_path": "labor_frontier_labor.apply_action/_owner_decision -> start_machinery_project",
+      "closure": "verified_native_public_chains_in_named_fixture; rare actor aliases not forced",
+      "definition": "owner plus sovereign fund exactly 45 cash; firm pays physical input suppliers and an artisan. Project reserves purchased iron/coal until due, outside saleable firm stock",
+      "fixtures": [
+        "test_public_actor_alias_trace.PublicActorAliasTraceTests.test_authored_project_reserves_survive_market_ticks_and_retry"
+      ],
+      "formula": "quote/stock replay available; payment-to-write contracts incomplete",
+      "links": "price quote/settlement links; full monetary counterparty/write links incomplete",
+      "missing_work": "Force public buyer/seller/carrier aliases and every funding/route rejection; link semantic monetary records to exact public write IDs. Complete long-run scenario and field/UI sampling acceptance.",
+      "owner": "labor_frontier_market.start_machinery_project",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "native_mutation_point",
+      "scenarios": [
+        "labor_frontier_rivalry"
+      ],
+      "semantic_records": [
+        "machinery_public_funding",
+        "scenario_machinery_material_reserved",
+        "public_account_write"
+      ],
+      "ui": "shared_frontier_projection_and_generic_trace_inspector",
+      "unit": "Frontier_Crown_shared_scenario_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
     "labor_laws.py:submit_law_petition:706cda858af3e6a5:1": {
       "calling_path": "submit_law_petition",
       "closure": "scenario_rerun_pending",

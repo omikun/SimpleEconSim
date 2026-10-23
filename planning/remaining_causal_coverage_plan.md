@@ -52,7 +52,7 @@ annexation, many scenario actions, save/resume or long-run performance.
 
 | Phase | Implemented evidence | Remaining gate |
 |---|---|---|
-| 0 | Writer/metric/history inventory; 80 source reviews of 507 financial candidates; 363 writer IDs located in probe literals | 427 reviews, active-path and complete history/UI classifications |
+| 0 | Writer/metric/history inventory; 99 source reviews of 507 financial candidates; 363 writer IDs located in probe literals | 408 reviews, active-path and complete history/UI classifications |
 | 1–2 | Military/medical/sovereign/rescue/subsidy fixtures; 127 further public probes; command boundaries | Rare branches and complete semantic payment-to-write contracts |
 | 3 | Timed native ownership/institution setters with shared-account fixtures | Additional nation creation/direct edits and scenario acceptance |
 | 4 | Independent economic replay, stock/source contracts and linked snapshots | Unsupported AI/scenario formulas and complete per-metric provenance |
@@ -979,3 +979,15 @@ commons, win actual orders and pay its public cost; finite demand need not make
 it dominate waiting in every short window. All 54 combined frontier/auction/
 project/replay/inventory/catalog tests pass. Gameplay change is limited to
 reserved construction inputs; owner/worker strategy thresholds are unchanged.
+
+### Authored market source review (2026-10-23)
+
+Reviewed the 19 frontier-market cash writes: explicit private household setup
+endowments, owner/public machinery funding and suppliers, delivered cotton and
+cloth settlement, municipal sales taxes and internal sovereign remittances.
+Entries name the actual five callers, shared Frontier Crown denomination,
+setup/mutation sampling and passing native fixtures. Initial household grants
+are counted setup stock; they do not claim a public transfer record. The review
+keeps rare public buyer/seller/carrier aliases and exact semantic monetary-write
+contracts open. Current register: 99 source-reviewed candidates, 408 pending,
+386 declared metrics, 88 history fields and two history-method callsites.
