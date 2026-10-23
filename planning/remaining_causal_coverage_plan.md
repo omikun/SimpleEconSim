@@ -655,3 +655,26 @@ tests). River paths remain part of acceptance state because scenario generation
 uses them to select the Nile. They were not hidden by the comparator. The one
 Egypt currency violation (-5 EGP at turn 2) is identical with tracing on/off,
 so it remains a separate accounting investigation, not a recorder divergence.
+
+
+### Native scenario rerun and abstract military sink (2026-10-23)
+
+Pinned smoke rerun `d58e81d`: all four scenarios have identical complete economic
+state/RNG/actions with recorder on/off. Default and frontier also pass all short
+closure/snapshot/structural checks. Egypt now has no unexplained changed snapshots
+or public-account gaps; its remaining -5 EGP warning was located at the existing
+abstract Alexandria garrison payroll: treasury cash is debited, but abstract units
+have no soldier wallets. That real sink was absent from the destruction ledger.
+
+The military correction records only the actual abstract-service expense in the
+existing destruction ledger and emits a linked cash-destruction record. It does
+not alter pay, treasury balances, morale or personnel. Four full/partial/unpaid/
+concrete-personnel accounting cases plus existing military/treasury regressions
+passed (14 tests). Concrete soldier payments never receive a sink exemption.
+This accounting correction is committed separately from instrumentation repairs.
+
+Supply's remaining 1.6-unit account gap was located at government freight-carrier
+receipts; freight and concession fee probes are installed and the native three-
+turn frontier/supply account regression passes. Including market-route, supply-
+rights and cadastral source tests, 31 tests passed. A new pinned smoke run and
+the release matrix are next; long-run gates remain open.

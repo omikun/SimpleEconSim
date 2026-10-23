@@ -50,7 +50,8 @@ class MilitaryUnit:
         """Upkeep step: withdraws wages and consumes food rations.
 
         Returns (wages_paid, food_consumed, fully_supplied).
-        Conserved: cash drawn from gov.agent.cash (or bank deposit), food from gov.food_inventory.
+        Concrete personnel receive wage cash. Abstract units consume wage cash
+        as a service expense; that existing sink is recorded in the money ledger.
         """
         if self.soldiers <= 0:
             return 0.0, 0, True, 0
@@ -153,6 +154,12 @@ class MilitaryUnit:
                     'cash_before': cash_before,
                     'cash_after': float(person.cash),
                     'public_account_event_ids': credit_event_ids})
+        elif wages_paid>0:
+            import ledger
+            currency=(getattr(gov.agent,'home_currency',None)
+                      or getattr(trace_region,'home_currency',None))
+            ledger.record(t,currency,wages_paid,
+                          f'abstract military service payroll:{self.nation_name}:{self.unit_id}')
 
         # Morale updates based on fulfillment
         wage_ratio = wages_paid / max(0.01, total_wage)
@@ -680,6 +687,16 @@ def step_armies(tiles: list, nations: list, t: int = 0) -> list[dict]:
                                 'fully_supplied': supplied},
                         cause_event_ids=(funding_event_ids + upkeep_details.get(
                             'public_account_event_ids', [])) or None)
+                    if not unit.scenario_personnel:
+                        emit(region,kind='abstract_military_payroll_cash_sink',record_class='outcome',
+                             phase='military',subject={'type':'military_unit','id':unit.unit_id},
+                             metric_id='finance.cash_destruction',unit=currency,after=wages,
+                             inputs={'operation_id':operation_id,'reason':'abstract_service_has_no_person_wallet',
+                                     'payer_cash_before':upkeep_details['treasury_cash_available_for_payroll'],
+                                     'payer_cash_after':upkeep_details['treasury_cash_after_payroll'],
+                                     'person_wallet_credits':0.0},
+                             formula_id='military.abstract_payroll_sink.v1',
+                             cause_event_ids=[payroll_event_id] if payroll_event_id else None)
                     for credit in upkeep_details['recipient_cash_credits']:
                         emit(
                             region, kind='army_payroll_recipient',

@@ -247,6 +247,7 @@ METRICS = {
     'finance.tribute_value': ('tile', 'local_currency', 'feudal_tribute.record_tribute_value'),
     'finance.cash_transfer': ('tile/operation', 'local_currency', 'finance_trace.emit_cash_transfer'),
     'finance.cash_creation': ('project/contractor', 'local_currency', 'sovereign_bonds.SovereignBondMarket municipal sewer credit; source debit not modelled'),
+    'finance.cash_destruction': ('military_unit', 'local_currency', 'army abstract-unit payroll expense; actual public debit with no person wallet; recorded in destruction ledger'),
     'finance.internal_transfer': ('nation/tile', 'local_currency', 'food_security.enact_nation_food_response'),
     'finance.operator_fee': ('tile/agent', 'local_currency', 'economy.capitalist_planner.EliteCapitalistPlanner'),
     'labor.subsistence_exit': ('tile/agent', 'worker', 'economy.labor_mobility.LaborMobilityScheduler'),
@@ -470,6 +471,7 @@ EVENT_JOURNAL_TO_METRICS = {
 
 
 TRACE_INSTRUMENTED = set(LEGACY_HISTORY_TO_METRIC.values()) | {
+    'finance.cash_destruction',
     'health.active_disease_cases',
     'labor.primary_livelihood', 'labor.employment_status',
     'labor.hungry_adults', 'labor.temporary_work_share',

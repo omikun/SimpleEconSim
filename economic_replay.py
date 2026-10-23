@@ -13,6 +13,8 @@ def clamp(value, low, high):
 
 def replay(row):
     formula=row.get('formula_id');i=row.get('inputs') or {};before=row.get('value_before')
+    if formula=='military.abstract_payroll_sink.v1':
+        return i['payer_cash_before']-i['payer_cash_after']-i['person_wallet_credits']
     if formula=='bank.cash_to_deposit.v1':
         return i['deposit_before']+max(0.0,i['requested_amount'])
     if formula=='bank.deposit_to_cash.v1':
