@@ -1,4 +1,5 @@
 """Cash advances and current-harvest lien settlement."""
+from treasury_trace import begin_public_change as _trace_public_begin, finish_public_change as _trace_public_finish
 from labor_institutions import TenancyAgreement
 from livelihood_access import assess_obligation
 
@@ -17,13 +18,25 @@ def offer_advance(lender, cultivator, region, amount, due_turn, collateral_plot_
             or not getattr(cultivator, 'alive', True) or plot is None
             or cultivator.id not in getattr(plot, 'tenant_ids', []) or lender.cash < amount):
         return None
+    _trace_cash_write = _trace_public_begin(None, lender)
     lender.cash -= amount
+    _trace_public_finish(_trace_cash_write, 'crop_credit:offer_advance',
+                         inputs={"source_writer": 'crop_credit.py:offer_advance:6b56b0bd587cd89e:1'})
+    _trace_cash_write = _trace_public_begin(None, cultivator)
     cultivator.cash += amount
+    _trace_public_finish(_trace_cash_write, 'crop_credit:offer_advance',
+                         inputs={"source_writer": 'crop_credit.py:offer_advance:451dfdb44c1f1275:1'})
     claim = assess_obligation(region, cultivator.id, lender.id, 'advance', amount,
                               due_turn, interest_rate, collateral_plot_id)
     if claim is None:
+        _trace_cash_write = _trace_public_begin(None, cultivator)
         cultivator.cash -= amount
+        _trace_public_finish(_trace_cash_write, 'crop_credit:offer_advance',
+                             inputs={"source_writer": 'crop_credit.py:offer_advance:68a884f95aff552b:1'})
+        _trace_cash_write = _trace_public_begin(None, lender)
         lender.cash += amount
+        _trace_public_finish(_trace_cash_write, 'crop_credit:offer_advance',
+                             inputs={"source_writer": 'crop_credit.py:offer_advance:b344461b34efa662:1'})
         return None
     claim.lien_share = max(0.0, min(1.0, float(lien_share)))
     claim.lien_good = getattr(cultivator, 'output', None)
@@ -96,8 +109,14 @@ def settle_offtake_contracts(region, turn):
         value = deliver * float(contract['unit_price'])
         credit_used = min(value, max(0.0, float(claim.balance))) if claim else 0.0
         cash_paid = value - credit_used
+        _trace_cash_write = _trace_public_begin(None, buyer)
         buyer.cash -= cash_paid
+        _trace_public_finish(_trace_cash_write, 'crop_credit:settle_offtake_contracts',
+                             inputs={"source_writer": 'crop_credit.py:settle_offtake_contracts:b0e25aed50ef90d0:1'})
+        _trace_cash_write = _trace_public_begin(None, grower)
         grower.cash += cash_paid
+        _trace_public_finish(_trace_cash_write, 'crop_credit:settle_offtake_contracts',
+                             inputs={"source_writer": 'crop_credit.py:settle_offtake_contracts:30a0900f10b0196f:1'})
         grower.inv_add(good, -deliver)
         if hasattr(buyer, 'cost_get') and hasattr(buyer, 'cost_set'):
             old_stock = buyer.inv_get(good, 0)

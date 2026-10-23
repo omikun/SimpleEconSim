@@ -1,6 +1,7 @@
 """Paid, delayed movement of emergency grain between districts in a province."""
 
 from __future__ import annotations
+from treasury_trace import begin_public_change as _trace_public_begin, finish_public_change as _trace_public_finish
 
 from collections import deque
 
@@ -356,7 +357,10 @@ def dispatch_province_food(province, turn):
                     gov.agent, cost - gov.agent.cash, trace_region=gov_region,
                     t=turn, reason='provincial_food_haulage')
             government_cash_before = float(gov.agent.cash)
+            _trace_cash_write = _trace_public_begin(None, gov.agent)
             gov.agent.cash -= cost
+            _trace_public_finish(_trace_cash_write, 'food_logistics:dispatch_province_food',
+                                 inputs={"source_writer": 'food_logistics.py:dispatch_province_food:e195b7a3fe8bb464:1'})
             government_cash_after = float(gov.agent.cash)
             haulers = [a for a in _residents(source) if a.output == Goods.transport]
             if not haulers:
@@ -369,7 +373,10 @@ def dispatch_province_food(province, turn):
                 for hauler in haulers:
                     payment = cost / len(haulers)
                     hauler_cash_before = float(hauler.cash)
+                    _trace_cash_write = _trace_public_begin(None, hauler)
                     hauler.cash += payment
+                    _trace_public_finish(_trace_cash_write, 'food_logistics:dispatch_province_food',
+                                         inputs={"source_writer": 'food_logistics.py:dispatch_province_food:575af869467b1ab6:1'})
                     hauler_cash_after = float(hauler.cash)
                     payments.append((hauler, payment))
                     payment_balances.append((hauler, payment,
@@ -412,7 +419,10 @@ def dispatch_province_food(province, turn):
                             quantity=taken, amount=payment, source_id=shipment_id,
                             detail={**shipment_detail, 'payer_id': gov.agent.id})
             else:
+                _trace_cash_write = _trace_public_begin(None, gov.agent)
                 gov.agent.cash += cost
+                _trace_public_finish(_trace_cash_write, 'food_logistics:dispatch_province_food',
+                                     inputs={"source_writer": 'food_logistics.py:dispatch_province_food:1217626170ed61aa:1'})
             shipment = {'source': source.name,
                         'destination': destination.name,
                         'dispatched_turn': turn,

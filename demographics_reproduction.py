@@ -1,6 +1,7 @@
 """
 Demographics reproduction: agent births, fertility curves, heritable traits, and family trusts.
 """
+from treasury_trace import begin_public_change as _trace_public_begin, finish_public_change as _trace_public_finish
 
 import math
 
@@ -137,7 +138,10 @@ def handle_reproduction(ctx, t, agent, agents, new_agents):
             ctx.bank.Withdraw(
                 agent, min(need, ctx.bank.deposits.get(agent, 0)),
                 trace_region=reg, t=t, reason='birth_endowment_funding')
+        _trace_cash_write = _trace_public_begin(None, agent)
         agent.cash -= cash
+        _trace_public_finish(_trace_cash_write, 'demographics_reproduction:handle_reproduction',
+                             inputs={"source_writer": 'demographics_reproduction.py:handle_reproduction:4c0095b033f02a71:1'})
         initialize_agent(new_agent, output, number_input, food_to_give, cash)
         if cash > 0 and reg is not None:
             from economy.actor_accounts import record as record_economic_event

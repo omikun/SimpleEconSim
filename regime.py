@@ -111,7 +111,12 @@ def apply_platform(nation, candidate):
         # set flips" acceptance is demonstrated by the tax-rate cut on a
         # winning platform.
         if platform.get('tax_cut', 0.0) >= 0.5:
+            tax_before=float(gov.tax_rate)
             gov.tax_rate = max(0.05, gov.tax_rate * 0.5)
+            from government_trace import tax_rate_change
+            tax_rate_change(tile,gov,tax_before,reason='elected_tax_cut_platform',
+                            formula='policy.multiply_floor.v1',inputs={'multiplier':.5,'floor':.05,
+                                'platform_strength':platform['tax_cut'],'eligibility_threshold':.5})
 
     backing = getattr(candidate, 'backing_faction', '') or ''
     if backing in ('Bourgeoisie', 'Gentry') or platform.get('deregulation', 0.0) >= 0.5:

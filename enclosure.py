@@ -13,6 +13,7 @@ Consequences of enclosure:
   5. Grievances spike on identity and class factions, raising protest energy.
   6. Dispossessed serfs become dependent on the wage-labor market.
 """
+from treasury_trace import begin_public_change as _trace_public_begin, finish_public_change as _trace_public_finish
 from treasury_trace import begin_public_change, finish_public_change
 
 from goods import Goods
@@ -223,9 +224,15 @@ def execute_enclosure(tile, plot_id: str, t: int, rent_rate: float = DEFAULT_CAS
         if can_fund_bailiff:
             lord_cash_before = float(lord.cash)
             recipient_cash_before = float(bailiff_payee.cash)
+            _trace_cash_write = _trace_public_begin(None, lord)
             lord.cash -= 10.0
+            _trace_public_finish(_trace_cash_write, 'enclosure:execute_enclosure',
+                                 inputs={"source_writer": 'enclosure.py:execute_enclosure:46ea9978612a0cce:1'})
             bailiff_hired = True
+            _trace_cash_write = _trace_public_begin(None, bailiff_payee)
             bailiff_payee.cash += bailiff_cost
+            _trace_public_finish(_trace_cash_write, 'enclosure:execute_enclosure',
+                                 inputs={"source_writer": 'enclosure.py:execute_enclosure:ab13702d27b8bfd3:1'})
             bailiff_event_id = _record_enclosure_cash_transfer(
                 tile, kind='bailiff_service',
                 operation_type='enclosure_bailiff_service', payer=lord,
@@ -371,9 +378,15 @@ def step_enclosure_survey_debts(tile, t: int) -> list[dict]:
 
         if tenant.cash >= fee:
             # Solvent tenant pays survey fee (conserved transfer)
+            _trace_cash_write = _trace_public_begin(None, tenant)
             tenant.cash -= fee
+            _trace_public_finish(_trace_cash_write, 'enclosure:step_enclosure_survey_debts',
+                                 inputs={"source_writer": 'enclosure.py:step_enclosure_survey_debts:9810ca10c4fe93ed:1'})
             if gov_agent:
+                _trace_cash_write = _trace_public_begin(None, gov_agent)
                 gov_agent.cash += fee
+                _trace_public_finish(_trace_cash_write, 'enclosure:step_enclosure_survey_debts',
+                                     inputs={"source_writer": 'enclosure.py:step_enclosure_survey_debts:38b677e68706d365:1'})
             events.append({
                 't': t,
                 'event': 'SURVEY_FEE_PAID',
@@ -422,8 +435,14 @@ def step_enclosure_survey_debts(tile, t: int) -> list[dict]:
                 winner = bidders[0]
                 winner_id = winner.id
                 clearing_bid = min(winner.cash, 25.0)
+                _trace_cash_write = _trace_public_begin(None, winner)
                 winner.cash -= clearing_bid
+                _trace_public_finish(_trace_cash_write, 'enclosure:step_enclosure_survey_debts',
+                                     inputs={"source_writer": 'enclosure.py:step_enclosure_survey_debts:cb6c7559cb197019:1'})
+                _trace_cash_write = _trace_public_begin(None, gov_agent)
                 gov_agent.cash += clearing_bid
+                _trace_public_finish(_trace_cash_write, 'enclosure:step_enclosure_survey_debts',
+                                     inputs={"source_writer": 'enclosure.py:step_enclosure_survey_debts:ebed4b3c13e090d8:1'})
 
             # Evict the tenant from customary holding
             if plot and hasattr(plot, 'tenant_ids') and tenant.id in plot.tenant_ids:

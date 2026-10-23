@@ -1386,7 +1386,9 @@ def record(server):
                 good = next((candidate for candidate in getattr(tile, 'gini_log', {})
                              if getattr(candidate, 'name', None) == subject.get('good')),
                             None)
-                if tile is not None and good is not None:
+                import json
+                existing=server.run_trace._calculated_values.get((key[0],json.dumps(subject,sort_keys=True)))
+                if tile is not None and good is not None and existing!=after:
                     evidence = gini_metric_evidence(
                         tile, good, clock.get('turn', 0), before, after)
                     server.run_trace.emit(

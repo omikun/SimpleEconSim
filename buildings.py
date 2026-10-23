@@ -13,6 +13,7 @@ Implements the physical construction and operational loop:
 """
 
 from __future__ import annotations
+from treasury_trace import begin_public_change as _trace_public_begin, finish_public_change as _trace_public_finish
 import random
 from typing import TYPE_CHECKING
 from goods import Goods
@@ -426,7 +427,10 @@ class ConstructionProject:
                     buy_qty = min(to_buy, can_afford)
                     if buy_qty > 0:
                         total_cost = buy_qty * p
+                        _trace_cash_write = _trace_public_begin(None, self.contractor)
                         self.contractor.cash -= total_cost
+                        _trace_public_finish(_trace_cash_write, 'buildings:ConstructionProject.step',
+                                             inputs={"source_writer": 'buildings.py:ConstructionProject.step:449aa8d52898d686:1'})
                         self.materials_delivered[g] = cur_deliv + buy_qty
                         materials_spend += total_cost
                         materials_bought[getattr(g, 'name', str(g))] = buy_qty
@@ -472,8 +476,14 @@ class ConstructionProject:
             navvy_wage = 1.50
             for w in living_navvies:
                 if self.contractor.cash >= navvy_wage:
+                    _trace_cash_write = _trace_public_begin(None, self.contractor)
                     self.contractor.cash -= navvy_wage
+                    _trace_public_finish(_trace_cash_write, 'buildings:ConstructionProject.step',
+                                         inputs={"source_writer": 'buildings.py:ConstructionProject.step:0630db2732d4b220:1'})
+                    _trace_cash_write = _trace_public_begin(None, w)
                     w.cash += navvy_wage
+                    _trace_public_finish(_trace_cash_write, 'buildings:ConstructionProject.step',
+                                         inputs={"source_writer": 'buildings.py:ConstructionProject.step:e4f26643026dd81c:1'})
                     wages_paid += navvy_wage
                 else:
                     # Contractor broke: unable to pay full wages

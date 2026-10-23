@@ -1,6 +1,7 @@
 """Data-driven creditor reactions and foreign reports for authored situations."""
 
 from __future__ import annotations
+from treasury_trace import begin_public_change as _trace_public_begin, finish_public_change as _trace_public_finish
 
 from functools import lru_cache
 import json
@@ -101,7 +102,10 @@ def _pay_creditors(world: dict, amount: float) -> list[dict]:
             recipient = creditor.government.agent
             cash_before = float(recipient.cash)
             share = amount / len(creditors)
+            _trace_cash_write = _trace_public_begin(None, recipient)
             recipient.cash += share
+            _trace_public_finish(_trace_cash_write, 'scenario_situation:_pay_creditors',
+                                 inputs={"source_writer": 'scenario_situation.py:_pay_creditors:c4c372097abecd57:1'})
             payments.append({'nation': creditor, 'amount': float(share),
                              'cash_before': cash_before,
                              'cash_after': float(recipient.cash)})
@@ -272,7 +276,10 @@ def apply_effects(world: dict, effects: dict, *, source: str = 'direct',
     payment_event_ids = []
     if cost:
         treasury_cash_before = float(nation.government.agent.cash)
+        _trace_cash_write = _trace_public_begin(None, nation.government.agent)
         nation.government.agent.cash -= cost
+        _trace_public_finish(_trace_cash_write, 'scenario_situation:apply_effects',
+                             inputs={"source_writer": 'scenario_situation.py:apply_effects:6eb6faf09a7d465f:1'})
         creditor_payments = _pay_creditors(world, cost)
         treasury_cash_after = float(nation.government.agent.cash)
         payment_event_ids = _trace_creditor_payment(

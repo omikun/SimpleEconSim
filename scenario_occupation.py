@@ -1,6 +1,7 @@
 """Measured occupation, contested receipts, resistance, and withdrawal."""
 
 from __future__ import annotations
+from treasury_trace import begin_public_change as _trace_public_begin, finish_public_change as _trace_public_finish
 
 from army import resolve_battle
 
@@ -136,8 +137,14 @@ def _settle_occupation_payment(world, *, source, amount, turn):
     britain_government = britain.government
     egypt_before = float(egypt_government.agent.cash)
     britain_before = float(britain_government.agent.cash)
+    _trace_cash_write = _trace_public_begin(None, egypt_government.agent)
     egypt_government.agent.cash -= float(amount)
+    _trace_public_finish(_trace_cash_write, 'scenario_occupation:_settle_occupation_payment',
+                         inputs={"source_writer": 'scenario_occupation.py:_settle_occupation_payment:2aed3b129d4110bd:1'})
+    _trace_cash_write = _trace_public_begin(None, britain_government.agent)
     britain_government.agent.cash += float(amount)
+    _trace_public_finish(_trace_cash_write, 'scenario_occupation:_settle_occupation_payment',
+                         inputs={"source_writer": 'scenario_occupation.py:_settle_occupation_payment:9433aa31f016b821:1'})
     occupation['revenue_ledger'].append({
         'turn': int(turn), 'source': source, 'amount': float(amount),
         'holder': britain.name, 'operation_id': operation_id})
@@ -224,8 +231,14 @@ def intercept_revenue(world, government, source, gross, turn):
                   if row.get('turn') == int(turn) and row.get('source') == source)
     operation_id = (f'occupation-revenue:{getattr(payer_nation, "name", government.name)}:'
                     f'{source}:{int(turn)}:{ordinal + 1}')
+    _trace_cash_write = _trace_public_begin(None, government.agent)
     government.agent.cash -= amount
+    _trace_public_finish(_trace_cash_write, 'scenario_occupation:intercept_revenue',
+                         inputs={"source_writer": 'scenario_occupation.py:intercept_revenue:7d0d1bf6a38ac115:1'})
+    _trace_cash_write = _trace_public_begin(None, britain_government.agent)
     britain_government.agent.cash += amount
+    _trace_public_finish(_trace_cash_write, 'scenario_occupation:intercept_revenue',
+                         inputs={"source_writer": 'scenario_occupation.py:intercept_revenue:6e7f523f0d73fc60:1'})
     occupation['collected_this_turn'] += amount
     occupation['revenue_ledger'].append({'turn': turn, 'source': source, 'amount': amount,
                                          'holder': 'Britain', 'resistance': resistance,

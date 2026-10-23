@@ -1,6 +1,7 @@
 """
 Corporate wages, profit distributions, owner bailouts, taxation, and consumption multipliers.
 """
+from treasury_trace import begin_public_change as _trace_public_begin, finish_public_change as _trace_public_finish
 from treasury_trace import begin_public_change, finish_public_change
 
 import math
@@ -61,8 +62,14 @@ def pay_wages(region, t):
                     # Legal tender cash payment
                     employer_cash_before = float(a.cash)
                     wage_to_pay = min(a.cash, wage_nominal)
+                    _trace_cash_write = _trace_public_begin(None, a)
                     a.cash -= wage_to_pay
+                    _trace_public_finish(_trace_cash_write, 'region_finance:pay_wages',
+                                         inputs={"source_writer": 'region_finance.py:pay_wages:46655f1219471632:1'})
+                    _trace_cash_write = _trace_public_begin(None, e)
                     e.cash += wage_to_pay
+                    _trace_public_finish(_trace_cash_write, 'region_finance:pay_wages',
+                                         inputs={"source_writer": 'region_finance.py:pay_wages:2781207220d5d2a8:1'})
                     if wage_to_pay > 0:
                         from economy.actor_accounts import record as record_economic_event
                         record_economic_event(region, 'wage', turn=t,
@@ -196,18 +203,30 @@ def settle_wage_arrears(region, t, *, firm_id=None, firm=None, liquidating=False
                 wallet_before = float(_fx.fx_balance(worker, currency))
                 _fx.fx_add(worker, currency, paid)
             else:
+                _trace_cash_write = _trace_public_begin(None, worker)
                 worker.cash += paid
+                _trace_public_finish(_trace_cash_write, 'region_finance:settle_wage_arrears',
+                                     inputs={"source_writer": 'region_finance.py:settle_wage_arrears:49f73179dd4447af:1'})
+            _trace_cash_write = _trace_public_begin(None, firm)
             firm.cash -= paid
+            _trace_public_finish(_trace_cash_write, 'region_finance:settle_wage_arrears',
+                                 inputs={"source_writer": 'region_finance.py:settle_wage_arrears:f04a045740ff4dd2:1'})
             total_before, total_after, claim_before, claim_after, settled = (
                 settle_wage_arrear(firm, worker_id, paid))
             if settled <= 0:
                 # State is checked before changing either balance, so this is
                 # only a defensive guard for corrupt or stale claim records.
+                _trace_cash_write = _trace_public_begin(None, firm)
                 firm.cash += paid
+                _trace_public_finish(_trace_cash_write, 'region_finance:settle_wage_arrears',
+                                     inputs={"source_writer": 'region_finance.py:settle_wage_arrears:f3d865cdd62fe3d3:1'})
                 if use_wallet:
                     _fx.fx_sub(worker, currency, paid)
                 else:
+                    _trace_cash_write = _trace_public_begin(None, worker)
                     worker.cash -= paid
+                    _trace_public_finish(_trace_cash_write, 'region_finance:settle_wage_arrears',
+                                         inputs={"source_writer": 'region_finance.py:settle_wage_arrears:38fc853500d150a5:1'})
                 continue
             transfer_id = f'wage-arrears:{t}:{firm.id}:{worker.id}:{len(payments)}'
             detail = {
@@ -373,8 +392,14 @@ def redeem_company_scrip(region, t):
                                 qty = min(needed_to_buy, seller.inv_get(Goods.food, 0))
                                 cost = qty * food_price
                                 if a.cash >= cost:
+                                    _trace_cash_write = _trace_public_begin(None, a)
                                     a.cash -= cost
+                                    _trace_public_finish(_trace_cash_write, 'region_finance:redeem_company_scrip',
+                                                         inputs={"source_writer": 'region_finance.py:redeem_company_scrip:2b8d9e9e21ba278a:1'})
+                                    _trace_cash_write = _trace_public_begin(None, seller)
                                     seller.cash += cost
+                                    _trace_public_finish(_trace_cash_write, 'region_finance:redeem_company_scrip',
+                                                         inputs={"source_writer": 'region_finance.py:redeem_company_scrip:886e95c500987750:1'})
                                     seller.inv_add(Goods.food, -qty)
                                     a.inv_add(Goods.food, qty)
                                     from economy.actor_accounts import record as record_economic_event
@@ -439,7 +464,10 @@ def credit_owner_pay(region, owner, amount):
                 'balance_before': 0.0, 'balance_after': 0.0}
     if getattr(owner, '_bank_ref', None) is region.bank:
         balance_before = float(owner.cash)
+        _trace_cash_write = _trace_public_begin(None, owner)
         owner.cash += amount
+        _trace_public_finish(_trace_cash_write, 'region_finance:credit_owner_pay',
+                             inputs={"source_writer": 'region_finance.py:credit_owner_pay:1fa42d3efa7da89c:1'})
         return {'tender': 'cash', 'currency': getattr(region, 'home_currency', None),
                 'balance_before': balance_before,
                 'balance_after': float(owner.cash)}
@@ -452,7 +480,10 @@ def credit_owner_pay(region, owner, amount):
                     'balance_after': float(_fx.fx_balance(owner, region.home_currency))}
         else:
             balance_before = float(owner.cash)
+            _trace_cash_write = _trace_public_begin(None, owner)
             owner.cash += amount
+            _trace_public_finish(_trace_cash_write, 'region_finance:credit_owner_pay',
+                                 inputs={"source_writer": 'region_finance.py:credit_owner_pay:6be844980406d2e6:1'})
             return {'tender': 'cash', 'currency': None,
                     'balance_before': balance_before,
                     'balance_after': float(owner.cash)}
@@ -565,7 +596,10 @@ def repay_owner_loan(region, agent, owner, payroll, t=None):
     repay = min(agent.owner_loan, max(0, agent.cash - payroll * 2))
     if repay > 0:
         owner_loan_before = float(agent.owner_loan)
+        _trace_cash_write = _trace_public_begin(None, agent)
         agent.cash -= repay
+        _trace_public_finish(_trace_cash_write, 'region_finance:repay_owner_loan',
+                             inputs={"source_writer": 'region_finance.py:repay_owner_loan:f27a3166006d4aa7:1'})
         settlement = credit_owner_pay(region, owner, repay)
         agent.owner_loan -= repay
         _record_owner_payment(
@@ -577,7 +611,10 @@ def repay_owner_loan(region, agent, owner, payroll, t=None):
 def pay_base_salary(region, agent, owner, payroll, t=None):
     """Pay owner's executive base salary if cash reserve allows."""
     if agent.cash > payroll * 2 + agent.wage:
+        _trace_cash_write = _trace_public_begin(None, agent)
         agent.cash -= agent.wage
+        _trace_public_finish(_trace_cash_write, 'region_finance:pay_base_salary',
+                             inputs={"source_writer": 'region_finance.py:pay_base_salary:61aad4fb00bfbab7:1'})
         settlement = credit_owner_pay(region, owner, agent.wage)
         _record_owner_payment(region, 'owner_salary', agent, owner, agent.wage,
                               settlement, t=t)
@@ -592,7 +629,10 @@ def pay_profit_share(region, agent, owner, payroll, t=None):
     share_rate = 0.25 * ratio / (ratio + 5)
     profit_draw = min(share_rate * agent.retained_earnings, max(0, agent.cash - payroll * 2))
     if profit_draw > 0:
+        _trace_cash_write = _trace_public_begin(None, agent)
         agent.cash -= profit_draw
+        _trace_public_finish(_trace_cash_write, 'region_finance:pay_profit_share',
+                             inputs={"source_writer": 'region_finance.py:pay_profit_share:0801a602f78d43e0:1'})
         settlement = credit_owner_pay(region, owner, profit_draw)
         agent.retained_earnings -= profit_draw
         _record_owner_payment(region, 'dividend', agent, owner, profit_draw,
@@ -618,8 +658,14 @@ def bailout_owner(region, agent, owner, payroll, t=None):
             source_before = float(owner.cash)
             firm_cash_before = float(agent.cash)
             owner_loan_before = float(agent.owner_loan)
+            _trace_cash_write = _trace_public_begin(None, owner)
             owner.cash -= inject
+            _trace_public_finish(_trace_cash_write, 'region_finance:bailout_owner',
+                                 inputs={"source_writer": 'region_finance.py:bailout_owner:94eaa84947694b23:1'})
+            _trace_cash_write = _trace_public_begin(None, agent)
             agent.cash += inject
+            _trace_public_finish(_trace_cash_write, 'region_finance:bailout_owner',
+                                 inputs={"source_writer": 'region_finance.py:bailout_owner:cf149883c274348d:1'})
             agent.owner_loan += inject
             _record_owner_funding(
                 region, owner, agent, inject, 'cash',
@@ -635,7 +681,10 @@ def bailout_owner(region, agent, owner, payroll, t=None):
                 firm_cash_before = float(agent.cash)
                 owner_loan_before = float(agent.owner_loan)
                 _fx.fx_add(owner, region.home_currency, -inject)
+                _trace_cash_write = _trace_public_begin(None, agent)
                 agent.cash += inject
+                _trace_public_finish(_trace_cash_write, 'region_finance:bailout_owner',
+                                     inputs={"source_writer": 'region_finance.py:bailout_owner:8153274f226dc6d8:1'})
                 agent.owner_loan += inject
                 _record_owner_funding(
                     region, owner, agent, inject, 'wallet', region.home_currency,

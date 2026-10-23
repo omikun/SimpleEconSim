@@ -1,6 +1,7 @@
 """Conditional Caisse inspection rights after a reduced Egyptian payment."""
 
 from __future__ import annotations
+from treasury_trace import begin_public_change as _trace_public_begin, finish_public_change as _trace_public_finish
 
 
 def _egypt(world):
@@ -101,7 +102,10 @@ def action(world, action_id):
             return False, 'The treasury needs 20 units to make a narrower guarantee.'
         creditors = _creditors(world)
         amount_before = float(egypt.government.agent.cash)
+        _trace_cash_write = _trace_public_begin(None, egypt.government.agent)
         egypt.government.agent.cash -= cost
+        _trace_public_finish(_trace_cash_write, 'scenario_oversight:action',
+                             inputs={"source_writer": 'scenario_oversight.py:action:9b66a2aa74720133:1'})
         payments = _pay_creditors(world, cost)
         payment_event_ids = _trace_creditor_payment(
             world, egypt, source, operation_id, cost, amount_before,

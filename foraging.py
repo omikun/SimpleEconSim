@@ -46,6 +46,8 @@ def can_forage(agent, region) -> bool:
 
 def forage_tile(region, t: int) -> int:
     """Eligible agents forage on the tile. Returns total food gathered."""
+    if getattr(region, '_run_trace', None) is not None:
+        region._trace_forage_receipts = []
     if getattr(region, 'is_ocean', False) or getattr(region, 'elevation', 0.0) < 0.0:
         return 0
 
@@ -71,7 +73,7 @@ def forage_tile(region, t: int) -> int:
                 a.last_forage_turn = t
                 a.food_foraged += 1
                 a.temporary_work_share = 0.05
-                _record_activity(region, a, t, 1)
+                _record_activity(region, a, t, 1,emergency=True)
                 total += 1
             continue
 
@@ -94,13 +96,26 @@ def forage_tile(region, t: int) -> int:
     return total
 
 
-def _record_activity(region, agent, turn, food_units):
+def _record_activity(region, agent, turn, food_units,*,emergency=False):
     from run_trace import emit
-    emit(region, kind='commons_foraging', record_class='outcome',
+    event_id = emit(region, kind='commons_foraging', record_class='outcome',
          subject={'type': 'agent', 'id': agent.id, 'tile': region.name},
          metric_id='labor.temporary_activity', unit='turn_share',
          after=agent.temporary_work_share,
          formula_id='commons.forage_activity.v1',
          inputs={'food_units': food_units, 'good': Goods.food.name,
+                 'emergency_fallback':emergency,
+                 'emergency_turn_share':.05,
                  'access': round(effective_access(agent, region, 'commons_food'), 4),
                  'turn': turn})
+    if event_id is not None:
+        receipt_id = emit(
+            region, kind='foraged_food_receipt', record_class='outcome',
+            subject={'type': 'tile', 'id': region.name, 'good': Goods.food.name},
+            metric_id='goods.foraged_receipt', unit='units', after=food_units,
+            inputs={'agent_id': agent.id, 'turn': turn},
+            cause_event_ids=[event_id])
+        receipts = getattr(region, '_trace_forage_receipts', [])
+        receipts.append({'agent_id': agent.id, 'units': food_units,
+                         'event_id': receipt_id})
+        region._trace_forage_receipts = receipts

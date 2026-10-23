@@ -16,6 +16,7 @@ Theoretical Grounding (Alexander Gerschenkron / Friedrich List / Sven Beckert):
 """
 
 from __future__ import annotations
+from treasury_trace import begin_public_change as _trace_public_begin, finish_public_change as _trace_public_finish
 import math
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any, Tuple
@@ -118,7 +119,10 @@ class GeopoliticalRivalryManager:
                 comp.output = Goods.cloth
                 comp.machinery_level = 1
                 comp.wage = 2.50
+                _trace_cash_write = _trace_public_begin(None, comp)
                 comp.cash = 40.0
+                _trace_public_finish(_trace_cash_write, 'economy/geopolitical_rivalry:GeopoliticalRivalryManager.evaluate_and_step_rivals',
+                                     inputs={"source_writer": 'economy/geopolitical_rivalry.py:GeopoliticalRivalryManager.evaluate_and_step_rivals:086df6c3b277e354:1'})
                 comp.region = cap_tile.name
                 cap_tile.agents.append(comp)
 

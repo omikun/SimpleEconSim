@@ -5,6 +5,7 @@ Guided play issues strategic orders while the shared terrain remains procedural.
 """
 
 from __future__ import annotations
+from treasury_trace import begin_public_change as _trace_public_begin, finish_public_change as _trace_public_finish
 
 
 def _trace_canal_toll(world, payer, payee, *, amount, turn, origin, destination,
@@ -187,8 +188,14 @@ def move_fleet(world, nation_name, destination, *, trace_event_ids=None):
         payer_before = float(payer.government.agent.cash)
         egypt_before = float(egypt.government.agent.cash)
         total_before = float(geography['canal_tolls_collected'])
+        _trace_cash_write = _trace_public_begin(None, payer.government.agent)
         payer.government.agent.cash -= toll
+        _trace_public_finish(_trace_cash_write, 'scenario_geography:move_fleet',
+                             inputs={"source_writer": 'scenario_geography.py:move_fleet:c535137aec784d68:1'})
+        _trace_cash_write = _trace_public_begin(None, egypt.government.agent)
         egypt.government.agent.cash += toll
+        _trace_public_finish(_trace_cash_write, 'scenario_geography:move_fleet',
+                             inputs={"source_writer": 'scenario_geography.py:move_fleet:41cbc727fb67c796:1'})
         geography['canal_tolls_collected'] += toll
         toll_event_id = _trace_canal_toll(
             world, payer, egypt, amount=toll,

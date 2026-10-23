@@ -11,6 +11,7 @@ Provides:
 """
 
 from __future__ import annotations
+from treasury_trace import begin_public_change as _trace_public_begin, finish_public_change as _trace_public_finish
 import uuid
 import random
 from dataclasses import dataclass, field
@@ -585,7 +586,10 @@ class SovereignBondMarket:
 
         # 2. Credit the contractor; the source side has no cash debit in this model.
         contractor_cash_before = float(contractor.cash)
+        _trace_cash_write = _trace_public_begin(None, contractor)
         contractor.cash += principal
+        _trace_public_finish(_trace_cash_write, 'sovereign_bonds:SovereignBondMarket.issue_municipal_sewer_bond',
+                             inputs={"source_writer": 'sovereign_bonds.py:SovereignBondMarket.issue_municipal_sewer_bond:5bcae95683ae298a:1'})
         contractor_cash_after = float(contractor.cash)
         proj.emergency_subsidies_received = getattr(proj, 'emergency_subsidies_received', 0.0) + principal
 
@@ -837,7 +841,10 @@ class SovereignBondMarket:
                         for a in getattr(target_tile, 'agents', []):
                             if getattr(a, 'alive', True) and not getattr(a, 'is_corporation', False) and not getattr(a, 'is_government', False):
                                 fee = min(0.10, a.cash)
+                                _trace_cash_write = _trace_public_begin(None, a)
                                 a.cash -= fee
+                                _trace_public_finish(_trace_cash_write, 'sovereign_bonds:SovereignBondMarket.step',
+                                                     inputs={"source_writer": 'sovereign_bonds.py:SovereignBondMarket.step:8a31ae5518f9f408:1'})
                                 funds_collected += fee
                                 if funds_collected >= coupon:
                                     break

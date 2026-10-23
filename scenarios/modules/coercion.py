@@ -1,6 +1,7 @@
 """Generalized coercion, gunboat diplomacy, and expedition dynamics."""
 
 from __future__ import annotations
+from treasury_trace import begin_public_change as _trace_public_begin, finish_public_change as _trace_public_finish
 
 from typing import Any, Dict
 from scenarios.modules.base import BaseDynamicModule
@@ -90,7 +91,10 @@ class CoercionModule(BaseDynamicModule):
             if aggressor is None or treasury is None:
                 reason = 'aggressor_treasury_unavailable'
             elif cash_before >= upkeep:
+                _trace_cash_write = _trace_public_begin(None, treasury)
                 treasury.cash -= upkeep
+                _trace_public_finish(_trace_cash_write, 'scenarios/modules/coercion:CoercionModule.advance_turn',
+                                     inputs={"source_writer": 'scenarios/modules/coercion.py:CoercionModule.advance_turn:55de81f3cb121178:1'})
                 amount_paid = upkeep
                 reason = 'upkeep_paid'
             else:

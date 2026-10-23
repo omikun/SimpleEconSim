@@ -1,4 +1,5 @@
 """Delayed, named default cases for rent and advance claims."""
+from treasury_trace import begin_public_change as _trace_public_begin, finish_public_change as _trace_public_finish
 from labor_institutions import EnforcementCase
 from livelihood_access import remove_access
 
@@ -41,8 +42,14 @@ def _trace_case(region, turn, case, reason, *, state_before, inputs=None,
 def _pay_constable(region, turn, case, payer, payee, *, amount=1.0):
     payer_before = float(payer.cash)
     payee_before = float(payee.cash)
+    _trace_cash_write = _trace_public_begin(None, payer)
     payer.cash -= amount
+    _trace_public_finish(_trace_cash_write, 'labor_cases:_pay_constable',
+                         inputs={"source_writer": 'labor_cases.py:_pay_constable:c01ef6a5e2a129b8:1'})
+    _trace_cash_write = _trace_public_begin(None, payee)
     payee.cash += amount
+    _trace_public_finish(_trace_cash_write, 'labor_cases:_pay_constable',
+                         inputs={"source_writer": 'labor_cases.py:_pay_constable:d91309f7c3aa7800:1'})
     currency = getattr(region, 'home_currency', None) or 'local_currency'
     operation_id = f'labor-enforcement:{region.name}:{turn}:{case.id}'
     from finance_trace import (account_ref, cash_transfer_contract,

@@ -13,6 +13,9 @@ def clamp(value, low, high):
 
 def replay(row):
     formula=row.get('formula_id');i=row.get('inputs') or {};before=row.get('value_before')
+    if formula=='policy.additive_floor.v1':return max(i['floor'],before+i['change'])
+    if formula=='policy.multiply_floor.v1':return max(i['floor'],before*i['multiplier'])
+    if formula=='regime.legitimacy_reset.v1':return i['target']
     if formula=='military.abstract_payroll_sink.v1':
         return i['payer_cash_before']-i['payer_cash_after']-i['person_wallet_credits']
     if formula=='labor.effective_workday_cap_sample.v1':return i['effective_workday_cap']
@@ -96,7 +99,8 @@ def replay(row):
         return clamp(result,*row['constraints']['band'])
     if formula=='military.border_vulnerability.v1':
         return min(1.0,i['hostile_adjacent_strength']/max(i['denominator_floor'],i['local_strength']+i['local_strength_buffer']))
-    if formula=='commons.forage_activity.v1':return min(0.25,i['food_units']/16.0)
+    if formula=='commons.forage_activity.v1':
+        return i['emergency_turn_share'] if i.get('emergency_fallback',False) else min(0.25,i['food_units']/16.0)
     if formula=='production.independent.v1':
         return int(round(i['base_production']*i['terrain_multiplier']*i['tenure_multiplier'])) if i['draw']<i['success_probability'] else 0
     if formula=='feudal_tribute.inventory_share_transfer.v1':
@@ -130,6 +134,11 @@ def replay(row):
         return result
     if formula=='medicine.regional_spending.v1':return i['private_spending']+i['public_spending']
     if formula=='disease.count_active_cases.v1':return len(i['case_agent_ids'])
+    if formula=='population.resident_ids.v1':return len(i['resident_agent_ids'])
+    if formula=='disease.threshold_crossing_fatalities.v1':
+        return sum(bool(person['active_diseases']) and
+                   person['probability_without_disease'] < person['death_draw'] <= person['adjusted_probability']
+                   for person in i['fatalities'])
     if formula=='government.income_components.v1':return sum(i['components'].values())
     if formula=='trade.sum_partner_values_in_home_currency.v1':return sum(sum(g['value'] for g in v['goods'])*v['conversion_rate_to_home'] for v in i['partner_settlements'])
     if formula=='trade.sum_market_import_values_in_home_currency.v1':return sum(v['value'] for v in i['goods'])
@@ -163,7 +172,11 @@ def replay(row):
     if formula=='ecology.water_emissions_advection.v1':return clamp(before*(1-i['dispersion_fraction'])+i['raw_emission']-i['downstream_advection'],0.0,100.0)
     if formula=='ecology.soil_toxins_biodegradation.v1':return clamp(before*(1-i['biodegradation_fraction'])+i['raw_soil_emission'],0.0,100.0)
     if formula=='government.food_aid_recipient_transfer.v1':return i['recipient_food_before']+i['units']
-    if formula=='charity.food_distribution_transfer.v1':return min(1,i['charity_inventory_before'])
-    if formula=='charity.food_aid_allocation.v1':return min(i['food_inventory_before'],len(i['selected_hungry_ids'])+i['young_candidates'])
+    if formula=='charity.food_distribution_transfer.v1':return 1 if i['charity_inventory_before']>0 else 0
+    if formula=='charity.food_aid_allocation.v1':return min(math.ceil(max(0,i['food_inventory_before'])),len(i['selected_hungry_ids'])+i['young_candidates'])
     if formula=='gini.retain_previous_value.v1':return i['previous_gini']
+    if formula=='gini.cash_by_output.v1':
+        values=sorted(person['cash'] for person in i['members_sorted_by_cash'])
+        n=len(values);total=sum(values)
+        return 2*sum((index+1)*value for index,value in enumerate(values))/(n*total)-(n+1)/n if n and total!=0 else 0
     return NotImplemented

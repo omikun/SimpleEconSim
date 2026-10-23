@@ -21,6 +21,7 @@ Capitalist Propagation Engine:
 """
 
 from __future__ import annotations
+from treasury_trace import begin_public_change as _trace_public_begin, finish_public_change as _trace_public_finish
 import random
 from typing import List, Dict, Any, Tuple, Optional
 from goods import Goods
@@ -157,7 +158,10 @@ def setup_capitalism_institutions(region: Any, t: int = 0) -> None:
             if not lord and agents:
                 lord = agents[0]
                 lord.is_lord = True
+                _trace_cash_write = _trace_public_begin(None, lord)
                 lord.cash = max(100.0, getattr(lord, 'cash', 0.0))
+                _trace_public_finish(_trace_cash_write, 'economy/map_generator:setup_capitalism_institutions',
+                                     inputs={"source_writer": 'economy/map_generator.py:setup_capitalism_institutions:0efe11b2b2278d60:1'})
 
             lord_id = lord.id if lord else 1
             # Add 6 customary serf plots and 2 manorial demesne plots

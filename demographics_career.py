@@ -1,6 +1,7 @@
 """
 Demographics career: M1 learned career switching, job seeking, apprenticeship subsidies, and employer matching.
 """
+from treasury_trace import begin_public_change as _trace_public_begin, finish_public_change as _trace_public_finish
 
 import math
 
@@ -72,10 +73,16 @@ def grant_apprenticeship_subsidy(agent, output, t, ctx):
     gov = ctx.default_gov
     if gov is not None and gov.agent.cash > 0:
         actual = min(subsidy, gov.agent.cash)
+        _trace_cash_write = _trace_public_begin(None, gov.agent)
         gov.agent.cash -= actual
+        _trace_public_finish(_trace_cash_write, 'demographics_career:grant_apprenticeship_subsidy',
+                             inputs={"source_writer": 'demographics_career.py:grant_apprenticeship_subsidy:0a04fab8f1701fcd:1'})
     else:
         actual = 0.0
+    _trace_cash_write = _trace_public_begin(None, agent)
     agent.cash += actual
+    _trace_public_finish(_trace_cash_write, 'demographics_career:grant_apprenticeship_subsidy',
+                         inputs={"source_writer": 'demographics_career.py:grant_apprenticeship_subsidy:ba7439727d72013b:1'})
     if actual > 0:
         loginfo(t, f"{agent.name()} apprenticeship to {ctx.profession[output]}, "
                 f"subsidy ${actual:.0f}")

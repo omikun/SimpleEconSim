@@ -7,6 +7,7 @@ aware: they resolve the per-pair ForexDesk from ``region.forex_desks``
 ``region.routes`` (falling back to ``region.route``).  econsim_two_region.py
 itself is NOT touched so the legacy single-partner driver stays intact.
 """
+from treasury_trace import begin_public_change as _trace_public_begin, finish_public_change as _trace_public_finish
 
 from goods import Goods
 import forex as fx
@@ -337,11 +338,17 @@ def settle_trade(t, destination_region, source_region):
                     trader_food_before = int(trader.inv_get(Goods.food, 0))
                     seller_food_before = int(seller.inv_get(Goods.food, 0))
                     seller.inv_add(Goods.food, -take)
+                    _trace_cash_write = _trace_public_begin(None, seller)
                     seller.cash += take * food_price
+                    _trace_public_finish(_trace_cash_write, 'world_trade:settle_trade',
+                                         inputs={"source_writer": 'world_trade.py:settle_trade:5602179fd3206209:1'})
                     if use_fx:
                         fx.fx_sub(trader, dest_currency, take * food_price)
                     else:
+                        _trace_cash_write = _trace_public_begin(None, trader)
                         trader.cash -= take * food_price
+                        _trace_public_finish(_trace_cash_write, 'world_trade:settle_trade',
+                                             inputs={"source_writer": 'world_trade.py:settle_trade:9abad278453f8762:1'})
                     trader.inv_add(Goods.food, take)
                     record_away_trader_food_purchase(
                         source_region, destination_region, trader, seller, t,

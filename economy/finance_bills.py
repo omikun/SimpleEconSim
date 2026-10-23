@@ -12,6 +12,7 @@ dishonored bills triggered credit crunches and bank defaults.
 """
 
 from __future__ import annotations
+from treasury_trace import begin_public_change as _trace_public_begin, finish_public_change as _trace_public_finish
 import uuid
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, field
@@ -96,8 +97,14 @@ class CreditMarketManager:
             return {'success': False, 'message': 'Buyer has insufficient cash to discount bill'}
 
         # Strictly conserved transfer of discounted cash
+        _trace_cash_write = _trace_public_begin(None, buyer)
         buyer.cash -= discount_cash
+        _trace_public_finish(_trace_cash_write, 'economy/finance_bills:CreditMarketManager.discount_bill',
+                             inputs={"source_writer": 'economy/finance_bills.py:CreditMarketManager.discount_bill:234cc8906bd35dbc:1'})
+        _trace_cash_write = _trace_public_begin(None, holder)
         holder.cash += discount_cash
+        _trace_public_finish(_trace_cash_write, 'economy/finance_bills:CreditMarketManager.discount_bill',
+                             inputs={"source_writer": 'economy/finance_bills.py:CreditMarketManager.discount_bill:d91b5d8d70a572cb:1'})
 
         # Endorse and transfer ownership to buyer
         bill.endorsements.append(holder.id)
@@ -135,8 +142,14 @@ class CreditMarketManager:
 
             if drawee.cash >= bill.face_value:
                 # Full honorable settlement
+                _trace_cash_write = _trace_public_begin(None, drawee)
                 drawee.cash -= bill.face_value
+                _trace_public_finish(_trace_cash_write, 'economy/finance_bills:CreditMarketManager.settle_matured_bills',
+                                     inputs={"source_writer": 'economy/finance_bills.py:CreditMarketManager.settle_matured_bills:a564821902b4dbe0:1'})
+                _trace_cash_write = _trace_public_begin(None, payee)
                 payee.cash += bill.face_value
+                _trace_public_finish(_trace_cash_write, 'economy/finance_bills:CreditMarketManager.settle_matured_bills',
+                                     inputs={"source_writer": 'economy/finance_bills.py:CreditMarketManager.settle_matured_bills:4d6f430ca3d11549:1'})
                 bill.is_settled = True
                 bill.amount_paid = bill.face_value
                 self.settled_bills[bill.id] = bill
@@ -146,8 +159,14 @@ class CreditMarketManager:
             else:
                 # Insolvent drawee -> Partial liquidation & Default
                 partial = max(0.0, drawee.cash)
+                _trace_cash_write = _trace_public_begin(None, drawee)
                 drawee.cash = 0.0
+                _trace_public_finish(_trace_cash_write, 'economy/finance_bills:CreditMarketManager.settle_matured_bills',
+                                     inputs={"source_writer": 'economy/finance_bills.py:CreditMarketManager.settle_matured_bills:8f3fc30dfe4626de:1'})
+                _trace_cash_write = _trace_public_begin(None, payee)
                 payee.cash += partial
+                _trace_public_finish(_trace_cash_write, 'economy/finance_bills:CreditMarketManager.settle_matured_bills',
+                                     inputs={"source_writer": 'economy/finance_bills.py:CreditMarketManager.settle_matured_bills:8d9a19174ca6c270:1'})
                 bill.amount_paid = partial
                 bill.is_defaulted = True
                 self.defaulted_bills[bill.id] = bill

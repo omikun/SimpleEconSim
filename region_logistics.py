@@ -1,6 +1,7 @@
 """
 Inter-region transport routes, trader arbitrage repointing, migration scoring, and trader exits.
 """
+from treasury_trace import begin_public_change as _trace_public_begin, finish_public_change as _trace_public_finish
 
 import math
 
@@ -558,8 +559,14 @@ def exit_trader(region, agent):
                 break
         if buyer is not None:
             total = price * qty
+            _trace_cash_write = _trace_public_begin(None, buyer)
             buyer.cash -= total
+            _trace_public_finish(_trace_cash_write, 'region_logistics:exit_trader',
+                                 inputs={"source_writer": 'region_logistics.py:exit_trader:040390b75623bc79:1'})
+            _trace_cash_write = _trace_public_begin(None, agent)
             agent.cash += total
+            _trace_public_finish(_trace_cash_write, 'region_logistics:exit_trader',
+                                 inputs={"source_writer": 'region_logistics.py:exit_trader:17eef11acf9bae3a:1'})
             give_goods(buyer, good, qty, price)
             loginfo(0, f"liquidation: {agent.name()} sold {qty} {good} "
                     f"to {buyer.name()} at ${price:.2f}")
@@ -579,7 +586,10 @@ def exit_trader(region, agent):
         payment = min(agent.cash, loan.getPaymentAmount())
         if payment <= 0:
             break
+        _trace_cash_write = _trace_public_begin(None, agent)
         agent.cash -= payment
+        _trace_public_finish(_trace_cash_write, 'region_logistics:exit_trader',
+                             inputs={"source_writer": 'region_logistics.py:exit_trader:46411047f1496360:1'})
         loan.pay(payment)
         from economy.actor_accounts import record as record_economic_event
         record_economic_event(region, 'bank_loan_repayment', turn=getattr(region, '_last_turn', 0),

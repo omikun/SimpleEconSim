@@ -334,7 +334,7 @@ def execute_coup(nation, t, general, deposed_faction=None, *,
         from run_trace import emit
         cause_event_ids = ([decision_event_id] if decision_event_id else [])
         cause_event_ids.extend(seizure_event_ids)
-        emit(nation.tiles[0], kind='coup_executed', record_class='outcome',
+        coup_event_id=emit(nation.tiles[0], kind='coup_executed', record_class='outcome',
              phase='politics',
              subject={'type': 'nation', 'id': nation.name},
              metric_id='politics.coup_execution', unit='boolean',
@@ -349,6 +349,11 @@ def execute_coup(nation, t, general, deposed_faction=None, *,
                      'purged_member_count': int(purged),
                      'seizure_event_ids': seizure_event_ids},
              cause_event_ids=cause_event_ids or None)
+        emit(nation.tiles[0],kind='coup_legitimacy_reset',record_class='outcome',
+             subject={'type':'nation','id':nation.name},metric_id='politics.legitimacy',unit='ratio',
+             before=legitimacy_before,after=float(nation.legitimacy),formula_id='regime.legitimacy_reset.v1',
+             inputs={'target':.3,'reason':'successful_coup','coup_event_id':coup_event_id},
+             cause_event_ids=[coup_event_id] if coup_event_id else None)
 
     return {
         'turn': t,

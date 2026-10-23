@@ -17,6 +17,7 @@ Duplicates cross-nation sovereign debt functionality from the Sovereign Actions 
 """
 
 from __future__ import annotations
+from treasury_trace import begin_public_change as _trace_public_begin, finish_public_change as _trace_public_finish
 import pygame
 from worldview_camera import HEIGHT, TOP_BAR_H, TICKER_H
 from worldview_map import ACCENT, TEXT, DIM, RED, GREEN
@@ -519,7 +520,10 @@ def debt_panel_hit(pos: tuple[int, int], world: dict) -> bool:
         # 1. Lobby Upgrade ($200)
         if x + 16 <= mx <= x + 16 + btn_w and by <= my <= by + btn_h:
             if gov_cash >= 200.0:
+                _trace_cash_write = _trace_public_begin(None, gov.agent)
                 gov.agent.cash -= 200.0
+                _trace_public_finish(_trace_cash_write, 'worldview_debt_panel:debt_panel_hit',
+                                     inputs={"source_writer": 'worldview_debt_panel.py:debt_panel_hit:5c8f795dbbf1e0fb:1'})
                 isrb.rating_modifiers[active_n.name] = isrb.rating_modifiers.get(active_n.name, 0) + 1
                 isrb.modifier_expiry[active_n.name] = t + 20
                 ticker_push(world, t, 'ISRB', f"{active_n.name} lobbied ISRB for credit upgrade (+1 rating tier).", (120, 240, 150))
@@ -529,7 +533,10 @@ def debt_panel_hit(pos: tuple[int, int], world: dict) -> bool:
         # 2. Audit Rival ($350)
         if x + 16 <= mx <= x + 16 + btn_w and by <= my <= by + btn_h:
             if gov_cash >= 350.0:
+                _trace_cash_write = _trace_public_begin(None, gov.agent)
                 gov.agent.cash -= 350.0
+                _trace_public_finish(_trace_cash_write, 'worldview_debt_panel:debt_panel_hit',
+                                     inputs={"source_writer": 'worldview_debt_panel.py:debt_panel_hit:e0331e81932e6a4a:1'})
                 other_nations = [n for n in world.get('nations', []) if n.name != active_n.name]
                 if other_nations:
                     rival = other_nations[0]
@@ -542,7 +549,10 @@ def debt_panel_hit(pos: tuple[int, int], world: dict) -> bool:
         # 3. Board Seat ($600)
         if x + 16 <= mx <= x + 16 + btn_w and by <= my <= by + btn_h:
             if gov_cash >= 600.0 and active_n.name not in isrb.board_seats:
+                _trace_cash_write = _trace_public_begin(None, gov.agent)
                 gov.agent.cash -= 600.0
+                _trace_public_finish(_trace_cash_write, 'worldview_debt_panel:debt_panel_hit',
+                                     inputs={"source_writer": 'worldview_debt_panel.py:debt_panel_hit:77cff5c93d4018a2:1'})
                 isrb.board_seats.add(active_n.name)
                 ticker_push(world, t, 'ISRB', f"{active_n.name} acquired permanent ISRB Board Seat (preferential yields).", (80, 200, 255))
             return True
@@ -610,7 +620,10 @@ def debt_panel_hit(pos: tuple[int, int], world: dict) -> bool:
                     if hasattr(market, 'purchase_live_offering'):
                         market.purchase_live_offering(active_n, off.offering_id, world, t)
                     else:
+                        _trace_cash_write = _trace_public_begin(None, gov.agent)
                         gov.agent.cash -= off.principal
+                        _trace_public_finish(_trace_cash_write, 'worldview_debt_panel:debt_panel_hit',
+                                             inputs={"source_writer": 'worldview_debt_panel.py:debt_panel_hit:95d965c323c544cd:1'})
                         market.purchase_bond(active_n.name, off.issuer_nation, off.principal, off.coupon_rate, off.duration_turns, t)
                         off.status = 'filled'
                         ticker_push(world, t, 'BONDS', f"{active_n.name} purchased ${off.principal:.0f} {off.issuer_nation} sovereign bonds into foreign reserves.", (120, 240, 150))

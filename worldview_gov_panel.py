@@ -9,6 +9,7 @@ Provides a dedicated left drawer matching the Build Menu:
 """
 
 from __future__ import annotations
+from treasury_trace import begin_public_change as _trace_public_begin, finish_public_change as _trace_public_finish
 import pygame
 from worldview_camera import HEIGHT, TOP_BAR_H, TICKER_H
 from worldview_map import ACCENT, TEXT, DIM, RED, GREEN
@@ -706,7 +707,10 @@ def _execute_gov_policy(world: dict, act_id: str, target: any):
         elif on_hand >= mandate_cost:
             rgov.ubi_enabled = True
             rgov.ubi_mandate_turns_left = 10
+            _trace_cash_write = _trace_public_begin(None, rgov.agent)
             rgov.agent.cash -= mandate_cost
+            _trace_public_finish(_trace_cash_write, 'worldview_gov_panel:_execute_gov_policy',
+                                 inputs={"source_writer": 'worldview_gov_panel.py:_execute_gov_policy:781d65545c7c0c7d:1'})
             ticker_push(world, t, 'POLICY', f"Enacted 10-Turn UBI in {target.name} (${mandate_cost:,.0f} budget committed).", (120, 240, 150))
             return
         else:
@@ -751,7 +755,10 @@ def _execute_gov_policy(world: dict, act_id: str, target: any):
             return
         on_hand = rgov.agent.cash
         if on_hand >= 100.0:
+            _trace_cash_write = _trace_public_begin(None, rgov.agent)
             rgov.agent.cash -= 100.0
+            _trace_public_finish(_trace_cash_write, 'worldview_gov_panel:_execute_gov_policy',
+                                 inputs={"source_writer": 'worldview_gov_panel.py:_execute_gov_policy:a0b2bef64f225659:1'})
             ticker_push(world, t, 'POLICY', f"Granted $100 Agricultural Subsidy to farms in {target.name}.", (120, 220, 140))
         else:
             nation = getattr(target, 'owner_nation', None)
@@ -773,7 +780,10 @@ def _execute_gov_policy(world: dict, act_id: str, target: any):
             return
         on_hand = rgov.agent.cash
         if on_hand >= 60.0:
+            _trace_cash_write = _trace_public_begin(None, rgov.agent)
             rgov.agent.cash -= 60.0
+            _trace_public_finish(_trace_cash_write, 'worldview_gov_panel:_execute_gov_policy',
+                                 inputs={"source_writer": 'worldview_gov_panel.py:_execute_gov_policy:9cf5c04a8c4fc5b2:1'})
             from imperialism import _disburse_agent_funds
             _disburse_agent_funds(world, getattr(target, 'owner_nation', None), 60.0)
             target.police_officers = max(getattr(target, 'police_officers', 0), 5)
@@ -799,7 +809,10 @@ def _execute_gov_policy(world: dict, act_id: str, target: any):
         prov_gov = getattr(target, 'gov', None)
         on_hand = prov_gov.agent.cash if prov_gov and hasattr(prov_gov, 'agent') else 0.0
         if on_hand >= 120.0:
+            _trace_cash_write = _trace_public_begin(None, prov_gov.agent)
             prov_gov.agent.cash -= 120.0
+            _trace_public_finish(_trace_cash_write, 'worldview_gov_panel:_execute_gov_policy',
+                                 inputs={"source_writer": 'worldview_gov_panel.py:_execute_gov_policy:c5c80f2f76c22d17:1'})
             ticker_push(world, t, 'POLICY', f"Provincial Administration funded $120 Highway Maintenance in {target.name}.", (120, 220, 140))
         else:
             pinned = world.get('selected_region')
@@ -820,7 +833,10 @@ def _execute_gov_policy(world: dict, act_id: str, target: any):
         prov_gov = getattr(target, 'gov', None)
         on_hand = prov_gov.agent.cash if prov_gov and hasattr(prov_gov, 'agent') else 0.0
         if on_hand >= 150.0:
+            _trace_cash_write = _trace_public_begin(None, prov_gov.agent)
             prov_gov.agent.cash -= 150.0
+            _trace_public_finish(_trace_cash_write, 'worldview_gov_panel:_execute_gov_policy',
+                                 inputs={"source_writer": 'worldview_gov_panel.py:_execute_gov_policy:c023023a3e0f6e4b:1'})
             ticker_push(world, t, 'POLICY', f"Provincial Administration launched $150 Healthcare Program in {target.name}.", (120, 220, 140))
         else:
             pinned = world.get('selected_region')
@@ -850,7 +866,10 @@ def _execute_gov_policy(world: dict, act_id: str, target: any):
     if act_id == 'nat_science_prize':
         nat_gov = getattr(target, 'government', None)
         if nat_gov and nat_gov.agent.cash >= 300.0:
+            _trace_cash_write = _trace_public_begin(None, nat_gov.agent)
             nat_gov.agent.cash -= 300.0
+            _trace_public_finish(_trace_cash_write, 'worldview_gov_panel:_execute_gov_policy',
+                                 inputs={"source_writer": 'worldview_gov_panel.py:_execute_gov_policy:ca5201b703e050bb:1'})
             ticker_push(world, t, 'INNOVATION', f"{target.name} funded a $300 Sovereign Science Grant.", (80, 200, 255))
         return
 

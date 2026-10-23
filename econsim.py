@@ -4,6 +4,7 @@ Single-region economic simulation.
 Usage:
     python3 econsim.py time_steps [--trace tmp/traces/econsim.ctr]
 """
+from treasury_trace import begin_public_change as _trace_public_begin, finish_public_change as _trace_public_finish
 
 import argparse
 import sys
@@ -154,8 +155,14 @@ def _handle_incorporation(t, agents):
         shortfall = max(0, startup_target - owner_equity)
         if shortfall > 0:
             trade.bank.Borrow(t, agent, shortfall)
+        _trace_cash_write = _trace_public_begin(None, agent)
         agent.cash -= owner_equity
+        _trace_public_finish(_trace_cash_write, 'econsim:_handle_incorporation',
+                             inputs={"source_writer": 'econsim.py:_handle_incorporation:6cb8e3a7fe309d4f:1'})
+        _trace_cash_write = _trace_public_begin(None, company)
         company.cash = owner_equity + shortfall
+        _trace_public_finish(_trace_cash_write, 'econsim:_handle_incorporation',
+                             inputs={"source_writer": 'econsim.py:_handle_incorporation:6dc9276e566fb135:1'})
         sector_wages = [
             a.wage for a in agents
             if a.is_corporation and a.output == agent.output and a.wage > 0
@@ -246,8 +253,14 @@ def PayWages(t, agents):
         if agent.is_corporation and len(agent.employees) > 0:
             for emp in agent.employees:
                 wage_to_pay = min(agent.cash, agent.wage)
+                _trace_cash_write = _trace_public_begin(None, agent)
                 agent.cash -= wage_to_pay
+                _trace_public_finish(_trace_cash_write, 'econsim:PayWages',
+                                     inputs={"source_writer": 'econsim.py:PayWages:7912349e00d1ab12:1'})
+                _trace_cash_write = _trace_public_begin(None, emp)
                 emp.cash += wage_to_pay
+                _trace_public_finish(_trace_cash_write, 'econsim:PayWages',
+                                     inputs={"source_writer": 'econsim.py:PayWages:3726b642c927c225:1'})
                 loginfo(t, agent.name(), "paid wage of", wage_to_pay,
                         "to", emp.name())
 
@@ -410,8 +423,14 @@ def _repay_owner_loan(t, agent, owner, payroll):
     available_for_repayment = max(0, agent.cash - payroll * 2)
     repay = min(agent.owner_loan, available_for_repayment)
     if repay > 0:
+        _trace_cash_write = _trace_public_begin(None, agent)
         agent.cash -= repay
+        _trace_public_finish(_trace_cash_write, 'econsim:_repay_owner_loan',
+                             inputs={"source_writer": 'econsim.py:_repay_owner_loan:f27a3166006d4aa7:1'})
+        _trace_cash_write = _trace_public_begin(None, owner)
         owner.cash += repay
+        _trace_public_finish(_trace_cash_write, 'econsim:_repay_owner_loan',
+                             inputs={"source_writer": 'econsim.py:_repay_owner_loan:505df799892d85a1:1'})
         agent.owner_loan -= repay
         loginfo(t, agent.name(), "repaid owner loan $", round(repay, 2),
                 "to", owner.name(), "remaining loan $",
@@ -421,8 +440,14 @@ def _repay_owner_loan(t, agent, owner, payroll):
 def _pay_owner_base_salary(t, agent, owner, payroll):
     base_wage = agent.wage
     if agent.cash > payroll * 2 + base_wage:
+        _trace_cash_write = _trace_public_begin(None, agent)
         agent.cash -= base_wage
+        _trace_public_finish(_trace_cash_write, 'econsim:_pay_owner_base_salary',
+                             inputs={"source_writer": 'econsim.py:_pay_owner_base_salary:a18a9dc4722fd262:1'})
+        _trace_cash_write = _trace_public_begin(None, owner)
         owner.cash += base_wage
+        _trace_public_finish(_trace_cash_write, 'econsim:_pay_owner_base_salary',
+                             inputs={"source_writer": 'econsim.py:_pay_owner_base_salary:0ea3d3141d838f0c:1'})
         loginfo(t, agent.name(), "paid owner base wage $",
                 round(base_wage, 2), "to", owner.name())
 
@@ -436,8 +461,14 @@ def _pay_owner_profit_share(t, agent, owner, payroll, operating_expenses):
     max_available = max(0, agent.cash - payroll * 2)
     profit_draw = min(profit_draw, max_available)
     if profit_draw > 0:
+        _trace_cash_write = _trace_public_begin(None, agent)
         agent.cash -= profit_draw
+        _trace_public_finish(_trace_cash_write, 'econsim:_pay_owner_profit_share',
+                             inputs={"source_writer": 'econsim.py:_pay_owner_profit_share:0801a602f78d43e0:1'})
+        _trace_cash_write = _trace_public_begin(None, owner)
         owner.cash += profit_draw
+        _trace_public_finish(_trace_cash_write, 'econsim:_pay_owner_profit_share',
+                             inputs={"source_writer": 'econsim.py:_pay_owner_profit_share:1931aa60f6fdbee1:1'})
         agent.retained_earnings -= profit_draw
         loginfo(t, agent.name(), "paid owner profit share $",
                 round(profit_draw, 2), "to", owner.name(),
@@ -457,8 +488,14 @@ def _owner_bailout(t, agent, owner, payroll):
     owner_reserve = food_price * 4
     inject = min(needed, max(0, owner.cash - owner_reserve))
     if inject > 0:
+        _trace_cash_write = _trace_public_begin(None, owner)
         owner.cash -= inject
+        _trace_public_finish(_trace_cash_write, 'econsim:_owner_bailout',
+                             inputs={"source_writer": 'econsim.py:_owner_bailout:9f936b1700d603a9:1'})
+        _trace_cash_write = _trace_public_begin(None, agent)
         agent.cash += inject
+        _trace_public_finish(_trace_cash_write, 'econsim:_owner_bailout',
+                             inputs={"source_writer": 'econsim.py:_owner_bailout:7210d39a9ce5ec7c:1'})
         agent.owner_loan += inject
         loginfo(t, agent.name(), "owner", owner.name(),
                 "injected $", round(inject, 2), "as loan to cover payroll",
@@ -604,12 +641,18 @@ def _collect_top_tax(t, agents):
             actual_tax = min(tax_amount, total_available)
             if actual_tax > 0:
                 cash_taken = min(agent.cash, actual_tax)
+                _trace_cash_write = _trace_public_begin(None, agent)
                 agent.cash -= cash_taken
+                _trace_public_finish(_trace_cash_write, 'econsim:_collect_top_tax',
+                                     inputs={"source_writer": 'econsim.py:_collect_top_tax:65b55cc64189d87e:1'})
                 deposit_taken = min(bank_balance, actual_tax - cash_taken)
                 if deposit_taken > 0:
                     trade.bank.Withdraw(agent, deposit_taken, t=t,
                                         reason='legacy_income_tax')
+                    _trace_cash_write = _trace_public_begin(None, agent)
                     agent.cash -= deposit_taken
+                    _trace_public_finish(_trace_cash_write, 'econsim:_collect_top_tax',
+                                         inputs={"source_writer": 'econsim.py:_collect_top_tax:f57a9b09ea3dff69:1'})
             agent.tax_loss_carryforward = 0.0
             if econsim_states.default_government is not None:
                 econsim_states.default_government.collect_tax(t, actual_tax)

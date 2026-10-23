@@ -14,6 +14,7 @@ Theoretical Grounding (E.P. Thompson / Eric Hobsbawm / Sven Beckert):
 """
 
 from __future__ import annotations
+from treasury_trace import begin_public_change as _trace_public_begin, finish_public_change as _trace_public_finish
 import math
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any, Tuple
@@ -169,7 +170,10 @@ class LudditeMovementManager:
         if getattr(employer, 'cash', 0.0) < total_cost:
             return {'success': False, 'message': f"Insufficient funds for guards (need ${total_cost:.1f})"}
 
+        _trace_cash_write = _trace_public_begin(None, employer)
         employer.cash -= total_cost
+        _trace_public_finish(_trace_cash_write, 'economy/luddite_resistance:LudditeMovementManager.hire_factory_guards',
+                             inputs={"source_writer": 'economy/luddite_resistance.py:LudditeMovementManager.hire_factory_guards:4950de5b1c06ab6f:1'})
         state = self.get_state(region.name)
         state.factory_guards += count
 
@@ -180,11 +184,20 @@ class LudditeMovementManager:
         if recipients:
             split = total_cost / len(recipients)
             for r in recipients:
+                _trace_cash_write = _trace_public_begin(None, r)
                 r.cash += split
+                _trace_public_finish(_trace_cash_write, 'economy/luddite_resistance:LudditeMovementManager.hire_factory_guards',
+                                     inputs={"source_writer": 'economy/luddite_resistance.py:LudditeMovementManager.hire_factory_guards:c136949c0a7d5fb3:1'})
         elif getattr(region, 'gov', None) and getattr(region.gov, 'agent', None):
+            _trace_cash_write = _trace_public_begin(None, region.gov.agent)
             region.gov.agent.cash += total_cost
+            _trace_public_finish(_trace_cash_write, 'economy/luddite_resistance:LudditeMovementManager.hire_factory_guards',
+                                 inputs={"source_writer": 'economy/luddite_resistance.py:LudditeMovementManager.hire_factory_guards:fa32d937bd14276e:1'})
         else:
+            _trace_cash_write = _trace_public_begin(None, employer)
             employer.cash += total_cost  # refund if no recipient
+            _trace_public_finish(_trace_cash_write, 'economy/luddite_resistance:LudditeMovementManager.hire_factory_guards',
+                                 inputs={"source_writer": 'economy/luddite_resistance.py:LudditeMovementManager.hire_factory_guards:7f15454ab8dccbc0:1'})
 
         state.update_threat_level()
         return {
@@ -200,7 +213,10 @@ class LudditeMovementManager:
         if getattr(benefactor, 'cash', 0.0) < amount:
             return {'success': False, 'message': f"Insufficient funds for relief (need ${amount:.1f})"}
 
+        _trace_cash_write = _trace_public_begin(None, benefactor)
         benefactor.cash -= amount
+        _trace_public_finish(_trace_cash_write, 'economy/luddite_resistance:LudditeMovementManager.grant_parish_bread_relief',
+                             inputs={"source_writer": 'economy/luddite_resistance.py:LudditeMovementManager.grant_parish_bread_relief:2146fd071cecb239:1'})
         state = self.get_state(region.name)
         state.relief_doles_paid += amount
 
@@ -211,7 +227,10 @@ class LudditeMovementManager:
         if hungry:
             split = amount / len(hungry)
             for h in hungry:
+                _trace_cash_write = _trace_public_begin(None, h)
                 h.cash += split
+                _trace_public_finish(_trace_cash_write, 'economy/luddite_resistance:LudditeMovementManager.grant_parish_bread_relief',
+                                     inputs={"source_writer": 'economy/luddite_resistance.py:LudditeMovementManager.grant_parish_bread_relief:0f415bd425af4732:1'})
                 # Clear hunger step
                 if hasattr(h, 'hungry_steps'):
                     h.hungry_steps = max(0, h.hungry_steps - 1)

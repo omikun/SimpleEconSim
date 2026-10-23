@@ -1,4 +1,5 @@
 """Named plot title and seasonal irrigation-right transactions."""
+from treasury_trace import begin_public_change as _trace_public_begin, finish_public_change as _trace_public_finish
 from dataclasses import dataclass
 
 
@@ -27,8 +28,14 @@ def transfer_plot_title(region, seller, buyer, plot_id, price, turn=None, lease_
                 for l in getattr(region, 'land_leases', []))):
         return None
     seller_id = seller.id
+    _trace_cash_write = _trace_public_begin(None, buyer)
     buyer.cash -= price
+    _trace_public_finish(_trace_cash_write, 'supply_rights:transfer_plot_title',
+                         inputs={"source_writer": 'supply_rights.py:transfer_plot_title:0d361092ce4c53b9:1'})
+    _trace_cash_write = _trace_public_begin(None, seller)
     seller.cash += price
+    _trace_public_finish(_trace_cash_write, 'supply_rights:transfer_plot_title',
+                         inputs={"source_writer": 'supply_rights.py:transfer_plot_title:455e4aaec8281444:1'})
     basis = 'lease' if int(lease_turns) > 0 else 'voluntary_sale'
     if basis == 'lease':
         if not hasattr(region, 'land_leases'):
@@ -111,8 +118,14 @@ def acquire_water_right(region, seller, buyer, from_plot_id, to_plot_id,
             not getattr(seller, 'alive', True) or not getattr(buyer, 'alive', True) or
             buyer.cash < price):
         return None
+    _trace_cash_write = _trace_public_begin(None, buyer)
     buyer.cash -= price
+    _trace_public_finish(_trace_cash_write, 'supply_rights:acquire_water_right',
+                         inputs={"source_writer": 'supply_rights.py:acquire_water_right:0d361092ce4c53b9:1'})
+    _trace_cash_write = _trace_public_begin(None, seller)
     seller.cash += price
+    _trace_public_finish(_trace_cash_write, 'supply_rights:acquire_water_right',
+                         inputs={"source_writer": 'supply_rights.py:acquire_water_right:455e4aaec8281444:1'})
     source.units -= units
     target_right = next((r for r in region.water_rights
                          if r.plot_id == to_plot_id and r.holder_id == buyer.id), None)

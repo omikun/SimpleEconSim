@@ -28,6 +28,7 @@ OBSERVATIONAL_FIELDS = frozenset({
     '_labor_workforce_event_ids','_trade_price_event_ids','_last_execution_times',
     '_last_border_vulnerability_event_id','_last_diplomacy_event_id',
     '_latest_labor_surplus_event_id',
+    'offer_event_id','planner_decision_event_ids','petition_event_id',
     'trace_event_id','trace_event_ids','cause_event_ids','formula_replay','_cached_wealth',
     'source_link_status',
 })

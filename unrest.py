@@ -115,12 +115,22 @@ def _forced_compromise(region, t):
         concessions.add(demand.name)
         demand.satisfied = 1.0
         if demand.name == 'tax_cut' and getattr(region, 'gov', None) is not None:
+            tax_before=float(region.gov.tax_rate)
             region.gov.tax_rate = max(0.0, float(region.gov.tax_rate) - 0.03)
+            from government_trace import tax_rate_change
+            tax_rate_change(region,region.gov,tax_before,reason='unrest_compromise',
+                            formula='policy.additive_floor.v1',inputs={'change':-.03,'floor':0.,'demand':demand.name})
         # One concession has one political cost. Repeating a previously
         # granted demand cannot drain legitimacy every subsequent turn.
         owner = getattr(region, 'owner_nation', None)
         if owner is not None:
+            legitimacy_before=float(owner.legitimacy)
             owner.legitimacy = max(0.0, owner.legitimacy - 0.04)
+            from run_trace import emit
+            emit(region,kind='unrest_compromise_legitimacy_cost',record_class='outcome',
+                 subject={'type':'nation','id':owner.name},metric_id='politics.legitimacy',unit='ratio',
+                 before=legitimacy_before,after=owner.legitimacy,formula_id='policy.additive_floor.v1',
+                 inputs={'change':-.04,'floor':0.,'demand':demand.name})
         return demand.name
     return None
 

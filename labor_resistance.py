@@ -7,6 +7,7 @@ by the firm (cash + physical materials) before factory capacity can recover.
 """
 
 from __future__ import annotations
+from treasury_trace import begin_public_change as _trace_public_begin, finish_public_change as _trace_public_finish
 from goods import Goods
 from random_cache import rand
 
@@ -137,7 +138,10 @@ def repair_and_replace_machinery(firm, region, t: int,
 
         if firm.cash >= needed_cash:
             # Pay cash replacement fee to local artisans / carpenters (conserved)
+            _trace_cash_write = _trace_public_begin(None, firm)
             firm.cash -= needed_cash
+            _trace_public_finish(_trace_cash_write, 'labor_resistance:repair_and_replace_machinery',
+                                 inputs={"source_writer": 'labor_resistance.py:repair_and_replace_machinery:60ecb72eec9283fd:1'})
             carpenters = [a for a in getattr(region, 'agents', [])
                           if getattr(a, 'alive', True) and not getattr(a, 'is_corporation', False)
                           and getattr(a, 'output', None) in (Goods.wood, Goods.furniture)
@@ -145,14 +149,20 @@ def repair_and_replace_machinery(firm, region, t: int,
             if carpenters:
                 split = needed_cash / len(carpenters)
                 for c in carpenters:
+                    _trace_cash_write = _trace_public_begin(None, c)
                     c.cash += split
+                    _trace_public_finish(_trace_cash_write, 'labor_resistance:repair_and_replace_machinery',
+                                         inputs={"source_writer": 'labor_resistance.py:repair_and_replace_machinery:b86c8493dbec95e3:1'})
                     from economy.actor_accounts import record as record_economic_event
                     record_economic_event(
                         region, 'strike_machinery_repair', turn=t,
                         payer_id=firm.id, recipient_id=c.id, amount=split,
                         detail={'firm_id': firm.id, 'repair_cost': needed_cash})
             elif getattr(region, 'gov', None) and getattr(region.gov, 'agent', None):
+                _trace_cash_write = _trace_public_begin(None, region.gov.agent)
                 region.gov.agent.cash += needed_cash
+                _trace_public_finish(_trace_cash_write, 'labor_resistance:repair_and_replace_machinery',
+                                     inputs={"source_writer": 'labor_resistance.py:repair_and_replace_machinery:2221b8897050a7af:1'})
                 from economy.actor_accounts import record as record_economic_event
                 record_economic_event(
                     region, 'strike_machinery_repair', turn=t,
@@ -161,7 +171,10 @@ def repair_and_replace_machinery(firm, region, t: int,
                     detail={'firm_id': firm.id, 'repair_cost': needed_cash,
                             'recipient': 'treasury'})
             else:
+                _trace_cash_write = _trace_public_begin(None, firm)
                 firm.cash += needed_cash  # refund if no recipient exists
+                _trace_public_finish(_trace_cash_write, 'labor_resistance:repair_and_replace_machinery',
+                                     inputs={"source_writer": 'labor_resistance.py:repair_and_replace_machinery:c9afef3737b18618:1'})
 
             # Deduct physical materials
             firm.inv_add(Goods.wood, -min(wood_avail, MACHINERY_WOOD_REQUIRED))

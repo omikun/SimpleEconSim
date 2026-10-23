@@ -1,6 +1,7 @@
 """
 sim_server/sim_server.py — Authoritative Simulation Server implementation.
 """
+from treasury_trace import begin_public_change as _trace_public_begin, finish_public_change as _trace_public_finish
 
 import time
 from trace_clock import trace_command_boundary
@@ -718,7 +719,10 @@ class SimServer:
 
                 elif key == 'law_enforcement':
                     if target_nation.government.agent.cash >= 50.0:
+                        _trace_cash_write = _trace_public_begin(None, target_nation.government.agent)
                         target_nation.government.agent.cash -= 50.0
+                        _trace_public_finish(_trace_cash_write, 'sim_server/sim_server:SimServer.execute_command',
+                                             inputs={"source_writer": 'sim_server/sim_server.py:SimServer.execute_command:fd4bf5244975630a:1'})
                         for t in target_nation.tiles:
                             if t.protest_energy_log:
                                 t.protest_energy_log[-1] = max(0.0, t.protest_energy_log[-1] - 1.5)
@@ -992,7 +996,10 @@ class SimServer:
 
                 if decree == 'pave_highway':
                     if pcash >= 120.0:
+                        _trace_cash_write = _trace_public_begin(None, pgov.agent)
                         pgov.agent.cash -= 120.0
+                        _trace_public_finish(_trace_cash_write, 'sim_server/sim_server:SimServer.execute_command',
+                                             inputs={"source_writer": 'sim_server/sim_server.py:SimServer.execute_command:78dd88bba15f9a7e:1'})
                         for t in province.tiles:
                             t.road_quality = min(1.0, getattr(t, 'road_quality', 0.5) + 0.25)
                         msg = f"Paved regional highway across {province.name} (trade speed +25%)."
@@ -1002,7 +1009,10 @@ class SimServer:
 
                 elif decree == 'healthcare':
                     if pcash >= 150.0:
+                        _trace_cash_write = _trace_public_begin(None, pgov.agent)
                         pgov.agent.cash -= 150.0
+                        _trace_public_finish(_trace_cash_write, 'sim_server/sim_server:SimServer.execute_command',
+                                             inputs={"source_writer": 'sim_server/sim_server.py:SimServer.execute_command:7048a6c8bc81afe0:1'})
                         for t in province.tiles:
                             setattr(t, 'medical_spending_public', getattr(t, 'medical_spending_public', 0.0) + 25.0)
                         msg = f"Regional Healthcare Initiative launched across {province.name}."
@@ -1012,11 +1022,17 @@ class SimServer:
 
                 elif decree == 'equalization':
                     if pcash >= 200.0:
+                        _trace_cash_write = _trace_public_begin(None, pgov.agent)
                         pgov.agent.cash -= 200.0
+                        _trace_public_finish(_trace_cash_write, 'sim_server/sim_server:SimServer.execute_command',
+                                             inputs={"source_writer": 'sim_server/sim_server.py:SimServer.execute_command:f7629de2a2432c46:1'})
                         share = 200.0 / max(1, len(province.tiles))
                         for t in province.tiles:
                             if hasattr(t, 'gov') and hasattr(t.gov, 'agent'):
+                                _trace_cash_write = _trace_public_begin(None, t.gov.agent)
                                 t.gov.agent.cash += share
+                                _trace_public_finish(_trace_cash_write, 'sim_server/sim_server:SimServer.execute_command',
+                                                     inputs={"source_writer": 'sim_server/sim_server.py:SimServer.execute_command:606929e243442718:1'})
                         msg = f"Provincial equalization transfer (${share:,.0f} per city) disbursed in {province.name}."
                         self.push_ticker(self.turn, 'FISCAL', msg, (245, 210, 100))
                         return {'success': True, 'message': msg}
@@ -1040,7 +1056,10 @@ class SimServer:
 
                 elif decree == 'soil_conservation':
                     if pcash >= 150.0:
+                        _trace_cash_write = _trace_public_begin(None, pgov.agent)
                         pgov.agent.cash -= 150.0
+                        _trace_public_finish(_trace_cash_write, 'sim_server/sim_server:SimServer.execute_command',
+                                             inputs={"source_writer": 'sim_server/sim_server.py:SimServer.execute_command:1da86897d01d9a3a:1'})
                         for t in province.tiles:
                             t.soil_fertility = min(1.0, getattr(t, 'soil_fertility', 0.8) + 0.10)
                         msg = f"Provincial soil conservation campaign funded in {province.name}."
@@ -1061,7 +1080,10 @@ class SimServer:
 
                 if action == 'sponsor_settlers':
                     if nation and nation.government.agent.cash >= 100.0:
+                        _trace_cash_write = _trace_public_begin(None, nation.government.agent)
                         nation.government.agent.cash -= 100.0
+                        _trace_public_finish(_trace_cash_write, 'sim_server/sim_server:SimServer.execute_command',
+                                             inputs={"source_writer": 'sim_server/sim_server.py:SimServer.execute_command:65ded6c263c10afa:1'})
                         from agent import Agent
                         for _ in range(3):
                             a = Agent(tile, is_homesteader=True, cash=25.0)
@@ -1073,7 +1095,10 @@ class SimServer:
 
                 elif action == 'pioneer_aid':
                     if nation and nation.government.agent.cash >= 40.0:
+                        _trace_cash_write = _trace_public_begin(None, nation.government.agent)
                         nation.government.agent.cash -= 40.0
+                        _trace_public_finish(_trace_cash_write, 'sim_server/sim_server:SimServer.execute_command',
+                                             inputs={"source_writer": 'sim_server/sim_server.py:SimServer.execute_command:f0798bfe57980a87:1'})
                         for a in tile.agents:
                             if getattr(a, 'is_homesteader', False):
                                 a.food += 2.0
@@ -1150,19 +1175,34 @@ class SimServer:
                 if funding_source == 'province_grant':
                     pgov = getattr(province, 'gov', None)
                     if pgov and pgov.agent.cash >= shortfall:
+                        _trace_cash_write = _trace_public_begin(None, pgov.agent)
                         pgov.agent.cash -= shortfall
+                        _trace_public_finish(_trace_cash_write, 'sim_server/sim_server:SimServer.execute_command',
+                                             inputs={"source_writer": 'sim_server/sim_server.py:SimServer.execute_command:9c3af421074576d2:1'})
+                        _trace_cash_write = _trace_public_begin(None, tile.gov.agent)
                         tile.gov.agent.cash += shortfall
+                        _trace_public_finish(_trace_cash_write, 'sim_server/sim_server:SimServer.execute_command',
+                                             inputs={"source_writer": 'sim_server/sim_server.py:SimServer.execute_command:4fea59098d6f2cb4:1'})
                     else:
                         return {'success': False, 'error': "Provincial treasury has insufficient funds."}
                 elif funding_source == 'national_bailout':
                     if nation and nation.government.agent.cash >= shortfall:
+                        _trace_cash_write = _trace_public_begin(None, nation.government.agent)
                         nation.government.agent.cash -= shortfall
+                        _trace_public_finish(_trace_cash_write, 'sim_server/sim_server:SimServer.execute_command',
+                                             inputs={"source_writer": 'sim_server/sim_server.py:SimServer.execute_command:af50ce90caf71d8c:1'})
+                        _trace_cash_write = _trace_public_begin(None, tile.gov.agent)
                         tile.gov.agent.cash += shortfall
+                        _trace_public_finish(_trace_cash_write, 'sim_server/sim_server:SimServer.execute_command',
+                                             inputs={"source_writer": 'sim_server/sim_server.py:SimServer.execute_command:50ecbee8239267e0:1'})
                     else:
                         return {'success': False, 'error': "National sovereign treasury has insufficient funds."}
                 elif funding_source == 'bank_loan':
                     if hasattr(tile, 'gov') and hasattr(tile.gov, 'agent'):
+                        _trace_cash_write = _trace_public_begin(None, tile.gov.agent)
                         tile.gov.agent.cash += shortfall
+                        _trace_public_finish(_trace_cash_write, 'sim_server/sim_server:SimServer.execute_command',
+                                             inputs={"source_writer": 'sim_server/sim_server.py:SimServer.execute_command:b4591666fc9dc861:1'})
 
                 recipe = BUILDING_RECIPES.get(recipe_name)
                 if recipe:

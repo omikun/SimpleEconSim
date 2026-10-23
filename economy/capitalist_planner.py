@@ -12,6 +12,7 @@ Theoretical Grounding (Sven Beckert / Werner Sombart):
 """
 
 from __future__ import annotations
+from treasury_trace import begin_public_change as _trace_public_begin, finish_public_change as _trace_public_finish
 import math
 from typing import List, Dict, Any, Optional, Tuple
 from goods import Goods
@@ -1345,8 +1346,14 @@ class EliteCapitalistPlanner:
                         buyer_inventory_before = float(agent.inv_get(good, 0))
                         seller_cash_before = float(seller.cash)
                         seller_inventory_before = float(seller.inv_get(good, 0))
+                    _trace_cash_write = _trace_public_begin(None, agent)
                     agent.cash -= price
+                    _trace_public_finish(_trace_cash_write, 'economy/capitalist_planner:EliteCapitalistPlanner._plan_and_execute_elite',
+                                         inputs={"source_writer": 'economy/capitalist_planner.py:EliteCapitalistPlanner._plan_and_execute_elite:d5aba2ddcd15f97f:1'})
+                    _trace_cash_write = _trace_public_begin(None, seller)
                     seller.cash += price
+                    _trace_public_finish(_trace_cash_write, 'economy/capitalist_planner:EliteCapitalistPlanner._plan_and_execute_elite',
+                                         inputs={"source_writer": 'economy/capitalist_planner.py:EliteCapitalistPlanner._plan_and_execute_elite:3bb460e81ef75609:1'})
                     seller.inv_add(good, -1)
                     agent.inv_add(good, 1)
                     result['action_taken'] = 'PURCHASE_LUXURY'
@@ -1543,8 +1550,14 @@ class EliteCapitalistPlanner:
                                 cash_before=lord_cash_before,
                                 state_before=lord_state_before)
                             return result
+                        _trace_cash_write = _trace_public_begin(None, agent)
                         agent.cash -= best_op.cash_cost
+                        _trace_public_finish(_trace_cash_write, 'economy/capitalist_planner:EliteCapitalistPlanner._plan_and_execute_elite',
+                                             inputs={"source_writer": 'economy/capitalist_planner.py:EliteCapitalistPlanner._plan_and_execute_elite:0c2829faa09a7d33:1'})
+                        _trace_cash_write = _trace_public_begin(None, region.gov.agent)
                         region.gov.agent.cash += best_op.cash_cost
+                        _trace_public_finish(_trace_cash_write, 'economy/capitalist_planner:EliteCapitalistPlanner._plan_and_execute_elite',
+                                             inputs={"source_writer": 'economy/capitalist_planner.py:EliteCapitalistPlanner._plan_and_execute_elite:f050d8cb61c90862:1'})
                         emit(region, kind='elite_operator_fee',
                              record_class='transfer', phase='labor',
                              subject={'type': 'agent', 'id': agent.id},
@@ -1893,8 +1906,14 @@ class EliteCapitalistPlanner:
                 company_cash_before = float(company.cash)
                 wage_before = float(company.wage)
                 employee_cap_before = int(company.max_employees)
+                _trace_cash_write = _trace_public_begin(None, agent)
                 agent.cash -= injection
+                _trace_public_finish(_trace_cash_write, 'economy/capitalist_planner:EliteCapitalistPlanner._plan_and_execute_elite',
+                                     inputs={"source_writer": 'economy/capitalist_planner.py:EliteCapitalistPlanner._plan_and_execute_elite:ebcb08d91ea10d4c:1'})
+                _trace_cash_write = _trace_public_begin(None, company)
                 company.cash += injection
+                _trace_public_finish(_trace_cash_write, 'economy/capitalist_planner:EliteCapitalistPlanner._plan_and_execute_elite',
+                                     inputs={"source_writer": 'economy/capitalist_planner.py:EliteCapitalistPlanner._plan_and_execute_elite:0d2c439a4043addd:1'})
                 # Raise offered wage to attract more workers
                 company.wage = round(max(company.wage * 1.10, company.wage + 0.5), 2)
                 company.max_employees = min(50, company.max_employees + 5)
@@ -1925,8 +1944,14 @@ class EliteCapitalistPlanner:
                 agent.company_owned = comp
                 founder_cash_before = float(agent.cash)
                 equity = min(agent.cash * 0.5, agent.cash - 60.0)
+                _trace_cash_write = _trace_public_begin(None, agent)
                 agent.cash -= equity
+                _trace_public_finish(_trace_cash_write, 'economy/capitalist_planner:EliteCapitalistPlanner._plan_and_execute_elite',
+                                     inputs={"source_writer": 'economy/capitalist_planner.py:EliteCapitalistPlanner._plan_and_execute_elite:0da483c477d7a07e:1'})
+                _trace_cash_write = _trace_public_begin(None, comp)
                 comp.cash = equity
+                _trace_public_finish(_trace_cash_write, 'economy/capitalist_planner:EliteCapitalistPlanner._plan_and_execute_elite',
+                                     inputs={"source_writer": 'economy/capitalist_planner.py:EliteCapitalistPlanner._plan_and_execute_elite:9ff287188158c1ce:1'})
                 # Attractive wage to stimulate profession adoption
                 food_p = float(region.recipes.get(Goods.food, {}).get('price', 1.0))
                 comp.wage = round(max(2.0, food_p * 2.0), 2)
@@ -2021,8 +2046,14 @@ class EliteCapitalistPlanner:
                 buyer_cash_before = float(buyer.cash)
                 seller_inventory_before = float(agent.inv_get(g, 0))
                 buyer_inventory_before = float(buyer.inv_get(g, 0))
+                _trace_cash_write = _trace_public_begin(None, buyer)
                 buyer.cash -= trade_cash
+                _trace_public_finish(_trace_cash_write, 'economy/capitalist_planner:EliteCapitalistPlanner._plan_and_execute_elite',
+                                     inputs={"source_writer": 'economy/capitalist_planner.py:EliteCapitalistPlanner._plan_and_execute_elite:8a474dde2fb88dbe:1'})
+                _trace_cash_write = _trace_public_begin(None, agent)
                 agent.cash += trade_cash
+                _trace_public_finish(_trace_cash_write, 'economy/capitalist_planner:EliteCapitalistPlanner._plan_and_execute_elite',
+                                     inputs={"source_writer": 'economy/capitalist_planner.py:EliteCapitalistPlanner._plan_and_execute_elite:69cdbbf2dc1793ab:1'})
                 agent.inv_add(g, -sale_qty)
                 buyer.inv_add(g, sale_qty)
                 result['action_taken'] = f'LIQUIDATE_{g.name.upper()}'

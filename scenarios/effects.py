@@ -1,6 +1,7 @@
 """Generic effect dispatcher executing declarative scenario effects with strict value conservation."""
 
 from __future__ import annotations
+from treasury_trace import begin_public_change as _trace_public_begin, finish_public_change as _trace_public_finish
 
 from typing import Any, Dict, List, Optional, Tuple
 from goods import Goods
@@ -27,14 +28,20 @@ def apply_declarative_effects(world: dict, effects: Dict[str, Any], context: Dic
     if cost > 0:
         if gov_cash < cost:
             return False, f"Treasury requires {cost:,.0f} cash units (available: {gov_cash:,.0f})."
+        _trace_cash_write = _trace_public_begin(None, player.government.agent)
         player.government.agent.cash -= cost
+        _trace_public_finish(_trace_cash_write, 'scenarios/effects:apply_declarative_effects',
+                             inputs={"source_writer": 'scenarios/effects.py:apply_declarative_effects:17d25d7639701f88:1'})
 
         # Credit foreign creditors or recipients if specified
         creditors = context.get('creditor_nations', [])
         if creditors:
             split_amount = cost / len(creditors)
             for cred in creditors:
+                _trace_cash_write = _trace_public_begin(None, cred.government.agent)
                 cred.government.agent.cash += split_amount
+                _trace_public_finish(_trace_cash_write, 'scenarios/effects:apply_declarative_effects',
+                                     inputs={"source_writer": 'scenarios/effects.py:apply_declarative_effects:bb6d6a450a13bcc0:1'})
 
     # 2. Ratio & macro state updates
     if 'confidence_delta' in effects:
@@ -235,7 +242,10 @@ def apply_declarative_effects(world: dict, effects: Dict[str, Any], context: Dic
             corp.output = sector_good
             corp.wage = wage
             corp.max_employees = 15
+            _trace_cash_write = _trace_public_begin(None, corp)
             corp.cash = 100.0
+            _trace_public_finish(_trace_cash_write, 'scenarios/effects:apply_declarative_effects',
+                                 inputs={"source_writer": 'scenarios/effects.py:apply_declarative_effects:1acba03c2a737bbd:1'})
             corp.machinery_level = 1
             tile.agents.append(corp)
 

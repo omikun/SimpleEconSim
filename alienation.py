@@ -7,6 +7,7 @@ and the cultural pacification role of mass entertainment for capital accumulatio
 """
 
 from __future__ import annotations
+from treasury_trace import begin_public_change as _trace_public_begin, finish_public_change as _trace_public_finish
 from goods import Goods
 from random_cache import rand
 
@@ -156,7 +157,10 @@ def process_despair_spending(agent, region, t: int):
     if despair > 0.45 and agent.cash >= 2.0:
         spend = min(1.5, agent.cash - 1.0)
         if spend > 0:
+            _trace_cash_write = _trace_public_begin(None, agent)
             agent.cash -= spend
+            _trace_public_finish(_trace_cash_write, 'alienation:process_despair_spending',
+                                 inputs={"source_writer": 'alienation.py:process_despair_spending:71d18e835ace3cf3:1'})
             # Find a local non-corp merchant or artisan (tavern keeper / apothecary)
             recipients = [a for a in getattr(region, 'agents', [])
                           if getattr(a, 'alive', True) and not getattr(a, 'is_corporation', False)
@@ -165,11 +169,20 @@ def process_despair_spending(agent, region, t: int):
                           and a != agent]
             if recipients:
                 target = recipients[rand.randint(0, len(recipients) - 1)]
+                _trace_cash_write = _trace_public_begin(None, target)
                 target.cash += spend
+                _trace_public_finish(_trace_cash_write, 'alienation:process_despair_spending',
+                                     inputs={"source_writer": 'alienation.py:process_despair_spending:f94e59d41b3dc2a4:1'})
             elif getattr(region, 'gov', None) and getattr(region.gov, 'agent', None):
+                _trace_cash_write = _trace_public_begin(None, region.gov.agent)
                 region.gov.agent.cash += spend
+                _trace_public_finish(_trace_cash_write, 'alienation:process_despair_spending',
+                                     inputs={"source_writer": 'alienation.py:process_despair_spending:dee3e507baacae0f:1'})
             else:
+                _trace_cash_write = _trace_public_begin(None, agent)
                 agent.cash += spend  # refund if nowhere to transfer
+                _trace_public_finish(_trace_cash_write, 'alienation:process_despair_spending',
+                                     inputs={"source_writer": 'alienation.py:process_despair_spending:ffea72abaed47bbd:1'})
                 return
             recipient = target if recipients else region.gov.agent
             from economy.actor_accounts import record as record_economic_event
@@ -241,10 +254,16 @@ def apply_mass_entertainment_pacifier(region, t: int):
                 and not getattr(a, 'is_government', False) and a.cash >= 3.0):
             fee = min(0.50, a.cash - 2.0)
             if fee > 0:
+                _trace_cash_write = _trace_public_begin(None, a)
                 a.cash -= fee
+                _trace_public_finish(_trace_cash_write, 'alienation:apply_mass_entertainment_pacifier',
+                                     inputs={"source_writer": 'alienation.py:apply_mass_entertainment_pacifier:df7a0dcdc49b2563:1'})
                 # Transfer fee to entertainment venue owner or gov
                 if getattr(region, 'gov', None) and getattr(region.gov, 'agent', None):
+                    _trace_cash_write = _trace_public_begin(None, region.gov.agent)
                     region.gov.agent.cash += fee
+                    _trace_public_finish(_trace_cash_write, 'alienation:apply_mass_entertainment_pacifier',
+                                         inputs={"source_writer": 'alienation.py:apply_mass_entertainment_pacifier:d70dafa5aa890e37:1'})
                     from economy.actor_accounts import record as record_economic_event
                     record_economic_event(
                         region, 'entertainment_fee', turn=t,
@@ -252,7 +271,10 @@ def apply_mass_entertainment_pacifier(region, t: int):
                         detail={'entertainment_level': float(ent_level),
                                 'fee_cap': 0.50})
                 else:
+                    _trace_cash_write = _trace_public_begin(None, a)
                     a.cash += fee
+                    _trace_public_finish(_trace_cash_write, 'alienation:apply_mass_entertainment_pacifier',
+                                         inputs={"source_writer": 'alienation.py:apply_mass_entertainment_pacifier:dda047ea717b3c2b:1'})
 
 
 def _emit_average_metric(region, metric_id, history_name, value, inputs,

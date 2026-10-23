@@ -3,6 +3,7 @@ macro/imperialism/manager.py — Global manager for financial imperialism.
 """
 
 from __future__ import annotations
+from treasury_trace import begin_public_change as _trace_public_begin, finish_public_change as _trace_public_finish
 import math
 import uuid
 from typing import Optional, List, Dict, Tuple, Any, Set, TYPE_CHECKING
@@ -174,7 +175,10 @@ def _disburse_agent_funds(world: dict | None, creditor: Any | None, amount: floa
                 break
     if recipient:
         cash_before = float(getattr(recipient, 'cash', 0.0))
+        _trace_cash_write = _trace_public_begin(None, recipient)
         recipient.cash += amount
+        _trace_public_finish(_trace_cash_write, 'macro/imperialism/manager:_disburse_agent_funds',
+                             inputs={"source_writer": 'macro/imperialism/manager.py:_disburse_agent_funds:84e6162c6b33ec4c:1'})
         # Callers that only need the legacy side effect may ignore this return.
         # Instrumented callers can identify the actual wallet that was credited.
         return {
@@ -594,7 +598,10 @@ class ImperialismManager:
                     amount_required=50.0, cash_before=cash_before,
                     funded=True, reason='agent_contract_affordable',
                     enforcement_mode=enforce_mode)
+                _trace_cash_write = _trace_public_begin(None, cred_gov.agent)
                 cred_gov.agent.cash -= 50.0
+                _trace_public_finish(_trace_cash_write, 'macro/imperialism/manager:ImperialismManager.establish_receivership',
+                                     inputs={"source_writer": 'macro/imperialism/manager.py:ImperialismManager.establish_receivership:376807402f806688:1'})
                 disbursement = _disburse_agent_funds(world, creditor, 50.0)
                 fee_payment_event_id = _trace_enforcement_agent_payment(
                     trace_region, operation_id=operation_id,
@@ -839,7 +846,10 @@ class ImperialismManager:
             if creditor and hasattr(creditor, 'government') and creditor.government:
                 credited_government = creditor.government
                 creditor_cash_before = float(credited_government.agent.cash)
+                _trace_cash_write = _trace_public_begin(None, credited_government.agent)
                 credited_government.agent.cash += actual_intercept
+                _trace_public_finish(_trace_cash_write, 'macro/imperialism/manager:ImperialismManager.intercept_revenue',
+                                     inputs={"source_writer": 'macro/imperialism/manager.py:ImperialismManager.intercept_revenue:180c1038821681d9:1'})
                 creditor_cash_after = float(credited_government.agent.cash)
                 creditor_credited = True
 
@@ -848,7 +858,10 @@ class ImperialismManager:
             if cred_obj and hasattr(cred_obj, 'government') and cred_obj.government:
                 credited_government = cred_obj.government
                 creditor_cash_before = float(credited_government.agent.cash)
+                _trace_cash_write = _trace_public_begin(None, credited_government.agent)
                 credited_government.agent.cash += actual_intercept
+                _trace_public_finish(_trace_cash_write, 'macro/imperialism/manager:ImperialismManager.intercept_revenue',
+                                     inputs={"source_writer": 'macro/imperialism/manager.py:ImperialismManager.intercept_revenue:14e9da18f69d7bc4:1'})
                 creditor_cash_after = float(credited_government.agent.cash)
                 creditor_credited = True
             else:
@@ -857,7 +870,10 @@ class ImperialismManager:
                     if g.name == rec.creditor_nation:
                         credited_government = g
                         creditor_cash_before = float(g.agent.cash)
+                        _trace_cash_write = _trace_public_begin(None, g.agent)
                         g.agent.cash += actual_intercept
+                        _trace_public_finish(_trace_cash_write, 'macro/imperialism/manager:ImperialismManager.intercept_revenue',
+                                             inputs={"source_writer": 'macro/imperialism/manager.py:ImperialismManager.intercept_revenue:c396245d460e433a:1'})
                         creditor_cash_after = float(g.agent.cash)
                         creditor_credited = True
                         break
@@ -1300,7 +1316,10 @@ class ImperialismManager:
                         debtor_cash_after = debtor_cash_before
                         source_cash_debited = False
                         if debt_gov and getattr(debt_gov, 'agent', None) and debt_gov.agent.cash >= toll_intercept:
+                            _trace_cash_write = _trace_public_begin(None, debt_gov.agent)
                             debt_gov.agent.cash -= toll_intercept
+                            _trace_public_finish(_trace_cash_write, 'macro/imperialism/manager:ImperialismManager.step_imperialism',
+                                                 inputs={"source_writer": 'macro/imperialism/manager.py:ImperialismManager.step_imperialism:5c1621286b9148a6:1'})
                             debtor_cash_after = float(debt_gov.agent.cash)
                             source_cash_debited = True
                         else:
@@ -1311,7 +1330,10 @@ class ImperialismManager:
                         creditor_cash_credited = False
                         if cred_gov and hasattr(cred_gov, 'agent'):
                             creditor_cash_before = float(cred_gov.agent.cash)
+                            _trace_cash_write = _trace_public_begin(None, cred_gov.agent)
                             cred_gov.agent.cash += toll_intercept
+                            _trace_public_finish(_trace_cash_write, 'macro/imperialism/manager:ImperialismManager.step_imperialism',
+                                                 inputs={"source_writer": 'macro/imperialism/manager.py:ImperialismManager.step_imperialism:cf6649e363456fe0:1'})
                             creditor_cash_after = float(cred_gov.agent.cash)
                             creditor_cash_credited = True
                         operation_id = (
@@ -1373,7 +1395,10 @@ class ImperialismManager:
                             creditor_cash_credited = False
                             if cred_gov and hasattr(cred_gov, 'agent'):
                                 creditor_cash_before = float(cred_gov.agent.cash)
+                                _trace_cash_write = _trace_public_begin(None, cred_gov.agent)
                                 cred_gov.agent.cash += grain_val
+                                _trace_public_finish(_trace_cash_write, 'macro/imperialism/manager:ImperialismManager.step_imperialism',
+                                                     inputs={"source_writer": 'macro/imperialism/manager.py:ImperialismManager.step_imperialism:05d979a547b6dd3d:1'})
                                 creditor_cash_after = float(cred_gov.agent.cash)
                                 creditor_cash_credited = True
                             operation_id = (
@@ -1482,7 +1507,10 @@ class ImperialismManager:
                                 cash_before=cash_before, funded=True,
                                 reason='replacement_agents_affordable',
                                 enforcement_mode='hired_agents')
+                            _trace_cash_write = _trace_public_begin(None, cred_gov.agent)
                             cred_gov.agent.cash -= 50.0
+                            _trace_public_finish(_trace_cash_write, 'macro/imperialism/manager:ImperialismManager.step_imperialism',
+                                                 inputs={"source_writer": 'macro/imperialism/manager.py:ImperialismManager.step_imperialism:9f8754f73605cb5c:1'})
                             disbursement = _disburse_agent_funds(world, creditor, 50.0)
                             payment_event_id = _trace_enforcement_agent_payment(
                                 trace_region, operation_id=operation_id,
@@ -1583,7 +1611,10 @@ class ImperialismManager:
                             amount_required=retainer, cash_before=cash_before,
                             funded=True, reason='agent_retainer_affordable',
                             enforcement_mode='hired_agents')
+                        _trace_cash_write = _trace_public_begin(None, cred_gov.agent)
                         cred_gov.agent.cash -= retainer
+                        _trace_public_finish(_trace_cash_write, 'macro/imperialism/manager:ImperialismManager.step_imperialism',
+                                             inputs={"source_writer": 'macro/imperialism/manager.py:ImperialismManager.step_imperialism:f99da86178e4ba46:1'})
                         disbursement = _disburse_agent_funds(world, creditor, retainer)
                         _trace_enforcement_agent_payment(
                             trace_region, operation_id=operation_id,

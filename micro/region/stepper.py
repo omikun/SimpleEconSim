@@ -831,6 +831,7 @@ def log_metrics(region: Any, t: int):
     _trace_profession_population(region, by_output)
 
     compute_gini_this_turn = (t % 10 == 0)
+    from gini_trace import record_sample as record_gini_sample
 
     for g in region.goods:
         grp = by_output[g]
@@ -841,6 +842,7 @@ def log_metrics(region: Any, t: int):
             region.gini_log[g].append(compute_gini(grp, g))
         else:
             region.gini_log[g].append(region.gini_log[g][-1] if region.gini_log[g] else 0)
+        record_gini_sample(region,grp,g,t,region.gini_log[g])
         if g != Goods.gov:
             region.inventory_log[g].append(total_inv_by_output.get(g, 0.0))
             from run_trace import emit
@@ -862,6 +864,7 @@ def log_metrics(region: Any, t: int):
         region.gini_log['trader'].append(compute_gini(trader_agents, Goods.food))
     else:
         region.gini_log['trader'].append(region.gini_log['trader'][-1] if region.gini_log['trader'] else 0)
+    record_gini_sample(region,trader_agents,Goods.food,t,region.gini_log['trader'],series_name='trader')
     region.hungry_log['trader'].append(sum(1 for a in trader_agents if a.hungry_steps > 0))
     region.inventory_log['trader'].append(total_inv_trader)
     non_trader = [a.inv_get(Goods.food, 0) for a in trader_agents if a.output != Goods.food]

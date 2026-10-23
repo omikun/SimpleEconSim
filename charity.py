@@ -6,6 +6,7 @@ and young.
 Uses an Agent instance internally. All unspent cash is deposited in the bank
 to keep total_deposits healthy. Cash is withdrawn as needed for food purchases.
 """
+from treasury_trace import begin_public_change as _trace_public_begin, finish_public_change as _trace_public_finish
 
 import random
 
@@ -191,9 +192,15 @@ class Charity:
                 donor_cash_before = float(corp.cash)
                 retained_before = float(corp.retained_earnings)
                 charity_cash_before = float(self.agent.cash)
+                _trace_cash_write = _trace_public_begin(None, corp)
                 corp.cash -= donation
+                _trace_public_finish(_trace_cash_write, 'charity:Charity.collect_donations',
+                                     inputs={"source_writer": 'charity.py:Charity.collect_donations:08b12110f8c4592d:1'})
                 corp.retained_earnings -= donation
+                _trace_cash_write = _trace_public_begin(None, self.agent)
                 self.agent.cash += donation
+                _trace_public_finish(_trace_cash_write, 'charity:Charity.collect_donations',
+                                     inputs={"source_writer": 'charity.py:Charity.collect_donations:da00999c46e6853e:1'})
                 total_donated += donation
                 post_donation(
                     corp, donation, 'corporation',
@@ -231,8 +238,14 @@ class Charity:
                     trace_event_ids=bank_withdrawal_event_ids)
             donor_cash_before = float(agent.cash)
             charity_cash_before = float(self.agent.cash)
+            _trace_cash_write = _trace_public_begin(None, agent)
             agent.cash -= donation
+            _trace_public_finish(_trace_cash_write, 'charity:Charity.collect_donations',
+                                 inputs={"source_writer": 'charity.py:Charity.collect_donations:3a43ad2e923cda74:1'})
+            _trace_cash_write = _trace_public_begin(None, self.agent)
             self.agent.cash += donation
+            _trace_public_finish(_trace_cash_write, 'charity:Charity.collect_donations',
+                                 inputs={"source_writer": 'charity.py:Charity.collect_donations:7d0a305cbdc11fd1:1'})
             total_donated += donation
             post_donation(
                 agent, donation, 'wealthy_individual',
@@ -298,7 +311,10 @@ class Charity:
 
     def pay_for_food(self, cost):
         """Deduct cash for food purchased (from agent's hand)."""
+        _trace_cash_write = _trace_public_begin(None, self.agent)
         self.agent.cash -= cost
+        _trace_public_finish(_trace_cash_write, 'charity:Charity.pay_for_food',
+                             inputs={"source_writer": 'charity.py:Charity.pay_for_food:32fff4c4238f7716:1'})
 
     # ------------------------------------------------------------------
     # Post-trade deposit

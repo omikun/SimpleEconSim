@@ -5,6 +5,21 @@ from price_trace import replay_event
 
 
 class EconomicReplayTests(unittest.TestCase):
+    def test_fractional_charity_stock_uses_native_whole_unit_issue_gate(self):
+        row={'formula_id':'charity.food_distribution_transfer.v1','value_after':1,
+             'inputs':{'charity_inventory_before':.5,'charity_inventory_after':-.5}}
+        self.assertTrue(replay_event(row)['matches'])
+        total={'formula_id':'charity.food_aid_allocation.v1','value_after':2,
+               'inputs':{'food_inventory_before':1.5,'selected_hungry_ids':['one'],'young_candidates':2}}
+        self.assertTrue(replay_event(total)['matches'])
+
+    def test_emergency_foraging_share_is_distinct_from_normal_yield(self):
+        row={'formula_id':'commons.forage_activity.v1','value_after':.05,
+             'inputs':{'food_units':1,'emergency_fallback':True,'emergency_turn_share':.05}}
+        self.assertTrue(replay_event(row)['matches'])
+        row['inputs']['emergency_fallback']=False
+        self.assertFalse(replay_event(row)['matches'])
+
     def test_water_uses_capacity_and_weather_instead_of_recorded_availability(self):
         row={'formula_id':'water.capacity_rainfall_maintenance.v1','value_after':3,
              'inputs':{'capacity':10,'rainfall':.5,'canal_condition':.6,'available':900}}

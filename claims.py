@@ -36,6 +36,7 @@ Conservation:
     cash, a bank whose capital is zeroed, and a charity with 0 cash — exactly
     like the legacy per-tile founding path.
 """
+from treasury_trace import begin_public_change as _trace_public_begin, finish_public_change as _trace_public_finish
 
 from collections import Counter
 import forex as fx
@@ -264,7 +265,10 @@ def check_and_apply_claims(t, tiles, nations):
                     continue
                 sub = min(max(0.0, a.cash), 10.0) * 0.05   # 5% of cash, cap $10
                 if sub > 0.0:
+                    _trace_cash_write = _trace_public_begin(None, a)
                     a.cash -= sub
+                    _trace_public_finish(_trace_cash_write, 'claims:check_and_apply_claims',
+                                         inputs={"source_writer": 'claims.py:check_and_apply_claims:189feec42dffb7fe:1'})
                     from bank_trace import begin_change, finish_change
                     bank_trace_change = begin_change(prov.bank, tile)
                     prov.bank.capital += sub

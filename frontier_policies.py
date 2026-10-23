@@ -1,6 +1,7 @@
 """Funded policy actions for frontier settlement."""
 
 from __future__ import annotations
+from treasury_trace import begin_public_change as _trace_public_begin, finish_public_change as _trace_public_finish
 
 
 EXPEDITION_PIONEERS = 5
@@ -67,7 +68,10 @@ def launch_frontier_expedition(world, target):
         fx_add(pioneer, currency, EXPEDITION_GRANT_PER_PIONEER)
         wallet_after = float(fx_balance(pioneer, currency))
         treasury_cash_before = float(treasury.cash)
+        _trace_cash_write = _trace_public_begin(None, treasury)
         treasury.cash -= EXPEDITION_GRANT_PER_PIONEER
+        _trace_public_finish(_trace_cash_write, 'frontier_policies:launch_frontier_expedition',
+                             inputs={"source_writer": 'frontier_policies.py:launch_frontier_expedition:745f4d6cdbe1facb:1'})
         treasury_cash_after = float(treasury.cash)
         grant_id = f'{expedition_id}:{pioneer.id}'
         detail = {'expedition_id': expedition_id, 'grant_id': grant_id,

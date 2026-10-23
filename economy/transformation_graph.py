@@ -13,6 +13,7 @@ without altering the agent planning engine.
 """
 
 from __future__ import annotations
+from treasury_trace import begin_public_change as _trace_public_begin, finish_public_change as _trace_public_finish
 import math
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any, Callable, Tuple
@@ -594,11 +595,20 @@ def initialize_default_transformation_ontology():
             cash_needed += (1 - coal_held) * coal_price
 
         if target.cash >= cash_needed:
+            _trace_cash_write = _trace_public_begin(None, target)
             target.cash -= cash_needed
+            _trace_public_finish(_trace_cash_write, 'economy/transformation_graph:initialize_default_transformation_ontology._execute_construct_machinery',
+                                 inputs={"source_writer": 'economy/transformation_graph.py:initialize_default_transformation_ontology._execute_construct_machinery:feec452fe80bfcc5:1'})
         elif (target.cash + agent.cash) >= cash_needed:
             rem = cash_needed - target.cash
+            _trace_cash_write = _trace_public_begin(None, target)
             target.cash = 0.0
+            _trace_public_finish(_trace_cash_write, 'economy/transformation_graph:initialize_default_transformation_ontology._execute_construct_machinery',
+                                 inputs={"source_writer": 'economy/transformation_graph.py:initialize_default_transformation_ontology._execute_construct_machinery:995753c55e94594f:1'})
+            _trace_cash_write = _trace_public_begin(None, agent)
             agent.cash -= rem
+            _trace_public_finish(_trace_cash_write, 'economy/transformation_graph:initialize_default_transformation_ontology._execute_construct_machinery',
+                                 inputs={"source_writer": 'economy/transformation_graph.py:initialize_default_transformation_ontology._execute_construct_machinery:202a861a3a43a50c:1'})
         else:
             return {'success': False, 'message': 'Insufficient cash for machinery construction'}
 
@@ -608,14 +618,26 @@ def initialize_default_transformation_ontology():
         if artisans:
             split = 25.0 / len(artisans)
             for art in artisans:
+                _trace_cash_write = _trace_public_begin(None, art)
                 art.cash += split
+                _trace_public_finish(_trace_cash_write, 'economy/transformation_graph:initialize_default_transformation_ontology._execute_construct_machinery',
+                                     inputs={"source_writer": 'economy/transformation_graph.py:initialize_default_transformation_ontology._execute_construct_machinery:ce8ce99a0208fd87:1'})
         elif getattr(region, 'gov', None) and getattr(region.gov, 'agent', None):
+            _trace_cash_write = _trace_public_begin(None, region.gov.agent)
             region.gov.agent.cash += 25.0
+            _trace_public_finish(_trace_cash_write, 'economy/transformation_graph:initialize_default_transformation_ontology._execute_construct_machinery',
+                                 inputs={"source_writer": 'economy/transformation_graph.py:initialize_default_transformation_ontology._execute_construct_machinery:8fbba1a28d9cea0d:1'})
         else:
             if agent != target:
+                _trace_cash_write = _trace_public_begin(None, agent)
                 agent.cash += 25.0
+                _trace_public_finish(_trace_cash_write, 'economy/transformation_graph:initialize_default_transformation_ontology._execute_construct_machinery',
+                                     inputs={"source_writer": 'economy/transformation_graph.py:initialize_default_transformation_ontology._execute_construct_machinery:608f2df2b0c7ac53:1'})
             else:
+                _trace_cash_write = _trace_public_begin(None, target)
                 target.cash += 25.0
+                _trace_public_finish(_trace_cash_write, 'economy/transformation_graph:initialize_default_transformation_ontology._execute_construct_machinery',
+                                     inputs={"source_writer": 'economy/transformation_graph.py:initialize_default_transformation_ontology._execute_construct_machinery:169bf6283107c41d:1'})
 
         # Pay remaining market materials purchases to sellers
         materials_cost = cash_needed - 25.0
@@ -625,14 +647,26 @@ def initialize_default_transformation_ontology():
             if sellers:
                 m_split = materials_cost / len(sellers)
                 for s in sellers:
+                    _trace_cash_write = _trace_public_begin(None, s)
                     s.cash += m_split
+                    _trace_public_finish(_trace_cash_write, 'economy/transformation_graph:initialize_default_transformation_ontology._execute_construct_machinery',
+                                         inputs={"source_writer": 'economy/transformation_graph.py:initialize_default_transformation_ontology._execute_construct_machinery:6f79f8dbb4f23bad:1'})
             elif getattr(region, 'gov', None) and getattr(region.gov, 'agent', None):
+                _trace_cash_write = _trace_public_begin(None, region.gov.agent)
                 region.gov.agent.cash += materials_cost
+                _trace_public_finish(_trace_cash_write, 'economy/transformation_graph:initialize_default_transformation_ontology._execute_construct_machinery',
+                                     inputs={"source_writer": 'economy/transformation_graph.py:initialize_default_transformation_ontology._execute_construct_machinery:5e0b094167969c0d:1'})
             else:
                 if agent != target:
+                    _trace_cash_write = _trace_public_begin(None, agent)
                     agent.cash += materials_cost
+                    _trace_public_finish(_trace_cash_write, 'economy/transformation_graph:initialize_default_transformation_ontology._execute_construct_machinery',
+                                         inputs={"source_writer": 'economy/transformation_graph.py:initialize_default_transformation_ontology._execute_construct_machinery:883ef19c079a47c3:1'})
                 else:
+                    _trace_cash_write = _trace_public_begin(None, target)
                     target.cash += materials_cost
+                    _trace_public_finish(_trace_cash_write, 'economy/transformation_graph:initialize_default_transformation_ontology._execute_construct_machinery',
+                                         inputs={"source_writer": 'economy/transformation_graph.py:initialize_default_transformation_ontology._execute_construct_machinery:e14ca5c5bfc4118d:1'})
 
         # Deduct physical held goods
         if iron_held > 0:
@@ -706,11 +740,20 @@ def initialize_default_transformation_ontology():
             cash_needed += iron_price
 
         if target.cash >= cash_needed:
+            _trace_cash_write = _trace_public_begin(None, target)
             target.cash -= cash_needed
+            _trace_public_finish(_trace_cash_write, 'economy/transformation_graph:initialize_default_transformation_ontology._execute_maintain_repair_machinery',
+                                 inputs={"source_writer": 'economy/transformation_graph.py:initialize_default_transformation_ontology._execute_maintain_repair_machinery:feec452fe80bfcc5:1'})
         elif (target.cash + agent.cash) >= cash_needed:
             rem = cash_needed - target.cash
+            _trace_cash_write = _trace_public_begin(None, target)
             target.cash = 0.0
+            _trace_public_finish(_trace_cash_write, 'economy/transformation_graph:initialize_default_transformation_ontology._execute_maintain_repair_machinery',
+                                 inputs={"source_writer": 'economy/transformation_graph.py:initialize_default_transformation_ontology._execute_maintain_repair_machinery:995753c55e94594f:1'})
+            _trace_cash_write = _trace_public_begin(None, agent)
             agent.cash -= rem
+            _trace_public_finish(_trace_cash_write, 'economy/transformation_graph:initialize_default_transformation_ontology._execute_maintain_repair_machinery',
+                                 inputs={"source_writer": 'economy/transformation_graph.py:initialize_default_transformation_ontology._execute_maintain_repair_machinery:202a861a3a43a50c:1'})
         else:
             return {'success': False, 'message': 'Insufficient funds to repair machinery'}
 
@@ -719,14 +762,26 @@ def initialize_default_transformation_ontology():
         if blacksmiths:
             split = 10.0 / len(blacksmiths)
             for b in blacksmiths:
+                _trace_cash_write = _trace_public_begin(None, b)
                 b.cash += split
+                _trace_public_finish(_trace_cash_write, 'economy/transformation_graph:initialize_default_transformation_ontology._execute_maintain_repair_machinery',
+                                     inputs={"source_writer": 'economy/transformation_graph.py:initialize_default_transformation_ontology._execute_maintain_repair_machinery:34f52c260835fe73:1'})
         elif getattr(region, 'gov', None) and getattr(region.gov, 'agent', None):
+            _trace_cash_write = _trace_public_begin(None, region.gov.agent)
             region.gov.agent.cash += 10.0
+            _trace_public_finish(_trace_cash_write, 'economy/transformation_graph:initialize_default_transformation_ontology._execute_maintain_repair_machinery',
+                                 inputs={"source_writer": 'economy/transformation_graph.py:initialize_default_transformation_ontology._execute_maintain_repair_machinery:5e20c95dd86c504c:1'})
         else:
             if agent != target:
+                _trace_cash_write = _trace_public_begin(None, agent)
                 agent.cash += 10.0
+                _trace_public_finish(_trace_cash_write, 'economy/transformation_graph:initialize_default_transformation_ontology._execute_maintain_repair_machinery',
+                                     inputs={"source_writer": 'economy/transformation_graph.py:initialize_default_transformation_ontology._execute_maintain_repair_machinery:b034cbabe92a07d2:1'})
             else:
+                _trace_cash_write = _trace_public_begin(None, target)
                 target.cash += 10.0
+                _trace_public_finish(_trace_cash_write, 'economy/transformation_graph:initialize_default_transformation_ontology._execute_maintain_repair_machinery',
+                                     inputs={"source_writer": 'economy/transformation_graph.py:initialize_default_transformation_ontology._execute_maintain_repair_machinery:4051ab2fb8c668f3:1'})
 
         if iron_held >= 1:
             if target.inv_get(Goods.iron, 0) >= 1:
@@ -777,7 +832,10 @@ def initialize_default_transformation_ontology():
         expedition_cost = 50.0
         if agent.cash < expedition_cost:
             return {'success': False, 'message': 'Insufficient funds for expedition'}
+        _trace_cash_write = _trace_public_begin(None, agent)
         agent.cash -= expedition_cost
+        _trace_public_finish(_trace_cash_write, 'economy/transformation_graph:initialize_default_transformation_ontology._execute_frontier_conquest',
+                             inputs={"source_writer": 'economy/transformation_graph.py:initialize_default_transformation_ontology._execute_frontier_conquest:351e618bf7c04071:1'})
 
         commoners = [a for a in getattr(region, 'agents', []) if getattr(a, 'alive', True)
                      and not getattr(a, 'is_lord', False) and not getattr(a, 'is_corporation', False)
@@ -787,15 +845,24 @@ def initialize_default_transformation_ontology():
         if commoners:
             split = soldier_wages / len(commoners)
             for c in commoners:
+                _trace_cash_write = _trace_public_begin(None, c)
                 c.cash += split
+                _trace_public_finish(_trace_cash_write, 'economy/transformation_graph:initialize_default_transformation_ontology._execute_frontier_conquest',
+                                     inputs={"source_writer": 'economy/transformation_graph.py:initialize_default_transformation_ontology._execute_frontier_conquest:8c727869bf20e137:1'})
         else:
             charter_fee += soldier_wages
 
         gov = getattr(region, 'gov', None)
         if gov and gov.agent:
+            _trace_cash_write = _trace_public_begin(None, gov.agent)
             gov.agent.cash += charter_fee
+            _trace_public_finish(_trace_cash_write, 'economy/transformation_graph:initialize_default_transformation_ontology._execute_frontier_conquest',
+                                 inputs={"source_writer": 'economy/transformation_graph.py:initialize_default_transformation_ontology._execute_frontier_conquest:d0ea08b2b95c65c9:1'})
         else:
+            _trace_cash_write = _trace_public_begin(None, agent)
             agent.cash += charter_fee
+            _trace_public_finish(_trace_cash_write, 'economy/transformation_graph:initialize_default_transformation_ontology._execute_frontier_conquest',
+                                 inputs={"source_writer": 'economy/transformation_graph.py:initialize_default_transformation_ontology._execute_frontier_conquest:fc0e0f3153c18ef0:1'})
 
         neighbors = getattr(region, 'neighbors', {})
         target_region = None
@@ -888,18 +955,30 @@ def initialize_default_transformation_ontology():
             agent.inv_add(Goods.cloth, -2)
             cost_type = 'cloth'
         elif agent.cash >= 25.0:
+            _trace_cash_write = _trace_public_begin(None, agent)
             agent.cash -= 25.0
+            _trace_public_finish(_trace_cash_write, 'economy/transformation_graph:initialize_default_transformation_ontology._execute_procure_captive_labor',
+                                 inputs={"source_writer": 'economy/transformation_graph.py:initialize_default_transformation_ontology._execute_procure_captive_labor:5106d4c8e23190a8:1'})
             commoners = [a for a in getattr(region, 'agents', []) if getattr(a, 'alive', True)
                          and not getattr(a, 'is_lord', False) and not getattr(a, 'is_corporation', False)
                          and not getattr(a, 'is_government', False) and not getattr(a, 'is_trader', False)]
             if commoners:
                 split = 25.0 / len(commoners)
                 for c in commoners:
+                    _trace_cash_write = _trace_public_begin(None, c)
                     c.cash += split
+                    _trace_public_finish(_trace_cash_write, 'economy/transformation_graph:initialize_default_transformation_ontology._execute_procure_captive_labor',
+                                         inputs={"source_writer": 'economy/transformation_graph.py:initialize_default_transformation_ontology._execute_procure_captive_labor:f6f33edd3b564762:1'})
             elif getattr(region, 'gov', None) and getattr(region.gov, 'agent', None):
+                _trace_cash_write = _trace_public_begin(None, region.gov.agent)
                 region.gov.agent.cash += 25.0
+                _trace_public_finish(_trace_cash_write, 'economy/transformation_graph:initialize_default_transformation_ontology._execute_procure_captive_labor',
+                                     inputs={"source_writer": 'economy/transformation_graph.py:initialize_default_transformation_ontology._execute_procure_captive_labor:b21e4e05678a18a2:1'})
             else:
+                _trace_cash_write = _trace_public_begin(None, agent)
                 agent.cash += 25.0
+                _trace_public_finish(_trace_cash_write, 'economy/transformation_graph:initialize_default_transformation_ontology._execute_procure_captive_labor',
+                                     inputs={"source_writer": 'economy/transformation_graph.py:initialize_default_transformation_ontology._execute_procure_captive_labor:81ca6b20397c8b75:1'})
             cost_type = 'cash'
         else:
             return {'success': False, 'message': 'Insufficient goods or cash to procure captive labor'}
@@ -958,18 +1037,30 @@ def initialize_default_transformation_ontology():
         target_estate = viable_estates[0]
 
         overseer_cost = 10.0
+        _trace_cash_write = _trace_public_begin(None, agent)
         agent.cash -= overseer_cost
+        _trace_public_finish(_trace_cash_write, 'economy/transformation_graph:initialize_default_transformation_ontology._execute_plantation_labor_gang',
+                             inputs={"source_writer": 'economy/transformation_graph.py:initialize_default_transformation_ontology._execute_plantation_labor_gang:662ed76fa419fa2a:1'})
         commoners = [a for a in getattr(region, 'agents', []) if getattr(a, 'alive', True)
                      and not getattr(a, 'is_lord', False) and not getattr(a, 'is_corporation', False)
                      and not getattr(a, 'is_government', False) and not getattr(a, 'is_trader', False)]
         if commoners:
             split = overseer_cost / len(commoners)
             for c in commoners:
+                _trace_cash_write = _trace_public_begin(None, c)
                 c.cash += split
+                _trace_public_finish(_trace_cash_write, 'economy/transformation_graph:initialize_default_transformation_ontology._execute_plantation_labor_gang',
+                                     inputs={"source_writer": 'economy/transformation_graph.py:initialize_default_transformation_ontology._execute_plantation_labor_gang:8c727869bf20e137:1'})
         elif getattr(region, 'gov', None) and getattr(region.gov, 'agent', None):
+            _trace_cash_write = _trace_public_begin(None, region.gov.agent)
             region.gov.agent.cash += overseer_cost
+            _trace_public_finish(_trace_cash_write, 'economy/transformation_graph:initialize_default_transformation_ontology._execute_plantation_labor_gang',
+                                 inputs={"source_writer": 'economy/transformation_graph.py:initialize_default_transformation_ontology._execute_plantation_labor_gang:30f6cedbe6ea56c5:1'})
         else:
+            _trace_cash_write = _trace_public_begin(None, agent)
             agent.cash += overseer_cost
+            _trace_public_finish(_trace_cash_write, 'economy/transformation_graph:initialize_default_transformation_ontology._execute_plantation_labor_gang',
+                                 inputs={"source_writer": 'economy/transformation_graph.py:initialize_default_transformation_ontology._execute_plantation_labor_gang:4c69c6cb6d6cc5d7:1'})
 
         comm_name = target_estate.get('primary_commodity', 'cotton')
         comm_good = getattr(Goods, comm_name, Goods.cotton)

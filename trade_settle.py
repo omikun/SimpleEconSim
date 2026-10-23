@@ -21,6 +21,7 @@ trader's home currency moves from trader.cash/deposits to the homesteader's
 FX wallet (audit-counted); goods move from trader inventory to homesteader
 inventory and back.  Nothing is printed or destroyed.
 """
+from treasury_trace import begin_public_change as _trace_public_begin, finish_public_change as _trace_public_finish
 
 from goods import Goods
 import forex as fx
@@ -211,7 +212,10 @@ def settle_wilderness(trader, tile, t, source_region=None):
                 if home_currency:
                     cash_before = float(trader.cash)
                     wallet_before = fx.fx_balance(h, home_currency)
+                    _trace_cash_write = _trace_public_begin(None, trader)
                     trader.cash -= cost
+                    _trace_public_finish(_trace_cash_write, 'trade_settle:settle_wilderness',
+                                         inputs={"source_writer": 'trade_settle.py:settle_wilderness:f341b7e3eb232296:1'})
                     _credit_wallet(h, home_currency, cost)
                     transfer_id = next_transfer_id('advance-payment', h.id)
                     _record_wallet_transfer(
@@ -274,7 +278,10 @@ def settle_wilderness(trader, tile, t, source_region=None):
                     continue
                 cash_before = float(trader.cash)
                 wallet_before = fx.fx_balance(h, home_currency)
+                _trace_cash_write = _trace_public_begin(None, trader)
                 trader.cash -= share
+                _trace_public_finish(_trace_cash_write, 'trade_settle:settle_wilderness',
+                                     inputs={"source_writer": 'trade_settle.py:settle_wilderness:40a37352180f3b5c:1'})
                 _credit_wallet(h, home_currency, share)
                 paid += share
                 transfer_id = next_transfer_id('surplus-payment', h.id)

@@ -1,6 +1,7 @@
 """Scenario Caisse obligations backed by sovereign bonds and recorded receipts."""
 
 from __future__ import annotations
+from treasury_trace import begin_public_change as _trace_public_begin, finish_public_change as _trace_public_finish
 
 from sovereign_bonds import SovereignBond, get_bond_market
 
@@ -257,8 +258,14 @@ def pay(world, amount, kind='payment', forgive_remainder=False):
         creditor = _nation(world, bond.holder_nation)
         if creditor is None:
             return False, f'{bond.holder_nation} creditor account is unavailable.'
+        _trace_cash_write = _trace_public_begin(None, egypt.government.agent)
         egypt.government.agent.cash -= share
+        _trace_public_finish(_trace_cash_write, 'scenario_debt:pay',
+                             inputs={"source_writer": 'scenario_debt.py:pay:d9e97b05ecd335bb:1'})
+        _trace_cash_write = _trace_public_begin(None, creditor.government.agent)
         creditor.government.agent.cash += share
+        _trace_public_finish(_trace_cash_write, 'scenario_debt:pay',
+                             inputs={"source_writer": 'scenario_debt.py:pay:7f4acde8bbff8886:1'})
         bond.principal = round(max(0.0, bond.principal - share), 2)
         operation_id = (f'caisse:{bond.bond_id}:{kind}:{world.get("turn", 0)}:'
                         f'{principal_before}:{bond.principal}')
@@ -351,8 +358,14 @@ def intercept_assigned_revenue(world, government, source, gross, turn):
         creditor = _nation(world, bond.holder_nation)
         if creditor is None:
             continue
+        _trace_cash_write = _trace_public_begin(None, government.agent)
         government.agent.cash -= allocation
+        _trace_public_finish(_trace_cash_write, 'scenario_debt:intercept_assigned_revenue',
+                             inputs={"source_writer": 'scenario_debt.py:intercept_assigned_revenue:050df4b686160459:1'})
+        _trace_cash_write = _trace_public_begin(None, creditor.government.agent)
         creditor.government.agent.cash += allocation
+        _trace_public_finish(_trace_cash_write, 'scenario_debt:intercept_assigned_revenue',
+                             inputs={"source_writer": 'scenario_debt.py:intercept_assigned_revenue:d3c6c9e44f351934:1'})
         bond.principal = round(max(0.0, bond.principal - allocation), 6)
         debtor_nation = _nation(world, bond.issuer_nation)
         operation_id = (f'caisse:{bond.bond_id}:assigned_revenue:{turn}:'

@@ -2,6 +2,7 @@
 Demographics estate: death determination, corporate succession, debt resolution,
 bad debt forgiveness & write-downs, wealth inheritance, and escheat.
 """
+from treasury_trace import begin_public_change as _trace_public_begin, finish_public_change as _trace_public_finish
 from treasury_trace import begin_public_change, finish_public_change
 
 import sys
@@ -800,7 +801,10 @@ def handle_debt_inheritance(ctx, t, agent, living_descendants):
             needed_from_bank = total_paid - agent.cash
             ctx.bank.Withdraw(agent, needed_from_bank, trace_region=region, t=t,
                               reason='estate_bank_debt_service')
+        _trace_cash_write = _trace_public_begin(None, agent)
         agent.cash -= total_paid
+        _trace_public_finish(_trace_cash_write, 'demographics_estate:handle_debt_inheritance',
+                             inputs={"source_writer": 'demographics_estate.py:handle_debt_inheritance:8ed2e00ea9df08b4:1'})
         bank_currency = loan_bank_currency(next(
             (loan for loan in agent.loans if getattr(loan, 'bank', None) is ctx.bank), None))
         _record_debt_event(
@@ -1157,7 +1161,10 @@ def handle_wealth_inheritance(ctx, t, agent, living_descendants):
         charity = getattr(ctx, 'charity', None)
         if charity is not None and charity_share > 0:
             charity_cash_before = float(getattr(charity.agent, 'cash', 0.0))
+            _trace_cash_write = _trace_public_begin(None, charity.agent)
             charity.agent.cash += charity_share
+            _trace_public_finish(_trace_cash_write, 'demographics_estate:handle_wealth_inheritance',
+                                 inputs={"source_writer": 'demographics_estate.py:handle_wealth_inheritance:277a2a6f71a453a4:1'})
             charity_cash_after = float(getattr(charity.agent, 'cash', 0.0))
             cash_event = None
             if region is not None:
@@ -1383,7 +1390,10 @@ def zero_out_dead_agent(ctx, agent, *, t=None, cause_event_ids=None):
     currency = (getattr(agent, 'home_currency', None)
                 or getattr(region, 'home_currency', None) or 'local_currency')
     cash_before = float(getattr(agent, 'cash', 0.0))
+    _trace_cash_write = _trace_public_begin(None, agent)
     agent.cash = 0
+    _trace_public_finish(_trace_cash_write, 'demographics_estate:zero_out_dead_agent',
+                         inputs={"source_writer": 'demographics_estate.py:zero_out_dead_agent:d8f880e148708ac6:1'})
     if cash_before != 0.0:
         _estate_trace(
             region, kind='estate_decedent_cash_closed', record_class='outcome',
@@ -1486,8 +1496,14 @@ def settle_external_death(region, t, agent, cause, *, death_trace_event_ids=None
         # Minimal scenario/test tiles have no probate ledger.
         charity = getattr(region, 'charity', None)
         if charity is not None:
+            _trace_cash_write = _trace_public_begin(None, charity.agent)
             charity.agent.cash += agent.cash
+            _trace_public_finish(_trace_cash_write, 'demographics_estate:settle_external_death',
+                                 inputs={"source_writer": 'demographics_estate.py:settle_external_death:7e8331e4b14d0ae1:1'})
+            _trace_cash_write = _trace_public_begin(None, agent)
             agent.cash = 0.0
+            _trace_public_finish(_trace_cash_write, 'demographics_estate:settle_external_death',
+                                 inputs={"source_writer": 'demographics_estate.py:settle_external_death:8a52b84e15fd57d1:1'})
         return True
     ctx = SimpleNamespace(bank=region.bank, default_gov=getattr(region, 'gov', None),
                           charity=getattr(region, 'charity', None), source_region=region)
@@ -1579,7 +1595,7 @@ def handle_death(ctx, t, agent, agents):
             and death_draw <= adjusted_prob)
         if active_dis or attrition > 0.0 or died:
             from run_trace import emit
-            emit(trace_region, kind='mortality_assessment', record_class='outcome',
+            mortality_event_id = emit(trace_region, kind='mortality_assessment', record_class='outcome',
                  subject={'type': 'tile', 'id': getattr(trace_region, 'name', 'unknown'),
                           'agent_id': getattr(agent, 'id', None)},
                  metric_id='health.mortality_risk', unit='probability',
@@ -1600,6 +1616,11 @@ def handle_death(ctx, t, agent, agents):
         agent.alive = False
         if disease_attributed and hasattr(trace_region, 'disease_fatalities_this_turn'):
             trace_region.disease_fatalities_this_turn += 1
+            if mortality_event_id is not None:
+                from health_trace import remember_fatality
+                remember_fatality(trace_region, agent, t, mortality_event_id,
+                                  death_draw, probability_without_disease,
+                                  adjusted_prob, active_dis)
         loginfo(t, agent.name(), 'has died due to age')
     else:
         from run_trace import emit

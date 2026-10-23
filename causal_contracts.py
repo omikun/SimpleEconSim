@@ -7,7 +7,8 @@ import math
 
 
 SUPPORTED = {'bank.opening_plus_transitions.v1', 'treasury.account_chain.v1',
-             'treasury.closed_accounts.v1', 'production.sum_receipts.v1','market.discriminatory_clear.v2'}
+             'treasury.closed_accounts.v1', 'production.sum_receipts.v1','market.discriminatory_clear.v2',
+             'disease.threshold_crossing_fatalities.v1'}
 
 
 def requirements(row):
@@ -43,6 +44,17 @@ def requirements(row):
         for index,sale in enumerate(i['settled_sales']):
             result.append((f'settled_sales[{index}].event_id',sale.get('event_id'),
                            {'kind':'paid_market_sale','value_after':sale['quantity'],'subject':row['subject']}))
+    elif formula=='disease.threshold_crossing_fatalities.v1':
+        for index, person in enumerate(i['fatalities']):
+            result.append((f'fatalities[{index}].event_id', person.get('event_id'),
+                           {'kind': 'mortality_assessment',
+                            'turn': person['mortality_turn'],
+                            'subject': {**row['subject'], 'agent_id': person['agent_id']},
+                            'value_after': person['adjusted_probability'],
+                            'inputs': {'death_draw': person['death_draw'],
+                                       'probability_without_disease': person['probability_without_disease'],
+                                       'active_diseases': person['active_diseases'],
+                                       'died': True, 'disease_attributed_by_threshold_crossing': True}}))
     return result
 
 

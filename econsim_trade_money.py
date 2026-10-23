@@ -1,3 +1,4 @@
+from treasury_trace import begin_public_change as _trace_public_begin, finish_public_change as _trace_public_finish
 from treasury_trace import begin_public_change, finish_public_change
 import math
 import bisect
@@ -946,7 +947,10 @@ def askers_sell_good(askers, good, price, t, total_bought, total_cash_purchases,
             sold = min(ask, remaining)
             assert sold >= 0, 'neg sold ' + str(sold)
             total_sold += sold
+            _trace_cash_write = _trace_public_begin(None, agent)
             agent.cash += sold * price
+            _trace_public_finish(_trace_cash_write, 'econsim_trade_money:askers_sell_good',
+                                 inputs={"source_writer": 'econsim_trade_money.py:askers_sell_good:0f1355ebe5b1abd1:1'})
             agent.inv_add(good, -sold)
             total_cash_sales += sold * price
             if sold > 0:
@@ -966,7 +970,10 @@ def bidders_buy_good(t, agents, good, bought_log, price, total_asks,
             affordable = int(agent.cash / price)
             bought = max(0, min(bid, min(remaining, affordable)))
             cash = bought * price
+            _trace_cash_write = _trace_public_begin(None, agent)
             agent.cash = max(0.0, agent.cash - cash)
+            _trace_public_finish(_trace_cash_write, 'econsim_trade_money:bidders_buy_good',
+                                 inputs={"source_writer": 'econsim_trade_money.py:bidders_buy_good:2952f6d97de06b7b:1'})
             assert agent.cash >= -1e-5, (
                 'neg cash, bought $' + str(cash) + ' of ' + str(good)
                 + ' now has ' + str(agent.cash))
@@ -1263,8 +1270,14 @@ def _match_secondary_orders(asks, bids, good, t):
             if trade_qty > 0:
                 cost = trade_qty * clear_price
                 bid.agent.remainingCash -= cost
+                _trace_cash_write = _trace_public_begin(None, bid.agent)
                 bid.agent.cash -= cost
+                _trace_public_finish(_trace_cash_write, 'econsim_trade_money:_match_secondary_orders',
+                                     inputs={"source_writer": 'econsim_trade_money.py:_match_secondary_orders:35dbef5f3ad5bd7c:1'})
+                _trace_cash_write = _trace_public_begin(None, ask.agent)
                 ask.agent.cash += cost
+                _trace_public_finish(_trace_cash_write, 'econsim_trade_money:_match_secondary_orders',
+                                     inputs={"source_writer": 'econsim_trade_money.py:_match_secondary_orders:ccbe9e03380c1bc1:1'})
                 bid.agent.inv_add(good, trade_qty)
                 ask.agent.inv_add(good, -trade_qty)
                 old_qty = bid.agent.inv_get(good, 0) - trade_qty

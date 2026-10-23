@@ -330,6 +330,9 @@ class RunTraceTests(unittest.TestCase):
         baseline = resolve(0.0005, 'disease-present')
         self.assertTrue(crossed[0].died_of_starvation is False)
         self.assertEqual(crossed[1].disease_fatalities_this_turn, 1)
+        pending = crossed[1]._trace_pending_disease_fatalities
+        self.assertEqual([crossed[2]['event_id']], [row['event_id'] for row in pending])
+        self.assertEqual(7, pending[0]['mortality_turn'])
         self.assertEqual(crossed[3]['inputs']['death_cause'], 'disease')
         self.assertTrue(crossed[2]['inputs']['disease_attributed_by_threshold_crossing'])
         self.assertEqual(baseline[1].disease_fatalities_this_turn, 0)

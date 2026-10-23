@@ -176,6 +176,29 @@ def step_wilderness(region, t):
     region.pipeline_depth_log.append(0)
     region.population_change_rate_log.append(0.0)
     from run_trace import emit
+    receipts = getattr(region, '_trace_forage_receipts', [])
+    production_id = emit(
+        region, kind='wilderness_food_production', record_class='calculation',
+        subject={'type': 'tile', 'id': region.name, 'good': Goods.food.name},
+        metric_id='goods.production', unit='units', after=foraged,
+        formula_id='production.sum_receipts.v1',
+        inputs={'producer_receipts': receipts, 'granary_release_units': 0,
+                'wool_from_pasture': 0, 'sample_point': 'wilderness_history_write'},
+        cause_event_ids=[receipt['event_id'] for receipt in receipts])
+    emit(region, kind='wilderness_nominal_gdp', record_class='calculation',
+         subject={'type': 'tile', 'id': region.name},
+         metric_id='economy.gdp_nominal', unit='local_currency_per_turn',
+         after=food_val, formula_id='gdp.sum_output_times_reference_price.v1',
+         inputs={'goods': {'food': {'units': foraged,
+                 'reference_price': region.recipes[Goods.food]['price']}},
+                 'sample_point': 'wilderness_history_write'},
+         cause_event_ids=[production_id] if production_id else None)
+    emit(region, kind='wilderness_population_census', record_class='calculation',
+         subject={'type': 'tile', 'id': region.name},
+         metric_id='people.population', unit='people', after=len(region.agents),
+         formula_id='population.resident_ids.v1',
+         inputs={'resident_agent_ids': [person.id for person in region.agents],
+                 'sample_point': 'wilderness_history_write'})
     emit(region, kind='trader_cash_total_calculation',
          record_class='calculation', phase='demographics',
          subject={'type': 'tile', 'id': region.name},

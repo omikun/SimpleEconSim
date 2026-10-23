@@ -6,6 +6,7 @@ and the generic ScenarioInterpreter framework.
 """
 
 from __future__ import annotations
+from treasury_trace import begin_public_change as _trace_public_begin, finish_public_change as _trace_public_finish
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Callable
 
@@ -38,7 +39,10 @@ def create_empire_of_cotton_world(seed: int = 42) -> Dict[str, Any]:
     player_nation.name = "Lancashire_Metropole"
     player_nation.currency = "Pound_Sterling"
     if hasattr(player_nation, 'government') and player_nation.government:
+        _trace_cash_write = _trace_public_begin(None, player_nation.government.agent)
         player_nation.government.agent.cash = 500.0
+        _trace_public_finish(_trace_cash_write, 'scenario_empire_of_cotton:create_empire_of_cotton_world',
+                             inputs={"source_writer": 'scenario_empire_of_cotton.py:create_empire_of_cotton_world:74ba4d7d672b6572:1'})
 
     # Configure rival feudal nation
     if len(nations) > 1:
@@ -57,7 +61,10 @@ def create_empire_of_cotton_world(seed: int = 42) -> Dict[str, Any]:
         investor = capital_tile.agents[0]
         investor.is_lord = False
         investor.is_trader = True
+        _trace_cash_write = _trace_public_begin(None, investor)
         investor.cash = max(150.0, getattr(investor, 'cash', 0.0))
+        _trace_public_finish(_trace_cash_write, 'scenario_empire_of_cotton:create_empire_of_cotton_world',
+                             inputs={"source_writer": 'scenario_empire_of_cotton.py:create_empire_of_cotton_world:5c6cd54c79af0d81:1'})
         investor.inv_add(Goods.cotton, 25)
         investor.inv_add(Goods.cloth, 10)
 

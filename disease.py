@@ -569,6 +569,8 @@ def step_medical_care(region, t: int, rand_gen=None) -> dict:
     region.medical_spending_public_log.append(spending_pub)
     region.untreated_cases_log.append(untreated_count)
     region.disease_fatalities_log.append(fatalities)
+    from health_trace import record_fatalities
+    record_fatalities(region, t, fatalities)
 
     from run_trace import emit
     for disease, case_ids in case_ids_before_treatment.items():
@@ -595,12 +597,6 @@ def step_medical_care(region, t: int, rand_gen=None) -> dict:
                  'germ_theory': has_germ_theory, 'pharmaceutical_chemistry': has_pharma,
                  'universal_healthcare': has_universal, 'clinic_present': has_clinic},
          cause_event_ids=medical_transfer_event_ids or None)
-    emit(region, kind='disease_fatalities_observed', record_class='observation',
-         subject={'type': 'tile', 'id': region.name},
-         metric_id='health.fatalities', unit='people', after=fatalities,
-         inputs={'source': 'demographics.estate mortality accumulator',
-                 'attribution_rule': 'death_draw crossed the pre-disease risk threshold '
-                                     'only after disease modifiers'})
     emit(region, kind='disease_untreated_cases_observed', record_class='calculation',
          subject={'type': 'tile', 'id': region.name},
          metric_id='health.untreated_cases', unit='cases', after=untreated_count,

@@ -17,6 +17,7 @@ or within-nation transfers between agents or gov treasuries.
 """
 
 from __future__ import annotations
+from treasury_trace import begin_public_change as _trace_public_begin, finish_public_change as _trace_public_finish
 
 from typing import Tuple, List, Dict, Any, Optional
 from goods import Goods
@@ -570,7 +571,10 @@ def capitalist_electoral_backlash(nation, candidates: list, t: int) -> float:
 
     def debit_currency(agent, amount, holding):
         if holding == 'cash':
+            _trace_cash_write = _trace_public_begin(None, agent)
             agent.cash -= amount
+            _trace_public_finish(_trace_cash_write, 'labor_politics:capitalist_electoral_backlash.debit_currency',
+                                 inputs={"source_writer": 'labor_politics.py:capitalist_electoral_backlash.debit_currency:fbfa5fc13d12de52:1'})
         else:
             from forex import fx_sub
             fx_sub(agent, currency, amount)
@@ -578,7 +582,10 @@ def capitalist_electoral_backlash(nation, candidates: list, t: int) -> float:
     def credit_currency(agent, amount):
         home = getattr(agent, 'home_currency', currency)
         if not currency or home == currency:
+            _trace_cash_write = _trace_public_begin(None, agent)
             agent.cash += amount
+            _trace_public_finish(_trace_cash_write, 'labor_politics:capitalist_electoral_backlash.credit_currency',
+                                 inputs={"source_writer": 'labor_politics.py:capitalist_electoral_backlash.credit_currency:8563f56b467b33b3:1'})
         else:
             from forex import fx_add
             fx_add(agent, currency, amount)
@@ -1512,7 +1519,10 @@ def subsidize_mass_entertainment(target, cost: float = 50.0) -> Tuple[bool, str]
 
     # Conserved transfer: gov cash spent into local commerce / spectacle
     treasury_before = float(gov_agent.cash)
+    _trace_cash_write = _trace_public_begin(None, gov_agent)
     gov_agent.cash -= cost
+    _trace_public_finish(_trace_cash_write, 'labor_politics:subsidize_mass_entertainment',
+                         inputs={"source_writer": 'labor_politics.py:subsidize_mass_entertainment:cbdf30831928c5e4:1'})
     treasury_after = float(gov_agent.cash)
     expenditure_event_id = None
     if trace_region is not None:

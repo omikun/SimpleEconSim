@@ -11,6 +11,7 @@ imports become more expensive -> self-correcting).
 Phase 3 (interbank order book) can layer on top by quoting inside the
 band exposed here (mid / spread / band) without restructuring.
 """
+from treasury_trace import begin_public_change as _trace_public_begin, finish_public_change as _trace_public_finish
 
 import math
 
@@ -135,7 +136,10 @@ def walletize(a, currency, trace_region=None, t=None):
     if cash > 0:
         cash_before = float(a.cash)
         wallet_before = float(fx_balance(a, currency))
+        _trace_cash_write = _trace_public_begin(None, a)
         a.cash = 0.0
+        _trace_public_finish(_trace_cash_write, 'forex:walletize',
+                             inputs={"source_writer": 'forex.py:walletize:d4797b7b07c8146d:1'})
         fx_add(a, currency, cash)
         _record_cash_wallet_conversion(
             a, currency, cash, 'cash_to_wallet', trace_region,
@@ -156,7 +160,10 @@ def decash_wallet(a, currency, trace_region=None, t=None):
         cash_before = float(a.cash)
         wallet_before = float(bal)
         fx_sub(a, currency, bal)
+        _trace_cash_write = _trace_public_begin(None, a)
         a.cash += bal
+        _trace_public_finish(_trace_cash_write, 'forex:decash_wallet',
+                             inputs={"source_writer": 'forex.py:decash_wallet:a8b4369053f8e4ae:1'})
         _record_cash_wallet_conversion(
             a, currency, bal, 'wallet_to_cash', trace_region,
             cash_before, float(a.cash), wallet_before,
@@ -252,8 +259,14 @@ class ForexDesk:
             buyer_cash_before = float(btrader.cash)
             seller_cash_before = float(atrader.cash)
             buyer_wallet_before = fx_balance(btrader, self.other)
+            _trace_cash_write = _trace_public_begin(None, btrader)
             btrader.cash -= home
+            _trace_public_finish(_trace_cash_write, 'forex:ForexDesk.clear_book',
+                                 inputs={"source_writer": 'forex.py:ForexDesk.clear_book:78b57e589f1c9a90:1'})
+            _trace_cash_write = _trace_public_begin(None, atrader)
             atrader.cash += home
+            _trace_public_finish(_trace_cash_write, 'forex:ForexDesk.clear_book',
+                                 inputs={"source_writer": 'forex.py:ForexDesk.clear_book:4f50702f8f4067c2:1'})
             # Foreign leg: transfer exactly what fx_sub actually removes
             before = fx_balance(atrader, self.other)
             fx_sub(atrader, self.other, qty)
@@ -471,7 +484,10 @@ def sell_fx_to_bank(bank, trader, currency, amount, rate, trace_region=None):
     fx_sub(trader, currency, amount)
     bank.foreign_reserves[currency] += amount
     bank.fx_pool -= home
+    _trace_cash_write = _trace_public_begin(None, trader)
     trader.cash += home
+    _trace_public_finish(_trace_cash_write, 'forex:sell_fx_to_bank',
+                         inputs={"source_writer": 'forex.py:sell_fx_to_bank:824d3160762dd808:1'})
     if trace_region is not None:
         from economy.actor_accounts import record as record_economic_event
         record_economic_event(trace_region, 'fx_conversion', turn=getattr(trace_region, '_last_turn', 0),
@@ -522,7 +538,10 @@ def buy_fx_from_bank(bank, trader, currency, amount, rate, trace_region=None):
     fx_add(trader, currency, amount)
     bank.foreign_reserves[currency] -= amount
     bank.fx_pool += home
+    _trace_cash_write = _trace_public_begin(None, trader)
     trader.cash -= home
+    _trace_public_finish(_trace_cash_write, 'forex:buy_fx_from_bank',
+                         inputs={"source_writer": 'forex.py:buy_fx_from_bank:8403a5dbc0964db3:1'})
     if trace_region is not None:
         from economy.actor_accounts import record as record_economic_event
         record_economic_event(trace_region, 'fx_conversion', turn=getattr(trace_region, '_last_turn', 0),
@@ -688,7 +707,10 @@ def _give_working_capital(trader, bank, currency, amount, rate,
         bank.deposits[trader] -= from_deposit
     home_cash = home - from_deposit
     if home_cash > 0:
+        _trace_cash_write = _trace_public_begin(None, trader)
         trader.cash -= home_cash
+        _trace_public_finish(_trace_cash_write, 'forex:_give_working_capital',
+                             inputs={"source_writer": 'forex.py:_give_working_capital:aec9dce3cf871e0b:1'})
     bank.fx_pool += home
     # Foreign leg: reserves -> wallet
     bank.foreign_reserves[currency] -= amount

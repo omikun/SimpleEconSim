@@ -63,7 +63,8 @@ annexation, many scenario actions, save/resume or long-run performance.
 
 Latest short acceptance: `ce15dcf`, four canonical scenarios × on/off, three
 steps each, all checks pass. Matrix: `tmp/acceptance-smoke3-2026-10-23/matrix.json`.
-The release matrix is running from a pinned archive of that commit. Its results
+The release matrix finished from a pinned archive of that commit and failed its
+long-run gates. Its results
 do not certify later edits until affected gates are rerun.
 
 ## Execution order and gates
@@ -717,3 +718,48 @@ comparison with the pinned old codec produced identical 508,637-byte files:
 0.668s before versus 0.091s after on this host (about 7.4× for append alone).
 This microbenchmark does not establish total-turn speedup. Full native run/query/
 recovery correctness and measured final runtime budgets remain required.
+
+### Long-run acceptance findings and repair queue (2026-10-23)
+
+The frozen `ce15dcf` release matrix completed: nine simulation pairs produced
+reports, and Egypt seed 1878 failed map construction in both recorder modes.
+None of the nine pairs passed all gates. Reports are in
+`tmp/acceptance-release-2026-10-23/matrix.json`; this is failure evidence, not
+release acceptance. Two supply-scenario pairs already preserve the full economic
+graph; other differences include trace-only proposal/petition source identities.
+
+The longer runs exposed public actors entering nominally private contractor,
+payroll, trading and policy paths. Conditional probes now surround 236 additional
+cash mutations in 48 modules: they activate only for actual government actors,
+capture before/after at the mutation, and retain the inventoried writer identity.
+These probes do not constitute completed source reviews or balanced-transfer
+contracts. A government-contractor fixture checks material purchases and actual
+navvy payments against public-account closure.
+
+Additional repairs in progress: sample Gini inputs at the native history writer;
+capture shared-government tax writes and coup legitimacy resets; distinguish the
+existing emergency forage and fractional charity issue rules in replay; link
+wilderness production/GDP/population and the lagged disease-fatality series to
+their actual contributors. Preserve native economic behavior while repairing
+observations. The default seed 4242 CNY audit loss (first turn 30, -10.56) still
+needs an actual accounting explanation; no balancing exemption is accepted.
+Egypt's second-outlet map failure needs a separate geography correction.
+
+After these repairs, commit the source and rerun affected native pairs from that
+immutable revision. All-scenario checkpoint continuation, complete writer and
+history classification, unsupported formula/source contracts, retained object
+lifetimes and final measured performance budgets remain open.
+
+Native sampling repairs are now implemented. Wilderness production uses actual
+forage receipts; GDP uses those units and the contemporaneous reference price;
+population uses the resident IDs at the history write. Disease-fatality samples
+retain threshold-crossing mortality contributors across the native counter's
+one-turn sampling lag, including required mortality-source identity/value
+contracts. A missing positive contributor fails replay. Four new fixtures cover
+late cash/membership changes after Gini sampling, held Gini provenance, lagged
+fatality/reset/source tampering, missing fatality contributors and forage output.
+Verification: 102 focused trace, account, scenario, replay and inventory tests
+pass together. The separate campaign suite exposes one existing funding-source
+fixture failure; running it after hex-world tests also exposes a topology-global
+fixture dependency. Both remain in the follow-up queue rather than being counted
+as passing verification.

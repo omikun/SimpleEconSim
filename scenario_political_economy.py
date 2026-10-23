@@ -1,6 +1,7 @@
 """Private grain, cultivator tenure, collective action, and fiscal choices in Egypt."""
 
 from __future__ import annotations
+from treasury_trace import begin_public_change as _trace_public_begin, finish_public_change as _trace_public_finish
 
 from math import exp
 from random import Random
@@ -288,9 +289,15 @@ def _buy_harvest(world, tile, owner, turn):
         producer_food_before = int(producer.inv_get(Goods.food, 0))
         owner_food_before = int(owner.inv_get(Goods.food, 0))
         producer.inv_add(Goods.food, -units)
+        _trace_cash_write = _trace_public_begin(None, producer)
         producer.cash += cost
+        _trace_public_finish(_trace_cash_write, 'scenario_political_economy:_buy_harvest',
+                             inputs={"source_writer": 'scenario_political_economy.py:_buy_harvest:b949d466a0aa9b8d:1'})
         owner.inv_add(Goods.food, units)
+        _trace_cash_write = _trace_public_begin(None, owner)
         owner.cash -= cost
+        _trace_public_finish(_trace_cash_write, 'scenario_political_economy:_buy_harvest',
+                             inputs={"source_writer": 'scenario_political_economy.py:_buy_harvest:3becf6f98adc6e94:1'})
         operation_id = _grain_operation_id(
             tile, turn, 'private_harvest_purchase', producer.id, owner.id)
         operation_ids.append(_emit_private_grain_trade(
@@ -379,8 +386,14 @@ def _sell_to_households(world, tile, owner, limit=None, *, trigger='open_market'
         owner_cash_before = float(owner.cash)
         owner_food_before = int(owner.inv_get(Goods.food, 0))
         buyer_food_before = int(buyer.inv_get(Goods.food, 0))
+        _trace_cash_write = _trace_public_begin(None, buyer)
         buyer.cash -= amount
+        _trace_public_finish(_trace_cash_write, 'scenario_political_economy:_sell_to_households',
+                             inputs={"source_writer": 'scenario_political_economy.py:_sell_to_households:c5aae95eb95fe43b:1'})
+        _trace_cash_write = _trace_public_begin(None, owner)
         owner.cash += amount
+        _trace_public_finish(_trace_cash_write, 'scenario_political_economy:_sell_to_households',
+                             inputs={"source_writer": 'scenario_political_economy.py:_sell_to_households:fc12fb248a593c7c:1'})
         owner.inv_add(Goods.food, -units)
         buyer.inv_add(Goods.food, units)
         operation_id = _grain_operation_id(
@@ -702,7 +715,10 @@ def _assess_arrears(world, tile, assessed_ids):
         due = round(row['balance'] + assessment, 2)
         cash_before = float(agent.cash)
         paid = min(max(0.0, cash_before), due)
+        _trace_cash_write = _trace_public_begin(None, agent)
         agent.cash -= paid
+        _trace_public_finish(_trace_cash_write, 'scenario_political_economy:_assess_arrears',
+                             inputs={"source_writer": 'scenario_political_economy.py:_assess_arrears:a21d6afe9f6d82ea:1'})
         cash_after = float(agent.cash)
         pool_before = collected
         collected += paid
@@ -841,7 +857,10 @@ def _foreclose(world, tile, cultivator, row, *, cause_event_ids=None):
         currency = _tax_currency(tile)
         buyer_cash_before = float(buyer.cash)
         buyer_cash_after = buyer_cash_before - price
+        _trace_cash_write = _trace_public_begin(None, buyer)
         buyer.cash -= price
+        _trace_public_finish(_trace_cash_write, 'scenario_political_economy:_foreclose',
+                             inputs={"source_writer": 'scenario_political_economy.py:_foreclose:62195febfa7b0a6c:1'})
         recovery = min(price, arrears_before)
         refund = price - recovery
         pool_before = 0.0
@@ -929,7 +948,10 @@ def _foreclose(world, tile, cultivator, row, *, cause_event_ids=None):
                 reason='tax_foreclosure_recovery', phase='scenario_economy',
                 cause_event_ids=cash_event_ids)
         cultivator_cash_before = float(cultivator.cash)
+        _trace_cash_write = _trace_public_begin(None, cultivator)
         cultivator.cash += price - recovery
+        _trace_public_finish(_trace_cash_write, 'scenario_political_economy:_foreclose',
+                             inputs={"source_writer": 'scenario_political_economy.py:_foreclose:62a322463a15421a:1'})
         if refund > 0:
             refund_pool = account_ref(
                 'foreclosure_settlement_pool', operation_id, currency,
@@ -1716,7 +1738,10 @@ def apply_action(world, nation, action_id, tile=None):
             wage_after = min(20.0, wage_before + .5)
             grant = min(5.0, max(0.0, cash_before) * .02)
             employer.wage = wage_after
+            _trace_cash_write = _trace_public_begin(None, employer)
             employer.cash -= grant
+            _trace_public_finish(_trace_cash_write, 'scenario_political_economy:apply_action',
+                                 inputs={"source_writer": 'scenario_political_economy.py:apply_action:9ecccffffd7363d6:1'})
             payments += grant
             cash_after = float(employer.cash)
             employer_currency = (getattr(tile, 'home_currency', None)
@@ -1761,7 +1786,10 @@ def apply_action(world, nation, action_id, tile=None):
         for agent in recipients:
             cash_before = float(agent.cash)
             amount = payments / len(recipients)
+            _trace_cash_write = _trace_public_begin(None, agent)
             agent.cash += amount
+            _trace_public_finish(_trace_cash_write, 'scenario_political_economy:apply_action',
+                                 inputs={"source_writer": 'scenario_political_economy.py:apply_action:bbe7f7ab6d396320:1'})
             agent.is_striking = False
             recipient_allocations.append({
                 'agent_id': str(agent.id), 'amount': float(amount),

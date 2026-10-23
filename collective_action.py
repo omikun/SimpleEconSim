@@ -6,6 +6,7 @@ are appended to a region's ordered collective_log for later run inspection.
 """
 
 from __future__ import annotations
+from treasury_trace import begin_public_change as _trace_public_begin, finish_public_change as _trace_public_finish
 
 from dataclasses import dataclass, field
 from goods import Goods
@@ -410,8 +411,14 @@ def transfer_support(region, t, donor_id, recipient_id, *, cash=0.0, food=0):
         return False
     if donor.cash + 1e-9 < cash or donor.inv_get(Goods.food, 0) < food:
         return False
+    _trace_cash_write = _trace_public_begin(None, donor)
     donor.cash -= cash
+    _trace_public_finish(_trace_cash_write, 'collective_action:transfer_support',
+                         inputs={"source_writer": 'collective_action.py:transfer_support:f497a9b9b1e3d3ce:1'})
+    _trace_cash_write = _trace_public_begin(None, recipient)
     recipient.cash += cash
+    _trace_public_finish(_trace_cash_write, 'collective_action:transfer_support',
+                         inputs={"source_writer": 'collective_action.py:transfer_support:2448e24eccef5f3a:1'})
     if cash > 0:
         from economy.actor_accounts import record as record_economic_event
         record_economic_event(

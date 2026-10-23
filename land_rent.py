@@ -12,6 +12,7 @@ Conserved money transfer:
   tenant.cash -= rent_paid
   lord.cash += rent_paid
 """
+from treasury_trace import begin_public_change as _trace_public_begin, finish_public_change as _trace_public_finish
 
 from goods import Goods
 from land_tenure import TenureStatus
@@ -148,8 +149,14 @@ def collect_rents(region, t: int) -> tuple[float, float, list[dict]]:
             # Rent payment (conserved cash transfer)
             can_pay = min(tenant.cash, rent_rate)
             if can_pay > 0:
+                _trace_cash_write = _trace_public_begin(None, tenant)
                 tenant.cash -= can_pay
+                _trace_public_finish(_trace_cash_write, 'land_rent:collect_rents',
+                                     inputs={"source_writer": 'land_rent.py:collect_rents:0bd6ab43d54f505a:1'})
+                _trace_cash_write = _trace_public_begin(None, lord)
                 lord.cash += can_pay
+                _trace_public_finish(_trace_cash_write, 'land_rent:collect_rents',
+                                     inputs={"source_writer": 'land_rent.py:collect_rents:53d200424b1ef708:1'})
                 plot_collected += can_pay
                 from economy.actor_accounts import record as record_economic_event
                 record_economic_event(
