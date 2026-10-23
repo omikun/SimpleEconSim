@@ -52,7 +52,7 @@ annexation, many scenario actions, save/resume or long-run performance.
 
 | Phase | Implemented evidence | Remaining gate |
 |---|---|---|
-| 0 | Writer/metric/history inventory; 44 source reviews of 507 financial candidates; 363 writer IDs located in probe literals | 463 reviews, active-path and complete history/UI classifications |
+| 0 | Writer/metric/history inventory; 66 source reviews of 507 financial candidates; 363 writer IDs located in probe literals | 441 reviews, active-path and complete history/UI classifications |
 | 1–2 | Military/medical/sovereign/rescue/subsidy fixtures; 127 further public probes; command boundaries | Rare branches and complete semantic payment-to-write contracts |
 | 3 | Timed native ownership/institution setters with shared-account fixtures | Additional nation creation/direct edits and scenario acceptance |
 | 4 | Independent economic replay, stock/source contracts and linked snapshots | Unsupported AI/scenario formulas and complete per-metric provenance |
@@ -856,3 +856,21 @@ exposure, contribution totals, participation or trigger turn. The combined
 planner/economic/environmental/recorder suites pass 82 tests. Source contracts
 for these new formulas remain separate unfinished work; later changes require
 their own frozen-source native rerun.
+
+### Native bank writer review and lifecycle closure (2026-10-23)
+
+Reviewed 22 native bank mutations across initialization, loan issuance/service,
+cash/deposit conversion, bond losses, recapitalization, bail-in and depositor
+interest. Each register entry states the actual owner, local currency, active
+caller, setup-versus-mutation sampling and named fixture limits. Setup capital
+is an opening stock; loan interest is bank retained capital; a recapitalization
+writer requires its caller's funding leg. Source review does not certify every
+branch or complete semantic payment-to-write contracts.
+
+A new public-bank lifecycle fixture forces frozen partial withdrawal and credit
+denial, exempt/private and haircut/public deposits, bond losses, a funded native
+treasury recapitalization, depositor interest and ordinary loan repayment. Both
+bank stock and public-account chains close, and independent audit passes. The
+four bank/treasury suites pass 23 tests; four inventory checks also pass. Current
+register: 66 reviewed candidates and 441 needing source review, with the separate
+363 probe-literal count unchanged.

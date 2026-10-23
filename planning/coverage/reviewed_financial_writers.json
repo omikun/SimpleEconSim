@@ -370,6 +370,698 @@
       "unit": "existing_local_currency",
       "writer": "explicit_conditional_public_probe"
     },
+    "econsim_trade_money.py:Bank.Borrow:855a2c6f60fb6e6a:1": {
+      "account_type": "cash",
+      "calling_path": "local fiscal and household credit -> Bank.Borrow",
+      "closure": "verified_in_named_fixtures_only",
+      "definition": "Cash credit and matching loan liability are one native issuance; frozen/capacity denials do not mutate.",
+      "fixtures": [
+        "test_public_bank_lifecycle_trace.PublicBankLifecycleTraceTests",
+        "test_bank_closing_trace.BankClosingTraceTests",
+        "test_banking_contagion.TestBankingContagion",
+        "test_treasury_flow_trace.TreasuryFlowTraceTests"
+      ],
+      "formula": "stock_chain_replay_verified_in_fixtures; semantic_formula_contracts_incomplete",
+      "links": "verified_bank_stock_sources_in_named_fixtures; semantic_payment_links_incomplete",
+      "missing_work": "Universal semantic payment-to-write contracts, high deposit-ratio interest branches, invalid/manual low-level callers and all-scenario long acceptance remain open.",
+      "owner": "econsim_trade_money.Bank.Borrow",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "native_mutation_scope",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "semantic_records": [
+        "bank_loan_issued",
+        "bank_balance_operation"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_bank_local_currency",
+      "writer": "bank_scope_and_conditional_public_scope"
+    },
+    "econsim_trade_money.py:Bank.Borrow:f8de15f39f16ccff:1": {
+      "account_type": "total_liabilities",
+      "calling_path": "local fiscal and household credit -> Bank.Borrow",
+      "closure": "verified_in_named_fixtures_only",
+      "definition": "Cash credit and matching loan liability are one native issuance; frozen/capacity denials do not mutate.",
+      "fixtures": [
+        "test_public_bank_lifecycle_trace.PublicBankLifecycleTraceTests",
+        "test_bank_closing_trace.BankClosingTraceTests",
+        "test_banking_contagion.TestBankingContagion",
+        "test_treasury_flow_trace.TreasuryFlowTraceTests"
+      ],
+      "formula": "stock_chain_replay_verified_in_fixtures; semantic_formula_contracts_incomplete",
+      "links": "verified_bank_stock_sources_in_named_fixtures; semantic_payment_links_incomplete",
+      "missing_work": "Universal semantic payment-to-write contracts, high deposit-ratio interest branches, invalid/manual low-level callers and all-scenario long acceptance remain open.",
+      "owner": "econsim_trade_money.Bank.Borrow",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "native_mutation_scope",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "semantic_records": [
+        "bank_loan_issued",
+        "bank_balance_operation"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_bank_local_currency",
+      "writer": "bank_scope_and_conditional_public_scope"
+    },
+    "econsim_trade_money.py:Bank.Deposit:01fe7d59c3e08052:1": {
+      "account_type": "total_deposits",
+      "calling_path": "household/public saving -> Bank.Deposit",
+      "closure": "verified_in_named_fixtures_only",
+      "definition": "Cash falls; depositor subaccount and total deposit scalar rise by the same positive requested amount.",
+      "fixtures": [
+        "test_public_bank_lifecycle_trace.PublicBankLifecycleTraceTests",
+        "test_bank_closing_trace.BankClosingTraceTests",
+        "test_banking_contagion.TestBankingContagion",
+        "test_treasury_flow_trace.TreasuryFlowTraceTests"
+      ],
+      "formula": "stock_chain_replay_verified_in_fixtures; semantic_formula_contracts_incomplete",
+      "links": "verified_bank_stock_sources_in_named_fixtures; semantic_payment_links_incomplete",
+      "missing_work": "Universal semantic payment-to-write contracts, high deposit-ratio interest branches, invalid/manual low-level callers and all-scenario long acceptance remain open.",
+      "owner": "econsim_trade_money.Bank.Deposit",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "native_mutation_scope",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "semantic_records": [
+        "bank_deposit",
+        "public_account_write",
+        "bank_balance_operation"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_bank_local_currency",
+      "writer": "bank_scope_and_conditional_public_scope"
+    },
+    "econsim_trade_money.py:Bank.Deposit:5f69a985658a5cce:1": {
+      "account_type": "cash",
+      "calling_path": "household/public saving -> Bank.Deposit",
+      "closure": "verified_in_named_fixtures_only",
+      "definition": "Cash falls; depositor subaccount and total deposit scalar rise by the same positive requested amount.",
+      "fixtures": [
+        "test_public_bank_lifecycle_trace.PublicBankLifecycleTraceTests",
+        "test_bank_closing_trace.BankClosingTraceTests",
+        "test_banking_contagion.TestBankingContagion",
+        "test_treasury_flow_trace.TreasuryFlowTraceTests"
+      ],
+      "formula": "stock_chain_replay_verified_in_fixtures; semantic_formula_contracts_incomplete",
+      "links": "verified_bank_stock_sources_in_named_fixtures; semantic_payment_links_incomplete",
+      "missing_work": "Universal semantic payment-to-write contracts, high deposit-ratio interest branches, invalid/manual low-level callers and all-scenario long acceptance remain open.",
+      "owner": "econsim_trade_money.Bank.Deposit",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "native_mutation_scope",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "semantic_records": [
+        "bank_deposit",
+        "public_account_write",
+        "bank_balance_operation"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_bank_local_currency",
+      "writer": "bank_scope_and_conditional_public_scope"
+    },
+    "econsim_trade_money.py:Bank.Deposit:a8dcd0cb06a19648:1": {
+      "account_type": "deposit_account",
+      "calling_path": "household/public saving -> Bank.Deposit",
+      "closure": "verified_in_named_fixtures_only",
+      "definition": "Cash falls; depositor subaccount and total deposit scalar rise by the same positive requested amount.",
+      "fixtures": [
+        "test_public_bank_lifecycle_trace.PublicBankLifecycleTraceTests",
+        "test_bank_closing_trace.BankClosingTraceTests",
+        "test_banking_contagion.TestBankingContagion",
+        "test_treasury_flow_trace.TreasuryFlowTraceTests"
+      ],
+      "formula": "stock_chain_replay_verified_in_fixtures; semantic_formula_contracts_incomplete",
+      "links": "verified_bank_stock_sources_in_named_fixtures; semantic_payment_links_incomplete",
+      "missing_work": "Universal semantic payment-to-write contracts, high deposit-ratio interest branches, invalid/manual low-level callers and all-scenario long acceptance remain open.",
+      "owner": "econsim_trade_money.Bank.Deposit",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "native_mutation_scope",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "semantic_records": [
+        "bank_deposit",
+        "public_account_write",
+        "bank_balance_operation"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_bank_local_currency",
+      "writer": "bank_scope_and_conditional_public_scope"
+    },
+    "econsim_trade_money.py:Bank.PayDepositInterest:df6278774578d236:1": {
+      "account_type": "capital",
+      "calling_path": "Province.step/local banking -> Bank.PayDepositInterest",
+      "closure": "verified_in_named_fixtures_only",
+      "definition": "Positive interest is funded from capital and limited by 60 percent estimated loan interest; deposit principal is unchanged.",
+      "fixtures": [
+        "test_public_bank_lifecycle_trace.PublicBankLifecycleTraceTests",
+        "test_bank_closing_trace.BankClosingTraceTests",
+        "test_banking_contagion.TestBankingContagion",
+        "test_treasury_flow_trace.TreasuryFlowTraceTests"
+      ],
+      "formula": "stock_chain_replay_verified_in_fixtures; semantic_formula_contracts_incomplete",
+      "links": "verified_bank_stock_sources_in_named_fixtures; semantic_payment_links_incomplete",
+      "missing_work": "Universal semantic payment-to-write contracts, high deposit-ratio interest branches, invalid/manual low-level callers and all-scenario long acceptance remain open.",
+      "owner": "econsim_trade_money.Bank.PayDepositInterest",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "native_mutation_scope",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "semantic_records": [
+        "bank_deposit_interest_payout",
+        "public_account_write",
+        "bank_balance_operation"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_bank_local_currency",
+      "writer": "bank_scope_and_conditional_public_scope"
+    },
+    "econsim_trade_money.py:Bank.PayDepositInterest:eb88e93c608e9dfb:1": {
+      "account_type": "cash",
+      "calling_path": "Province.step/local banking -> Bank.PayDepositInterest",
+      "closure": "verified_in_named_fixtures_only",
+      "definition": "Positive interest is funded from capital and limited by 60 percent estimated loan interest; deposit principal is unchanged.",
+      "fixtures": [
+        "test_public_bank_lifecycle_trace.PublicBankLifecycleTraceTests",
+        "test_bank_closing_trace.BankClosingTraceTests",
+        "test_banking_contagion.TestBankingContagion",
+        "test_treasury_flow_trace.TreasuryFlowTraceTests"
+      ],
+      "formula": "stock_chain_replay_verified_in_fixtures; semantic_formula_contracts_incomplete",
+      "links": "verified_bank_stock_sources_in_named_fixtures; semantic_payment_links_incomplete",
+      "missing_work": "Universal semantic payment-to-write contracts, high deposit-ratio interest branches, invalid/manual low-level callers and all-scenario long acceptance remain open.",
+      "owner": "econsim_trade_money.Bank.PayDepositInterest",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "native_mutation_scope",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "semantic_records": [
+        "bank_deposit_interest_payout",
+        "public_account_write",
+        "bank_balance_operation"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_bank_local_currency",
+      "writer": "bank_scope_and_conditional_public_scope"
+    },
+    "econsim_trade_money.py:Bank.Withdraw:0d6e696b2372bca8:1": {
+      "account_type": "deposit_account",
+      "calling_path": "spending/loan service -> Bank.Withdraw",
+      "closure": "verified_in_named_fixtures_only",
+      "definition": "Actual settled cash is capped by account balance and frozen-bank subsistence cap; same amount reduces scalar and account.",
+      "fixtures": [
+        "test_public_bank_lifecycle_trace.PublicBankLifecycleTraceTests",
+        "test_bank_closing_trace.BankClosingTraceTests",
+        "test_banking_contagion.TestBankingContagion",
+        "test_treasury_flow_trace.TreasuryFlowTraceTests"
+      ],
+      "formula": "stock_chain_replay_verified_in_fixtures; semantic_formula_contracts_incomplete",
+      "links": "verified_bank_stock_sources_in_named_fixtures; semantic_payment_links_incomplete",
+      "missing_work": "Universal semantic payment-to-write contracts, high deposit-ratio interest branches, invalid/manual low-level callers and all-scenario long acceptance remain open.",
+      "owner": "econsim_trade_money.Bank.Withdraw",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "native_mutation_scope",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "semantic_records": [
+        "bank_withdrawal",
+        "public_account_write",
+        "bank_balance_operation"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_bank_local_currency",
+      "writer": "bank_scope_and_conditional_public_scope"
+    },
+    "econsim_trade_money.py:Bank.Withdraw:abedb2fae1c0ace2:1": {
+      "account_type": "cash",
+      "calling_path": "spending/loan service -> Bank.Withdraw",
+      "closure": "verified_in_named_fixtures_only",
+      "definition": "Actual settled cash is capped by account balance and frozen-bank subsistence cap; same amount reduces scalar and account.",
+      "fixtures": [
+        "test_public_bank_lifecycle_trace.PublicBankLifecycleTraceTests",
+        "test_bank_closing_trace.BankClosingTraceTests",
+        "test_banking_contagion.TestBankingContagion",
+        "test_treasury_flow_trace.TreasuryFlowTraceTests"
+      ],
+      "formula": "stock_chain_replay_verified_in_fixtures; semantic_formula_contracts_incomplete",
+      "links": "verified_bank_stock_sources_in_named_fixtures; semantic_payment_links_incomplete",
+      "missing_work": "Universal semantic payment-to-write contracts, high deposit-ratio interest branches, invalid/manual low-level callers and all-scenario long acceptance remain open.",
+      "owner": "econsim_trade_money.Bank.Withdraw",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "native_mutation_scope",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "semantic_records": [
+        "bank_withdrawal",
+        "public_account_write",
+        "bank_balance_operation"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_bank_local_currency",
+      "writer": "bank_scope_and_conditional_public_scope"
+    },
+    "econsim_trade_money.py:Bank.Withdraw:cf5e2d62ee6bcade:1": {
+      "account_type": "total_deposits",
+      "calling_path": "spending/loan service -> Bank.Withdraw",
+      "closure": "verified_in_named_fixtures_only",
+      "definition": "Actual settled cash is capped by account balance and frozen-bank subsistence cap; same amount reduces scalar and account.",
+      "fixtures": [
+        "test_public_bank_lifecycle_trace.PublicBankLifecycleTraceTests",
+        "test_bank_closing_trace.BankClosingTraceTests",
+        "test_banking_contagion.TestBankingContagion",
+        "test_treasury_flow_trace.TreasuryFlowTraceTests"
+      ],
+      "formula": "stock_chain_replay_verified_in_fixtures; semantic_formula_contracts_incomplete",
+      "links": "verified_bank_stock_sources_in_named_fixtures; semantic_payment_links_incomplete",
+      "missing_work": "Universal semantic payment-to-write contracts, high deposit-ratio interest branches, invalid/manual low-level callers and all-scenario long acceptance remain open.",
+      "owner": "econsim_trade_money.Bank.Withdraw",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "native_mutation_scope",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "semantic_records": [
+        "bank_withdrawal",
+        "public_account_write",
+        "bank_balance_operation"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_bank_local_currency",
+      "writer": "bank_scope_and_conditional_public_scope"
+    },
+    "econsim_trade_money.py:Bank.__init__:8e63771d346887bb:1": {
+      "account_type": "total_liabilities",
+      "calling_path": "world/province institution construction",
+      "closure": "verified_in_named_fixtures_only",
+      "definition": "Initial setup seeds 2000 shareholder capital and zero deposits/liabilities; register as opening state, not runtime revenue.",
+      "fixtures": [
+        "test_public_bank_lifecycle_trace.PublicBankLifecycleTraceTests",
+        "test_bank_closing_trace.BankClosingTraceTests",
+        "test_banking_contagion.TestBankingContagion",
+        "test_treasury_flow_trace.TreasuryFlowTraceTests"
+      ],
+      "formula": "stock_chain_replay_verified_in_fixtures; semantic_formula_contracts_incomplete",
+      "links": "verified_bank_stock_sources_in_named_fixtures; semantic_payment_links_incomplete",
+      "missing_work": "Universal semantic payment-to-write contracts, high deposit-ratio interest branches, invalid/manual low-level callers and all-scenario long acceptance remain open.",
+      "owner": "econsim_trade_money.Bank.__init__",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "registered_setup_opening",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "semantic_records": [
+        "bank_registered"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_bank_local_currency",
+      "writer": "opening_registration"
+    },
+    "econsim_trade_money.py:Bank.__init__:b0addde672d5aaa9:1": {
+      "account_type": "deposits",
+      "calling_path": "world/province institution construction",
+      "closure": "verified_in_named_fixtures_only",
+      "definition": "Initial setup seeds 2000 shareholder capital and zero deposits/liabilities; register as opening state, not runtime revenue.",
+      "fixtures": [
+        "test_public_bank_lifecycle_trace.PublicBankLifecycleTraceTests",
+        "test_bank_closing_trace.BankClosingTraceTests",
+        "test_banking_contagion.TestBankingContagion",
+        "test_treasury_flow_trace.TreasuryFlowTraceTests"
+      ],
+      "formula": "stock_chain_replay_verified_in_fixtures; semantic_formula_contracts_incomplete",
+      "links": "verified_bank_stock_sources_in_named_fixtures; semantic_payment_links_incomplete",
+      "missing_work": "Universal semantic payment-to-write contracts, high deposit-ratio interest branches, invalid/manual low-level callers and all-scenario long acceptance remain open.",
+      "owner": "econsim_trade_money.Bank.__init__",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "registered_setup_opening",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "semantic_records": [
+        "bank_registered"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_bank_local_currency",
+      "writer": "opening_registration"
+    },
+    "econsim_trade_money.py:Bank.__init__:f0ff0f5947951afa:1": {
+      "account_type": "total_deposits",
+      "calling_path": "world/province institution construction",
+      "closure": "verified_in_named_fixtures_only",
+      "definition": "Initial setup seeds 2000 shareholder capital and zero deposits/liabilities; register as opening state, not runtime revenue.",
+      "fixtures": [
+        "test_public_bank_lifecycle_trace.PublicBankLifecycleTraceTests",
+        "test_bank_closing_trace.BankClosingTraceTests",
+        "test_banking_contagion.TestBankingContagion",
+        "test_treasury_flow_trace.TreasuryFlowTraceTests"
+      ],
+      "formula": "stock_chain_replay_verified_in_fixtures; semantic_formula_contracts_incomplete",
+      "links": "verified_bank_stock_sources_in_named_fixtures; semantic_payment_links_incomplete",
+      "missing_work": "Universal semantic payment-to-write contracts, high deposit-ratio interest branches, invalid/manual low-level callers and all-scenario long acceptance remain open.",
+      "owner": "econsim_trade_money.Bank.__init__",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "registered_setup_opening",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "semantic_records": [
+        "bank_registered"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_bank_local_currency",
+      "writer": "opening_registration"
+    },
+    "econsim_trade_money.py:Bank.__init__:fc477b7a15a560ff:1": {
+      "account_type": "capital",
+      "calling_path": "world/province institution construction",
+      "closure": "verified_in_named_fixtures_only",
+      "definition": "Initial setup seeds 2000 shareholder capital and zero deposits/liabilities; register as opening state, not runtime revenue.",
+      "fixtures": [
+        "test_public_bank_lifecycle_trace.PublicBankLifecycleTraceTests",
+        "test_bank_closing_trace.BankClosingTraceTests",
+        "test_banking_contagion.TestBankingContagion",
+        "test_treasury_flow_trace.TreasuryFlowTraceTests"
+      ],
+      "formula": "stock_chain_replay_verified_in_fixtures; semantic_formula_contracts_incomplete",
+      "links": "verified_bank_stock_sources_in_named_fixtures; semantic_payment_links_incomplete",
+      "missing_work": "Universal semantic payment-to-write contracts, high deposit-ratio interest branches, invalid/manual low-level callers and all-scenario long acceptance remain open.",
+      "owner": "econsim_trade_money.Bank.__init__",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "registered_setup_opening",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "semantic_records": [
+        "bank_registered"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_bank_local_currency",
+      "writer": "opening_registration"
+    },
+    "econsim_trade_money.py:Bank.apply_bail_in_haircut:0cc2fe2425cc5269:1": {
+      "account_type": "total_deposits",
+      "calling_path": "statutory bank resolution -> Bank.apply_bail_in_haircut",
+      "closure": "verified_in_named_fixtures_only",
+      "definition": "Rounded cut on deposits above the exemption reduces depositor account and scalar while increasing bank capital; public depositor scopes are conditional.",
+      "fixtures": [
+        "test_public_bank_lifecycle_trace.PublicBankLifecycleTraceTests",
+        "test_bank_closing_trace.BankClosingTraceTests",
+        "test_banking_contagion.TestBankingContagion",
+        "test_treasury_flow_trace.TreasuryFlowTraceTests"
+      ],
+      "formula": "stock_chain_replay_verified_in_fixtures; semantic_formula_contracts_incomplete",
+      "links": "verified_bank_stock_sources_in_named_fixtures; semantic_payment_links_incomplete",
+      "missing_work": "Universal semantic payment-to-write contracts, high deposit-ratio interest branches, invalid/manual low-level callers and all-scenario long acceptance remain open.",
+      "owner": "econsim_trade_money.Bank.apply_bail_in_haircut",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "native_mutation_scope",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "semantic_records": [
+        "bank_depositor_bail_in_transfer",
+        "bank_depositor_bail_in",
+        "public_account_write",
+        "bank_balance_operation"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_bank_local_currency",
+      "writer": "bank_scope_and_conditional_public_scope"
+    },
+    "econsim_trade_money.py:Bank.apply_bail_in_haircut:1ddd20d72aa10617:1": {
+      "account_type": "capital",
+      "calling_path": "statutory bank resolution -> Bank.apply_bail_in_haircut",
+      "closure": "verified_in_named_fixtures_only",
+      "definition": "Rounded cut on deposits above the exemption reduces depositor account and scalar while increasing bank capital; public depositor scopes are conditional.",
+      "fixtures": [
+        "test_public_bank_lifecycle_trace.PublicBankLifecycleTraceTests",
+        "test_bank_closing_trace.BankClosingTraceTests",
+        "test_banking_contagion.TestBankingContagion",
+        "test_treasury_flow_trace.TreasuryFlowTraceTests"
+      ],
+      "formula": "stock_chain_replay_verified_in_fixtures; semantic_formula_contracts_incomplete",
+      "links": "verified_bank_stock_sources_in_named_fixtures; semantic_payment_links_incomplete",
+      "missing_work": "Universal semantic payment-to-write contracts, high deposit-ratio interest branches, invalid/manual low-level callers and all-scenario long acceptance remain open.",
+      "owner": "econsim_trade_money.Bank.apply_bail_in_haircut",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "native_mutation_scope",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "semantic_records": [
+        "bank_depositor_bail_in_transfer",
+        "bank_depositor_bail_in",
+        "public_account_write",
+        "bank_balance_operation"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_bank_local_currency",
+      "writer": "bank_scope_and_conditional_public_scope"
+    },
+    "econsim_trade_money.py:Bank.apply_bail_in_haircut:6eb81ff0d633fe55:1": {
+      "account_type": "deposit_account",
+      "calling_path": "statutory bank resolution -> Bank.apply_bail_in_haircut",
+      "closure": "verified_in_named_fixtures_only",
+      "definition": "Rounded cut on deposits above the exemption reduces depositor account and scalar while increasing bank capital; public depositor scopes are conditional.",
+      "fixtures": [
+        "test_public_bank_lifecycle_trace.PublicBankLifecycleTraceTests",
+        "test_bank_closing_trace.BankClosingTraceTests",
+        "test_banking_contagion.TestBankingContagion",
+        "test_treasury_flow_trace.TreasuryFlowTraceTests"
+      ],
+      "formula": "stock_chain_replay_verified_in_fixtures; semantic_formula_contracts_incomplete",
+      "links": "verified_bank_stock_sources_in_named_fixtures; semantic_payment_links_incomplete",
+      "missing_work": "Universal semantic payment-to-write contracts, high deposit-ratio interest branches, invalid/manual low-level callers and all-scenario long acceptance remain open.",
+      "owner": "econsim_trade_money.Bank.apply_bail_in_haircut",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "native_mutation_scope",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "semantic_records": [
+        "bank_depositor_bail_in_transfer",
+        "bank_depositor_bail_in",
+        "public_account_write",
+        "bank_balance_operation"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_bank_local_currency",
+      "writer": "bank_scope_and_conditional_public_scope"
+    },
+    "econsim_trade_money.py:Bank.pay_interest:16437659e958e137:1": {
+      "account_type": "capital",
+      "calling_path": "Loan.pay -> Bank.pay_interest",
+      "closure": "verified_in_named_fixtures_only",
+      "definition": "Interest credits retained bank capital inside Loan.pay outer scope; ordinary PayLoans supplies the borrower cash debit.",
+      "fixtures": [
+        "test_public_bank_lifecycle_trace.PublicBankLifecycleTraceTests",
+        "test_bank_closing_trace.BankClosingTraceTests",
+        "test_banking_contagion.TestBankingContagion",
+        "test_treasury_flow_trace.TreasuryFlowTraceTests"
+      ],
+      "formula": "stock_chain_replay_verified_in_fixtures; semantic_formula_contracts_incomplete",
+      "links": "verified_bank_stock_sources_in_named_fixtures; semantic_payment_links_incomplete",
+      "missing_work": "Universal semantic payment-to-write contracts, high deposit-ratio interest branches, invalid/manual low-level callers and all-scenario long acceptance remain open.",
+      "owner": "econsim_trade_money.Bank.pay_interest",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "native_mutation_scope",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "semantic_records": [
+        "bank_balance_operation"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_bank_local_currency",
+      "writer": "bank_scope_and_conditional_public_scope"
+    },
+    "econsim_trade_money.py:Bank.pay_principle:ca7326959e7c8713:1": {
+      "account_type": "total_liabilities",
+      "calling_path": "Loan.pay -> Bank.pay_principle",
+      "closure": "verified_in_named_fixtures_only",
+      "definition": "Principal reduces bank liabilities inside Loan.pay outer mutation scope; this low-level method is not itself a cash debit.",
+      "fixtures": [
+        "test_public_bank_lifecycle_trace.PublicBankLifecycleTraceTests",
+        "test_bank_closing_trace.BankClosingTraceTests",
+        "test_banking_contagion.TestBankingContagion",
+        "test_treasury_flow_trace.TreasuryFlowTraceTests"
+      ],
+      "formula": "stock_chain_replay_verified_in_fixtures; semantic_formula_contracts_incomplete",
+      "links": "verified_bank_stock_sources_in_named_fixtures; semantic_payment_links_incomplete",
+      "missing_work": "Universal semantic payment-to-write contracts, high deposit-ratio interest branches, invalid/manual low-level callers and all-scenario long acceptance remain open.",
+      "owner": "econsim_trade_money.Bank.pay_principle",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "native_mutation_scope",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "semantic_records": [
+        "bank_balance_operation"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_bank_local_currency",
+      "writer": "bank_scope_and_conditional_public_scope"
+    },
+    "econsim_trade_money.py:Bank.recapitalize:16437659e958e137:1": {
+      "account_type": "capital",
+      "calling_path": "banking_policy.recapitalize_domestic_banks -> Bank.recapitalize",
+      "closure": "verified_in_named_fixtures_only",
+      "definition": "Caller must supply the treasury payment; this method only raises bank capital and may lift a freeze.",
+      "fixtures": [
+        "test_public_bank_lifecycle_trace.PublicBankLifecycleTraceTests",
+        "test_bank_closing_trace.BankClosingTraceTests",
+        "test_banking_contagion.TestBankingContagion",
+        "test_treasury_flow_trace.TreasuryFlowTraceTests"
+      ],
+      "formula": "stock_chain_replay_verified_in_fixtures; semantic_formula_contracts_incomplete",
+      "links": "verified_bank_stock_sources_in_named_fixtures; semantic_payment_links_incomplete",
+      "missing_work": "Universal semantic payment-to-write contracts, high deposit-ratio interest branches, invalid/manual low-level callers and all-scenario long acceptance remain open.",
+      "owner": "econsim_trade_money.Bank.recapitalize",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "native_mutation_scope",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "semantic_records": [
+        "bank_recapitalization",
+        "bank_balance_operation"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_bank_local_currency",
+      "writer": "bank_scope_and_conditional_public_scope"
+    },
+    "econsim_trade_money.py:Bank.write_down_bonds:1179f172758fe69f:1": {
+      "account_type": "capital",
+      "calling_path": "sovereign default -> Bank.write_down_bonds",
+      "closure": "verified_in_named_fixtures_only",
+      "definition": "Existing bond losses reduce bank capital and may freeze withdrawals; no depositor cash transfer occurs at this write.",
+      "fixtures": [
+        "test_public_bank_lifecycle_trace.PublicBankLifecycleTraceTests",
+        "test_bank_closing_trace.BankClosingTraceTests",
+        "test_banking_contagion.TestBankingContagion",
+        "test_treasury_flow_trace.TreasuryFlowTraceTests"
+      ],
+      "formula": "stock_chain_replay_verified_in_fixtures; semantic_formula_contracts_incomplete",
+      "links": "verified_bank_stock_sources_in_named_fixtures; semantic_payment_links_incomplete",
+      "missing_work": "Universal semantic payment-to-write contracts, high deposit-ratio interest branches, invalid/manual low-level callers and all-scenario long acceptance remain open.",
+      "owner": "econsim_trade_money.Bank.write_down_bonds",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "native_mutation_scope",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "semantic_records": [
+        "bank_bond_write_down",
+        "bank_bond_asset_impaired",
+        "bank_balance_operation"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_bank_local_currency",
+      "writer": "bank_scope_and_conditional_public_scope"
+    },
+    "econsim_trade_money.py:PayLoans:8ed2e00ea9df08b4:1": {
+      "account_type": "cash",
+      "calling_path": "household/public lifecycle -> PayLoans -> Loan.pay",
+      "closure": "verified_in_named_fixtures_only",
+      "definition": "Repayment uses positive available wealth, may withdraw savings, then debits borrower cash; Loan.pay accounts for principal/interest separately.",
+      "fixtures": [
+        "test_public_bank_lifecycle_trace.PublicBankLifecycleTraceTests",
+        "test_bank_closing_trace.BankClosingTraceTests",
+        "test_banking_contagion.TestBankingContagion",
+        "test_treasury_flow_trace.TreasuryFlowTraceTests"
+      ],
+      "formula": "stock_chain_replay_verified_in_fixtures; semantic_formula_contracts_incomplete",
+      "links": "verified_bank_stock_sources_in_named_fixtures; semantic_payment_links_incomplete",
+      "missing_work": "Universal semantic payment-to-write contracts, high deposit-ratio interest branches, invalid/manual low-level callers and all-scenario long acceptance remain open.",
+      "owner": "econsim_trade_money.PayLoans",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "native_mutation_scope",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "semantic_records": [
+        "bank_loan_repayment",
+        "public_account_write",
+        "bank_balance_operation"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_bank_local_currency",
+      "writer": "bank_scope_and_conditional_public_scope"
+    },
     "labor_laws.py:submit_law_petition:706cda858af3e6a5:1": {
       "calling_path": "submit_law_petition",
       "closure": "scenario_rerun_pending",
