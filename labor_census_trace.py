@@ -1,4 +1,5 @@
 """Read-only final labor census and evidence for its derived rollups."""
+from trace_clock import boundary
 
 
 def tile_labor_census(tile):
@@ -48,7 +49,7 @@ def census_groups(census, field):
 
 
 def record_labor_censuses(trace, clock, current_censuses, prior_censuses, previous_values):
-    sources_current = getattr(trace, '_active_turn', None) == clock.get('turn', 0)
+    sources_current = getattr(trace, '_active_turn', None) == boundary(clock)
     for tile_name, census in current_censuses.items():
         prior = prior_censuses.get(tile_name)
         current_people = {row['person_id']: row for row in census['adults']}

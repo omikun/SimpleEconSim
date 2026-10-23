@@ -564,3 +564,13 @@ method, embedding a process address in company names and logs. The founder's
 name method is now called; string-name fixtures remain supported. This display
 correction is isolated from instrumentation. Ten construction/treasury-flow
 checks and a native founder-name assertion passed.
+
+
+### Epoch-aware labor/faction source correction (2026-10-23)
+
+The broader acceptance review found two source-link guards still comparing the
+recorder's `(turn, epoch)` boundary with a plain integer turn. Final labor census
+and faction histories now compare the full boundary, retaining current career,
+status, food-intake, grievance and tax source links. The existing labor census,
+faction history and recorder suites passed 45 tests, including assertions on the
+actual upstream event IDs. This is a trace-only lifecycle correction.

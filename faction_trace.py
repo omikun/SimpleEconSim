@@ -1,4 +1,5 @@
 """Exact evidence for per-turn faction support and decayed grievance histories."""
+from trace_clock import boundary
 
 
 def faction_state(faction):
@@ -14,7 +15,8 @@ def record_faction_histories(region, turn, opening, prepared, eligible, policy_i
 
     trace = getattr(region, '_run_trace', None)
     latest = getattr(trace, 'latest_metric_calculation_event_id', None)
-    if getattr(trace, '_active_turn', int(turn)) != int(turn):
+    current_boundary = boundary(getattr(region, '_collective_trace_clock', {'turn': turn}))
+    if getattr(trace, '_active_turn', current_boundary) != current_boundary:
         latest = None
     source_id = (latest('politics.grievance', {'type': 'tile', 'id': region.name})
                  if callable(latest) else None)
