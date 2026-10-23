@@ -914,3 +914,16 @@ retained samples across command epochs, source tampering and an unrecorded Gini
 history edit. Eighty focused history/food/replay/recorder/explanation tests pass;
 the financial inventory baseline still matches. The affected long pair needs a
 new frozen-source rerun before these repairs can be accepted at release scale.
+
+### Unfunded UBI conservation correction (2026-10-23)
+
+Reviewing government writers found a native conservation bug outside the
+default policy configuration: UBI provisionally credited recipients before
+funding, but an empty treasury skipped the undo/rescale loop; a negative treasury
+was also zeroed. The unfunded branch now returns before either mutation and
+records an explicit funding decision. It preserves the existing fully funded
+and positive-but-short proportional payments. This gameplay/accounting
+correction is separate from food/Gini observation changes. A regression checks
+empty/negative treasury balances, no recipient minting/debt erasure and recorder
+parity; 65 benefit, transfer, strategy and treasury tests pass. The financial
+writer baseline remains unchanged because the existing mutations are untouched.

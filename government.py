@@ -332,6 +332,19 @@ class Government:
         """
         if not self.ubi_enabled or self.ubi_amount_per_turn <= 0:
             return 0.0
+        if self.agent.cash <= 0:
+            # The credit/scale-back path below requires positive funding.
+            # With an empty treasury it previously kept provisional recipient
+            # credits; a negative treasury was additionally erased by zeroing.
+            from run_trace import emit
+            source = region or next(iter(self.regions), None)
+            emit(source, kind='ubi_unfunded', record_class='decision',
+                 subject={'type':'government','id':self.name},
+                 metric_id='finance.cash_transfer', unit='local_currency', after=0.0,
+                 inputs={'benefit_kind':'ubi_payment', 'turn':t,
+                         'cash_available':float(self.agent.cash),
+                         'reason':'treasury_has_no_available_cash'})
+            return 0.0
 
         total = 0.0
         scaled_for_shortfall = False

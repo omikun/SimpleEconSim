@@ -38,10 +38,33 @@ def _fixture(*, cash, traced):
 def _payments(trace, benefit_kind):
     return [row for row in trace.rows
             if row.get('metric_id') == 'finance.cash_transfer'
+            and row.get('record_class') == 'transfer'
             and row.get('inputs', {}).get('benefit_kind') == benefit_kind]
 
 
 class PublicBenefitTraceTests(unittest.TestCase):
+    def test_empty_or_negative_treasury_cannot_mint_ubi_or_erase_debt(self):
+        for cash in (0., -3.):
+            for traced in (False, True):
+                with self.subTest(cash=cash, traced=traced):
+                    government, region, trace = _fixture(cash=cash, traced=traced)
+                    citizens = [Agent(0), Agent(0)]
+                    for citizen in citizens:
+                        citizen.cash = 5.
+                        government._add_citizen(citizen)
+                    government.ubi_enabled = True
+                    government.ubi_amount_per_turn = 2.
+                    before = government.agent.cash+sum(c.cash for c in citizens)
+                    paid = government.distribute_ubi(1, citizens, region)
+                    self.assertEqual(0., paid)
+                    self.assertEqual(cash, government.agent.cash)
+                    self.assertEqual([5.,5.], [c.cash for c in citizens])
+                    self.assertEqual(before, government.agent.cash+sum(c.cash for c in citizens))
+                    self.assertEqual([], region.economic_events)
+                    if traced:
+                        self.assertEqual('ubi_unfunded', trace.rows[0]['kind'])
+                        self.assertEqual([], _payments(trace, 'ubi_payment'))
+
     def test_baby_bonus_receipt_links_to_treasury_outflow(self):
         fixtures = [_fixture(cash=100.0, traced=False),
                     _fixture(cash=100.0, traced=True)]
