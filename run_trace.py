@@ -267,12 +267,10 @@ class RunTrace:
                     and row.get('formula_replay',{}).get('matches',True)):
                 self._calculated_value_sources[provenance_key] = row['event_id']
             if metric_id is not None and subject is not None:
-                self._latest_metric_event_ids[(
-                    metric_id, json.dumps(subject, sort_keys=True))] = row['event_id']
+                self._latest_metric_event_ids[provenance_key] = row['event_id']
             if (record_class == 'calculation' and metric_id is not None
                     and subject is not None):
-                self._latest_calculation_event_ids[(
-                    metric_id, json.dumps(subject, sort_keys=True))] = row['event_id']
+                self._latest_calculation_event_ids[provenance_key] = row['event_id']
         if self.write_error is None and shipment_id is not None:
             if kind == 'route_shipment_departure':
                 self._shipment_departure_events[str(shipment_id)] = row['event_id']

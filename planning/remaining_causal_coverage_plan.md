@@ -874,3 +874,19 @@ bank stock and public-account chains close, and independent audit passes. The
 four bank/treasury suites pass 23 tests; four inventory checks also pass. Current
 register: 66 reviewed candidates and 441 needing source review, with the separate
 363 probe-literal count unchanged.
+
+### Latest short native acceptance and subject-key cost (2026-10-23)
+
+The frozen `6bb1e4b` smoke matrix passes all four actual scenarios in both recorder
+modes (three steps each), including full economic state/RNG equality, changed
+snapshots, bank/public closures and supported replay/source checks. Results:
+`tmp/acceptance-smoke4-2026-10-23/matrix.json`. The longer `5692825` matrix has a
+passing default seed-4242 30-turn pair; other cases are still running.
+
+Native three-step profiling found repeated JSON encoding of the same event
+subject for provenance and lookup maps. Reusing its already computed key reduces
+448,097 JSON encodes to 299,407 while emitting the same 121,171 records in the
+profiled scenario. The two profiler runs measured 15.082s and 13.919s; they were
+not isolated benchmarks and do not establish a final runtime budget. Forty-six
+recorder/codec/index/explanation tests pass after the reuse change. The change
+does not alter storage, recorded values or subject key semantics.
