@@ -5,6 +5,54 @@ from price_trace import replay_event
 
 
 class EconomicReplayTests(unittest.TestCase):
+    def test_water_uses_capacity_and_weather_instead_of_recorded_availability(self):
+        row={'formula_id':'water.capacity_rainfall_maintenance.v1','value_after':3,
+             'inputs':{'capacity':10,'rainfall':.5,'canal_condition':.6,'available':900}}
+        self.assertTrue(replay_event(row)['matches'])
+        row['inputs']['rainfall']=1
+        self.assertFalse(replay_event(row)['matches'])
+
+    def test_construction_uses_delivered_materials_and_workers(self):
+        row={'formula_id':'construction.material_labor_progress.v1','value_before':0,'value_after':12.5,
+             'inputs':{'required_materials':{'wood':10},'delivered_materials':{'wood':5},
+                       'navvy_ids':[1,2],'required_workers':2,'total_turns':4,
+                       'base_progress':999,'resource_factor':999,'labor_factor':999}}
+        self.assertTrue(replay_event(row)['matches'])
+        row['inputs']['delivered_materials']['wood']=10
+        self.assertFalse(replay_event(row)['matches'])
+
+    def test_wage_pressure_replays_strict_cash_gate_and_cap(self):
+        row={'formula_id':'labor.tightness_mrpl_cash_policy.v1','value_before':2,'value_after':2.2,
+             'inputs':{'labor_market_tightness':2,'reservation_wage':3,'vacancies':1,
+                       'cash':100,'payroll':10,'mrpl_wage_ceiling':4,'wage_cap':None,
+                       'worker_count':5,'food_price':1,'decision_reason':'untrusted_label'}}
+        self.assertTrue(replay_event(row)['matches'])
+        row['inputs']['cash']=11
+        self.assertFalse(replay_event(row)['matches'])
+        row['value_after']=1.5;row['inputs']['wage_cap']=1.5
+        self.assertTrue(replay_event(row)['matches'])
+
+    def test_consumption_replays_draw_without_trusting_claimed_quantity(self):
+        row={'formula_id':'demographics.nonfood_consumption.v1','value_before':3,'value_after':2,
+             'inputs':{'units_consumed':99,'consumption_components':[{'mechanism':'furniture_stochastic_wear',
+                 'quantity':99,'stock_before':3,'random_draw':.01,'consumption_threshold':.066}]}}
+        self.assertTrue(replay_event(row)['matches'])
+        row['inputs']['consumption_components'][0]['random_draw']=.1
+        self.assertFalse(replay_event(row)['matches'])
+
+    def test_matching_sale_quantity_cannot_hide_wrong_good_or_missing_cause(self):
+        from causal_contracts import validate
+        row={'formula_id':'market.discriminatory_clear.v2','value_after':2,
+             'subject':{'type':'tile','id':'A','good':'food'},'cause_event_ids':['sale'],
+             'inputs':{'settled_sales':[{'event_id':'sale','quantity':2}]}}
+        source={'kind':'paid_market_sale','value_after':2,'subject':dict(row['subject'])}
+        self.assertTrue(replay_event(row)['matches'])
+        self.assertTrue(validate(row,lambda _:source)['matches'])
+        source['subject']['good']='wood'
+        self.assertFalse(validate(row,lambda _:source)['matches'])
+        source['subject']['good']='food';row['cause_event_ids']=[]
+        self.assertFalse(validate(row,lambda _:source)['matches'])
+
     def test_frozen_withdrawal_uses_cap_and_ignores_claimed_settlement(self):
         row={'formula_id':'bank.deposit_to_cash.v1','value_after':45,
              'inputs':{'deposit_before':50,'requested_amount':40,'bank_frozen':True,

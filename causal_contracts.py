@@ -7,7 +7,7 @@ import math
 
 
 SUPPORTED = {'bank.opening_plus_transitions.v1', 'treasury.account_chain.v1',
-             'treasury.closed_accounts.v1', 'production.sum_receipts.v1'}
+             'treasury.closed_accounts.v1', 'production.sum_receipts.v1','market.discriminatory_clear.v2'}
 
 
 def requirements(row):
@@ -39,6 +39,10 @@ def requirements(row):
         for index,receipt in enumerate(i['producer_receipts']):
             result.append((f'producer_receipts[{index}].event_id',receipt.get('event_id'),
                            {'value_after':receipt['units']}))
+    elif formula=='market.discriminatory_clear.v2':
+        for index,sale in enumerate(i['settled_sales']):
+            result.append((f'settled_sales[{index}].event_id',sale.get('event_id'),
+                           {'kind':'paid_market_sale','value_after':sale['quantity'],'subject':row['subject']}))
     return result
 
 

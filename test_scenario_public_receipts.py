@@ -26,8 +26,9 @@ open(sys.argv[3],'w').write(json.dumps(report))
             ('supply_rivalry',812,{'route_freight_settlement'})):
             with self.subTest(scenario=scenario),tempfile.TemporaryDirectory() as directory:
                 out=Path(directory)/'result.json'
-                completed=subprocess.run([sys.executable,'-c',script,scenario,str(seed),str(out)],
-                    env=dict(os.environ,PYTHONHASHSEED='0'),text=True,capture_output=True)
+                runner=Path(directory)/'scenario_receipts.py';runner.write_text(script)
+                completed=subprocess.run([sys.executable,str(runner),scenario,str(seed),str(out)],
+                    env=dict(os.environ,PYTHONHASHSEED='0',PYTHONPATH=str(Path(__file__).resolve().parent)),text=True,capture_output=True)
                 self.assertEqual(0,completed.returncode,completed.stderr)
                 result=json.loads(out.read_text())
                 self.assertEqual(0,result['coverage']['_treasury_account_closure']['gaps'])

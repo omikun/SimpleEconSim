@@ -1,6 +1,7 @@
 """Full live-world checkpoints, branch identity, retries and damaged-save gates."""
 import hashlib
 import json
+import os
 from pathlib import Path
 import random
 import subprocess
@@ -14,7 +15,7 @@ from sim_server.protocol import CommandMessage, CommandType
 from simulation_checkpoint import save, restore, recover
 from trace_audit import audit
 from trace_codec import CorruptTrace
-from simulation_semantics import normalized_metrics
+from simulation_semantics import normalized_metrics,canonical_state,state_digest,graph_differences
 import random_cache
 
 
@@ -32,25 +33,41 @@ class SimulationCheckpointTests(unittest.TestCase):
             original_prefix=original_path.read_bytes()
             server.step()
             expected=normalized_metrics(server)
+            expected_full=canonical_state(server.tiles,server.nations,extra={
+                'turn':server.turn,'currencies':server.currencies,'pair_orders':server.pair_orders,
+                'history':server._nation_history,'scenario':getattr(server,'scenario_state',{})})
+            expected_full_digest=state_digest(expected_full)
             rng=random.getstate();numpy_rng=np.random.get_state()
             expected_digest=hashlib.sha256(json.dumps(sorted(expected.items()),sort_keys=True).encode()).hexdigest()
             script = """import hashlib,json,sys
 from simulation_checkpoint import restore
-from simulation_semantics import normalized_metrics
+from simulation_semantics import normalized_metrics,canonical_state,state_digest
 server=restore(sys.argv[1],sys.argv[2])
 server.step()
 metrics=json.dumps(sorted(normalized_metrics(server).items()),sort_keys=True)
 open(sys.argv[3],'w').write(metrics)
 print('SEMANTIC_DIGEST='+hashlib.sha256(metrics.encode()).hexdigest())
+full=canonical_state(server.tiles,server.nations,extra={
+ 'turn':server.turn,'currencies':server.currencies,'pair_orders':server.pair_orders,
+ 'history':server._nation_history,'scenario':getattr(server,'scenario_state',{})})
+import gzip
+with gzip.open(sys.argv[3]+'.full.json.gz','wt') as file:json.dump(full['graph'],file,separators=(',',':'))
+print('FULL_STATE_DIGEST='+state_digest(full))
 """
-            completed=subprocess.run([sys.executable,'-c',script,str(manifest),str(Path(directory)/'fresh-process'),str(Path(directory)/'metrics.json')],
-                                     check=True,text=True,capture_output=True)
+            runner=Path(directory)/'continue_checkpoint.py';runner.write_text(script)
+            completed=subprocess.run([sys.executable,str(runner),str(manifest),str(Path(directory)/'fresh-process'),str(Path(directory)/'metrics.json')],
+                                     check=True,text=True,capture_output=True,
+                                     env=dict(os.environ,PYTHONPATH=str(Path(__file__).resolve().parent)))
             fresh={tuple(k):v for k,v in json.loads((Path(directory)/'metrics.json').read_text())}
             expected_json={tuple(k):v for k,v in json.loads(json.dumps(sorted(expected.items()),sort_keys=True))}
             fresh_diff={key:(expected_json.get(key),fresh.get(key)) for key in expected_json.keys()|fresh.keys()
                         if expected_json.get(key)!=fresh.get(key)}
             self.assertFalse(fresh_diff,str(list(fresh_diff.items())[:20]))
             self.assertIn('SEMANTIC_DIGEST='+expected_digest,completed.stdout)
+            if 'FULL_STATE_DIGEST='+expected_full_digest not in completed.stdout:
+                import gzip
+                with gzip.open(Path(directory)/'metrics.json.full.json.gz','rt') as file:actual_full=json.load(file)
+                self.fail(str(graph_differences(expected_full['graph'],actual_full)))
             cache=(list(random_cache.rand._buf),random_cache.rand._idx)
             restored=restore(manifest,Path(directory)/'branches')
             self.assertEqual(1,restored.turn)
@@ -60,6 +77,11 @@ print('SEMANTIC_DIGEST='+hashlib.sha256(metrics.encode()).hexdigest())
             self.assertEqual(count,restored.run_trace.count)
             restored.step()
             observed=normalized_metrics(restored)
+            actual_full=canonical_state(restored.tiles,restored.nations,extra={
+                'turn':restored.turn,'currencies':restored.currencies,'pair_orders':restored.pair_orders,
+                'history':restored._nation_history,'scenario':getattr(restored,'scenario_state',{})})
+            self.assertEqual(expected_full_digest,state_digest(actual_full),
+                             str(graph_differences(expected_full['graph'],actual_full['graph'])))
             differences={key:(expected.get(key),observed.get(key)) for key in expected.keys()|observed.keys()
                          if expected.get(key)!=observed.get(key)}
             self.assertFalse(differences,str(list(differences.items())[:12]))

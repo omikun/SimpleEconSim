@@ -56,10 +56,15 @@ annexation, many scenario actions, save/resume or long-run performance.
 | 1–2 | Military/medical/sovereign/rescue/subsidy fixtures; 127 further public probes; command boundaries | Rare branches and complete semantic payment-to-write contracts |
 | 3 | Timed native ownership/institution setters with shared-account fixtures | Additional nation creation/direct edits and scenario acceptance |
 | 4 | Independent economic replay, stock/source contracts and linked snapshots | Unsupported AI/scenario formulas and complete per-metric provenance |
-| 5 | Atomic full SimServer state/trace saves, new branches, RNG and pending-state fixtures, torn-tail recovery | Full semantic/action digest and all-scenario continuation acceptance |
+| 5 | Atomic full SimServer saves, branches, recovery; full economic graph/RNG/action equality in fresh-process default continuation | All-scenario continuation acceptance |
 | 6 | Block index/rebuild, stable queries/export, bounded identity cache and streamed CLI comparisons | Measured memory/query/runtime budgets and retired-reference audit |
 | 7 | Shared web/desktop/CLI explanations, native recording, F11 inspector, historical membership and iPad browser checks | Full scenario/history acceptance and physical-device follow-up if available |
 | 8 | Short probes and deterministic negative fixtures | Multi-seed 30/100-turn acceptance, off/on state/actions and published budgets/report |
+
+Latest short acceptance: `ce15dcf`, four canonical scenarios × on/off, three
+steps each, all checks pass. Matrix: `tmp/acceptance-smoke3-2026-10-23/matrix.json`.
+The release matrix is running from a pinned archive of that commit. Its results
+do not certify later edits until affected gates are rerun.
 
 ## Execution order and gates
 
@@ -678,3 +683,37 @@ receipts; freight and concession fee probes are installed and the native three-
 turn frontier/supply account regression passes. Including market-route, supply-
 rights and cadastral source tests, 31 tests passed. A new pinned smoke run and
 the release matrix are next; long-run gates remain open.
+
+### Full continuation and additional replay evidence (2026-10-23)
+
+The default checkpoint regression now compares the complete canonical economic
+graph, shared references, pending state, native journal order, histories and RNG
+after uninterrupted versus fresh-process restore/continue. Both that fresh
+process and same-process restore match exactly; sampled metrics and retry checks
+also remain in the fixture. This closes the default full-state gate, while other
+scenario continuation cases remain pending.
+
+Added independent arithmetic for water capacity/weather, construction materials/
+labor progress, wage cash/tightness/cap gates, nonfood consumption draws, rent
+rollups, workplace accidents, sabotage/broken stock and zero-order counts.
+Market sold-unit summaries now retain each settled sale quantity and require
+matching upstream sale identity, good, tile, amount and declared links. Negative
+fixtures change primitive inputs or remove/misdirect a source while leaving the
+claimed result unchanged. Initial Gini and collective journal observations no
+longer carry misleading formula identifiers. Eleven replay tests and 33 market/
+labor/catalog regressions passed. Existing default trace records produce no new
+unexpected replay mismatches under the expanded independent replay.
+
+### Diagnosed append overhead (2026-10-23)
+
+The short baseline writes 8.97 MB / 114k rows in three default steps (8.25s with
+recording versus 1.33s without). Egypt writes 37.89 MB / 780k rows (53.09s versus
+1.91s). These establish a performance problem; they are not accepted budgets.
+Writer source review found a file open/close and stat for every record. One owned,
+unbuffered append handle now writes the same framed bytes and publishes its byte
+boundary only after a complete successful write. A forced short write leaves the
+published boundary intact and the damaged tail detectable. A 20,000-record
+comparison with the pinned old codec produced identical 508,637-byte files:
+0.668s before versus 0.091s after on this host (about 7.4× for append alone).
+This microbenchmark does not establish total-turn speedup. Full native run/query/
+recovery correctness and measured final runtime budgets remain required.

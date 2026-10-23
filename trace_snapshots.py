@@ -938,7 +938,6 @@ def gini_metric_evidence(tile, good, turn, before, after):
         return {
             'kind': 'gini_series_initial_observation',
             'record_class': 'observation',
-            'formula_id': 'gini.initial_log_value.v1',
             'confidence': 'unknown',
             'explanation_status': 'previous_series_value_unavailable',
             'inputs': {'refresh_interval_turns': 10,

@@ -41,8 +41,11 @@ def settle(treasury, payer, bank, actor):
         self.assertFalse(set(reviewed) - set(expected), 'stale writer reviews')
         for row in data['writers']:
             if row['id'] in reviewed:
-                self.assertTrue(row['fixtures'])
                 self.assertTrue(row['owner'])
+                if row['review']=='reviewed_nonfinancial_attribute':
+                    self.assertEqual('region_object_reference',row['unit'])
+                    self.assertEqual('not_applicable',row['closure'])
+                else:self.assertTrue(row['fixtures'])
         self.assertTrue(all(row['closure'] == 'not_verified_by_inventory' for row in data['metrics']))
         self.assertTrue(all(row['status'] == 'inventory_incomplete' for row in data['scenarios'].values()))
         fields = {row['field'] for row in data['histories']}

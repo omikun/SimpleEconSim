@@ -682,6 +682,7 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
     units = 0
     prices = []
     sale_event_ids = []
+    settled_sales = []
     imp_units = 0
     imp_value = 0.0
     import_sales_by_source = {}
@@ -932,6 +933,7 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
                 sale_event_ids.append(sale_id)
                 if import_source_entry is not None:
                     import_source_entry['event_ids'].append(sale_id)
+            settled_sales.append({'event_id':sale_id,'quantity':take})
             emit(region, kind='paid_market_unit_price', record_class='observation',
                  subject={'type': 'tile', 'id': region.name, 'good': good.name},
                  metric_id='goods.transaction_price', unit='local_currency_per_unit',
@@ -1077,11 +1079,11 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
     summary_id = emit(region, kind='market_clearing_summary', record_class='calculation',
                       subject={'type': 'tile', 'id': region.name, 'good': good.name},
                       metric_id='goods.sold', unit='units', after=units,
-                      formula_id='market.discriminatory_clear.v1',
+                      formula_id='market.discriminatory_clear.v2',
                       inputs={'offered_asks': total_asks, 'submitted_bids': total_bids,
                               'cash_collected': cash_collected, 'import_units': imp_units,
                               'import_value': imp_value, 'realized_or_reference_price': realized,
-                              'no_paid_sale': not bool(prices)},
+                              'no_paid_sale': not bool(prices),'settled_sales':settled_sales},
                       cause_event_ids=sale_event_ids)
     if summary_id is not None:
         region._auction_import_sale_trace_ids[good] = summary_id

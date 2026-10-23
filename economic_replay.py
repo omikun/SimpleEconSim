@@ -15,6 +15,59 @@ def replay(row):
     formula=row.get('formula_id');i=row.get('inputs') or {};before=row.get('value_before')
     if formula=='military.abstract_payroll_sink.v1':
         return i['payer_cash_before']-i['payer_cash_after']-i['person_wallet_credits']
+    if formula=='labor.effective_workday_cap_sample.v1':return i['effective_workday_cap']
+    if formula=='society.entertainment_level_sample.v1':return i['configured_entertainment_level']
+    if formula=='elite.market_novelty.v1':return len(i['new_goods'])
+    if formula=='water.capacity_rainfall_maintenance.v1':return i['capacity']*i['rainfall']*i['canal_condition']
+    if formula=='rent.obligation_settlement.v1':return sum(claim['paid'] for claim in i['paid_claims'])
+    if formula=='rent.active_obligations.v1':return sum(claim['balance'] for claim in i['active_rent_claims'])
+    if formula=='market.zero_order_tally.v1':
+        return sum(len(group['orders']) for field in ('buyers_by_reason','sellers_by_reason') for group in i[field])
+    if formula=='market.discriminatory_clear.v2':return sum(sale['quantity'] for sale in i['settled_sales'])
+    if formula=='labor.workplace_accident_rollup.v1':
+        return sum(roll['draw']<.015*(roll['shift_hours']/8)*max(.1,1-min(1,roll['safety_investment']))
+                   for roll in i['accident_rolls'])
+    if formula=='labor.sabotage_rollup.v1':
+        count=0
+        for roll in i['firm_rolls']:
+            members=roll['employees']
+            if not members:continue
+            risk=sum(person['despair']*.4+person['alienation']*.3 for person in members)/len(members)+(.2 if roll['on_strike'] else 0)
+            if risk>.55 and roll['draw'] is not None and roll['draw']<risk*.30:count+=1
+        return count
+    if formula=='labor.broken_machinery_closing_stock.v1':
+        return max(0,i['simulation_opening_stock']+i['sabotage_units']-i['repair_units'])
+    if formula=='construction.material_labor_progress.v1':
+        required=sum(i['required_materials'].values())
+        delivered=sum(i['delivered_materials'].get(good,0) for good in i['required_materials'])
+        if (required>0 and delivered==0) or not i['navvy_ids']:return before
+        resources=delivered/required if required>0 else 1
+        labor=min(1.5,len(i['navvy_ids'])/i['required_workers'])
+        return min(100,before+100/max(1,i['total_turns'])*max(.2,resources)*labor)
+    if formula=='labor.tightness_mrpl_cash_policy.v1':
+        tightness=i['labor_market_tightness'];wage=before
+        ceiling=min(i['mrpl_wage_ceiling'],i['wage_cap']) if i['wage_cap'] is not None else i['mrpl_wage_ceiling']
+        if tightness>1:
+            needs_raise=wage<i['reservation_wage'] or i['vacancies']>0
+            if needs_raise and i['cash']>max(10,i['payroll']*1.1) and wage<ceiling:
+                wage=min(ceiling,wage+max(.1,wage*.1*min(3,tightness-1)))
+        elif i['cash']>i['payroll']*5 and i['vacancies']>0:
+            if wage<ceiling:wage=min(ceiling,wage*1.02)
+        elif tightness<.8 and i['cash']<i['payroll']*2.5 and i['worker_count']>0:
+            wage=max(i['food_price'],wage*.96)
+        return min(wage,i['wage_cap']) if i['wage_cap'] is not None else wage
+    if formula=='demographics.nonfood_consumption.v1':
+        units=0
+        for component in i['consumption_components']:
+            mechanism=component['mechanism'];stock=component['stock_before']
+            if mechanism=='wealth_multiplier':
+                consumed=min(max(1,int(component['consumption_multiplier']*.5)),stock,5)
+            elif mechanism=='wood_stockpile_drawdown':consumed=int(stock>component['threshold_units'])
+            elif mechanism=='furniture_stochastic_wear':
+                consumed=int(stock>0 and component['random_draw']<component['consumption_threshold'])
+            else:return NotImplemented
+            units+=consumed
+        return before-units
     if formula=='bank.cash_to_deposit.v1':
         return i['deposit_before']+max(0.0,i['requested_amount'])
     if formula=='bank.deposit_to_cash.v1':
