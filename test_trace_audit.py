@@ -17,6 +17,24 @@ class TraceAuditTests(unittest.TestCase):
             self.assertEqual(1,result['counts']['unresolved_causes'])
             self.assertEqual(1,result['counts']['formula_verified'])
 
+    def test_omitted_required_link_fails_even_with_matching_balance(self):
+        with tempfile.TemporaryDirectory() as d:
+            trace=RunTrace(Path(d)/'required.ctr','required');clock={'turn':1,'next':1}
+            subject={'type':'public_account','id':'A'}
+            opening=trace.emit(clock,kind='opening',after=10,subject=subject)
+            operation=trace.emit(clock,kind='public_account_write',before=10,after=12,subject=subject)
+            trace.emit(clock,kind='public_account_close',record_class='calculation',
+                       metric_id='finance.public_account_balance',subject=subject,before=10,after=12,
+                       formula_id='treasury.account_chain.v1',
+                       inputs={'opening_balance':10,'opening_source_event_id':opening,
+                               'operations':[{'event_id':operation,'before':10,'after':12}]},
+                       cause_event_ids=[opening])
+            result=audit(trace.path)
+            self.assertFalse(result['structural_and_supported_formula_checks_pass'])
+            self.assertEqual(1,result['counts']['source_contract_failures'])
+            self.assertEqual(1,result['counts']['formula_verified'])
+            self.assertEqual('required_cause_not_declared',result['issues'][0]['source_contract_issues'][0]['problem'])
+
     def test_price_snapshot_requires_ordered_bridge(self):
         with tempfile.TemporaryDirectory() as d:
             trace=RunTrace(Path(d)/'price.ctr','price');clock={'turn':1,'next':1}

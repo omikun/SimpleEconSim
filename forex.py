@@ -428,7 +428,7 @@ class ForexDesk:
                           'base_currency': self.home, 'quote_currency': self.other},
                  metric_id='fx.bilateral_mid', unit='home_currency_per_foreign_currency',
                  before=old_mid, after=self.mid, formula_id='forex.reserve_ppp.v1',
-                 inputs={'regime': fx_regime, 'domestic_fx_pool': bank.fx_pool,
+                 inputs={'regime': fx_regime, 'adjustment_speed': self.adj_speed, 'domestic_fx_pool': bank.fx_pool,
                          'deposits': deposits, 'target_pool': target_pool,
                          'partner_reserves': reserves, 'target_reserves': self.target_reserves,
                          'reserve_ratio': ratio, 'pressure_term': pressure,

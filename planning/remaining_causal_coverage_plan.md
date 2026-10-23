@@ -466,3 +466,28 @@ now normalizes project identity by tile and native creation order while retainin
 all values and references. This is explicitly a metric comparison, not a digest
 of every internal model field. The combined recorder/checkpoint/source-audit
 checks passed 51 tests after these findings were corrected.
+
+
+### Independent formula and required-source progress (2026-10-23)
+
+Added independent replay for cash/deposit and FX transitions, production and
+tribute, GDP/inventory/population aggregations, wages/work hours, nutrition,
+mortality/treatment, ecology, legitimacy and trade values. Captured missing
+primitive FX adjustment speed/caloric conversion inputs and exact production
+receipts; retained full tenure precision. Disease case counts now include the
+actual counted patient IDs. Construction funding priority is a decision record.
+
+Stock closures, production totals, ordered price bridges and explained snapshots
+now have explicit required-source checks. Snapshots link their actual producing
+record. Matching arithmetic cannot conceal an omitted required cause, a different
+physical account or a contradictory source value. A negative fixture removes a
+required link while keeping the number correct and verifies that the audit fails.
+Six independent replay fixtures perturb primitive inputs and retain unsupported
+formulas as unsupported. Combined recorder/financial/checkpoint/flow checks passed
+58 tests. Fresh default seed-4242 three-turn evidence has 114,376 rows, 35,949
+formula matches, 17,030 required-source contract matches, three checkpoints and
+no unexplained changed snapshots or structural failures. It still contains 6,583
+unsupported replay records and 41,764 formula records outside required-source
+contracts; these remain explicitly unverified. Report:
+`tmp/replay_source_contracts_default_2026_10_23.json`. AI/scenario formulas and
+full per-metric provenance contracts remain open.

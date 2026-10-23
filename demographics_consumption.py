@@ -154,6 +154,7 @@ def _trace_food_intake(region, agent, *, turn, outcome, desired, eaten,
         return None
     from run_trace import emit
 
+    from nutrition import CALORIES_PER_FOOD
     operation_id = f'food-intake:{region.name}:{int(turn)}:{agent.id}'
     return emit(
         region, kind='household_food_intake', record_class='calculation',
@@ -192,6 +193,7 @@ def _trace_food_intake(region, agent, *, turn, outcome, desired, eaten,
                 'emergency_ration_units_returned_to_inventory': max(
                     0, int(reserved_before) - int(reserved_consumed)),
                 'effective_calorie_need_kcal': float(calorie_need),
+                'calories_per_food_unit': CALORIES_PER_FOOD,
                 'metabolic_need_factor': float(metabolic_factor),
                 'calorie_deficit_before_kcal': float(deficit_before),
                 'calorie_deficit_after_kcal': float(deficit_after),

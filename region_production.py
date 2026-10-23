@@ -444,7 +444,7 @@ def produce_independent(region, agent, recipe, output, num_agents_per_good,
                                     'activity_event_id': activity_event_id,
                                     'base_production': recipe['production'],
                                     'terrain_multiplier': terrain_mult,
-                                    'tenure_multiplier': round(tenure_mult, 4),
+                                    'tenure_multiplier': tenure_mult,
                                     'inputs_used': recipe['numInput'] if recipe['numInput'] > 0 else 0,
                                     'inventory_before': agent.inv_get(output, 0)})
             if receipt_ids is not None and event_id is not None:
@@ -600,6 +600,10 @@ def produce(region, t):
                  after=local_total_production[g],
                  formula_id='production.sum_receipts.v1',
                  inputs={'producer_count': num_agents_per_good.get(g, 0),
+                         'producer_receipts': [
+                             {'event_id': ident, 'units': region._run_trace._turn_production_receipts[ident]}
+                             for ident in receipt_ids.get(g, [])]
+                         if getattr(region, '_run_trace', None) is not None else [],
                          'granary_stock': getattr(region, 'granary_stock', None),
                          'wool_from_pasture': wool_yield_total if g == Goods.wool else 0,
                          'granary_release_units': granary_release_units if g == Goods.food else 0},

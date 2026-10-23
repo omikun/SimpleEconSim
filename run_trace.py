@@ -31,6 +31,7 @@ class RunTrace:
         self._active_turn = None
         self._stock_closures = {}
         self._calculated = set()
+        self._calculated_value_sources = {}
         self._calculated_values = {}
         self._latest_calculation_event_ids = {}
         self._latest_metric_event_ids = {}
@@ -39,6 +40,7 @@ class RunTrace:
         self._person_flow_events = {}
         self._person_event_classes = {}
         self._previous_person_flow_events = {}
+        self._turn_production_receipts = {}
         self._turn_production_events = {}
         self._turn_tile_production_events = {}
         self._turn_temporary_activity_events = {}
@@ -109,6 +111,7 @@ class RunTrace:
             self.treasury_book.start_turn(self._active_turn)
             self._stock_closures.clear()
             self._calculated.clear()
+            self._calculated_value_sources.clear()
             self._calculated_values.clear()
             self._latest_calculation_event_ids.clear()
             self._latest_metric_event_ids.clear()
@@ -117,6 +120,7 @@ class RunTrace:
             self._previous_person_flow_events = self._person_flow_events
             self._person_flow_events = {}
             self._person_event_classes = {}
+            self._turn_production_receipts = {}
             self._turn_production_events = {}
             self._turn_tile_production_events = {}
             self._turn_temporary_activity_events = {}
@@ -227,30 +231,7 @@ class RunTrace:
                     causes.append(source_event_id)
             if causes:
                 row['cause_event_ids'] = causes
-        if formula_id is not None and (formula_id in (
-                'aggregate.mean.v1', 'aggregate.sum.v1') or metric_id in (
-                'goods.price', 'goods.seller_ask', 'goods.delivered_quote',
-                'goods.transaction_vwap', 'goods.scenario_transaction_vwap',
-                'goods.scenario_market_coverage',
-                'goods.demand', 'goods.supply',
-                'goods.demand_ratio', 'living.cost_of_living',
-                'goods.national_reference_price', 'goods.national_food_price',
-                'labor.firm_surplus_value', 'labor.surplus_value',
-                'labor.exploitation_rate', 'finance.bank_equity',
-                'finance.bank_capital', 'finance.bank_deposits', 'finance.bank_liabilities',
-                'finance.public_account_balance', 'finance.treasury',
-                'finance.total_cash', 'labor.workhouse_inmates',
-                'labor.forced_labor_hours', 'land.pasture_fraction',
-                'people.population_change_rate', 'trade.trader_cash',
-                'trade.pipeline_depth', 'finance.fiscal_deficit',
-                'finance.fiscal_gap', 'finance.tax_rate',
-                'finance.tax_assessment', 'finance.tax_distribution',
-                'innovation.domain_experience', 'innovation.bottleneck_pressure',
-                'innovation.breakthrough', 'innovation.diffusion_progress',
-                'innovation.bounty_escrow', 'politics.faction_support',
-                'politics.faction_grievance', 'labor.primary_livelihood',
-                'labor.employment_status', 'labor.hungry_adults',
-                'labor.temporary_work_share')):
+        if formula_id is not None:
             from price_trace import replay_event
             replay = replay_event(row)
             if replay is not None:
@@ -281,6 +262,10 @@ class RunTrace:
         except OSError as exc:
             self.write_error = str(exc)
         else:
+            if (record_class in ('calculation','transfer','outcome') and metric_id is not None
+                    and subject is not None and after is not None
+                    and row.get('formula_replay',{}).get('matches',True)):
+                self._calculated_value_sources[provenance_key] = row['event_id']
             if metric_id is not None and subject is not None:
                 self._latest_metric_event_ids[(
                     metric_id, json.dumps(subject, sort_keys=True))] = row['event_id']
@@ -331,6 +316,7 @@ class RunTrace:
                 and row.get('subject', {}).get('good') is not None):
             key = (str(row['subject'].get('id')), str(row['subject']['good']))
             self._turn_production_events[key] = row['event_id']
+            self._turn_production_receipts[row['event_id']] = row.get('value_after', 0)
         if (self.write_error is None and metric_id == 'goods.production'
                 and kind == 'tile_production_total'
                 and row.get('subject', {}).get('type') == 'tile'
@@ -432,9 +418,13 @@ class RunTrace:
         if metric_id == 'goods.price':
             verified, closing = self._stock_closures.get(key, (False, None))
             explained = explained and verified and closing == after
+        source_event_id = self._calculated_value_sources.get(key) if explained else None
+        explained = explained and source_event_id is not None
         event_id = self.emit(clock, kind='metric_snapshot', record_class='observation',
                              subject=subject, metric_id=metric_id, unit=unit,
                              before=before, after=after,
+                             inputs={'source_event_id': source_event_id},
+                             cause_event_ids=[source_event_id] if source_event_id else [],
                              confidence='exact' if explained else 'unknown',
                              explanation_status='calculation_recorded' if explained else
                              'source_missing')
@@ -468,7 +458,7 @@ class RunTrace:
             gaps.append({'expected_closing': after, 'recorded_closing': current})
         reconciled = not gaps and self.write_error is None
         change = after - before if before is not None else None
-        return self.emit(clock, kind='price_bridge', record_class='audit',
+        bridge_id = self.emit(clock, kind='price_bridge', record_class='audit',
                          subject=subject, metric_id='goods.price', unit=unit,
                          before=before, after=after,
                          confidence='exact' if reconciled else 'unknown',
@@ -479,6 +469,9 @@ class RunTrace:
                                  'percent_change': 100 * change / before
                                  if change is not None and before != 0 else None},
                          cause_event_ids=[row['event_id'] for row in mutations])
+        if reconciled and self.write_error is None:
+            self._calculated_value_sources[('goods.price', json.dumps(subject, sort_keys=True))] = bridge_id
+        return bridge_id
 
     def checkpoint(self, clock):
         """End a turn with a count and hash of every preceding decoded row."""

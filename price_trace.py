@@ -334,7 +334,10 @@ def replay_event(row):
         adults = row['inputs']['adult_records']
         expected = sum(person['temporary_work_share'] for person in adults) / max(1, len(adults))
     else:
-        return None
+        from economic_replay import replay
+        expected = replay(row)
+        if expected is NotImplemented:
+            return None
     actual = row['value_after']
     return {'expected': expected, 'actual': actual,
             'matches': math.isclose(expected, actual, rel_tol=1e-10, abs_tol=1e-10)}

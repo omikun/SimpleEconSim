@@ -203,7 +203,7 @@ class BuildIntent(Intent):
 
         funding_plan_event_id = emit(
             region, kind='construction_funding_plan',
-            record_class='calculation', phase='strategy',
+            record_class='decision', phase='strategy',
             subject={'type': 'tile/intent', 'id': self.intent_id,
                      'tile': region.name},
             operation_id=operation_id,

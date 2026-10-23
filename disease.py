@@ -577,7 +577,10 @@ def step_medical_care(region, t: int, rand_gen=None) -> dict:
         emit(region, kind='disease_cases_observed', record_class='calculation',
              subject={'type': 'tile', 'id': region.name, 'disease': disease},
              metric_id='health.disease_cases', unit='people', after=case_count,
-             inputs={'disease': disease, 'counted_after_treatment': True})
+             formula_id='disease.count_active_cases.v1',
+             inputs={'disease': disease, 'counted_after_treatment': True,
+                     'case_agent_ids': [person.id for person in agents
+                         if getattr(person, 'alive', True) and disease in getattr(person, 'diseases', [])]})
     emit(region, kind='medical_care_summary', record_class='calculation',
          subject={'type': 'tile', 'id': region.name},
          metric_id='health.medical_spending', unit='local_currency',
