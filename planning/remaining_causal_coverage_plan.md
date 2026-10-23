@@ -454,3 +454,15 @@ Local usage: `venv/bin/python simulation_checkpoint.py --turns 3 --directory
 tmp/checkpoints` prints the committed manifest. Continue with `--restore
 <manifest> --turns 3`. The web server accepts `--restore-checkpoint <manifest>`
 and resumes paused on a new branch. These saves are separate from map presets.
+
+
+### Checkpoint acceptance refinement (2026-10-23)
+
+Broader test ordering loaded the scenario evaluator's static lambda dispatch,
+which standard serialization cannot reference by name. Replaced its two logical
+callbacks with equivalent module functions so the registry is retained. Another
+continuation fixture created new UUID-based projects; sampled-metric comparison
+now normalizes project identity by tile and native creation order while retaining
+all values and references. This is explicitly a metric comparison, not a digest
+of every internal model field. The combined recorder/checkpoint/source-audit
+checks passed 51 tests after these findings were corrected.

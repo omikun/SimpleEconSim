@@ -14,7 +14,7 @@ from sim_server.protocol import CommandMessage, CommandType
 from simulation_checkpoint import save, restore, recover
 from trace_audit import audit
 from trace_codec import CorruptTrace
-from trace_snapshots import sample
+from simulation_semantics import normalized_metrics
 import random_cache
 
 
@@ -31,18 +31,25 @@ class SimulationCheckpointTests(unittest.TestCase):
             original_path=server.run_trace.path
             original_prefix=original_path.read_bytes()
             server.step()
-            expected=sample(server.tiles,server.nations)
+            expected=normalized_metrics(server)
             rng=random.getstate();numpy_rng=np.random.get_state()
             expected_digest=hashlib.sha256(json.dumps(sorted(expected.items()),sort_keys=True).encode()).hexdigest()
             script = """import hashlib,json,sys
 from simulation_checkpoint import restore
-from trace_snapshots import sample
+from simulation_semantics import normalized_metrics
 server=restore(sys.argv[1],sys.argv[2])
 server.step()
-print('SEMANTIC_DIGEST='+hashlib.sha256(json.dumps(sorted(sample(server.tiles,server.nations).items()),sort_keys=True).encode()).hexdigest())
+metrics=json.dumps(sorted(normalized_metrics(server).items()),sort_keys=True)
+open(sys.argv[3],'w').write(metrics)
+print('SEMANTIC_DIGEST='+hashlib.sha256(metrics.encode()).hexdigest())
 """
-            completed=subprocess.run([sys.executable,'-c',script,str(manifest),str(Path(directory)/'fresh-process')],
+            completed=subprocess.run([sys.executable,'-c',script,str(manifest),str(Path(directory)/'fresh-process'),str(Path(directory)/'metrics.json')],
                                      check=True,text=True,capture_output=True)
+            fresh={tuple(k):v for k,v in json.loads((Path(directory)/'metrics.json').read_text())}
+            expected_json={tuple(k):v for k,v in json.loads(json.dumps(sorted(expected.items()),sort_keys=True))}
+            fresh_diff={key:(expected_json.get(key),fresh.get(key)) for key in expected_json.keys()|fresh.keys()
+                        if expected_json.get(key)!=fresh.get(key)}
+            self.assertFalse(fresh_diff,str(list(fresh_diff.items())[:20]))
             self.assertIn('SEMANTIC_DIGEST='+expected_digest,completed.stdout)
             cache=(list(random_cache.rand._buf),random_cache.rand._idx)
             restored=restore(manifest,Path(directory)/'branches')
@@ -52,7 +59,7 @@ print('SEMANTIC_DIGEST='+hashlib.sha256(json.dumps(sorted(sample(server.tiles,se
             self.assertEqual(response,restored.execute_command(command))
             self.assertEqual(count,restored.run_trace.count)
             restored.step()
-            observed=sample(restored.tiles,restored.nations)
+            observed=normalized_metrics(restored)
             differences={key:(expected.get(key),observed.get(key)) for key in expected.keys()|observed.keys()
                          if expected.get(key)!=observed.get(key)}
             self.assertFalse(differences,str(list(differences.items())[:12]))

@@ -7,6 +7,14 @@ import operator
 from typing import Any, Dict
 
 
+def _logical_and(a, b):
+    return a and b
+
+
+def _logical_or(a, b):
+    return a or b
+
+
 # Whitelist of supported AST binary and comparison operators
 OPERATORS = {
     ast.Add: operator.add,
@@ -22,8 +30,8 @@ OPERATORS = {
     ast.LtE: operator.le,
     ast.Gt: operator.gt,
     ast.GtE: operator.ge,
-    ast.And: lambda a, b: a and b,
-    ast.Or: lambda a, b: a or b,
+    ast.And: _logical_and,
+    ast.Or: _logical_or,
 }
 
 UNARY_OPERATORS = {
