@@ -123,6 +123,11 @@ def canonical_state(tiles,nations,*,extra=None):
             event='kind' in value or 'record_class' in value
             entries=[]
             for k,v in value.items():
+                if k=='event_ids' and set(value)=={'quantity','value','event_ids'}:
+                    # Native settled-sale aggregates retain optional recorder
+                    # receipts alongside their actual quantity and cash value.
+                    omitted['settled_sale_receipt_event_ids']+=1
+                    continue
                 if skip(k,event,'source_link_status' in value,set(value)=={'turn','value','event_id'}):continue
                 if k=='sequence' and 'turn' in value and isinstance(v,int):v=sequence_ranks[v]
                 if k=='source_id' and 'kind' in value and 'amount' in value and (v is None or

@@ -21,8 +21,18 @@ import random_cache
 
 class SimulationCheckpointTests(unittest.TestCase):
     def test_live_state_rng_shared_accounts_and_retry_continue_on_new_branch(self):
+        self._assert_continuation(None)
+
+    def test_authored_server_scenarios_continue_with_full_economic_graph(self):
+        for scenario in ('labor_frontier_rivalry', 'supply_rivalry'):
+            with self.subTest(scenario=scenario):
+                self._assert_continuation(scenario)
+
+    def _assert_continuation(self, scenario):
         with tempfile.TemporaryDirectory() as directory:
-            server=SimServer(seed=4242,terrain_seed=4242,nation_seed=4242)
+            seed={'labor_frontier_rivalry':612,'supply_rivalry':812}.get(scenario,4242)
+            server=SimServer(seed=seed,terrain_seed=seed,nation_seed=seed,
+                             scenario_id=scenario,topology='hex' if scenario else 'voronoi')
             nation=server.nations[0]
             command=CommandMessage(CommandType.SOVEREIGN_BOND,
                 {'action':'lobby_upgrade','nation':nation.name},command_id='saved-command')

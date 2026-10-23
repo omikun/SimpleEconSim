@@ -6,6 +6,19 @@ from simulation_semantics import canonical_state
 
 
 class SemanticStateTests(unittest.TestCase):
+    def test_settled_sale_receipt_ids_are_observational_but_values_are_retained(self):
+        sale = {'quantity': 2, 'value': 43.18, 'event_ids': ['trace:1']}
+        tile = SimpleNamespace(sale=sale)
+        before = self.state([tile])
+        sale['event_ids'] = []
+        self.assertEqual(before, self.state([tile]))
+        sale['value'] += 1
+        self.assertNotEqual(before, self.state([tile]))
+        tile.sale = {'event_ids': ['native-gameplay-event']}
+        before = self.state([tile])
+        tile.sale['event_ids'] = []
+        self.assertNotEqual(before, self.state([tile]))
+
     def test_code_signature_retains_rules_without_marshal_identity(self):
         from python_code_signature import code_signature
         import types

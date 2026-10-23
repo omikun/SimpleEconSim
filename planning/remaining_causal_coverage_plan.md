@@ -799,3 +799,16 @@ pass). The supply-rivalry seed-812 full 20-turn on/off pair passes every gate.
 The frontier pair still requires inspection. Full default checkpoint continuation
 also passes again after persistent append handles and the new sampling probes
 (same-process and fresh-process full economic graph, RNG and actions).
+
+The frontier's only remaining mismatch was the optional `event_ids` list in a
+settled sale's `{quantity, value, event_ids}` aggregate. The canonical comparison
+now omits only that receipt field for that exact native aggregate shape, counting
+the omission. Actual quantities/values and unrelated event-ID lists remain in
+the economic graph; a regression changes each to verify the distinction.
+Recorder-off seed-4242 native simulation now reaches 100 turns with zero
+per-currency violations after the government-denomination correction. This does
+not replace full on/off replay and closure acceptance at the corrected revision.
+Both authored SimServer scenarios now also pass full economic-graph continuation
+in fresh processes and in the saving process, with RNG, shared references,
+histories and command retry identities preserved (seven focused semantic and
+continuation tests). Native desktop Egypt continuation remains open.
