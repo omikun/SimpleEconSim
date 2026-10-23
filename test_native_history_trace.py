@@ -53,6 +53,33 @@ class NativeHistoryTraceTests(unittest.TestCase):
         self.assertEqual([source['event_id']], held['cause_event_ids'])
         self.assertTrue(held['formula_replay']['matches'])
 
+    def test_gini_command_epoch_reuses_sample_and_rejects_unrecorded_history_write(self):
+        from gini_trace import record_sample
+        from trace_snapshots import record
+        from trace_audit import audit
+        tile, trace = self.fixture()
+        tile.agents = [self.person(10), self.person(30)]
+        tile.gini_log[Goods.food].append(.25)
+        record_sample(tile, tile.agents, Goods.food, 10, tile.gini_log[Goods.food])
+        source = trace.query(kind='gini_series_calculation')['events'][0]
+        tile.agents[0].cash = 1000
+        tile._collective_trace_clock['epoch'] = 1
+        server = SimpleNamespace(tiles=[tile], nations=[], run_trace=trace, _trace_previous={})
+        record(server)
+        retained = trace.query(kind='gini_history_sample_retained')['events'][0]
+        self.assertEqual([source['event_id']], retained['cause_event_ids'])
+        lookup = lambda ident: trace.query(event_id=ident)['events'][0]
+        self.assertTrue(validate(retained, lookup)['matches'])
+        retained['inputs']['sampled_gini'] = .5
+        self.assertFalse(validate(retained, lookup)['matches'])
+        self.assertTrue(audit(trace.path)['structural_and_supported_formula_checks_pass'])
+        tile.gini_log[Goods.food][-1] = .6
+        tile._collective_trace_clock['epoch'] = 2
+        record(server)
+        snapshots = trace.query(kind='metric_snapshot', metric_id='economy.gini',
+                                subject={'good':'food'}, limit=50)['events']
+        self.assertEqual('source_missing', snapshots[-1]['explanation_status'])
+
     def test_disease_death_is_linked_across_turns_and_counter_reset(self):
         from health_trace import remember_fatality
         tile, trace = self.fixture()
@@ -107,6 +134,43 @@ class NativeHistoryTraceTests(unittest.TestCase):
         receipt = trace.query(event_id=production['cause_event_ids'][0])['events'][0]
         self.assertEqual(person.id, receipt['inputs']['agent_id'])
         self.assertEqual(1, receipt['value_after'])
+        self.assertTrue(audit(trace.path)['structural_and_supported_formula_checks_pass'])
+
+    def test_wilderness_gini_is_its_zero_history_even_with_roundoff_cash(self):
+        from wilderness import step_wilderness
+        from trace_snapshots import record
+        from trace_audit import audit
+        tile, trace = self.fixture()
+        tile.wilderness = True
+        tile._collective_trace_clock['turn'] = 70
+        person = self.person(-2.220446049250313e-16)
+        person.output = Goods.furniture
+        tile.agents = [person]
+        step_wilderness(tile, 70)
+        record(SimpleNamespace(tiles=[tile], nations=[], run_trace=trace, _trace_previous={}))
+        row = trace.query(kind='gini_series_calculation', subject={'good':'furniture'})['events'][0]
+        self.assertEqual('gini.wilderness_zero.v1', row['formula_id'])
+        self.assertEqual(0, row['value_after'])
+        self.assertTrue(audit(trace.path)['structural_and_supported_formula_checks_pass'])
+
+    def test_fractional_emergency_food_records_exact_transfer_legs(self):
+        from nutrition import appetite_units
+        from trace_audit import audit
+        tile, trace = self.fixture()
+        person = self.person(0)
+        target = appetite_units(person)
+        person.inv_add(Goods.food, target-.75)
+        tile.agents = [person]
+        tile.gov.emergency_food_policy = True
+        tile.gov.food_inventory = 10.25
+        given = tile.gov.provide_food_aid(10, tile.agents, 1, region=tile)
+        self.assertEqual(.75, given)
+        row = trace.query(kind='government_food_aid_recipient')['events'][0]
+        self.assertEqual(.75, row['inputs']['units'])
+        self.assertEqual(.75, row['inputs']['transfer_contract']['amount'])
+        self.assertEqual(9.5, row['inputs']['government_food_after'])
+        self.assertEqual(target, row['value_after'])
+        self.assertTrue(row['formula_replay']['matches'])
         self.assertTrue(audit(trace.path)['structural_and_supported_formula_checks_pass'])
 
 

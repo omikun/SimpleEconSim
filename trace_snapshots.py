@@ -897,67 +897,6 @@ def sample(tiles, nations, *, labor_censuses=None):
     return values
 
 
-def gini_metric_evidence(tile, good, turn, before, after):
-    """Replay the existing 10-turn cash-Gini refresh or its held-value branch."""
-    members = (sorted(
-        ({'agent_id': str(agent.id), 'cash': float(agent.cash)}
-         for agent in getattr(tile, 'agents', ())
-         if not getattr(agent, 'is_trader', False)
-         and getattr(agent, 'output', None) == good),
-        key=lambda row: (row['cash'], row['agent_id']))
-        if good != Goods.gov else [])
-    cash_values = [row['cash'] for row in members]
-    count = len(cash_values)
-    total_cash = sum(cash_values)
-    weighted_cash = sum((index + 1) * cash
-                        for index, cash in enumerate(cash_values))
-    refresh_turn = int(turn) % 10 == 0
-    if refresh_turn:
-        replay = ((2.0 * weighted_cash) / (count * total_cash)
-                  - (count + 1.0) / count
-                  if count and total_cash > 0 else 0.0)
-        matches = replay == float(after)
-        return {
-            'kind': 'gini_series_calculation',
-            'record_class': 'calculation' if matches else 'observation',
-            'formula_id': 'gini.cash_by_output.v1',
-            'confidence': 'exact' if matches else 'unknown',
-            'explanation_status': ('recomputed_from_cash_holdings' if matches
-                                   else 'replay_mismatch'),
-            'inputs': {'refresh_interval_turns': 10,
-                       'recomputed_this_turn': True,
-                       'output_good': good.name,
-                       'member_count': count,
-                       'members_sorted_by_cash': members,
-                       'total_cash': total_cash,
-                       'weighted_cash_sum': weighted_cash,
-                       'formula_result': replay,
-                       'recorded_gini': float(after),
-                       'replay_matches': matches}}
-    if before is None:
-        return {
-            'kind': 'gini_series_initial_observation',
-            'record_class': 'observation',
-            'confidence': 'unknown',
-            'explanation_status': 'previous_series_value_unavailable',
-            'inputs': {'refresh_interval_turns': 10,
-                       'recomputed_this_turn': False,
-                       'output_good': good.name,
-                       'recorded_gini': float(after)}}
-    matches = float(before) == float(after)
-    return {
-        'kind': 'gini_series_calculation',
-        'record_class': 'calculation' if matches else 'observation',
-        'formula_id': 'gini.retain_previous_value.v1',
-        'confidence': 'exact' if matches else 'unknown',
-        'explanation_status': ('held_between_refreshes' if matches
-                               else 'unexpected_change_between_refreshes'),
-        'inputs': {'refresh_interval_turns': 10,
-                   'recomputed_this_turn': False,
-                   'output_good': good.name,
-                   'previous_gini': float(before),
-                   'recorded_gini': float(after),
-                   'replay_matches': matches}}
 
 
 def record(server):
@@ -1389,11 +1328,12 @@ def record(server):
                 import json
                 existing=server.run_trace._calculated_values.get((key[0],json.dumps(subject,sort_keys=True)))
                 if tile is not None and good is not None and existing!=after:
-                    evidence = gini_metric_evidence(
-                        tile, good, clock.get('turn', 0), before, after)
-                    server.run_trace.emit(
-                        clock, subject=subject, metric_id=key[0], unit=unit,
-                        before=before, after=after, **evidence)
+                    from gini_trace import retained_sample
+                    evidence = retained_sample(tile, good, after)
+                    if evidence is not None:
+                        server.run_trace.emit(
+                            clock, subject=subject, metric_id=key[0], unit=unit,
+                            before=before, after=after, **evidence)
             if key[0] == 'goods.price':
                 server.run_trace.price_bridge(clock, subject=subject,
                                               before=before, after=after, unit=unit)

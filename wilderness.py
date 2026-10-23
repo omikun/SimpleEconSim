@@ -157,6 +157,10 @@ def step_wilderness(region, t):
         profession_groups['trader'] = []
         _trace_profession_population(region, profession_groups)
     _align_logs(region)
+    from gini_trace import record_sample
+    for good, history in region.gini_log.items():
+        if history:
+            record_sample(region, (), good, t, history)
     # This turn's food-production entry reflects the foraged units (GDP too).
     region.production_log[Goods.food][-1] = foraged
     region.population_log[Goods.food][-1] = len(region.agents)

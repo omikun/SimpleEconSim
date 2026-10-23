@@ -890,3 +890,27 @@ profiled scenario. The two profiler runs measured 15.082s and 13.919s; they were
 not isolated benchmarks and do not establish a final runtime budget. Forty-six
 recorder/codec/index/explanation tests pass after the reuse change. The change
 does not alter storage, recorded values or subject key semantics.
+
+### Hundred-turn evidence and late sampling repairs (2026-10-23)
+
+The frozen `5692825` default seed-4242 100-turn on/off pair has identical full
+economic state/RNG/actions, zero currency violations, zero missing changed
+snapshots and zero public/bank closure gaps. Its 4,466,699-row trace still has ten
+supported-formula mismatches in two classes; therefore the pair fails release
+acceptance. The broader matrix continues to collect other seeds/scenarios.
+
+The failures are observational: native wilderness histories store zero Gini
+even when tiny negative cash roundoff would produce a nonzero cash-derived Gini;
+and fractional emergency food transfers were truncated to integers in recorded
+inventory balances and quantities. Wilderness now records its actual zero-series
+writer. Public food/levy records preserve actual fractional measurements; native
+allocation and counters are unchanged. Cross-command Gini snapshots now retain
+the actual earlier sample with required source identity/value contracts. Removed
+the inactive late-cash reconstruction fallback and its obsolete diagnostic test;
+missing or edited history samples remain explicit gaps.
+
+Regressions cover roundoff cash in wilderness, fractional food transfer legs,
+retained samples across command epochs, source tampering and an unrecorded Gini
+history edit. Eighty focused history/food/replay/recorder/explanation tests pass;
+the financial inventory baseline still matches. The affected long pair needs a
+new frozen-source rerun before these repairs can be accepted at release scale.

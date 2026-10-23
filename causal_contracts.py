@@ -8,7 +8,7 @@ import math
 
 SUPPORTED = {'bank.opening_plus_transitions.v1', 'treasury.account_chain.v1',
              'treasury.closed_accounts.v1', 'production.sum_receipts.v1','market.discriminatory_clear.v2',
-             'disease.threshold_crossing_fatalities.v1'}
+             'disease.threshold_crossing_fatalities.v1', 'gini.recorded_sample.v1'}
 
 
 def requirements(row):
@@ -55,6 +55,10 @@ def requirements(row):
                                        'probability_without_disease': person['probability_without_disease'],
                                        'active_diseases': person['active_diseases'],
                                        'died': True, 'disease_attributed_by_threshold_crossing': True}}))
+    elif formula=='gini.recorded_sample.v1':
+        result.append(('source_event_id', i.get('source_event_id'),
+                       {'metric_id':'economy.gini', 'subject':row['subject'],
+                        'value_after':i['sampled_gini']}))
     return result
 
 

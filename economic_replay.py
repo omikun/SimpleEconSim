@@ -203,6 +203,8 @@ def replay(row):
     if formula=='charity.food_distribution_transfer.v1':return 1 if i['charity_inventory_before']>0 else 0
     if formula=='charity.food_aid_allocation.v1':return min(math.ceil(max(0,i['food_inventory_before'])),len(i['selected_hungry_ids'])+i['young_candidates'])
     if formula=='gini.retain_previous_value.v1':return i['previous_gini']
+    if formula=='gini.recorded_sample.v1':return i['sampled_gini']
+    if formula=='gini.wilderness_zero.v1':return 0 if i['wilderness'] else NotImplemented
     if formula=='gini.cash_by_output.v1':
         values=sorted(person['cash'] for person in i['members_sorted_by_cash'])
         n=len(values);total=sum(values)
