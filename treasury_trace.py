@@ -3,6 +3,7 @@
 Only explicitly probed writes enter a chain. Unrecorded writes and changes in
 account membership remain audits even if their net effect happens to cancel.
 """
+from trace_clock import boundary
 import json
 import math
 
@@ -49,6 +50,9 @@ def finish_public_change(context, kind, *, inputs=None, cause_event_ids=None):
         return []
     book, clock, before, source_name = context
     operation_id = f'{book.trace.run_id}:public-write:{clock["next"]}'
+    cause_event_ids = list(cause_event_ids or ())
+    command = clock.get('command_event_id')
+    if command is not None and command not in cause_event_ids:cause_event_ids.append(command)
     event_ids = []
     for key, opening in before:
         info = book.accounts[key]
@@ -156,7 +160,7 @@ class TreasuryTraceBook:
         return event_id
 
     def close(self, nations, clock, previous_values):
-        self.start_turn(clock.get('turn', 0))
+        self.start_turn(boundary(clock))
         supported = []
         for nation in nations:
             if callable(getattr(nation, '_treasury_entities', None)):

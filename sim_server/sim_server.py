@@ -3,6 +3,7 @@ sim_server/sim_server.py — Authoritative Simulation Server implementation.
 """
 
 import time
+from trace_clock import trace_command_boundary
 import random
 import threading
 import uuid
@@ -551,6 +552,7 @@ class SimServer:
                 't': turn, 'kind': kind, 'text': text, 'color': color
             })
 
+    @trace_command_boundary
     def execute_command(self, cmd: CommandMessage) -> Dict[str, Any]:
         """Dispatch and execute an authoritative player / AI command."""
         with self._lock:

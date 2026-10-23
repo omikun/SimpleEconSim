@@ -144,7 +144,8 @@ class CoCHTTPRequestHandler(BaseHTTPRequestHandler):
                                                  metric_id=metric_id,
                                                  kind=kind,
                                                  event_id=event_id,
-                                                 offset=offset, limit=limit)
+                                                 offset=offset, limit=limit,
+                                                 boundary=int(query['boundary'][0]) if 'boundary' in query else None)
                 body = json.dumps(result, allow_nan=False).encode('utf-8')
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json; charset=utf-8')
@@ -165,31 +166,32 @@ class CoCHTTPRequestHandler(BaseHTTPRequestHandler):
                 with sim._lock:
                     trace_path = sim.run_trace.path
                     run_id = sim.run_trace.run_id
-                    compact = query.get('format', ['jsonl'])[0] == 'compact'
-                    download_extension = 'ctr' if compact else 'jsonl'
-                    body_size = (trace_path.stat().st_size if compact
-                                 else decoded_size(trace_path))
-                    self.send_response(200)
-                    self.send_header('Content-Type',
-                                     'application/octet-stream' if compact
-                                     else 'application/x-ndjson; charset=utf-8')
-                    self.send_header('Content-Disposition',
-                                     f'attachment; filename="run-{run_id}.{download_extension}"')
-                    self.send_header('Cache-Control', 'no-store')
-                    self.send_header('Content-Length', str(body_size))
-                    self.end_headers()
-                    if compact:
-                        with trace_path.open('rb') as stream:
-                            remaining = body_size
-                            while remaining > 0:
-                                chunk = stream.read(min(65536, remaining))
-                                if not chunk:
-                                    break
-                                self.wfile.write(chunk)
-                                remaining -= len(chunk)
-                    else:
-                        for payload in iter_payloads(trace_path):
-                            self.wfile.write(payload.encode('utf-8') + b'\n')
+                    boundary = sim.run_trace._compact_writer.end_offset
+                compact = query.get('format', ['jsonl'])[0] == 'compact'
+                download_extension = 'ctr' if compact else 'jsonl'
+                body_size = (boundary if compact
+                             else decoded_size(trace_path, end_offset=boundary))
+                self.send_response(200)
+                self.send_header('Content-Type',
+                                 'application/octet-stream' if compact
+                                 else 'application/x-ndjson; charset=utf-8')
+                self.send_header('Content-Disposition',
+                                 f'attachment; filename="run-{run_id}.{download_extension}"')
+                self.send_header('Cache-Control', 'no-store')
+                self.send_header('Content-Length', str(body_size))
+                self.end_headers()
+                if compact:
+                    with trace_path.open('rb') as stream:
+                        remaining = body_size
+                        while remaining > 0:
+                            chunk = stream.read(min(65536, remaining))
+                            if not chunk:
+                                break
+                            self.wfile.write(chunk)
+                            remaining -= len(chunk)
+                else:
+                    for payload in iter_payloads(trace_path, end_offset=boundary):
+                        self.wfile.write(payload.encode('utf-8') + b'\n')
             except Exception as exc:
                 self._send_error_json(500, f'Error exporting trace: {exc}')
             return

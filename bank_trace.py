@@ -1,4 +1,5 @@
 """Recorded bank balance transitions and strict closing-stock reconciliation."""
+from trace_clock import boundary
 
 import math
 import json
@@ -98,7 +99,7 @@ class BankTraceBook:
         return event_id
 
     def close(self, tiles, clock, previous_values):
-        self.start_turn(clock.get('turn', 0))
+        self.start_turn(boundary(clock))
         # Closing stocks require closure evidence even if an earlier operation
         # happened to have the same numeric value as the final stock.
         for region in tiles:

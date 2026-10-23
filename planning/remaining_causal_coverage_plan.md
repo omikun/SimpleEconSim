@@ -406,3 +406,22 @@ and an unsupported keyword to the native rating API after charging the fee. It
 now passes the Nation and turn and lets the native API settle the fee once. A
 command fixture verifies the $200 debit and unchanged game turn. This gameplay
 correction is committed separately from trace storage and lifecycle changes.
+
+
+### Trace boundaries and indexed storage progress (2026-10-23)
+
+New `.ctr` files use checksummed record frames in independent 256-record
+compression blocks. Complete published byte boundaries support indexed seeks,
+stable pages and export while autoplay continues. SQLite indexes rebuild after
+deletion or database corruption; source corruption fails decoding. Recent event
+identity memory is bounded to 4,096 entries with indexed cold lookup. Export
+releases the simulation lock before scanning or network streaming.
+
+Mutating server commands now close a separate trace epoch without advancing
+game time. Optional client/command IDs return the persisted original response
+on retry and reject conflicting reuse. A native economic command fixture
+verifies a single debit, command-to-write causes and verified treasury closures
+through the next turn. Storage/recorder/web/bond checks passed 69 tests; focused
+retry/index checks passed two more. Existing trace input is intentionally not
+supported. Full simulation checkpoint publication/restore, recovery, browser
+retry IDs, memory/performance budgets and the remaining global gates are open.

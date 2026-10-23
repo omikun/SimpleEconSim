@@ -55,22 +55,26 @@ class ServerEvent(str, Enum):
 class CommandMessage:
     """Encapsulates a client request to the server."""
     def __init__(self, cmd_type: CommandType, payload: Optional[Dict[str, Any]] = None,
-                 client_id: str = "player_1"):
+                 client_id: str = "player_1", command_id: Optional[str] = None):
         self.cmd_type = cmd_type
         self.payload = payload or {}
         self.client_id = client_id
+        self.command_id = command_id
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        result = {
             'cmd': self.cmd_type.value if isinstance(self.cmd_type, CommandType) else str(self.cmd_type),
             'payload': self.payload,
             'client_id': self.client_id
         }
+        if self.command_id is not None:result['command_id'] = self.command_id
+        return result
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'CommandMessage':
         return cls(
             cmd_type=CommandType(data.get('cmd', CommandType.STEP)),
             payload=data.get('payload', {}),
-            client_id=data.get('client_id', 'player_1')
+            client_id=data.get('client_id', 'player_1'),
+            command_id=data.get('command_id')
         )

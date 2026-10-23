@@ -1,6 +1,7 @@
 """Append-only, typed causal records in compact .ctr files."""
 
 from __future__ import annotations
+from trace_clock import boundary
 
 from collections import deque
 import hashlib
@@ -50,7 +51,8 @@ class RunTrace:
         self._shipment_events_by_kind = {}
         self._latest_shipment_events = {}
         self._recent_private_grain_purchase_events = deque(maxlen=2048)
-        self._known_event_ids = set()
+        from trace_index import KnownEventIds
+        self._known_event_ids = KnownEventIds(self.path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         if self.path.exists():
             raise FileExistsError(self.path)
@@ -58,7 +60,7 @@ class RunTrace:
         self._append({'schema_version': SCHEMA_VERSION, 'record_class': 'metadata',
                       'run_id': self.run_id, 'branch_id': self.branch_id,
                       'seed': seed, 'scenario': scenario,
-                      'storage_format': 'deflate-sync-v1'})
+                      'storage_format': 'framed-deflate-blocks-v1'})
 
     def _append(self, row):
         # No default=str: unsupported values are instrumentation errors.
@@ -75,8 +77,8 @@ class RunTrace:
              cause_event_ids=None, **extra):
         sequence = clock['next']
         clock['next'] += 1
-        if self._active_turn != clock.get('turn', 0):
-            self._active_turn = clock.get('turn', 0)
+        if self._active_turn != boundary(clock):
+            self._active_turn = boundary(clock)
             self.bank_book.start_turn(self._active_turn)
             self.treasury_book.start_turn(self._active_turn)
             self._stock_closures.clear()
@@ -96,7 +98,7 @@ class RunTrace:
             self._latest_food_intake_events = {}
         row = {'schema_version': SCHEMA_VERSION, 'run_id': self.run_id,
                'branch_id': self.branch_id, 'event_id': f'{self.run_id}:{sequence}',
-               'sequence': sequence, 'turn': clock.get('turn', 0),
+               'sequence': sequence, 'turn': clock.get('turn', 0), 'epoch':clock.get('epoch',0),
                'phase': phase or clock.get('phase', 'unknown'),
                'kind': kind, 'record_class': record_class,
                'confidence': 'exact' if record_class in ('calculation', 'transfer', 'outcome')
@@ -459,30 +461,14 @@ class RunTrace:
 
 
     def query(self, *, turn=None, subject=None, metric_id=None, kind=None,
-              event_id=None, offset=0, limit=100):
-        found = []
-        matched = 0
-        for payload in iter_payloads(self.path):
-            row = json.loads(payload)
-            if row.get('record_class') == 'metadata':
-                continue
-            if event_id is not None and row.get('event_id') != event_id:
-                continue
-            if turn is not None and row.get('turn') != turn:
-                continue
-            if subject is not None and not all(
-                    row.get('subject', {}).get(key) == value
-                    for key, value in subject.items()):
-                continue
-            if metric_id is not None and row.get('metric_id') != metric_id:
-                continue
-            if kind is not None and row.get('kind') != kind:
-                continue
-            if matched >= offset and len(found) < limit:
-                found.append(row)
-            matched += 1
-        return {'events': found, 'total': matched, 'offset': offset,
-                'limit': limit, 'write_error': self.write_error}
+              event_id=None, offset=0, limit=100, boundary=None):
+        from trace_index import TraceIndex
+        result = TraceIndex(self.path).query(
+            boundary=self._compact_writer.end_offset if boundary is None else boundary,
+            turn=turn,subject=subject,metric_id=metric_id,kind=kind,
+            event_id=event_id,offset=offset,limit=limit)
+        result['write_error'] = self.write_error
+        return result
 
 
 def verify(path):

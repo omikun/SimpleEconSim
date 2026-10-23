@@ -1,4 +1,5 @@
 """Timed changes to public accounting boundaries at native ownership setters."""
+from trace_clock import boundary
 from functools import wraps
 import math
 
@@ -20,7 +21,7 @@ def traced_membership_mutation(function):
         book, clock = _book([*args, *kwargs.values()])
         if book is None or getattr(book, '_composition_depth', 0):
             return function(*args, **kwargs)
-        book.start_turn(clock.get('turn', 0))
+        book.start_turn(boundary(clock))
         before = capture(book, clock)
         book._composition_depth = 1
         completed = False
