@@ -265,6 +265,7 @@ def partition_contiguous_graph(nodes, neighbors_func, nparts: int, rng=None, pos
         return [node_list]
 
     node_set = set(node_list)
+    node_order = {node: index for index, node in enumerate(node_list)}
     # Compute all-pairs shortest path BFS within node_set
     from collections import deque
     dist_map = {}
@@ -332,10 +333,10 @@ def partition_contiguous_graph(nodes, neighbors_func, nparts: int, rng=None, pos
                 adjacent_cands.append(cand)
 
         if adjacent_cands:
-            best_cell = min(adjacent_cands, key=lambda c: min(get_d(c, m) for m in part))
+            best_cell = min(adjacent_cands, key=lambda c: (min(get_d(c, m) for m in part), node_order[c]))
         else:
             # Fallback to closest remaining node
-            best_cell = min(remaining, key=lambda c: min(get_d(c, m) for m in part))
+            best_cell = min(remaining, key=lambda c: (min(get_d(c, m) for m in part), node_order[c]))
 
         parts[pi].append(best_cell)
         remaining.remove(best_cell)

@@ -574,3 +574,16 @@ and faction histories now compare the full boundary, retaining current career,
 status, food-intake, grievance and tax source links. The existing labor census,
 faction history and recorder suites passed 45 tests, including assertions on the
 actual upstream event IDs. This is a trace-only lifecycle correction.
+
+
+### Deterministic geography tie breaks for acceptance (2026-10-23)
+
+Fresh-process comparison exposed an existing world-generation instability:
+province BFS chose equally distant remaining nodes from a Python set, so object
+allocation addresses could change district assignment and initial agent locations
+under the same seeds. Equal-distance choices now use native input order; Voronoi
+adjacency is installed in center-index order. The source correction is separate
+from instrumentation. A hash-layout fixture verifies equal partitions under
+three object hash arrangements; existing generation, clustering/connectivity and
+degree-cap checks passed (four tests). No current live world's territory is
+rewritten by this change. Acceptance proceeds against the deterministic rules.

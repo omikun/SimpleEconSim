@@ -208,7 +208,7 @@ def build_world_voronoi(
     # Link adjacent Voronoi tile neighbors
     for c in gen.centers:
         tile = by_name[f"c{c.index}"]
-        for n in c.neighbors:
+        for n in sorted(c.neighbors, key=lambda center: center.index):
             nbr_tile = by_name[f"c{n.index}"]
             tile.adjacent_tiles[nbr_tile.name] = nbr_tile
 
