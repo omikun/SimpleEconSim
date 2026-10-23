@@ -1084,7 +1084,7 @@
       ],
       "semantic_records": [
         "ubi_distributed",
-        "public_ubi_payment_receipt"
+        "ubi_payment_recipient_payment"
       ],
       "ui": "generic_trace_inspector_only",
       "unit": "existing_region_or_nation_local_currency",
@@ -1112,7 +1112,7 @@
       ],
       "semantic_records": [
         "ubi_distributed",
-        "public_ubi_payment_receipt"
+        "ubi_payment_recipient_payment"
       ],
       "ui": "generic_trace_inspector_only",
       "unit": "existing_region_or_nation_local_currency",
@@ -1140,7 +1140,7 @@
       ],
       "semantic_records": [
         "ubi_distributed",
-        "public_ubi_payment_receipt"
+        "ubi_payment_recipient_payment"
       ],
       "ui": "generic_trace_inspector_only",
       "unit": "existing_region_or_nation_local_currency",
@@ -1168,7 +1168,7 @@
       ],
       "semantic_records": [
         "ubi_distributed",
-        "public_ubi_payment_receipt"
+        "ubi_payment_recipient_payment"
       ],
       "ui": "generic_trace_inspector_only",
       "unit": "existing_region_or_nation_local_currency",
@@ -1196,7 +1196,7 @@
       ],
       "semantic_records": [
         "ubi_distributed",
-        "public_ubi_payment_receipt"
+        "ubi_payment_recipient_payment"
       ],
       "ui": "generic_trace_inspector_only",
       "unit": "existing_region_or_nation_local_currency",
@@ -1224,7 +1224,7 @@
       ],
       "semantic_records": [
         "welfare_distributed",
-        "public_welfare_payment_receipt"
+        "welfare_payment_recipient_payment"
       ],
       "ui": "generic_trace_inspector_only",
       "unit": "existing_region_or_nation_local_currency",
@@ -1252,7 +1252,7 @@
       ],
       "semantic_records": [
         "welfare_distributed",
-        "public_welfare_payment_receipt"
+        "welfare_payment_recipient_payment"
       ],
       "ui": "generic_trace_inspector_only",
       "unit": "existing_region_or_nation_local_currency",
@@ -1280,7 +1280,7 @@
       ],
       "semantic_records": [
         "parental_leave_paid",
-        "public_parental_leave_receipt"
+        "parental_leave_recipient_payment"
       ],
       "ui": "generic_trace_inspector_only",
       "unit": "existing_region_or_nation_local_currency",
@@ -1308,7 +1308,7 @@
       ],
       "semantic_records": [
         "parental_leave_paid",
-        "public_parental_leave_receipt"
+        "parental_leave_recipient_payment"
       ],
       "ui": "generic_trace_inspector_only",
       "unit": "existing_region_or_nation_local_currency",
@@ -1336,7 +1336,7 @@
       ],
       "semantic_records": [
         "baby_bonus_paid",
-        "public_baby_bonus_receipt"
+        "baby_bonus_recipient_payment"
       ],
       "ui": "generic_trace_inspector_only",
       "unit": "existing_region_or_nation_local_currency",
@@ -1364,7 +1364,7 @@
       ],
       "semantic_records": [
         "baby_bonus_paid",
-        "public_baby_bonus_receipt"
+        "baby_bonus_recipient_payment"
       ],
       "ui": "generic_trace_inspector_only",
       "unit": "existing_region_or_nation_local_currency",
