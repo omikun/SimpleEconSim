@@ -34,7 +34,8 @@ bindings remain open until their fixtures and sampling semantics are checked.
 ## Current execution slice (2026-10-22)
 
 Update 2026-10-23: 507 candidates, 80 source reviews and 427 pending reviews;
-384 metric declarations and 89 history fields. A separate literal scan locates
+384 metric declarations and 88 history fields. Two history-method callsites are
+listed separately rather than being counted as stored series. A separate literal scan locates
 363 writer IDs in probe inputs; this does not establish their execution or
 semantic closure. Literal UI references include `web_client/` directly.
 The dated findings below remain historical evidence for the earlier slice.

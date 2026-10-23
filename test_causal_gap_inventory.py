@@ -8,6 +8,14 @@ from causal_gap_inventory import BASELINE, REVIEWS, ROOT, discover_source, inven
 
 
 class CausalGapInventoryTests(unittest.TestCase):
+    def test_history_methods_are_not_inventoried_as_stored_series(self):
+        import ast
+        from causal_gap_inventory import Discover
+        visitor = Discover('example.py')
+        visitor.visit(ast.parse('self._record_history(turn)\nself.cash_log.append(1)'))
+        self.assertEqual(['cash_log'], [row['field'] for row in visitor.histories])
+        self.assertEqual(['_record_history'], [row['method'] for row in visitor.history_methods])
+
     def test_aliases_subscripts_bulk_replacement_and_destructuring_are_candidates(self):
         rows = discover_source('''
 def settle(treasury, payer, bank, actor):

@@ -940,3 +940,12 @@ leave exact payment-to-public-write contracts, all recipient aliases and
 single-treasury/interception branches with public-book closure unfinished.
 The register is now 80 source-reviewed candidates and 427 pending; these counts
 are not runtime completeness percentages. Four inventory checks pass.
+
+### Stored history versus callable inventory correction (2026-10-23)
+
+The scanner no longer classifies calls to `_record_history(...)` as stored
+history fields. It retains these callsites separately for caller review while
+still discovering the fields read/written inside their implementations. The
+register now has 88 actual history-field candidates and two history-method
+callsites. A focused AST regression and the five inventory checks pass. This
+corrects the queue; history sampling and UI binding reviews remain required.

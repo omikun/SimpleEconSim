@@ -33,6 +33,7 @@ class Discover(ast.NodeVisitor):
     def __init__(self, path):
         self.path, self.scope, self.rows, self.counts = path, [], [], Counter()
         self.histories = []
+        self.history_methods = []
         self.guards = []
         self.source_probe_literals = set()
 
@@ -106,6 +107,15 @@ class Discover(ast.NodeVisitor):
         self.generic_visit(node)
 
     def visit_Call(self, node):
+        if isinstance(node.func, ast.Attribute) and node.func.attr.endswith(('_log', '_history')):
+            self.history_methods.append({
+                'method': node.func.attr, 'path': self.path,
+                'function': '.'.join(self.scope) or '<module>', 'line': node.lineno,
+                'usage': 'method_call_not_stored_series'})
+            self.visit(node.func.value)
+            for argument in [*node.args, *node.keywords]:
+                self.visit(argument)
+            return
         # Bulk dictionary mutations are review candidates too.
         if (isinstance(node.func, ast.Attribute) and node.func.attr in ('clear', 'pop', 'update', 'setdefault')
                 and isinstance(node.func.value, ast.Attribute) and node.func.value.attr == 'deposits'):
@@ -128,7 +138,7 @@ def production_paths(root):
 
 
 def inventory(root=ROOT):
-    rows, histories = [], []
+    rows, histories, history_methods = [], [], []
     for path in production_paths(root):
         visitor = Discover(path)
         visitor.visit(ast.parse((root / path).read_text(), filename=path))
@@ -137,6 +147,7 @@ def inventory(root=ROOT):
                                    else 'not_detected_by_literal_scan')
         rows.extend(visitor.rows)
         histories.extend(visitor.histories)
+        history_methods.extend(visitor.history_methods)
     reviews = json.loads(REVIEWS.read_text()) if REVIEWS.exists() else {'writers': {}}
     for row in rows:
         review = reviews['writers'].get(row['id'])
@@ -174,6 +185,7 @@ def inventory(root=ROOT):
     for metric in metrics:
         metric['ui_reference_candidates'] = sorted(ui_references.get(metric['metric_id'], ()))
     return {'schema_version': 1, 'writers': rows, 'metrics': metrics, 'histories': history_rows,
+            'history_method_references': history_methods,
             'limits': ['Candidate discovery is not a public-account or active-path classification.',
                        'Reflection, aliases to dictionaries and mutation through external helpers require source review.',
                        'A source_writer literal locates a probe candidate; it does not prove execution, scope or transfer closure.',
@@ -193,7 +205,8 @@ def render(data):
              f"- Needs review: {counts['needs_review']}",
              f"- Writer IDs present in probe literals: {sum(row['source_probe'] == 'writer_literal_present' for row in data['writers'])}",
              f"- Declared metrics: {len(data['metrics'])}",
-             f"- History fields requiring semantic review: {len(data['histories'])}", '',
+             f"- History fields requiring semantic review: {len(data['histories'])}",
+             f"- History method callsites (not stored series): {len(data.get('history_method_references', []))}", '',
              '## Scenario inventory status', '']
     lines.extend(f'- {name}: {row["status"]}' for name, row in data['scenarios'].items())
     lines.extend(['', '## Reviewed writers', '', '| File / function | Target | Writer | Closure evidence |',
