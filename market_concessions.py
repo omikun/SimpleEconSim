@@ -18,6 +18,9 @@ def submit_concession_petition(sponsor, region, good, charter_type, fee, term_tu
            and p['type'] == charter_type for p in region.concession_petitions):
         return None
     fee, term_turns = max(0.0, float(fee)), max(1, int(term_turns))
+    from treasury_trace import begin_public_change,finish_public_change
+    sponsor_change=begin_public_change(region,sponsor)
+    government_change=begin_public_change(region,government)
     sponsor.cash -= fee
     government.cash += fee
     from economy.actor_accounts import record as record_economic_event
@@ -55,6 +58,14 @@ def submit_concession_petition(sponsor, region, good, charter_type, fee, term_tu
          subject={'type': 'agent', 'id': sponsor.id}, metric_id='market.charter_petition',
          unit='petition', after=petition['id'], formula_id='charter.petition_fee.v1',
          inputs=dict(petition), cause_event_ids=cause_event_ids)
+    for context,actor,amount in ((sponsor_change,sponsor,-fee),(government_change,government,fee)):
+        writes=finish_public_change(context,'market_concession_petition_fee',
+            inputs={'semantic_operation_id':f'concession-petition:{region.name}:{petition["id"]}'},
+            cause_event_ids=[petition['petition_event_id']] if petition['petition_event_id'] else None)
+        from finance_trace import emit_public_account_flow
+        emit_public_account_flow(region,actor,kind='government_concession_petition_fee',
+            signed_amount=amount,inputs={'petition_id':petition['id'],'charter_type':charter_type},
+            cause_event_ids=([petition['petition_event_id']] if petition['petition_event_id'] else [])+writes)
     return petition
 
 

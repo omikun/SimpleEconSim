@@ -447,6 +447,9 @@ def post_exports_to_route(region):
                     freight = moved * freight_unit
                     trader_cash_before = float(trader.cash)
                     carrier_cash_before = float(carrier.cash)
+                    from treasury_trace import begin_public_change,finish_public_change
+                    payer_public_change=begin_public_change(region,trader)
+                    carrier_public_change=begin_public_change(region,carrier)
                     trader.cash -= freight
                     carrier.cash += freight
                     from economy.actor_accounts import record as record_economic_event
@@ -462,7 +465,7 @@ def post_exports_to_route(region):
                         trace.shipment_event_id(shipment_id, 'departure')
                         if trace is not None and hasattr(trace, 'shipment_event_id')
                         else None)
-                    emit(region, kind='route_freight_settlement',
+                    freight_event_id=emit(region, kind='route_freight_settlement',
                          record_class='transfer',
                          subject={'type': 'shipment', 'id': shipment_id},
                          metric_id='trade.route_freight_settlement',
@@ -484,6 +487,15 @@ def post_exports_to_route(region):
                                  'payer_cash_after': trader.cash,
                                  'recipient_cash_before': carrier_cash_before,
                                  'recipient_cash_after': carrier.cash})
+                    from finance_trace import emit_public_account_flow
+                    for context,actor,amount in ((payer_public_change,trader,-freight),
+                                                 (carrier_public_change,carrier,freight)):
+                        writes=finish_public_change(context,'route_freight_settlement',
+                            inputs={'semantic_operation_id':f'freight:{shipment_id}'},
+                            cause_event_ids=[freight_event_id] if freight_event_id else None)
+                        emit_public_account_flow(region,actor,kind='government_route_freight_settlement',
+                            signed_amount=amount,inputs={'operation_id':f'freight:{shipment_id}'},
+                            cause_event_ids=([freight_event_id] if freight_event_id else [])+writes)
                 if moved:
                     shipment = route.pending[-1]
                     from economy.actor_accounts import record as record_economic_event

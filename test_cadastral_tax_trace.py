@@ -100,6 +100,32 @@ def _foreclosure_fixture(with_trace=True):
 
 
 class CadastralTaxTraceTests(unittest.TestCase):
+    def test_native_national_and_local_receipts_close_actual_public_accounts(self):
+        from nation import Nation
+        from region import Region
+        from run_trace import RunTrace
+        with tempfile.TemporaryDirectory() as directory:
+            nation=Nation('Cadastral native','USD',initial_cash=100,register=False)
+            tile=Region('Parish',0,number_of_agents=0);nation.add_tile(tile)
+            taxpayer=_person(21,2);taxpayer.assigned_plot_id='plot-a';tile.agents=[taxpayer]
+            tile.gov.tax_rate=5
+            tile.tax_distribution_log=[{'total':0,'national':0,'municipal':0}]
+            world={'turn':4,'scenario_state':{'political_economy':{'arrears':{},'tax_assessments':[]}}}
+            trace=RunTrace(Path(directory)/'cadastre.ctr','cadastre')
+            clock={'turn':3,'next':1,'phase':'setup'}
+            for source in (nation,tile):source._run_trace=trace;source._collective_trace_clock=clock
+            trace.treasury_book.register_nations([nation],clock)
+            before={('finance.treasury',nation.name):(None,'USD',nation.treasury()['total'])}
+            clock['turn']=4
+            _assess_arrears(world,tile,set())
+            trace.treasury_book.close([nation],clock,before)
+            closing=trace.query(kind='treasury_account_closure')['events'][0]
+            self.assertTrue(closing['formula_replay']['matches'])
+            self.assertEqual(before[('finance.treasury',nation.name)][2]+2,closing['value_after'])
+            writes=trace.query(kind='public_account_write')['events']
+            self.assertEqual(2,len(writes))
+            self.assertTrue(all(row['cause_event_ids'] for row in writes))
+
     def test_distribution_history_replays_and_links_later_scenario_receipts(self):
         from finance_trace import emit_tax_distribution
         from run_trace import RunTrace
