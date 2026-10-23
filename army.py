@@ -15,6 +15,7 @@ import uuid
 import math
 from dataclasses import dataclass, field
 from goods import Goods
+from treasury_trace import begin_public_change, finish_public_change
 
 
 @dataclass
@@ -98,10 +99,18 @@ class MilitaryUnit:
         total_wage = self.soldiers * self.wage_per_soldier
         wages_paid = 0.0
 
+        public_account_event_ids = []
+        payroll_operation_id = f'army-payroll:{int(t)}:{self.nation_name}:{self.unit_id}'
+
         # Procure wage cash
         if gov.agent.cash >= total_wage:
             cash_available_for_payroll = float(gov.agent.cash)
+            public_change = begin_public_change(trace_region, gov.agent, bank=bank)
             gov.agent.cash -= total_wage
+            public_account_event_ids.extend(finish_public_change(
+                public_change, 'military_payroll_debit',
+                inputs={'operation_id': payroll_operation_id, 'unit_id': self.unit_id,
+                        'requested_wages': total_wage}))
             wages_paid = total_wage
         else:
             # Try withdrawing from bank
@@ -114,7 +123,12 @@ class MilitaryUnit:
             
             cash_available_for_payroll = float(gov.agent.cash)
             payout = min(gov.agent.cash, total_wage)
+            public_change = begin_public_change(trace_region, gov.agent, bank=bank)
             gov.agent.cash -= payout
+            public_account_event_ids.extend(finish_public_change(
+                public_change, 'military_payroll_debit',
+                inputs={'operation_id': payroll_operation_id, 'unit_id': self.unit_id,
+                        'requested_wages': total_wage}))
             wages_paid = payout
         cash_after_payroll = float(gov.agent.cash)
 
@@ -129,11 +143,16 @@ class MilitaryUnit:
             for pid in self.person_ids:
                 person = people_by_id[pid]
                 cash_before = float(person.cash)
+                public_change = begin_public_change(trace_region, person)
                 person.cash += share
+                credit_event_ids = finish_public_change(
+                    public_change, 'military_payroll_receipt',
+                    inputs={'operation_id': payroll_operation_id, 'unit_id': self.unit_id})
                 recipient_cash_credits.append({
                     'agent_id': pid, 'amount': float(share),
                     'cash_before': cash_before,
-                    'cash_after': float(person.cash)})
+                    'cash_after': float(person.cash),
+                    'public_account_event_ids': credit_event_ids})
 
         # Morale updates based on fulfillment
         wage_ratio = wages_paid / max(0.01, total_wage)
@@ -188,6 +207,7 @@ class MilitaryUnit:
                 'deserters': int(deserters),
                 'deserter_agent_ids': list(self.deserter_ids),
                 'recipient_cash_credits': recipient_cash_credits,
+                'public_account_event_ids': public_account_event_ids,
             })
 
         return wages_paid, food_consumed, fully_supplied, deserters
@@ -335,9 +355,16 @@ def _procure_rations(nation, unit, station, t=0, event_ids=None):
             seller_cash_before = float(seller.cash)
             treasury_cash_before = float(gov.agent.cash)
             amount = float(take * price)
+            operation_id = (f'army-ration:{int(t)}:{nation.name}:{unit.unit_id}:'
+                            f'{region.name}:{seller.id}:{purchase_index + 1}')
+            public_change = begin_public_change(region, gov.agent)
             seller.inv_add(Goods.food, -take)
             seller.cash += amount
             gov.agent.cash -= amount
+            account_event_ids = finish_public_change(
+                public_change, 'military_ration_procurement_debit',
+                inputs={'operation_id': operation_id, 'unit_id': unit.unit_id,
+                        'seller_id': seller.id, 'food_units': take, 'unit_price': price})
             gov.food_inventory += take
             source_food_after = int(seller.inv_get(Goods.food, 0))
             destination_food_after = int(getattr(gov, 'food_inventory', 0))
@@ -347,12 +374,10 @@ def _procure_rations(nation, unit, station, t=0, event_ids=None):
             bought += take
             total_cost += amount
             purchase_index += 1
-            operation_id = (f'army-ration:{int(t)}:{nation.name}:{unit.unit_id}:'
-                            f'{region.name}:{seller.id}:{purchase_index}')
             cash_event_id = source_event_id = receipt_event_id = None
             if getattr(region, '_run_trace', None) is not None:
                 from finance_trace import (account_ref, cash_transfer_contract,
-                                           emit_cash_transfer)
+                                           emit_cash_transfer, emit_treasury_leg)
                 from run_trace import emit
                 currency = (getattr(nation, 'currency', None)
                             or getattr(region, 'home_currency', None)
@@ -377,7 +402,14 @@ def _procure_rations(nation, unit, station, t=0, event_ids=None):
                              'tile': region.name, 'unit_id': unit.unit_id},
                     inputs={'turn': int(t), 'nation': nation.name,
                             'unit_id': unit.unit_id, 'seller_id': seller.id,
-                            'food_units': int(take), 'unit_price': price})
+                            'food_units': int(take), 'unit_price': price},
+                    cause_event_ids=account_event_ids or None)
+                emit_treasury_leg(
+                    region, kind='army_ration_treasury_payment', nation_name=nation.name,
+                    currency=currency, signed_amount=-amount, contract=cash_contract,
+                    phase='military', inputs={'unit_id': unit.unit_id, 'seller_id': seller.id,
+                                             'food_units': take, 'unit_price': price},
+                    cause_event_ids=[cash_event_id] if cash_event_id else account_event_ids or None)
                 goods_contract = {
                     'contract_version': 'goods_transfer.v1',
                     'operation_id': operation_id,
@@ -646,7 +678,8 @@ def step_armies(tiles: list, nations: list, t: int = 0) -> list[dict]:
                                 'recipient_cash_credit_count': len(
                                     upkeep_details['recipient_cash_credits']),
                                 'fully_supplied': supplied},
-                        cause_event_ids=funding_event_ids or None)
+                        cause_event_ids=(funding_event_ids + upkeep_details.get(
+                            'public_account_event_ids', [])) or None)
                     for credit in upkeep_details['recipient_cash_credits']:
                         emit(
                             region, kind='army_payroll_recipient',
@@ -662,8 +695,8 @@ def step_armies(tiles: list, nations: list, t: int = 0) -> list[dict]:
                                     'aggregate_payroll_event_id': payroll_event_id,
                                     'payer_leg_status':
                                     'included_in_aggregate_treasury_payroll'},
-                            cause_event_ids=[payroll_event_id]
-                            if payroll_event_id else None)
+                            cause_event_ids=([payroll_event_id] if payroll_event_id else [])
+                            + credit.get('public_account_event_ids', []))
                 elif upkeep_details['requested_wages'] <= 0.0:
                     payroll_event_id = emit(
                         region, kind='army_payroll_skipped',

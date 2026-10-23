@@ -2835,3 +2835,27 @@ compressed-block indexing; shared player explanations; scenario/performance
 acceptance. Each phase has deliverables, fixtures and a completion gate.
 Planning only: these phases have not been implemented. The first slice is the
 gap register followed by military/medical account probes.
+
+
+## Remaining-gap execution — Register and military/medical account probes
+
+2026-10-22: added static candidate discovery, a committed change-detection
+baseline, explicit per-writer reviews and a generated gap summary. Discovery
+finds 508 financial-write candidates, 381 declared metrics and 89 history fields;
+11 military/medical writes are reviewed and 497 candidates remain unreviewed.
+Catalog declarations and literal UI references are not treated as verified links
+or closure. The global Phase 0 active-path/history/UI classification gate stays open.
+
+Military payroll, ration procurement and medical payment/refund mutations now
+produce actual public-account writes. The helper returns IDs so existing payments
+can link to them under the same semantic operation identity. Added the missing
+national ration-purchase debit and public-provider medical fee receipt. Existing
+settlement rules and RNG behavior are preserved, including frozen withdrawals,
+partial payroll, public self-refunds and abstract military-service payees.
+
+Focused inventory/military/medical/treasury checks passed 47 tests; recorder/web
+parity passed 63. The default three-turn seed-4242 probe still verifies all nine
+treasury closures, all 144 changed bank stocks and three compact checkpoints.
+Report: `tmp/trace_coverage_default_military_medical_2026_10_22.json`.
+See [the register guide](coverage/README.md) for fixtures and limitations.
+Bank rescue and sovereign cash settlements are the next Phase 1 slices.

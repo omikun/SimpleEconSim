@@ -19,6 +19,8 @@ Models:
 """
 
 from __future__ import annotations
+from treasury_trace import begin_public_change, finish_public_change
+from finance_trace import emit_public_account_flow
 import random
 from goods import Goods
 
@@ -244,7 +246,7 @@ def step_medical_care(region, t: int, rand_gen=None) -> dict:
 
     def trace_medical_payment(payer, payee, patient, disease, amount,
                               payer_type, payer_before, payee_before,
-                              operation_id, journal_event):
+                              operation_id, journal_event, account_event_ids=()):
         currency = (getattr(region, 'home_currency', None)
                     or 'local_currency')
         payer_currency = (getattr(payer, 'home_currency', None)
@@ -277,7 +279,8 @@ def step_medical_care(region, t: int, rand_gen=None) -> dict:
                     'provider_id': str(payee.id),
                     'operation_id': operation_id,
                     'actor_account_event_id': journal_event['id']
-                    if journal_event is not None else None})
+                    if journal_event is not None else None},
+            cause_event_ids=list(account_event_ids) or None)
 
     agents = [a for a in getattr(region, 'agents', [])
               if getattr(a, 'alive', True) and not getattr(a, 'is_corporation', False)]
@@ -352,13 +355,28 @@ def step_medical_care(region, t: int, rand_gen=None) -> dict:
                 # Publicly funded care: treasury pays, zero out-of-pocket for citizen
                 cash_transfer_event_id = None
                 actor_account_event = None
-                operation_id = None
+                operation_id = (f'medical-care:{region.name}:{int(t)}:'
+                                f'{a.id}:{dis}:{disease_index}:public')
+                account_event_ids = []
                 cash_settlement = 'self_administered_no_net_cash_transfer'
                 payer_cash_before = float(gov_agent.cash)
+                public_change = begin_public_change(region, gov_agent)
                 gov_agent.cash -= cost_per_cure
+                account_event_ids.extend(finish_public_change(
+                    public_change, 'public_medical_payment_debit',
+                    inputs={'operation_id': operation_id, 'patient_id': a.id, 'disease': dis}))
                 if provider and provider != gov_agent:
                     provider_cash_before = float(provider.cash)
+                    public_change = begin_public_change(region, provider)
                     provider.cash += cost_per_cure
+                    account_event_ids.extend(finish_public_change(
+                        public_change, 'medical_provider_receipt',
+                        inputs={'operation_id': operation_id, 'patient_id': a.id, 'disease': dis}))
+                    emit_public_account_flow(
+                        region, provider, kind='medical_public_provider_receipt',
+                        signed_amount=cost_per_cure,
+                        inputs={'operation_id': operation_id, 'patient_id': a.id, 'disease': dis},
+                        cause_event_ids=account_event_ids or None)
                     public_transfers += cost_per_cure
                     from economy.actor_accounts import record as record_economic_event
                     operation_id = (f'medical-care:{region.name}:{int(t)}:'
@@ -373,13 +391,17 @@ def step_medical_care(region, t: int, rand_gen=None) -> dict:
                     cash_transfer_event_id = trace_medical_payment(
                         gov_agent, provider, a, dis, cost_per_cure, 'public',
                         payer_cash_before, provider_cash_before, operation_id,
-                        actor_account_event)
+                        actor_account_event, account_event_ids)
                     cash_settlement = 'government_to_provider_cash_transfer'
                     if cash_transfer_event_id is not None:
                         public_transfer_event_ids.append(cash_transfer_event_id)
                         medical_transfer_event_ids.append(cash_transfer_event_id)
                 else:
+                    public_change = begin_public_change(region, gov_agent)
                     gov_agent.cash += cost_per_cure  # Self-administered municipal hospital
+                    account_event_ids.extend(finish_public_change(
+                        public_change, 'public_medical_self_refund',
+                        inputs={'operation_id': operation_id, 'patient_id': a.id, 'disease': dis}))
                     non_transfer_treatments += 1
 
                 spending_pub += cost_per_cure
@@ -405,7 +427,7 @@ def step_medical_care(region, t: int, rand_gen=None) -> dict:
                              'actor_account_event_id': actor_account_event['id']
                              if actor_account_event is not None else None},
                      cause_event_ids=([cash_transfer_event_id]
-                                      if cash_transfer_event_id else None))
+                                      if cash_transfer_event_id else account_event_ids or None))
                 if cured:
                     cured_this_turn.append(dis)
                     a.health_attrition = max(0.0, getattr(a, 'health_attrition', 0.0) - 0.15)
@@ -413,13 +435,28 @@ def step_medical_care(region, t: int, rand_gen=None) -> dict:
                 # Private out-of-pocket medical bill: patient pays
                 cash_transfer_event_id = None
                 actor_account_event = None
-                operation_id = None
+                operation_id = (f'medical-care:{region.name}:{int(t)}:'
+                                f'{a.id}:{dis}:{disease_index}:private')
+                account_event_ids = []
                 cash_settlement = 'no_external_provider_cash_transfer'
                 payer_cash_before = float(a.cash)
+                public_change = begin_public_change(region, a)
                 a.cash -= cost_per_cure
+                account_event_ids.extend(finish_public_change(
+                    public_change, 'medical_patient_payment_debit',
+                    inputs={'operation_id': operation_id, 'patient_id': a.id, 'disease': dis}))
                 if provider and provider != a:
                     provider_cash_before = float(provider.cash)
+                    public_change = begin_public_change(region, provider)
                     provider.cash += cost_per_cure
+                    account_event_ids.extend(finish_public_change(
+                        public_change, 'medical_provider_receipt',
+                        inputs={'operation_id': operation_id, 'patient_id': a.id, 'disease': dis}))
+                    emit_public_account_flow(
+                        region, provider, kind='medical_public_provider_receipt',
+                        signed_amount=cost_per_cure,
+                        inputs={'operation_id': operation_id, 'patient_id': a.id, 'disease': dis},
+                        cause_event_ids=account_event_ids or None)
                     from economy.actor_accounts import record as record_economic_event
                     operation_id = (f'medical-care:{region.name}:{int(t)}:'
                                     f'{a.id}:{dis}:{disease_index}:private')
@@ -433,13 +470,17 @@ def step_medical_care(region, t: int, rand_gen=None) -> dict:
                     cash_transfer_event_id = trace_medical_payment(
                         a, provider, a, dis, cost_per_cure, 'private',
                         payer_cash_before, provider_cash_before, operation_id,
-                        actor_account_event)
+                        actor_account_event, account_event_ids)
                     private_transfers += cost_per_cure
                     if cash_transfer_event_id is not None:
                         medical_transfer_event_ids.append(cash_transfer_event_id)
                     cash_settlement = 'patient_to_provider_cash_transfer'
                 else:
+                    public_change = begin_public_change(region, a)
                     a.cash += cost_per_cure  # Self-purchase of folk remedy
+                    account_event_ids.extend(finish_public_change(
+                        public_change, 'medical_patient_self_refund',
+                        inputs={'operation_id': operation_id, 'patient_id': a.id, 'disease': dis}))
                     non_transfer_treatments += 1
 
                 spending_priv += cost_per_cure
@@ -464,7 +505,7 @@ def step_medical_care(region, t: int, rand_gen=None) -> dict:
                              'actor_account_event_id': actor_account_event['id']
                              if actor_account_event is not None else None},
                      cause_event_ids=([cash_transfer_event_id]
-                                      if cash_transfer_event_id else None))
+                                      if cash_transfer_event_id else account_event_ids or None))
                 if cured:
                     cured_this_turn.append(dis)
                     a.health_attrition = max(0.0, getattr(a, 'health_attrition', 0.0) - 0.10)

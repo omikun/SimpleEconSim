@@ -1,0 +1,302 @@
+{
+  "schema_version": 1,
+  "writers": {
+    "army.py:MilitaryUnit.pay_and_feed:1df6a141eb2633cc:1": {
+      "account_type": "cash",
+      "calling_path": "step_armies",
+      "closure": "verified_in_slice_fixtures",
+      "fixtures": [
+        "test_military_medical_account_trace.MilitaryMedicalAccountTraceTests"
+      ],
+      "formula": "not_applicable_direct_write",
+      "links": "verified_in_slice_fixtures",
+      "missing_work": "Full scenario acceptance remains pending.",
+      "owner": "army.py:MilitaryUnit.pay_and_feed",
+      "review": "reviewed_slice",
+      "sampling": "immediately_before_and_after_write",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "semantic_records": [
+        "army_payroll",
+        "army_ration_cash_payment"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_local_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "army.py:MilitaryUnit.pay_and_feed:29f836bff22cfec0:1": {
+      "account_type": "cash",
+      "calling_path": "step_armies",
+      "closure": "verified_in_slice_fixtures",
+      "fixtures": [
+        "test_military_medical_account_trace.MilitaryMedicalAccountTraceTests"
+      ],
+      "formula": "not_applicable_direct_write",
+      "links": "verified_in_slice_fixtures",
+      "missing_work": "Full scenario acceptance remains pending.",
+      "owner": "army.py:MilitaryUnit.pay_and_feed",
+      "review": "reviewed_slice",
+      "sampling": "immediately_before_and_after_write",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "semantic_records": [
+        "army_payroll",
+        "army_ration_cash_payment"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_local_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "army.py:MilitaryUnit.pay_and_feed:74469ce95af5c64f:1": {
+      "account_type": "cash",
+      "calling_path": "step_armies",
+      "closure": "partial_fixture_evidence",
+      "fixtures": [
+        "test_military_medical_account_trace.MilitaryMedicalAccountTraceTests"
+      ],
+      "formula": "not_applicable_direct_write",
+      "links": "partial_fixture_evidence",
+      "missing_work": "Full scenario and UI binding acceptance remain pending; conditional public recipient/patient cases are not all forced.",
+      "owner": "army.py:MilitaryUnit.pay_and_feed",
+      "review": "reviewed_slice",
+      "sampling": "immediately_before_and_after_write",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "semantic_records": [
+        "army_payroll",
+        "army_ration_cash_payment"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_local_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "army.py:_procure_rations:1e07aca3dd5bbc8b:1": {
+      "account_type": "cash",
+      "calling_path": "step_armies",
+      "closure": "not_public_account",
+      "fixtures": [
+        "test_military_medical_account_trace.MilitaryMedicalAccountTraceTests"
+      ],
+      "formula": "not_applicable_direct_write",
+      "links": "payment_and_goods_records",
+      "missing_work": "No public stock probe required for the seller under the current eligibility gate.",
+      "owner": "army.py:_procure_rations",
+      "review": "reviewed_slice",
+      "sampling": "immediately_before_and_after_write",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "semantic_records": [
+        "army_payroll",
+        "army_ration_cash_payment"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_local_currency",
+      "writer": "private_counterparty_by_explicit_government_exclusion"
+    },
+    "army.py:_procure_rations:f36bddbbf6f52465:1": {
+      "account_type": "cash",
+      "calling_path": "step_armies",
+      "closure": "verified_in_slice_fixtures",
+      "fixtures": [
+        "test_military_medical_account_trace.MilitaryMedicalAccountTraceTests"
+      ],
+      "formula": "not_applicable_direct_write",
+      "links": "verified_in_slice_fixtures",
+      "missing_work": "Full scenario acceptance remains pending.",
+      "owner": "army.py:_procure_rations",
+      "review": "reviewed_slice",
+      "sampling": "immediately_before_and_after_write",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "semantic_records": [
+        "army_payroll",
+        "army_ration_cash_payment"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_local_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "disease.py:step_medical_care:0403a02c44b1ce60:1": {
+      "account_type": "cash",
+      "calling_path": "step_medical_care",
+      "closure": "partial_fixture_evidence",
+      "fixtures": [
+        "test_military_medical_account_trace.MilitaryMedicalAccountTraceTests"
+      ],
+      "formula": "not_applicable_direct_write",
+      "links": "partial_fixture_evidence",
+      "missing_work": "Full scenario and UI binding acceptance remain pending; conditional public recipient/patient cases are not all forced.",
+      "owner": "disease.py:step_medical_care",
+      "review": "reviewed_slice",
+      "sampling": "immediately_before_and_after_write",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "semantic_records": [
+        "medical_care_payment",
+        "medical_treatment"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_local_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "disease.py:step_medical_care:1211cd17a1a71e1b:1": {
+      "account_type": "cash",
+      "calling_path": "step_medical_care",
+      "closure": "partial_fixture_evidence",
+      "fixtures": [
+        "test_military_medical_account_trace.MilitaryMedicalAccountTraceTests"
+      ],
+      "formula": "not_applicable_direct_write",
+      "links": "partial_fixture_evidence",
+      "missing_work": "Full scenario and UI binding acceptance remain pending; conditional public recipient/patient cases are not all forced.",
+      "owner": "disease.py:step_medical_care",
+      "review": "reviewed_slice",
+      "sampling": "immediately_before_and_after_write",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "semantic_records": [
+        "medical_care_payment",
+        "medical_treatment"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_local_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "disease.py:step_medical_care:24aabe49457ab11c:1": {
+      "account_type": "cash",
+      "calling_path": "step_medical_care",
+      "closure": "verified_in_slice_fixtures",
+      "fixtures": [
+        "test_military_medical_account_trace.MilitaryMedicalAccountTraceTests"
+      ],
+      "formula": "not_applicable_direct_write",
+      "links": "verified_in_slice_fixtures",
+      "missing_work": "Full scenario acceptance remains pending.",
+      "owner": "disease.py:step_medical_care",
+      "review": "reviewed_slice",
+      "sampling": "immediately_before_and_after_write",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "semantic_records": [
+        "medical_care_payment",
+        "medical_treatment"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_local_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "disease.py:step_medical_care:97a5a0ab6a064ae4:1": {
+      "account_type": "cash",
+      "calling_path": "step_medical_care",
+      "closure": "partial_fixture_evidence",
+      "fixtures": [
+        "test_military_medical_account_trace.MilitaryMedicalAccountTraceTests"
+      ],
+      "formula": "not_applicable_direct_write",
+      "links": "partial_fixture_evidence",
+      "missing_work": "Full scenario and UI binding acceptance remain pending; conditional public recipient/patient cases are not all forced.",
+      "owner": "disease.py:step_medical_care",
+      "review": "reviewed_slice",
+      "sampling": "immediately_before_and_after_write",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "semantic_records": [
+        "medical_care_payment",
+        "medical_treatment"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_local_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "disease.py:step_medical_care:9ec3d752faab0011:1": {
+      "account_type": "cash",
+      "calling_path": "step_medical_care",
+      "closure": "verified_in_slice_fixtures",
+      "fixtures": [
+        "test_military_medical_account_trace.MilitaryMedicalAccountTraceTests"
+      ],
+      "formula": "not_applicable_direct_write",
+      "links": "verified_in_slice_fixtures",
+      "missing_work": "Full scenario acceptance remains pending.",
+      "owner": "disease.py:step_medical_care",
+      "review": "reviewed_slice",
+      "sampling": "immediately_before_and_after_write",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "semantic_records": [
+        "medical_care_payment",
+        "medical_treatment"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_local_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "disease.py:step_medical_care:dec80db7ba288ac2:1": {
+      "account_type": "cash",
+      "calling_path": "step_medical_care",
+      "closure": "partial_fixture_evidence",
+      "fixtures": [
+        "test_military_medical_account_trace.MilitaryMedicalAccountTraceTests"
+      ],
+      "formula": "not_applicable_direct_write",
+      "links": "partial_fixture_evidence",
+      "missing_work": "Full scenario and UI binding acceptance remain pending; conditional public recipient/patient cases are not all forced.",
+      "owner": "disease.py:step_medical_care",
+      "review": "reviewed_slice",
+      "sampling": "immediately_before_and_after_write",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "semantic_records": [
+        "medical_care_payment",
+        "medical_treatment"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_local_currency",
+      "writer": "explicit_conditional_public_probe"
+    }
+  }
+}

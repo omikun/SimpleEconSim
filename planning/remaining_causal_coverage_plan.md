@@ -1,6 +1,6 @@
 # Close the remaining causal trace gaps
 
-Date: 2026-10-22. Planning only; implementation phases below are pending.
+Date: 2026-10-22. Execution started; see Progress for completed slices and open gates.
 This is the next execution plan after `b4dfe05`, supplementing
 [the overall plan](causal_trace_completion_plan.md) and
 [ordered treasury closure](treasury_account_closure_plan.md).
@@ -323,7 +323,22 @@ mechanic or general rewrite of money settlement is required for this slice.
 
 ## Progress
 
-- Planning source review complete; runtime implementation not started.
+- Planning source review complete. Gap-register discovery and the first military/medical runtime slice are implemented.
 - Current baseline: `b4dfe05`; the latest short default probe is
   `tmp/trace_coverage_default_treasury_chains_2026_10_22.json`.
-- Phases 0–8: pending implementation and their stated acceptance gates.
+- Phase 0: in progress. The register discovers 508 financial-write candidates,
+  381 metric declarations and 89 history fields. Eleven military/medical writes
+  have explicit source reviews; 497 financial candidates still require review.
+  Active scenario paths and UI bindings are not yet fully classified.
+- Phase 1: military/medical slice implemented. Public account writes link to
+  existing payroll, procurement and treatment records; full/partial/unfunded
+  cases and self-refunds have deterministic fixtures. Added the missing ration
+  treasury outflow and public medical-provider receipt without changing money
+  settlement. Bank rescue, bond cash, construction and other writers remain.
+- Verification: 47 focused tests and 63 recorder/web parity tests passed. The
+  three-turn default probe still verifies nine treasury closures and all 144
+  changed bank stocks, with three valid compact checkpoints.
+- Registry details, regeneration commands and limitations:
+  [coverage README](coverage/README.md). The Phase 0 global classification gate
+  remains open while source-reviewed subsets receive runtime probes.
+- Phases 2–8 and the remaining Phase 0/1 gates are pending.

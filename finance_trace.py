@@ -142,7 +142,9 @@ def emit_public_account_flow(region, agent, *, kind, signed_amount, inputs=None,
     nation = getattr(region, 'owner_nation', None)
     if nation is None or getattr(region, '_run_trace', None) is None:
         return None
-    accounts = nation.treasury()['accounts']
+    if not callable(getattr(nation, 'treasury', None)):
+        return None
+    accounts = nation.treasury().get('accounts', ())
     account = next((row for row in accounts if row['government_id'] == agent.id), None)
     if account is None:
         return None

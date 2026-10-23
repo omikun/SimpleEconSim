@@ -42,16 +42,20 @@ def begin_public_change(source, agent, *, bank=None, cash=True, deposit=False):
 
 def finish_public_change(context, kind, *, inputs=None, cause_event_ids=None):
     if context is None:
-        return
+        return []
     book, clock, before, source_name = context
     operation_id = f'{book.trace.run_id}:public-write:{clock["next"]}'
+    event_ids = []
     for key, opening in before:
         info = book.accounts[key]
         after = book.value(info)
         if opening != after:
-            book.operation(key, clock, opening, after, kind,
+            event_id = book.operation(key, clock, opening, after, kind,
                            {'operation_id': operation_id, 'source_entity': source_name,
                             'source_phase': clock.get('phase'), **(inputs or {})}, cause_event_ids)
+            if event_id is not None:
+                event_ids.append(event_id)
+    return event_ids
 
 
 class TreasuryTraceBook:
