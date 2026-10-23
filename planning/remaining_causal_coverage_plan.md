@@ -788,3 +788,14 @@ A native public-trader frontier fixture verifies conserved CNY and absence of
 tile-name currency credits. Nine focused currency/account fixtures pass.
 The correction changes native currency handling and is committed separately
 from observation repairs; full native long-run currency verification is running.
+
+The first frozen repair rerun (`4eb736f`) closes every default 30-turn public
+account with zero bank/public closure gaps and no supported formula/source
+failures. All formerly missing Gini, wilderness, population, disease and tax
+samples are explained. One remaining legitimacy sample is the revolutionary
+commune reset; it now records actual mobilization thresholds and its reset at the
+native writer, with a tampered-mobilization negative fixture (21 focused tests
+pass). The supply-rivalry seed-812 full 20-turn on/off pair passes every gate.
+The frontier pair still requires inspection. Full default checkpoint continuation
+also passes again after persistent append handles and the new sampling probes
+(same-process and fresh-process full economic graph, RNG and actions).

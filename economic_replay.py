@@ -16,6 +16,10 @@ def replay(row):
     if formula=='policy.additive_floor.v1':return max(i['floor'],before+i['change'])
     if formula=='policy.multiply_floor.v1':return max(i['floor'],before*i['multiplier'])
     if formula=='regime.legitimacy_reset.v1':return i['target']
+    if formula=='resistance.commune_legitimacy_reset.v1':
+        majority=i['tile_count']*i['majority_fraction']
+        mobilized=(len(i['barricaded_tile_ids'])>=majority or len(i['general_strike_tile_ids'])>=majority)
+        return i['revolutionary_enthusiasm'] if before<=i['collapse_threshold'] and mobilized else before
     if formula=='military.abstract_payroll_sink.v1':
         return i['payer_cash_before']-i['payer_cash_after']-i['person_wallet_credits']
     if formula=='labor.effective_workday_cap_sample.v1':return i['effective_workday_cap']

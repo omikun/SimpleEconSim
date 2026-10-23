@@ -1023,6 +1023,19 @@ class PopularResistanceManager:
             nation.regime_type = 'commune'
             nation.ruling_faction = 'Worker-Peasant Council'
             nation.legitimacy = 0.85  # revolutionary enthusiasm
+            from run_trace import emit
+            emit(tiles[0], kind='commune_legitimacy_reset', record_class='outcome',
+                 phase='resistance', subject={'type': 'nation', 'id': nation.name},
+                 metric_id='politics.legitimacy', unit='ratio',
+                 before=legitimacy, after=nation.legitimacy,
+                 formula_id='resistance.commune_legitimacy_reset.v1',
+                 inputs={'tile_count': len(tiles),
+                         'barricaded_tile_ids': [tile.name for tile in tiles
+                             if self.get_state(tile.name).has_barricades],
+                         'general_strike_tile_ids': [tile.name for tile in tiles
+                             if self.get_state(tile.name).is_general_strike],
+                         'collapse_threshold': .08, 'majority_fraction': .5,
+                         'revolutionary_enthusiasm': .85})
 
             # 1. Abolish all private land tenure across the nation -> restore to COMMONS
             total_plots_reverted = 0
