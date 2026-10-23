@@ -15,7 +15,8 @@ import uuid
 import random
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
-from finance_trace import account_ref, emit_treasury_leg, transfer_contract
+from finance_trace import account_ref, emit_treasury_leg, transfer_contract, emit_public_account_flow
+from treasury_trace import begin_public_change, finish_public_change
 
 if TYPE_CHECKING:
     from nation import Nation
@@ -99,7 +100,7 @@ def _bond_transfer_evidence(nation, kind, t, bond, treasury_delta, inputs):
                             'turn': t})
 
 
-def _trace_bond(nation, kind, t, bond, *, treasury_delta=None, **inputs):
+def _trace_bond(nation, kind, t, bond, *, treasury_delta=None, cause_event_ids=None, **inputs):
     """Record a sovereign debt event against its nation and treasury."""
     tiles = getattr(nation, 'tiles', [])
     if not tiles:
@@ -120,7 +121,7 @@ def _trace_bond(nation, kind, t, bond, *, treasury_delta=None, **inputs):
          phase='finance', subject={'type': 'nation', 'id': nation.name},
          metric_id='finance.sovereign_bond', unit=nation.currency,
          after=bond.principal, formula_id='finance.sovereign_bond_lifecycle.v1',
-         inputs=data)
+         inputs=data, cause_event_ids=cause_event_ids)
     if treasury_delta is not None:
         emit_treasury_leg(
             tiles[0], kind=kind, nation_name=nation.name,
@@ -129,7 +130,8 @@ def _trace_bond(nation, kind, t, bond, *, treasury_delta=None, **inputs):
             inputs={'bond_id': bond.bond_id, 'bond_event': kind,
                     'counterparty': bond.holder_nation if nation.name == bond.issuer_nation
                     else bond.issuer_nation, 'principal': bond.principal,
-                    'purpose': bond.bond_purpose, **inputs})
+                    'purpose': bond.bond_purpose, **inputs},
+            cause_event_ids=cause_event_ids)
 
 # Standardized Credit Rating Tiers and Base Per-Turn Yield Rates (aligned with in-game bank loan rate ~0.10%/turn)
 RATING_TIERS = ["AAA", "AA", "A", "BBB", "BB", "B", "CCC"]
@@ -257,7 +259,13 @@ class InternationalRatingBureau:
         if gov.agent.cash < fee:
             return False, f"Insufficient treasury cash (${gov.agent.cash:.0f} < ${fee:.0f}).", False
 
+        public_change = begin_public_change(nation, gov.agent)
         gov.agent.cash -= fee
+        fee_write_ids = finish_public_change(public_change, 'bond_lobby_upgrade_cash',
+            inputs={'source_method': 'lobby_upgrade'})
+        emit_public_account_flow(
+            next(iter(nation.tiles), None), gov.agent, kind='rating_agency_lobby_upgrade_fee', signed_amount=-fee,
+            inputs={'rating_action': 'lobby_upgrade'}, cause_event_ids=fee_write_ids or None)
 
         # 15% chance of Rating Scandal
         if random.random() < 0.15:
@@ -277,7 +285,13 @@ class InternationalRatingBureau:
         if gov.agent.cash < fee:
             return False, f"Insufficient treasury cash (${gov.agent.cash:.0f} < ${fee:.0f}).", False
 
+        public_change = begin_public_change(nation, gov.agent)
         gov.agent.cash -= fee
+        fee_write_ids = finish_public_change(public_change, 'bond_lobby_adversary_downgrade_cash',
+            inputs={'source_method': 'lobby_adversary_downgrade'})
+        emit_public_account_flow(
+            next(iter(nation.tiles), None), gov.agent, kind='rating_agency_lobby_adversary_downgrade_fee', signed_amount=-fee,
+            inputs={'rating_action': 'lobby_adversary_downgrade'}, cause_event_ids=fee_write_ids or None)
 
         # 20% chance of Scandal
         if random.random() < 0.20:
@@ -298,7 +312,13 @@ class InternationalRatingBureau:
         if gov.agent.cash < fee:
             return False, f"Insufficient treasury cash (${gov.agent.cash:.0f} < ${fee:.0f})."
 
+        public_change = begin_public_change(nation, gov.agent)
         gov.agent.cash -= fee
+        fee_write_ids = finish_public_change(public_change, 'bond_acquire_board_seat_cash',
+            inputs={'source_method': 'acquire_board_seat'})
+        emit_public_account_flow(
+            next(iter(nation.tiles), None), gov.agent, kind='rating_agency_acquire_board_seat_fee', signed_amount=-fee,
+            inputs={'rating_action': 'acquire_board_seat'}, cause_event_ids=fee_write_ids or None)
         self.board_seats.add(nation.name)
         return True, f"{nation.name} acquired a permanent seat on the ISRB Board of Governors (+1 Rating Tier buffer)."
 
@@ -405,8 +425,14 @@ class SovereignBondMarket:
             return False, f"Insufficient treasury cash (${buyer.government.agent.cash:.0f} < ${offering.principal:.0f}).", None
 
         # Money Transfer: Buyer -> Issuer
+        public_change = begin_public_change(buyer, buyer.government.agent)
         buyer.government.agent.cash -= offering.principal
+        buyer_write_ids = finish_public_change(public_change, 'bond_purchase_live_offering_cash',
+            inputs={'source_method': 'purchase_live_offering'})
+        public_change = begin_public_change(issuer, issuer.government.agent)
         issuer.government.agent.cash += offering.principal
+        issuer_write_ids = finish_public_change(public_change, 'bond_purchase_live_offering_cash',
+            inputs={'source_method': 'purchase_live_offering'})
 
         bond_id = f"bnd_{uuid.uuid4().hex[:6]}"
         bond = SovereignBond(
@@ -423,10 +449,10 @@ class SovereignBondMarket:
         )
         self.bonds.append(bond)
         offering.status = "filled"
-        _trace_bond(buyer, 'sovereign_bond_purchase', t, bond,
+        _trace_bond(buyer, 'sovereign_bond_purchase', t, bond, cause_event_ids=buyer_write_ids,
                     treasury_delta=-offering.principal,
                     counterparty=issuer.name, offering_id=offering.offering_id)
-        _trace_bond(issuer, 'sovereign_bond_proceeds', t, bond,
+        _trace_bond(issuer, 'sovereign_bond_proceeds', t, bond, cause_event_ids=issuer_write_ids,
                     treasury_delta=offering.principal,
                     counterparty=buyer.name, offering_id=offering.offering_id)
 
@@ -456,10 +482,19 @@ class SovereignBondMarket:
         if holder:
             if holder.government.agent.cash < principal:
                 return False, f"{holder.name} treasury has insufficient cash (${holder.government.agent.cash:.0f} < ${principal:.0f}).", None
+            public_change = begin_public_change(holder, holder.government.agent)
             holder.government.agent.cash -= principal
+            holder_write_ids = finish_public_change(public_change, 'bond_issue_bond_cash',
+                inputs={'source_method': 'issue_bond'})
+            public_change = begin_public_change(issuer, issuer.government.agent)
             issuer.government.agent.cash += principal
+            issuer_write_ids = finish_public_change(public_change, 'bond_issue_bond_cash',
+                inputs={'source_method': 'issue_bond'})
         else:
+            public_change = begin_public_change(issuer, issuer.government.agent)
             issuer.government.agent.cash += principal
+            issuer_write_ids = finish_public_change(public_change, 'bond_issue_bond_cash',
+                inputs={'source_method': 'issue_bond'})
 
         bond = SovereignBond(
             bond_id=bond_id,
@@ -475,9 +510,9 @@ class SovereignBondMarket:
         )
         self.bonds.append(bond)
         if holder:
-            _trace_bond(holder, 'sovereign_bond_purchase', t, bond,
+            _trace_bond(holder, 'sovereign_bond_purchase', t, bond, cause_event_ids=holder_write_ids,
                         treasury_delta=-principal, counterparty=issuer.name)
-        _trace_bond(issuer, 'sovereign_bond_proceeds', t, bond,
+        _trace_bond(issuer, 'sovereign_bond_proceeds', t, bond, cause_event_ids=issuer_write_ids,
                     treasury_delta=principal, counterparty=holder_name)
         return True, f"Issued {duration_turns}t Sovereign Bond #{bond_id} for ${principal:.0f} ({rating} @ {yield_rate*100:.2f}%/t).", bond
 
@@ -497,15 +532,21 @@ class SovereignBondMarket:
         if issuer.government.agent.cash < bond.principal:
             return False, f"Insufficient treasury cash to redeem principal (${issuer.government.agent.cash:.0f} < ${bond.principal:.0f})."
 
+        public_change = begin_public_change(issuer, issuer.government.agent)
         issuer.government.agent.cash -= bond.principal
+        issuer_write_ids = finish_public_change(public_change, 'bond_redeem_bond_early_cash',
+            inputs={'source_method': 'redeem_bond_early'})
         if holder:
+            public_change = begin_public_change(holder, holder.government.agent)
             holder.government.agent.cash += bond.principal
+            holder_write_ids = finish_public_change(public_change, 'bond_redeem_bond_early_cash',
+                inputs={'source_method': 'redeem_bond_early'})
 
         bond.status = "redeemed"
-        _trace_bond(issuer, 'sovereign_bond_early_redemption', t, bond,
+        _trace_bond(issuer, 'sovereign_bond_early_redemption', t, bond, cause_event_ids=issuer_write_ids,
                     treasury_delta=-bond.principal, counterparty=bond.holder_nation)
         if holder:
-            _trace_bond(holder, 'sovereign_bond_redemption_received', t, bond,
+            _trace_bond(holder, 'sovereign_bond_redemption_received', t, bond, cause_event_ids=holder_write_ids,
                         treasury_delta=bond.principal, counterparty=issuer.name)
         return True, f"Redeemed Sovereign Bond #{bond_id} for ${bond.principal:.0f}."
 
@@ -650,7 +691,10 @@ class SovereignBondMarket:
             if offering.status == "live" and t >= offering.live_turn + 2:
                 issuer = nations_by_name.get(offering.issuer_nation)
                 if issuer:
+                    public_change = begin_public_change(issuer, issuer.government.agent)
                     issuer.government.agent.cash += offering.principal
+                    issuer_write_ids = finish_public_change(public_change, 'bond_step_cash',
+                        inputs={'source_method': 'step'})
                     bond_id = f"bnd_{uuid.uuid4().hex[:6]}"
                     bond = SovereignBond(
                         bond_id=bond_id,
@@ -666,7 +710,7 @@ class SovereignBondMarket:
                     )
                     self.bonds.append(bond)
                     offering.status = "filled"
-                    _trace_bond(issuer, 'sovereign_bond_domestic_underwrite', t, bond,
+                    _trace_bond(issuer, 'sovereign_bond_domestic_underwrite', t, bond, cause_event_ids=issuer_write_ids,
                                 treasury_delta=offering.principal,
                                 counterparty='Domestic Commercial Banks',
                                 offering_id=offering.offering_id)
@@ -708,9 +752,15 @@ class SovereignBondMarket:
             # Maturity Redemption
             if t >= bond.maturity_turn:
                 if issuer.government.agent.cash >= bond.principal:
+                    public_change = begin_public_change(issuer, issuer.government.agent)
                     issuer.government.agent.cash -= bond.principal
+                    issuer_write_ids = finish_public_change(public_change, 'bond_step_cash',
+                        inputs={'source_method': 'step'})
                     if holder:
+                        public_change = begin_public_change(holder, holder.government.agent)
                         holder.government.agent.cash += bond.principal
+                        holder_write_ids = finish_public_change(public_change, 'bond_step_cash',
+                            inputs={'source_method': 'step'})
                     elif bond.holder_nation == "Domestic Commercial Banks":
                         issuer_banks = [r.bank for r in getattr(issuer, 'tiles', []) if getattr(r, 'bank', None)]
                         if issuer_banks:
@@ -724,11 +774,11 @@ class SovereignBondMarket:
                                                       'principal_share': share_p})
                                 b_inst.sovereign_bonds_held = [x for x in getattr(b_inst, 'sovereign_bonds_held', []) if x.get('bond_id') != bond.bond_id]
                     bond.status = "matured"
-                    _trace_bond(issuer, 'sovereign_bond_maturity_paid', t, bond,
+                    _trace_bond(issuer, 'sovereign_bond_maturity_paid', t, bond, cause_event_ids=issuer_write_ids,
                                 treasury_delta=-bond.principal,
                                 counterparty=bond.holder_nation)
                     if holder:
-                        _trace_bond(holder, 'sovereign_bond_maturity_received', t, bond,
+                        _trace_bond(holder, 'sovereign_bond_maturity_received', t, bond, cause_event_ids=holder_write_ids,
                                     treasury_delta=bond.principal,
                                     counterparty=issuer.name)
                     from client.desktop.engine import ticker_push
@@ -794,9 +844,15 @@ class SovereignBondMarket:
 
                 remaining_coupon = max(0.0, coupon - funds_collected)
                 if issuer.government.agent.cash >= remaining_coupon:
+                    public_change = begin_public_change(issuer, issuer.government.agent)
                     issuer.government.agent.cash -= remaining_coupon
+                    issuer_write_ids = finish_public_change(public_change, 'bond_step_cash',
+                        inputs={'source_method': 'step'})
                     if holder:
+                        public_change = begin_public_change(holder, holder.government.agent)
                         holder.government.agent.cash += coupon
+                        holder_write_ids = finish_public_change(public_change, 'bond_step_cash',
+                            inputs={'source_method': 'step'})
                     elif bond.holder_nation == "Domestic Commercial Banks":
                         issuer_banks = [r.bank for r in getattr(issuer, 'tiles', []) if getattr(r, 'bank', None)]
                         if issuer_banks:
@@ -808,12 +864,12 @@ class SovereignBondMarket:
                                 finish_change(b_inst, bank_change, 'sovereign_bond_coupon',
                                               inputs={'bond_id': bond.bond_id, 'issuer': issuer.name,
                                                       'coupon_share': share_c})
-                    _trace_bond(issuer, 'sovereign_bond_coupon_paid', t, bond,
+                    _trace_bond(issuer, 'sovereign_bond_coupon_paid', t, bond, cause_event_ids=issuer_write_ids,
                                 treasury_delta=-remaining_coupon,
                                 coupon_total=coupon, resident_contributions=funds_collected,
                                 counterparty=bond.holder_nation)
                     if holder:
-                        _trace_bond(holder, 'sovereign_bond_coupon_received', t, bond,
+                        _trace_bond(holder, 'sovereign_bond_coupon_received', t, bond, cause_event_ids=holder_write_ids,
                                     treasury_delta=coupon, counterparty=issuer.name,
                                     coupon_total=coupon,
                                     resident_contributions=funds_collected)

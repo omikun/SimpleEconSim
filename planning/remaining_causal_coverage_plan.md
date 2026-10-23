@@ -342,3 +342,16 @@ mechanic or general rewrite of money settlement is required for this slice.
   [coverage README](coverage/README.md). The Phase 0 global classification gate
   remains open while source-reviewed subsets receive runtime probes.
 - Phases 2–8 and the remaining Phase 0/1 gates are pending.
+
+
+### Financial slice progress
+
+Bank rescue debits, sovereign issue/purchase/coupon/maturity/redemption cash
+legs, rating-agency fees and construction subsidy debits now have stock probes.
+Existing semantic settlement records link to those writes; rating fees have
+signed flow records. Domestic cash creation and rescue alias behavior are
+preserved. Four new financial fixtures plus banking, subsidy, treasury, recorder
+and inventory regression suites passed 63 tests. Source reviews now cover 31
+of 508 candidates (some with explicitly partial branch evidence); 477 remain.
+Live-offering and unusual counterparty acceptance remains open. Next: political,
+manual and scenario writers, then timed composition transitions.

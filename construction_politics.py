@@ -19,6 +19,7 @@ Implements:
 """
 
 from __future__ import annotations
+from treasury_trace import begin_public_change, finish_public_change
 from typing import TYPE_CHECKING
 from goods import Goods
 
@@ -191,7 +192,10 @@ def subsidize_contractor(project: ConstructionProject, amount: float, nation: Na
     contractor_currency = getattr(contractor, 'home_currency', None) or currency
     gov_cash_before = float(gov_agent.cash)
     contractor_cash_before = float(contractor.cash)
+    public_change = begin_public_change(region or nation, gov_agent)
     gov_agent.cash -= amount
+    public_write_ids = finish_public_change(public_change, 'construction_overrun_subsidy_debit',
+                                           inputs={'operation_id': operation_id, 'project_id': project.project_id})
     contractor.cash += amount
     project.emergency_subsidies_received = subsidies_before + amount
 
@@ -217,7 +221,7 @@ def subsidize_contractor(project: ConstructionProject, amount: float, nation: Na
             currency_conversion_applied=False,
             unconverted_currency_mismatch=(contractor_currency != currency))
         transfer_event_id = emit_cash_transfer(
-            region, kind='construction_overrun_subsidy_payment',
+            region, cause_event_ids=public_write_ids or None, kind='construction_overrun_subsidy_payment',
             contract=contract, phase='policy_action',
             subject={'type': 'tile/project', 'id': project.project_id,
                      'tile': region.name},

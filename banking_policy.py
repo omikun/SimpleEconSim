@@ -9,6 +9,7 @@ Implements:
 
 from __future__ import annotations
 from typing import TYPE_CHECKING, Tuple, Dict, Any
+from treasury_trace import begin_public_change, finish_public_change
 
 if TYPE_CHECKING:
     from nation import Nation
@@ -144,7 +145,11 @@ def recapitalize_domestic_banks(nation: Nation, target_capital: float = 500.0) -
         treasury_before = float(gov_agent.cash)
         bank_capital_before = float(b.capital)
         was_frozen = bool(getattr(b, 'is_frozen', False))
+        public_change = begin_public_change(trace_region, gov_agent)
         gov_agent.cash -= shortfall
+        public_write_ids = finish_public_change(
+            public_change, 'sovereign_bank_rescue_debit',
+            inputs={'operation_id': operation_id, 'bank_tile': trace_region.name})
         _solvent, bank_event_id = b.recapitalize(
             shortfall, trace_region=trace_region, operation_id=operation_id,
             return_event_id=True)
@@ -175,7 +180,7 @@ def recapitalize_domestic_banks(nation: Nation, target_capital: float = 500.0) -
             nation_name=nation.name, currency=currency,
             signed_amount=-shortfall, contract=contract,
             phase='banking_policy', cause_event_ids=(
-                [bank_event_id] if bank_event_id is not None else None),
+                public_write_ids + ([bank_event_id] if bank_event_id is not None else [])),
             inputs={'bank_tile': trace_region.name, 'bank_count': len(troubled_banks),
                     'target_capital': float(target_capital),
                     'capital_before': bank_capital_before,

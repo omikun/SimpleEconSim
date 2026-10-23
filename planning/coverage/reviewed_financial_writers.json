@@ -136,6 +136,78 @@
       "unit": "existing_local_currency",
       "writer": "explicit_conditional_public_probe"
     },
+    "banking_policy.py:recapitalize_domestic_banks:664fb5190b2d4cea:1": {
+      "calling_path": "recapitalize_domestic_banks",
+      "closure": "partial_fixture_evidence",
+      "fixtures": [
+        "test_financial_account_completion.FinancialAccountCompletionTests",
+        "test_banking_contagion.TestBankingContagion",
+        "test_construction_subsidy_trace"
+      ],
+      "formula": "not_applicable_direct_write",
+      "links": "partial_fixture_evidence",
+      "missing_work": "Direct issue, maturity, coupon, early redemption, rating fees and rescue have account fixtures. Live offering and unusual counterparty branches still require full scenario acceptance.",
+      "owner": "banking_policy.py:recapitalize_domestic_banks",
+      "review": "reviewed_financial_slice",
+      "sampling": "actual_mutation_boundary",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_local_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "construction_politics.py:subsidize_contractor:018bb188b33d5f21:1": {
+      "calling_path": "subsidize_contractor",
+      "closure": "partial_fixture_evidence",
+      "fixtures": [
+        "test_financial_account_completion.FinancialAccountCompletionTests",
+        "test_banking_contagion.TestBankingContagion",
+        "test_construction_subsidy_trace"
+      ],
+      "formula": "not_applicable_direct_write",
+      "links": "partial_fixture_evidence",
+      "missing_work": "Direct issue, maturity, coupon, early redemption, rating fees and rescue have account fixtures. Live offering and unusual counterparty branches still require full scenario acceptance.",
+      "owner": "construction_politics.py:subsidize_contractor",
+      "review": "reviewed_financial_slice",
+      "sampling": "actual_mutation_boundary",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_local_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "construction_politics.py:subsidize_contractor:3ca686b3122df664:1": {
+      "calling_path": "subsidize_contractor",
+      "closure": "partial_fixture_evidence",
+      "fixtures": [
+        "test_financial_account_completion.FinancialAccountCompletionTests",
+        "test_banking_contagion.TestBankingContagion",
+        "test_construction_subsidy_trace"
+      ],
+      "formula": "not_applicable_direct_write",
+      "links": "partial_fixture_evidence",
+      "missing_work": "Direct issue, maturity, coupon, early redemption, rating fees and rescue have account fixtures. Live offering and unusual counterparty branches still require full scenario acceptance.",
+      "owner": "construction_politics.py:subsidize_contractor",
+      "review": "reviewed_financial_slice",
+      "sampling": "actual_mutation_boundary",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_local_currency",
+      "writer": "private_counterparty_or_creation"
+    },
     "disease.py:step_medical_care:0403a02c44b1ce60:1": {
       "account_type": "cash",
       "calling_path": "step_medical_care",
@@ -293,6 +365,414 @@
       "semantic_records": [
         "medical_care_payment",
         "medical_treatment"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_local_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "sovereign_bonds.py:InternationalRatingBureau.acquire_board_seat:fe3b49f4bb66a383:1": {
+      "calling_path": "InternationalRatingBureau.acquire_board_seat",
+      "closure": "partial_fixture_evidence",
+      "fixtures": [
+        "test_financial_account_completion.FinancialAccountCompletionTests",
+        "test_banking_contagion.TestBankingContagion",
+        "test_construction_subsidy_trace"
+      ],
+      "formula": "not_applicable_direct_write",
+      "links": "partial_fixture_evidence",
+      "missing_work": "Direct issue, maturity, coupon, early redemption, rating fees and rescue have account fixtures. Live offering and unusual counterparty branches still require full scenario acceptance.",
+      "owner": "sovereign_bonds.py:InternationalRatingBureau.acquire_board_seat",
+      "review": "reviewed_financial_slice",
+      "sampling": "actual_mutation_boundary",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_local_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "sovereign_bonds.py:InternationalRatingBureau.lobby_adversary_downgrade:fe3b49f4bb66a383:1": {
+      "calling_path": "InternationalRatingBureau.lobby_adversary_downgrade",
+      "closure": "partial_fixture_evidence",
+      "fixtures": [
+        "test_financial_account_completion.FinancialAccountCompletionTests",
+        "test_banking_contagion.TestBankingContagion",
+        "test_construction_subsidy_trace"
+      ],
+      "formula": "not_applicable_direct_write",
+      "links": "partial_fixture_evidence",
+      "missing_work": "Direct issue, maturity, coupon, early redemption, rating fees and rescue have account fixtures. Live offering and unusual counterparty branches still require full scenario acceptance.",
+      "owner": "sovereign_bonds.py:InternationalRatingBureau.lobby_adversary_downgrade",
+      "review": "reviewed_financial_slice",
+      "sampling": "actual_mutation_boundary",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_local_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "sovereign_bonds.py:InternationalRatingBureau.lobby_upgrade:fe3b49f4bb66a383:1": {
+      "calling_path": "InternationalRatingBureau.lobby_upgrade",
+      "closure": "partial_fixture_evidence",
+      "fixtures": [
+        "test_financial_account_completion.FinancialAccountCompletionTests",
+        "test_banking_contagion.TestBankingContagion",
+        "test_construction_subsidy_trace"
+      ],
+      "formula": "not_applicable_direct_write",
+      "links": "partial_fixture_evidence",
+      "missing_work": "Direct issue, maturity, coupon, early redemption, rating fees and rescue have account fixtures. Live offering and unusual counterparty branches still require full scenario acceptance.",
+      "owner": "sovereign_bonds.py:InternationalRatingBureau.lobby_upgrade",
+      "review": "reviewed_financial_slice",
+      "sampling": "actual_mutation_boundary",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_local_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "sovereign_bonds.py:SovereignBondMarket.issue_bond:2b19db4e9cb00110:1": {
+      "calling_path": "SovereignBondMarket.issue_bond",
+      "closure": "partial_fixture_evidence",
+      "fixtures": [
+        "test_financial_account_completion.FinancialAccountCompletionTests",
+        "test_banking_contagion.TestBankingContagion",
+        "test_construction_subsidy_trace"
+      ],
+      "formula": "not_applicable_direct_write",
+      "links": "partial_fixture_evidence",
+      "missing_work": "Direct issue, maturity, coupon, early redemption, rating fees and rescue have account fixtures. Live offering and unusual counterparty branches still require full scenario acceptance.",
+      "owner": "sovereign_bonds.py:SovereignBondMarket.issue_bond",
+      "review": "reviewed_financial_slice",
+      "sampling": "actual_mutation_boundary",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_local_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "sovereign_bonds.py:SovereignBondMarket.issue_bond:b29a38d4fefdc7d3:1": {
+      "calling_path": "SovereignBondMarket.issue_bond",
+      "closure": "partial_fixture_evidence",
+      "fixtures": [
+        "test_financial_account_completion.FinancialAccountCompletionTests",
+        "test_banking_contagion.TestBankingContagion",
+        "test_construction_subsidy_trace"
+      ],
+      "formula": "not_applicable_direct_write",
+      "links": "partial_fixture_evidence",
+      "missing_work": "Direct issue, maturity, coupon, early redemption, rating fees and rescue have account fixtures. Live offering and unusual counterparty branches still require full scenario acceptance.",
+      "owner": "sovereign_bonds.py:SovereignBondMarket.issue_bond",
+      "review": "reviewed_financial_slice",
+      "sampling": "actual_mutation_boundary",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_local_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "sovereign_bonds.py:SovereignBondMarket.issue_bond:f26f139c969afa22:1": {
+      "calling_path": "SovereignBondMarket.issue_bond",
+      "closure": "partial_fixture_evidence",
+      "fixtures": [
+        "test_financial_account_completion.FinancialAccountCompletionTests",
+        "test_banking_contagion.TestBankingContagion",
+        "test_construction_subsidy_trace"
+      ],
+      "formula": "not_applicable_direct_write",
+      "links": "partial_fixture_evidence",
+      "missing_work": "Direct issue, maturity, coupon, early redemption, rating fees and rescue have account fixtures. Live offering and unusual counterparty branches still require full scenario acceptance.",
+      "owner": "sovereign_bonds.py:SovereignBondMarket.issue_bond",
+      "review": "reviewed_financial_slice",
+      "sampling": "actual_mutation_boundary",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_local_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "sovereign_bonds.py:SovereignBondMarket.issue_municipal_sewer_bond:5bcae95683ae298a:1": {
+      "calling_path": "SovereignBondMarket.issue_municipal_sewer_bond",
+      "closure": "partial_fixture_evidence",
+      "fixtures": [
+        "test_financial_account_completion.FinancialAccountCompletionTests",
+        "test_banking_contagion.TestBankingContagion",
+        "test_construction_subsidy_trace"
+      ],
+      "formula": "not_applicable_direct_write",
+      "links": "partial_fixture_evidence",
+      "missing_work": "Direct issue, maturity, coupon, early redemption, rating fees and rescue have account fixtures. Live offering and unusual counterparty branches still require full scenario acceptance.",
+      "owner": "sovereign_bonds.py:SovereignBondMarket.issue_municipal_sewer_bond",
+      "review": "reviewed_financial_slice",
+      "sampling": "actual_mutation_boundary",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_local_currency",
+      "writer": "private_counterparty_or_creation"
+    },
+    "sovereign_bonds.py:SovereignBondMarket.purchase_live_offering:4733925c3ba42c66:1": {
+      "calling_path": "SovereignBondMarket.purchase_live_offering",
+      "closure": "partial_fixture_evidence",
+      "fixtures": [
+        "test_financial_account_completion.FinancialAccountCompletionTests",
+        "test_banking_contagion.TestBankingContagion",
+        "test_construction_subsidy_trace"
+      ],
+      "formula": "not_applicable_direct_write",
+      "links": "partial_fixture_evidence",
+      "missing_work": "Direct issue, maturity, coupon, early redemption, rating fees and rescue have account fixtures. Live offering and unusual counterparty branches still require full scenario acceptance.",
+      "owner": "sovereign_bonds.py:SovereignBondMarket.purchase_live_offering",
+      "review": "reviewed_financial_slice",
+      "sampling": "actual_mutation_boundary",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_local_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "sovereign_bonds.py:SovereignBondMarket.purchase_live_offering:52aef556c1418c64:1": {
+      "calling_path": "SovereignBondMarket.purchase_live_offering",
+      "closure": "partial_fixture_evidence",
+      "fixtures": [
+        "test_financial_account_completion.FinancialAccountCompletionTests",
+        "test_banking_contagion.TestBankingContagion",
+        "test_construction_subsidy_trace"
+      ],
+      "formula": "not_applicable_direct_write",
+      "links": "partial_fixture_evidence",
+      "missing_work": "Direct issue, maturity, coupon, early redemption, rating fees and rescue have account fixtures. Live offering and unusual counterparty branches still require full scenario acceptance.",
+      "owner": "sovereign_bonds.py:SovereignBondMarket.purchase_live_offering",
+      "review": "reviewed_financial_slice",
+      "sampling": "actual_mutation_boundary",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_local_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "sovereign_bonds.py:SovereignBondMarket.redeem_bond_early:196cd2879ea18557:1": {
+      "calling_path": "SovereignBondMarket.redeem_bond_early",
+      "closure": "partial_fixture_evidence",
+      "fixtures": [
+        "test_financial_account_completion.FinancialAccountCompletionTests",
+        "test_banking_contagion.TestBankingContagion",
+        "test_construction_subsidy_trace"
+      ],
+      "formula": "not_applicable_direct_write",
+      "links": "partial_fixture_evidence",
+      "missing_work": "Direct issue, maturity, coupon, early redemption, rating fees and rescue have account fixtures. Live offering and unusual counterparty branches still require full scenario acceptance.",
+      "owner": "sovereign_bonds.py:SovereignBondMarket.redeem_bond_early",
+      "review": "reviewed_financial_slice",
+      "sampling": "actual_mutation_boundary",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_local_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "sovereign_bonds.py:SovereignBondMarket.redeem_bond_early:c112d2a8bd8cceb7:1": {
+      "calling_path": "SovereignBondMarket.redeem_bond_early",
+      "closure": "partial_fixture_evidence",
+      "fixtures": [
+        "test_financial_account_completion.FinancialAccountCompletionTests",
+        "test_banking_contagion.TestBankingContagion",
+        "test_construction_subsidy_trace"
+      ],
+      "formula": "not_applicable_direct_write",
+      "links": "partial_fixture_evidence",
+      "missing_work": "Direct issue, maturity, coupon, early redemption, rating fees and rescue have account fixtures. Live offering and unusual counterparty branches still require full scenario acceptance.",
+      "owner": "sovereign_bonds.py:SovereignBondMarket.redeem_bond_early",
+      "review": "reviewed_financial_slice",
+      "sampling": "actual_mutation_boundary",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_local_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "sovereign_bonds.py:SovereignBondMarket.step:1f316b2cdeda948e:1": {
+      "calling_path": "SovereignBondMarket.step",
+      "closure": "partial_fixture_evidence",
+      "fixtures": [
+        "test_financial_account_completion.FinancialAccountCompletionTests",
+        "test_banking_contagion.TestBankingContagion",
+        "test_construction_subsidy_trace"
+      ],
+      "formula": "not_applicable_direct_write",
+      "links": "partial_fixture_evidence",
+      "missing_work": "Direct issue, maturity, coupon, early redemption, rating fees and rescue have account fixtures. Live offering and unusual counterparty branches still require full scenario acceptance.",
+      "owner": "sovereign_bonds.py:SovereignBondMarket.step",
+      "review": "reviewed_financial_slice",
+      "sampling": "actual_mutation_boundary",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_local_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "sovereign_bonds.py:SovereignBondMarket.step:26b24e17234dc000:1": {
+      "calling_path": "SovereignBondMarket.step",
+      "closure": "partial_fixture_evidence",
+      "fixtures": [
+        "test_financial_account_completion.FinancialAccountCompletionTests",
+        "test_banking_contagion.TestBankingContagion",
+        "test_construction_subsidy_trace"
+      ],
+      "formula": "not_applicable_direct_write",
+      "links": "partial_fixture_evidence",
+      "missing_work": "Direct issue, maturity, coupon, early redemption, rating fees and rescue have account fixtures. Live offering and unusual counterparty branches still require full scenario acceptance.",
+      "owner": "sovereign_bonds.py:SovereignBondMarket.step",
+      "review": "reviewed_financial_slice",
+      "sampling": "actual_mutation_boundary",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_local_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "sovereign_bonds.py:SovereignBondMarket.step:39f298cbf9073bee:1": {
+      "calling_path": "SovereignBondMarket.step",
+      "closure": "partial_fixture_evidence",
+      "fixtures": [
+        "test_financial_account_completion.FinancialAccountCompletionTests",
+        "test_banking_contagion.TestBankingContagion",
+        "test_construction_subsidy_trace"
+      ],
+      "formula": "not_applicable_direct_write",
+      "links": "partial_fixture_evidence",
+      "missing_work": "Direct issue, maturity, coupon, early redemption, rating fees and rescue have account fixtures. Live offering and unusual counterparty branches still require full scenario acceptance.",
+      "owner": "sovereign_bonds.py:SovereignBondMarket.step",
+      "review": "reviewed_financial_slice",
+      "sampling": "actual_mutation_boundary",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_local_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "sovereign_bonds.py:SovereignBondMarket.step:6a30d6fbaff001c3:1": {
+      "calling_path": "SovereignBondMarket.step",
+      "closure": "partial_fixture_evidence",
+      "fixtures": [
+        "test_financial_account_completion.FinancialAccountCompletionTests",
+        "test_banking_contagion.TestBankingContagion",
+        "test_construction_subsidy_trace"
+      ],
+      "formula": "not_applicable_direct_write",
+      "links": "partial_fixture_evidence",
+      "missing_work": "Direct issue, maturity, coupon, early redemption, rating fees and rescue have account fixtures. Live offering and unusual counterparty branches still require full scenario acceptance.",
+      "owner": "sovereign_bonds.py:SovereignBondMarket.step",
+      "review": "reviewed_financial_slice",
+      "sampling": "actual_mutation_boundary",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_local_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "sovereign_bonds.py:SovereignBondMarket.step:8a31ae5518f9f408:1": {
+      "calling_path": "SovereignBondMarket.step",
+      "closure": "partial_fixture_evidence",
+      "fixtures": [
+        "test_financial_account_completion.FinancialAccountCompletionTests",
+        "test_banking_contagion.TestBankingContagion",
+        "test_construction_subsidy_trace"
+      ],
+      "formula": "not_applicable_direct_write",
+      "links": "partial_fixture_evidence",
+      "missing_work": "Direct issue, maturity, coupon, early redemption, rating fees and rescue have account fixtures. Live offering and unusual counterparty branches still require full scenario acceptance.",
+      "owner": "sovereign_bonds.py:SovereignBondMarket.step",
+      "review": "reviewed_financial_slice",
+      "sampling": "actual_mutation_boundary",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "ui": "generic_trace_inspector_only",
+      "unit": "existing_local_currency",
+      "writer": "private_counterparty_or_creation"
+    },
+    "sovereign_bonds.py:SovereignBondMarket.step:bd17e6016158e94e:1": {
+      "calling_path": "SovereignBondMarket.step",
+      "closure": "partial_fixture_evidence",
+      "fixtures": [
+        "test_financial_account_completion.FinancialAccountCompletionTests",
+        "test_banking_contagion.TestBankingContagion",
+        "test_construction_subsidy_trace"
+      ],
+      "formula": "not_applicable_direct_write",
+      "links": "partial_fixture_evidence",
+      "missing_work": "Direct issue, maturity, coupon, early redemption, rating fees and rescue have account fixtures. Live offering and unusual counterparty branches still require full scenario acceptance.",
+      "owner": "sovereign_bonds.py:SovereignBondMarket.step",
+      "review": "reviewed_financial_slice",
+      "sampling": "actual_mutation_boundary",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
       ],
       "ui": "generic_trace_inspector_only",
       "unit": "existing_local_currency",
