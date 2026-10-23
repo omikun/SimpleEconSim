@@ -16,6 +16,7 @@ wealth simply stays with its owners (the M4 refugee seam reads it later).
 """
 
 from __future__ import annotations
+from treasury_trace import begin_public_change, finish_public_change
 
 
 #: Legitimacy below which a coup can trigger (matches unrest._takeover).
@@ -218,8 +219,14 @@ def seize_treasury(nation, general, t, *, decision_event_id=None,
             continue
         government_cash_before = float(gov_agent.cash)
         general_cash_before = float(general.cash)
+        _public_write = begin_public_change(None, gov_agent)
         gov_agent.cash -= cash
+        finish_public_change(_public_write, 'coup:seize_treasury',
+                             inputs={'source_writer': 'coup.py:seize_treasury:a14b416edc77eb6b:1', 'semantic_operation_id': locals().get('operation_id')})
+        _public_write = begin_public_change(None, general)
         general.cash += cash
+        finish_public_change(_public_write, 'coup:seize_treasury',
+                             inputs={'source_writer': 'coup.py:seize_treasury:794040dff725ed2b:1', 'semantic_operation_id': locals().get('operation_id')})
         total += cash
         operation_id = (f'coup-treasury:{nation.name}:{int(t)}:'
                         f'{tile.name}:{general.id}')

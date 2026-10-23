@@ -1,6 +1,7 @@
 """Tile-level responses and measured pressures for the Egypt campaign."""
 
 from __future__ import annotations
+from treasury_trace import begin_public_change, finish_public_change
 
 import math
 
@@ -271,11 +272,17 @@ def apply_action(world, nation, action_id):
         operation_id = (f'district-settlement:{tile.name}:{turn}:'
                         f'{treasury_before:.6f}')
         payment_balances = []
+        _public_write = begin_public_change(None, treasury)
         treasury.cash -= cost
+        finish_public_change(_public_write, 'scenario_district:apply_action',
+                             inputs={'source_writer': 'scenario_district.py:apply_action:9578254d40570323:1', 'semantic_operation_id': locals().get('operation_id')})
         for agent in people:
             amount = cost / len(people)
             recipient_before = float(agent.cash)
+            _public_write = begin_public_change(None, agent)
             agent.cash += amount
+            finish_public_change(_public_write, 'scenario_district:apply_action',
+                                 inputs={'source_writer': 'scenario_district.py:apply_action:5fa5200b2c1f9916:1', 'semantic_operation_id': locals().get('operation_id')})
             payment_balances.append((agent, amount, recipient_before,
                                      float(agent.cash)))
         payment_event_id = _trace_district_settlement(

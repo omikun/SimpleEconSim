@@ -15,6 +15,7 @@ counted by ``forex.audit_currency_total`` (the tile gov agent is appended to
 """
 
 from __future__ import annotations
+from treasury_trace import begin_public_change, finish_public_change
 
 from dataclasses import dataclass, field
 
@@ -306,9 +307,15 @@ def campaign_finance(nation, candidate, amount, t, *, _trace_context=None):
                 fx_balance(candidate.agent, nation.currency))
         else:
             candidate_balance_before = float(candidate.agent.cash)
+            _public_write = begin_public_change(None, candidate.agent)
             candidate.agent.cash += take
+            finish_public_change(_public_write, 'election:campaign_finance',
+                                 inputs={'source_writer': 'election.py:campaign_finance:c49e09a08ec6be19:1', 'semantic_operation_id': locals().get('operation_id')})
             candidate_balance_after = float(candidate.agent.cash)
+        _public_write = begin_public_change(None, gov_agent)
         gov_agent.cash -= take
+        finish_public_change(_public_write, 'election:campaign_finance',
+                             inputs={'source_writer': 'election.py:campaign_finance:4ecca5aad103abb8:1', 'semantic_operation_id': locals().get('operation_id')})
         source_cash_after = float(gov_agent.cash)
         nation_name = getattr(nation, 'name', 'nation')
         tile_name = getattr(tile, 'name', f'tile-{gov_agent.id}')

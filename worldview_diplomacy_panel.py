@@ -15,6 +15,7 @@ Duplicates cross-nation diplomacy functionality from the Sovereign Actions modal
 """
 
 from __future__ import annotations
+from treasury_trace import begin_public_change, finish_public_change
 import pygame
 from worldview_camera import HEIGHT, TOP_BAR_H, TICKER_H
 from worldview_map import ACCENT, TEXT, DIM, RED, GREEN, NATION_COLORS
@@ -449,9 +450,15 @@ def diplomacy_panel_hit(pos: tuple[int, int], world: dict) -> bool:
     if btn_x <= mx <= btn_x + btn_w and btn_y <= my <= btn_y + btn_h:
         gov = active_n.government
         if gov and gov.agent.cash >= 100.0 and not is_war:
+            _public_write = begin_public_change(None, gov.agent)
             gov.agent.cash -= 100.0
+            finish_public_change(_public_write, 'worldview_diplomacy_panel:diplomacy_panel_hit',
+                                 inputs={'source_writer': 'worldview_diplomacy_panel.py:diplomacy_panel_hit:f37396f3a3fa37e5:1', 'semantic_operation_id': locals().get('operation_id')})
             if hasattr(target_n, 'government') and target_n.government:
+                _public_write = begin_public_change(None, target_n.government.agent)
                 target_n.government.agent.cash += 100.0
+                finish_public_change(_public_write, 'worldview_diplomacy_panel:diplomacy_panel_hit',
+                                     inputs={'source_writer': 'worldview_diplomacy_panel.py:diplomacy_panel_hit:3415fa6b555160ff:1', 'semantic_operation_id': locals().get('operation_id')})
             cur_rel = diplomacy.get_relation(active_n.name, target_n.name)
             diplomacy.set_relation(active_n.name, target_n.name, min(1.0, cur_rel + 0.15))
             ticker_push(world, t, 'DIPLOMACY', f"{active_n.name} dispatched $100 Foreign Aid Grant to {target_n.name} (+0.15 Relation).", (120, 240, 150))

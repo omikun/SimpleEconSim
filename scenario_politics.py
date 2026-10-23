@@ -1,6 +1,7 @@
 """Egypt's incumbent, cabinet, officers, and civilian coalition in Guided play."""
 
 from __future__ import annotations
+from treasury_trace import begin_public_change, finish_public_change
 
 from army import MilitaryUnit
 from scenario_situation import situation_template
@@ -285,11 +286,17 @@ def apply_action(world, action_id):
                     or 'local_currency')
         payee_balances = []
         each = cost / len(recipients)
+        _public_write = begin_public_change(None, treasury)
         treasury.cash -= cost
+        finish_public_change(_public_write, 'scenario_politics:apply_action',
+                             inputs={'source_writer': 'scenario_politics.py:apply_action:127c4d087b7bb921:1', 'semantic_operation_id': locals().get('operation_id')})
         treasury_after = float(treasury.cash)
         for (recipient_tile, agent), recipient_before in zip(
                 selected_recipients, recipient_balances):
+            _public_write = begin_public_change(None, agent)
             agent.cash += each
+            finish_public_change(_public_write, 'scenario_politics:apply_action',
+                                 inputs={'source_writer': 'scenario_politics.py:apply_action:4375ce8f5644507e:1', 'semantic_operation_id': locals().get('operation_id')})
             recipient_currency = (getattr(agent, 'home_currency', None) or currency)
             payee_balances.append({
                 'agent_id': str(agent.id), 'tile': recipient_tile.name,

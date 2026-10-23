@@ -4,6 +4,7 @@ This uses the shared blockade's trade effect and the campaign's supplied fleet.
 """
 
 from __future__ import annotations
+from treasury_trace import begin_public_change, finish_public_change
 
 from macro.imperialism.manager import get_imperialism_manager
 from scenario_geography import create_fleet, fleet_at, foreign_decisions, move_fleet, resupply
@@ -111,8 +112,14 @@ def _transfer_to_households(world: dict, nation, amount: float, *, source: str,
 
     treasury_cash_before = float(treasury.cash)
     recipient_cash_before = float(recipient.cash)
+    _public_write = begin_public_change(None, treasury)
     treasury.cash -= amount
+    finish_public_change(_public_write, 'scenario_gunboat:_transfer_to_households',
+                         inputs={'source_writer': 'scenario_gunboat.py:_transfer_to_households:7ebc4b497968afa3:1', 'semantic_operation_id': locals().get('operation_id')})
+    _public_write = begin_public_change(None, recipient)
     recipient.cash += amount
+    finish_public_change(_public_write, 'scenario_gunboat:_transfer_to_households',
+                         inputs={'source_writer': 'scenario_gunboat.py:_transfer_to_households:c5779077c6f95065:1', 'semantic_operation_id': locals().get('operation_id')})
     treasury_cash_after = float(treasury.cash)
     recipient_cash_after = float(recipient.cash)
     payment_event_id = None

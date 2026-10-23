@@ -7,6 +7,7 @@ All actions maintain strict money and resource conservation.
 """
 
 from __future__ import annotations
+from treasury_trace import begin_public_change, finish_public_change
 import pygame
 from goods import Goods
 from worldview_camera import WIDTH, HEIGHT, MAP_RIGHT, TOP_BAR_H, TICKER_H
@@ -288,7 +289,10 @@ def _execute_city_emergency_food(world, target):
 
     source_balance_after = payer_balance_before
     if source == 'city_government_cash':
+        _public_write = begin_public_change(None, payer)
         payer.cash -= cost
+        finish_public_change(_public_write, 'worldview_policies:_execute_city_emergency_food',
+                             inputs={'source_writer': 'worldview_policies.py:_execute_city_emergency_food:b45b72cdaf920a25:1', 'semantic_operation_id': locals().get('operation_id')})
         source_balance_after = float(payer.cash)
     elif source == 'tile_bank_capital':
         from bank_trace import begin_change, finish_change
@@ -298,7 +302,10 @@ def _execute_city_emergency_food(world, target):
                       inputs={'amount': cost, 'funding_source': source})
         source_balance_after = float(payer.capital)
     elif source == 'owner_national_treasury':
+        _public_write = begin_public_change(None, payer)
         payer.cash -= cost
+        finish_public_change(_public_write, 'worldview_policies:_execute_city_emergency_food',
+                             inputs={'source_writer': 'worldview_policies.py:_execute_city_emergency_food:17f32097c7549124:1', 'semantic_operation_id': locals().get('operation_id')})
         source_balance_after = float(payer.cash)
 
     if region is not None and source is not None:
@@ -553,7 +560,10 @@ def _execute_national_guano_subsidy(world, target):
             (240, 80, 80))
         return
 
+    _public_write = begin_public_change(None, gov_agent)
     gov_agent.cash -= cost
+    finish_public_change(_public_write, 'worldview_policies:_execute_national_guano_subsidy',
+                         inputs={'source_writer': 'worldview_policies.py:_execute_national_guano_subsidy:cbdf30831928c5e4:1', 'semantic_operation_id': locals().get('operation_id')})
     treasury_after_debit = float(gov_agent.cash)
     share_cost = cost / len(coastal_tiles)
     expenditure_event_id = None
@@ -616,7 +626,10 @@ def _execute_national_guano_subsidy(world, target):
         refund_event_id = None
         if recipient is not None:
             cash_before = float(recipient.cash)
+            _public_write = begin_public_change(None, recipient)
             recipient.cash += share_cost
+            finish_public_change(_public_write, 'worldview_policies:_execute_national_guano_subsidy',
+                                 inputs={'source_writer': 'worldview_policies.py:_execute_national_guano_subsidy:ba7d6777533b1859:1', 'semantic_operation_id': locals().get('operation_id')})
             cash_after = float(recipient.cash)
             paid_total += share_cost
             recipient_type = ('trader' if traders else 'local_agent')
@@ -669,7 +682,10 @@ def _execute_national_guano_subsidy(world, target):
                                      if expenditure_event_id else None))
         else:
             treasury_refund_before = float(gov_agent.cash)
+            _public_write = begin_public_change(None, gov_agent)
             gov_agent.cash += share_cost
+            finish_public_change(_public_write, 'worldview_policies:_execute_national_guano_subsidy',
+                                 inputs={'source_writer': 'worldview_policies.py:_execute_national_guano_subsidy:2b89e230c5b3e1d9:1', 'semantic_operation_id': locals().get('operation_id')})
             treasury_refund_after = float(gov_agent.cash)
             refund_total += share_cost
             recipient_row = {'tile_id': tile.name,
@@ -1618,7 +1634,10 @@ def _execute_world_policy_spending(world, action_id, target):
         payment_event_id = None
     else:
         treasury_before = float(source.cash)
+        _public_write = begin_public_change(None, source)
         source.cash -= cost
+        finish_public_change(_public_write, 'worldview_policies:_execute_world_policy_spending',
+                             inputs={'source_writer': 'worldview_policies.py:_execute_world_policy_spending:34e920458d5f7a0e:1', 'semantic_operation_id': locals().get('operation_id')})
         treasury_after = float(source.cash)
         recipient = None
         recipient_type = None
@@ -1968,8 +1987,14 @@ def _execute_policy_action(world, act_id, target):
                 poorest = min(tiles, key=lambda r: (r.bank.capital if getattr(r, 'bank', None) else 0.0) + (r.gov.agent.cash if getattr(r, 'gov', None) and hasattr(r.gov, 'agent') else 0.0))
                 payer_before = float(prov_gov.agent.cash)
                 payee_before = float(poorest.gov.agent.cash)
+                _public_write = begin_public_change(None, prov_gov.agent)
                 prov_gov.agent.cash -= cost
+                finish_public_change(_public_write, 'worldview_policies:_execute_policy_action',
+                                     inputs={'source_writer': 'worldview_policies.py:_execute_policy_action:5f9b649116d2d90f:1', 'semantic_operation_id': locals().get('operation_id')})
+                _public_write = begin_public_change(None, poorest.gov.agent)
                 poorest.gov.agent.cash += cost
+                finish_public_change(_public_write, 'worldview_policies:_execute_policy_action',
+                                     inputs={'source_writer': 'worldview_policies.py:_execute_policy_action:442957a72c3dc1e6:1', 'semantic_operation_id': locals().get('operation_id')})
                 payer_event_id, payee_event_id = _trace_provincial_internal_transfer(
                     world, target, poorest, action_id=act_id, trace=trace,
                     amount=cost, payer_before=payer_before,
@@ -2034,7 +2059,10 @@ def _execute_policy_action(world, act_id, target):
                 for tile in tiles}})
         if on_hand >= cost:
             payer_before = float(prov_gov.agent.cash)
+            _public_write = begin_public_change(None, prov_gov.agent)
             prov_gov.agent.cash -= cost
+            finish_public_change(_public_write, 'worldview_policies:_execute_policy_action',
+                                 inputs={'source_writer': 'worldview_policies.py:_execute_policy_action:ef5849cf11b3986c:1', 'semantic_operation_id': locals().get('operation_id')})
             expenditure_event_id = _trace_provincial_policy_expenditure(
                 world, target, act_id, trace, amount=cost,
                 payer_before=payer_before,

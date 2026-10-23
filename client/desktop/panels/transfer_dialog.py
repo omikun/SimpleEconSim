@@ -7,6 +7,7 @@ with insufficient funds on hand, this modal prompts the player to resolve the sh
 2. Sovereign Infrastructure Grant / Bailout from the National Treasury.
 3. Municipal Deficit Bond / Loan from the Local Tile Bank.
 """
+from treasury_trace import begin_public_change, finish_public_change
 
 import pygame
 from client.desktop.camera import WIDTH, HEIGHT
@@ -290,8 +291,14 @@ def execute_fiscal_transfer_and_policy(world, nation_name: str, region_name: str
             ogov = ot.gov
             if ogov.agent.cash > 0:
                 take = min(transfer_amount - gathered, ogov.agent.cash)
+                _public_write = begin_public_change(None, ogov.agent)
                 ogov.agent.cash -= take
+                finish_public_change(_public_write, 'client.desktop.panels.transfer_dialog:execute_fiscal_transfer_and_policy',
+                                     inputs={'source_writer': 'client/desktop/panels/transfer_dialog.py:execute_fiscal_transfer_and_policy:b00194a191e12a1a:1', 'semantic_operation_id': locals().get('operation_id')})
+                _public_write = begin_public_change(None, rgov.agent)
                 rgov.agent.cash += take
+                finish_public_change(_public_write, 'client.desktop.panels.transfer_dialog:execute_fiscal_transfer_and_policy',
+                                     inputs={'source_writer': 'client/desktop/panels/transfer_dialog.py:execute_fiscal_transfer_and_policy:4ee79c00ab281e5c:1', 'semantic_operation_id': locals().get('operation_id')})
                 gathered += take
                 if gathered >= transfer_amount - 0.01:
                     break
@@ -299,8 +306,14 @@ def execute_fiscal_transfer_and_policy(world, nation_name: str, region_name: str
         if nation and hasattr(nation, 'government') and nation.government:
             nat_cash = nation.government.agent.cash
             take = min(transfer_amount, nat_cash)
+            _public_write = begin_public_change(None, nation.government.agent)
             nation.government.agent.cash -= take
+            finish_public_change(_public_write, 'client.desktop.panels.transfer_dialog:execute_fiscal_transfer_and_policy',
+                                 inputs={'source_writer': 'client/desktop/panels/transfer_dialog.py:execute_fiscal_transfer_and_policy:e40b36c1552cb772:1', 'semantic_operation_id': locals().get('operation_id')})
+            _public_write = begin_public_change(None, rgov.agent)
             rgov.agent.cash += take
+            finish_public_change(_public_write, 'client.desktop.panels.transfer_dialog:execute_fiscal_transfer_and_policy',
+                                 inputs={'source_writer': 'client/desktop/panels/transfer_dialog.py:execute_fiscal_transfer_and_policy:5dd4193157da61dd:1', 'semantic_operation_id': locals().get('operation_id')})
     elif transfer_source == 'bank_loan':
         bank = getattr(region, 'bank', None)
         if bank:
@@ -309,7 +322,10 @@ def execute_fiscal_transfer_and_policy(world, nation_name: str, region_name: str
             bank.capital -= transfer_amount
             finish_change(bank, bank_trace_change, 'policy_bank_capital_transfer',
                           inputs={'amount': transfer_amount, 'policy_id': policy_id})
+            _public_write = begin_public_change(None, rgov.agent)
             rgov.agent.cash += transfer_amount
+            finish_public_change(_public_write, 'client.desktop.panels.transfer_dialog:execute_fiscal_transfer_and_policy',
+                                 inputs={'source_writer': 'client/desktop/panels/transfer_dialog.py:execute_fiscal_transfer_and_policy:249fbee604d3fa7d:1', 'semantic_operation_id': locals().get('operation_id')})
 
     # Enact the policy decree
     from client.desktop.panels.gov_panel import _execute_gov_policy

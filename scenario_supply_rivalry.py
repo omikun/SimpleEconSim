@@ -1,5 +1,6 @@
 """Small playable crop-supply rivalry with named growers, two mills, and a route."""
 from __future__ import annotations
+from treasury_trace import begin_public_change, finish_public_change
 
 import random
 
@@ -29,8 +30,14 @@ def _mill(region, owner, name, capital):
     mill.region = region.name
     mill.home_currency = region.home_currency
     mill._bank_ref = region.bank
+    _public_write = begin_public_change(None, mill)
     mill.cash = min(float(capital), max(0.0, float(owner.cash)))
+    finish_public_change(_public_write, 'scenario_supply_rivalry:_mill',
+                         inputs={'source_writer': 'scenario_supply_rivalry.py:_mill:c131c323802f8ad9:1', 'semantic_operation_id': locals().get('operation_id')})
+    _public_write = begin_public_change(None, owner)
     owner.cash -= mill.cash
+    finish_public_change(_public_write, 'scenario_supply_rivalry:_mill',
+                         inputs={'source_writer': 'scenario_supply_rivalry.py:_mill:39c131f9bade53b1:1', 'semantic_operation_id': locals().get('operation_id')})
     owner.company_owned = mill
     mill.wage = 2.0
     mill.max_employees = 5
@@ -77,8 +84,14 @@ def create_world(seed=812):
                       and not a.is_trader and not a.is_corporation)
         holder.is_lord = True
         endowment = max(0.0, 100.0 - holder.cash)
+        _public_write = begin_public_change(None, region.gov.agent)
         region.gov.agent.cash -= endowment
+        finish_public_change(_public_write, 'scenario_supply_rivalry:create_world',
+                             inputs={'source_writer': 'scenario_supply_rivalry.py:create_world:6513e2ae0c11eb67:1', 'semantic_operation_id': locals().get('operation_id')})
+        _public_write = begin_public_change(None, holder)
         holder.cash += endowment
+        finish_public_change(_public_write, 'scenario_supply_rivalry:create_world',
+                             inputs={'source_writer': 'scenario_supply_rivalry.py:create_world:fb71ec86752656b5:1', 'semantic_operation_id': locals().get('operation_id')})
         owners.append(holder)
     # Two real tenants keep named plots, food reserves, crop stock and unlike cash needs.
     ordinary = [a for a in fields.agents if not a.is_government and not a.is_trader
@@ -96,8 +109,14 @@ def create_world(seed=812):
         grower.inv_add(Goods.cotton, 3)
         grower.inv_add(Goods.food, 6 if index == 0 else 1)
         target_cash = 18.0 if index == 0 else 1.0
+        _public_write = begin_public_change(None, fields.gov.agent)
         fields.gov.agent.cash -= target_cash - grower.cash
+        finish_public_change(_public_write, 'scenario_supply_rivalry:create_world',
+                             inputs={'source_writer': 'scenario_supply_rivalry.py:create_world:63a8e6ef3a3197bc:1', 'semantic_operation_id': locals().get('operation_id')})
+        _public_write = begin_public_change(None, grower)
         grower.cash = target_cash
+        finish_public_change(_public_write, 'scenario_supply_rivalry:create_world',
+                             inputs={'source_writer': 'scenario_supply_rivalry.py:create_world:b695db0b1af62e0a:1', 'semantic_operation_id': locals().get('operation_id')})
         grower.display_name = 'Amina, secure grower' if index == 0 else 'Binta, cash-poor grower'
     seed_access_rights(fields)
     seed_access_rights(port)
@@ -175,8 +194,14 @@ def apply_action(world, action_id):
                       if c.get('status') == 'active' and c.get('grower_id') == grower.id)
         if grower.inv_get(Goods.cotton, 0) - pledged < 2:
             return False, 'This crop is already pledged.'
+        _public_write = begin_public_change(None, treasury)
         treasury.cash -= cost
+        finish_public_change(_public_write, 'scenario_supply_rivalry:apply_action',
+                             inputs={'source_writer': 'scenario_supply_rivalry.py:apply_action:77fdfcd20dd67727:1', 'semantic_operation_id': locals().get('operation_id')})
+        _public_write = begin_public_change(None, grower)
         grower.cash += cost
+        finish_public_change(_public_write, 'scenario_supply_rivalry:apply_action',
+                             inputs={'source_writer': 'scenario_supply_rivalry.py:apply_action:307930d6b9f3cda4:1', 'semantic_operation_id': locals().get('operation_id')})
         grower.inv_add(Goods.cotton, -2)
         treasury.inv_add(Goods.cotton, 2)
         from economy.actor_accounts import record
@@ -189,8 +214,14 @@ def apply_action(world, action_id):
                         and not a.is_corporation and not a.is_trader and a not in growers), None)
         if builder is None or treasury.cash < 12 or fields.canal_condition >= 1:
             return False, 'Needs a builder, $12 public cash, and a canal below full condition.'
+        _public_write = begin_public_change(None, treasury)
         treasury.cash -= 12
+        finish_public_change(_public_write, 'scenario_supply_rivalry:apply_action',
+                             inputs={'source_writer': 'scenario_supply_rivalry.py:apply_action:b25576d57cda2883:1', 'semantic_operation_id': locals().get('operation_id')})
+        _public_write = begin_public_change(None, builder)
         builder.cash += 12
+        finish_public_change(_public_write, 'scenario_supply_rivalry:apply_action',
+                             inputs={'source_writer': 'scenario_supply_rivalry.py:apply_action:a941bc7691c7c06a:1', 'semantic_operation_id': locals().get('operation_id')})
         fields.canal_condition = min(1.0, fields.canal_condition + .2)
         from economy.actor_accounts import record
         record(fields, 'irrigation_work', turn=turn, payer_id=treasury.id,

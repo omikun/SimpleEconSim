@@ -5,6 +5,7 @@ They deliberately do not duplicate the sandbox's larger building recipes.
 """
 
 from __future__ import annotations
+from treasury_trace import begin_public_change, finish_public_change
 
 from math import ceil
 from typing import Any
@@ -171,8 +172,14 @@ def _pay_workers(world: dict, project: dict, amount: float, kind: str,
         wage = share if index < len(workers) - 1 else round(amount - share * (len(workers) - 1), 6)
         treasury_before = float(treasury.cash)
         worker_before = float(worker.cash)
+        _public_write = begin_public_change(None, treasury)
         treasury.cash -= wage
+        finish_public_change(_public_write, 'scenario_projects:_pay_workers',
+                             inputs={'source_writer': 'scenario_projects.py:_pay_workers:d5a45fdbffb69a2c:1', 'semantic_operation_id': locals().get('operation_id')})
+        _public_write = begin_public_change(None, worker)
         worker.cash += wage
+        finish_public_change(_public_write, 'scenario_projects:_pay_workers',
+                             inputs={'source_writer': 'scenario_projects.py:_pay_workers:1b8c797c757787f5:1', 'semantic_operation_id': locals().get('operation_id')})
         event_id = _record_person_cash_payment(
             tile, egypt, operation_id=(
                 f"project:{project['id']}:{world['turn']}:{kind}:{worker.id}:"
@@ -627,8 +634,14 @@ def recall_district_reserves(world: dict) -> tuple[bool, str]:
             continue
         payer_before = float(gov.agent.cash)
         payee_before = float(egypt.government.agent.cash)
+        _public_write = begin_public_change(None, gov.agent)
         gov.agent.cash -= amount
+        finish_public_change(_public_write, 'scenario_projects:recall_district_reserves',
+                             inputs={'source_writer': 'scenario_projects.py:recall_district_reserves:f36bddbbf6f52465:1', 'semantic_operation_id': locals().get('operation_id')})
+        _public_write = begin_public_change(None, egypt.government.agent)
         egypt.government.agent.cash += amount
+        finish_public_change(_public_write, 'scenario_projects:recall_district_reserves',
+                             inputs={'source_writer': 'scenario_projects.py:recall_district_reserves:73071210e7be0293:1', 'semantic_operation_id': locals().get('operation_id')})
         transfer_operation_id = (f'reserve-recall:{turn}:{gov.name}:'
                                  f'{payer_before:.6f}:{amount:.6f}')
         operation_event_ids = _record_internal_cash_transfer(
@@ -776,8 +789,14 @@ def advance_grain_entitlement(world: dict) -> None:
             fee = round(units * .05, 6)
             treasury_before = float(treasury.cash)
             carrier_before = float(carrier.cash)
+            _public_write = begin_public_change(None, treasury)
             treasury.cash -= fee
+            finish_public_change(_public_write, 'scenario_projects:advance_grain_entitlement',
+                                 inputs={'source_writer': 'scenario_projects.py:advance_grain_entitlement:ad226ed6e96d93b8:1', 'semantic_operation_id': locals().get('operation_id')})
+            _public_write = begin_public_change(None, carrier)
             carrier.cash += fee
+            finish_public_change(_public_write, 'scenario_projects:advance_grain_entitlement',
+                                 inputs={'source_writer': 'scenario_projects.py:advance_grain_entitlement:e7fb50edf617f748:1', 'semantic_operation_id': locals().get('operation_id')})
             transport_paid += fee
             payment_sequence += 1
             grain_transfer_id = (f'grain-entitlement:{turn}:{tile.name}:{owner.id}:'
@@ -930,8 +949,14 @@ def allocate_revenue(world: dict, government, source: str, net: float, turn: int
         return net
     payer_before = float(government.agent.cash)
     payee_before = float(egypt.government.agent.cash)
+    _public_write = begin_public_change(None, government.agent)
     government.agent.cash -= amount
+    finish_public_change(_public_write, 'scenario_projects:allocate_revenue',
+                         inputs={'source_writer': 'scenario_projects.py:allocate_revenue:7d0d1bf6a38ac115:1', 'semantic_operation_id': locals().get('operation_id')})
+    _public_write = begin_public_change(None, egypt.government.agent)
     egypt.government.agent.cash += amount
+    finish_public_change(_public_write, 'scenario_projects:allocate_revenue',
+                         inputs={'source_writer': 'scenario_projects.py:allocate_revenue:73071210e7be0293:1', 'semantic_operation_id': locals().get('operation_id')})
     districts = [tile.name for tile in egypt.tiles if tile.gov is government]
     region = next(tile for tile in egypt.tiles if tile.gov is government)
     operation_id = (f'central-remittance:{int(turn)}:{source}:{government.name}:'

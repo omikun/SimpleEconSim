@@ -355,3 +355,16 @@ and inventory regression suites passed 63 tests. Source reviews now cover 31
 of 508 candidates (some with explicitly partial branch evidence); 477 remain.
 Live-offering and unusual counterparty acceptance remains open. Next: political,
 manual and scenario writers, then timed composition transitions.
+
+
+### Political/manual/scenario writer progress (2026-10-23)
+
+Installed 127 explicit conditional public-account probes in political actions,
+manual transfers, frontier/supply/Egypt payments, diplomacy, innovation funding,
+workhouse and market public receipts. Registered public agents can resolve their
+trace source without a region argument; private wallets do not acquire public
+entries. Existing scenario/political/payment regressions passed 81 tests. Native
+equalization and seizure fixtures verify zero-net internal transfers and actual
+seizure account closure. Source reviews and complete semantic payment-to-write
+link contracts for these new paths remain pending; installed probes do not by
+themselves finish Phase 0 or Phase 2 acceptance. Timed composition is next.

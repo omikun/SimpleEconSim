@@ -20,6 +20,9 @@ def begin_public_change(source, agent, *, bank=None, cash=True, deposit=False):
     candidates.extend(getattr(getattr(agent, '_bank_ref', None), '_attached_regions', ()))
     if getattr(agent, 'region', None) is not None:
         candidates.append(agent.region)
+    registered_source = getattr(agent, '_public_trace_source', None)
+    if registered_source is not None:
+        candidates.append(registered_source)
     for region in candidates:
         trace = getattr(region, '_run_trace', None)
         book = getattr(trace, 'treasury_book', None)
@@ -31,7 +34,8 @@ def begin_public_change(source, agent, *, bank=None, cash=True, deposit=False):
             if deposit and bank is not None:
                 keys.append(('deposit', id(agent), id(bank)))
             if not all(key in book.accounts for key in keys):
-                nation = getattr(region, 'owner_nation', None)
+                nation = (region if callable(getattr(region, '_treasury_entities', None))
+                          else getattr(region, 'owner_nation', None))
                 if callable(getattr(nation, '_treasury_entities', None)):
                     book.register_nations([nation], clock, basis='before_recorded_write')
             keys = [key for key in keys if key in book.accounts]
@@ -90,6 +94,9 @@ class TreasuryTraceBook:
         governments, banks = nation._treasury_entities()
         for government, tier in governments:
             agent = government.agent
+            # Trace metadata only: explicit writers can resolve their registered
+            # account even when a manual/scenario API has no region parameter.
+            agent._public_trace_source = nation
             for bank in [None, *banks]:
                 key = ('cash', id(agent)) if bank is None else ('deposit', id(agent), id(bank))
                 if key not in self.accounts:

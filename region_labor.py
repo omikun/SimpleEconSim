@@ -1,6 +1,7 @@
 """
 Labor market, hiring, firm incorporation, and wage adjustment for a Region.
 """
+from treasury_trace import begin_public_change, finish_public_change
 
 from agent import Agent, seed_traits
 from goods import Goods
@@ -99,8 +100,14 @@ def incorporate(region, t):
         loaned = 0.0
         if shortfall > 0:
             loaned = region.bank.Borrow(t, company, shortfall, trace_region=region)
+        _public_write = begin_public_change(None, a)
         a.cash -= equity
+        finish_public_change(_public_write, 'region_labor:incorporate',
+                             inputs={'source_writer': 'region_labor.py:incorporate:5092964921199ae3:1', 'semantic_operation_id': locals().get('operation_id')})
+        _public_write = begin_public_change(None, company)
         company.cash = equity + loaned
+        finish_public_change(_public_write, 'region_labor:incorporate',
+                             inputs={'source_writer': 'region_labor.py:incorporate:ff54ee622d4579e7:1', 'semantic_operation_id': locals().get('operation_id')})
         if equity > 0:
             from economy.actor_accounts import record as record_economic_event
             record_economic_event(
@@ -388,8 +395,14 @@ def run_labour(region, t):
             if safety_inv > 0.0 and len(a.employees) > 0 and getattr(region, 'gov', None) and getattr(region.gov, 'agent', None):
                 cost = min(a.cash, len(a.employees) * safety_inv)
                 if cost > 0.0:
+                    _public_write = begin_public_change(None, a)
                     a.cash -= cost
+                    finish_public_change(_public_write, 'region_labor:run_labour',
+                                         inputs={'source_writer': 'region_labor.py:run_labour:a9b60996880db755:1', 'semantic_operation_id': locals().get('operation_id')})
+                    _public_write = begin_public_change(None, region.gov.agent)
                     region.gov.agent.cash += cost
+                    finish_public_change(_public_write, 'region_labor:run_labour',
+                                         inputs={'source_writer': 'region_labor.py:run_labour:77a76a323b396f1b:1', 'semantic_operation_id': locals().get('operation_id')})
                     from economy.actor_accounts import record as record_economic_event
                     record_economic_event(
                         region, 'safety_investment', turn=t,

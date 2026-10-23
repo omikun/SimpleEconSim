@@ -21,6 +21,7 @@ Implements the class struggle dynamics from gdd.md (§7.3, §8, §12):
 """
 
 from __future__ import annotations
+from treasury_trace import begin_public_change, finish_public_change
 import random
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Tuple, Any, TYPE_CHECKING
@@ -599,7 +600,10 @@ class PopularResistanceManager:
             if gov_cash >= 60.0:
                 gov_agent = rgov.agent
                 treasury_cash_before = float(gov_agent.cash)
+                _public_write = begin_public_change(None, rgov.agent)
                 rgov.agent.cash -= 60.0
+                finish_public_change(_public_write, 'agents.resistance.manager:PopularResistanceManager.interdict_enclosure_revolt',
+                                     inputs={'source_writer': 'agents/resistance/manager.py:PopularResistanceManager.interdict_enclosure_revolt:a505e28d4d579c82:1', 'semantic_operation_id': locals().get('operation_id')})
                 treasury_cash_after = float(gov_agent.cash)
                 police_count = 5
                 setattr(tile, 'police_officers', 5)
@@ -933,10 +937,16 @@ class PopularResistanceManager:
                     per_striker = round(desired_cash / len(strikers), 2)
                     if per_striker > 0:
                         total_given = per_striker * len(strikers)
+                        _public_write = begin_public_change(None, rgov.agent)
                         rgov.agent.cash -= total_given
+                        finish_public_change(_public_write, 'agents.resistance.manager:PopularResistanceManager.evaluate_armed_insurrection',
+                                             inputs={'source_writer': 'agents/resistance/manager.py:PopularResistanceManager.evaluate_armed_insurrection:268a7e2ad6a16389:1', 'semantic_operation_id': locals().get('operation_id')})
                         cash_looted = total_given
                         for s in strikers:
+                            _public_write = begin_public_change(None, s)
                             s.cash += per_striker
+                            finish_public_change(_public_write, 'agents.resistance.manager:PopularResistanceManager.evaluate_armed_insurrection',
+                                                 inputs={'source_writer': 'agents/resistance/manager.py:PopularResistanceManager.evaluate_armed_insurrection:9daea88b4e7646d6:1', 'semantic_operation_id': locals().get('operation_id')})
 
             ev = {
                 'turn': t,
@@ -1337,9 +1347,15 @@ class PopularResistanceManager:
                 payee = charity.agent
                 payee_type = 'charity_wallet'
         payee_cash_before = float(payee.cash) if payee is not None else None
+        _public_write = begin_public_change(None, rgov.agent)
         rgov.agent.cash -= operative_funds
+        finish_public_change(_public_write, 'agents.resistance.manager:PopularResistanceManager.initiate_assassination_plot',
+                             inputs={'source_writer': 'agents/resistance/manager.py:PopularResistanceManager.initiate_assassination_plot:f43c92f567c5b8b1:1', 'semantic_operation_id': locals().get('operation_id')})
         if payee is not None:
+            _public_write = begin_public_change(None, payee)
             payee.cash += operative_funds
+            finish_public_change(_public_write, 'agents.resistance.manager:PopularResistanceManager.initiate_assassination_plot',
+                                 inputs={'source_writer': 'agents/resistance/manager.py:PopularResistanceManager.initiate_assassination_plot:6742512a0609048a:1', 'semantic_operation_id': locals().get('operation_id')})
 
         currency = (getattr(gov_agent, 'home_currency', None)
                     or getattr(tile, 'home_currency', None)

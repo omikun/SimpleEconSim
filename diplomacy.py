@@ -15,6 +15,7 @@ Provides:
 """
 
 from __future__ import annotations
+from treasury_trace import begin_public_change, finish_public_change
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
@@ -876,8 +877,14 @@ class DiplomacySystem:
                             reparation_decision_event_ids.append(
                                 reparation_gate_id)
                         if indemnity > 0:
+                            _public_write = begin_public_change(None, payer)
                             payer.cash -= indemnity
+                            finish_public_change(_public_write, 'diplomacy:DiplomacySystem.sign_peace',
+                                                 inputs={'source_writer': 'diplomacy.py:DiplomacySystem.sign_peace:da7752306692d3db:1', 'semantic_operation_id': locals().get('operation_id')})
+                            _public_write = begin_public_change(None, recipient)
                             recipient.cash += indemnity
+                            finish_public_change(_public_write, 'diplomacy:DiplomacySystem.sign_peace',
+                                                 inputs={'source_writer': 'diplomacy.py:DiplomacySystem.sign_peace:73e7b7b8b4c0f168:1', 'semantic_operation_id': locals().get('operation_id')})
                             payer_cash_after = float(payer.cash)
                             recipient_cash_after = float(recipient.cash)
                             operation_id = (context['operation_id']

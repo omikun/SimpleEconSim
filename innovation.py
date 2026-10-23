@@ -21,6 +21,7 @@ Implements real-world technological evolution:
 """
 
 from __future__ import annotations
+from treasury_trace import begin_public_change, finish_public_change
 import math
 import random
 from dataclasses import dataclass, field
@@ -563,7 +564,10 @@ class InnovationSystem:
         gate_id = record_bounty_gate(nation, tech_id, t, bounty_amount, True,
                                     'affordable_from_total_treasury', treasury=dict(treasury))
         cash_before = float(nation.government.agent.cash)
+        _public_write = begin_public_change(None, nation.government.agent)
         nation.government.agent.cash -= bounty_amount
+        finish_public_change(_public_write, 'innovation:InnovationSystem.post_royal_bounty',
+                             inputs={'source_writer': 'innovation.py:InnovationSystem.post_royal_bounty:0f57323c95457acc:1', 'semantic_operation_id': locals().get('operation_id')})
         bounty = RoyalBounty(tech_id=tech_id, nation_name=nation.name,
                              bounty_amount=bounty_amount, offered_turn=t)
         self.active_bounties.append(bounty)
@@ -780,7 +784,10 @@ class InnovationSystem:
                             share = bounty_obj.bounty_amount / len(cap_tile.agents)
                             for a in cap_tile.agents:
                                 recipient_before = float(a.cash)
+                                _public_write = begin_public_change(None, a)
                                 a.cash += share
+                                finish_public_change(_public_write, 'innovation:InnovationSystem.evaluate_breakthroughs',
+                                                     inputs={'source_writer': 'innovation.py:InnovationSystem.evaluate_breakthroughs:a9bdf8381733dec4:1', 'semantic_operation_id': locals().get('operation_id')})
                                 payments.append({'agent_id': getattr(a, 'id', None), 'amount': float(share),
                                                  'cash_before': recipient_before,
                                                  'cash_after': float(a.cash)})

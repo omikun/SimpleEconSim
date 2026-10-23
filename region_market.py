@@ -1,4 +1,5 @@
 """Market clearing, order prices, reference updates, and bid/ask mechanics."""
+from treasury_trace import begin_public_change, finish_public_change
 
 import math
 from goods import Goods
@@ -728,19 +729,28 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
             import_tariff_assessed = 0.0
             import_tariff_rebate = 0.0
             import_tariff_paid = 0.0
+            _public_write = begin_public_change(None, buyer)
             buyer.cash -= cost
+            finish_public_change(_public_write, 'region_market:clear_discriminatory',
+                                 inputs={'source_writer': 'region_market.py:clear_discriminatory:0454d7f101b16a8d:1', 'semantic_operation_id': locals().get('operation_id')})
             sold_source_acquisitions = []
             if is_import:
                 if not getattr(seller, 'alive', True):
                     if getattr(region, 'gov', None) is not None:
+                        _public_write = begin_public_change(None, region.gov.agent)
                         region.gov.agent.cash += cost
+                        finish_public_change(_public_write, 'region_market:clear_discriminatory',
+                                             inputs={'source_writer': 'region_market.py:clear_discriminatory:d06246a667e41f27:1', 'semantic_operation_id': locals().get('operation_id')})
                         region.gov.record_income(t, 'import_escheat', cost)
                     if is_parked:
                         seller.parked_sub(region.name, good, take)
                     else:
                         seller.inventory_foreign[good.value] -= take
                 elif getattr(seller, 'home_currency', None) == region.home_currency:
+                    _public_write = begin_public_change(None, seller)
                     seller.cash += cost
+                    finish_public_change(_public_write, 'region_market:clear_discriminatory',
+                                         inputs={'source_writer': 'region_market.py:clear_discriminatory:0b380e307d584026:1', 'semantic_operation_id': locals().get('operation_id')})
                     if is_parked:
                         seller.parked_sub(region.name, good, take)
                     else:
@@ -792,7 +802,10 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
                     sold_source_acquisitions = consume_acquisition_links(
                         source_acquisitions, take)
             else:
+                _public_write = begin_public_change(None, seller)
                 seller.cash += cost
+                finish_public_change(_public_write, 'region_market:clear_discriminatory',
+                                     inputs={'source_writer': 'region_market.py:clear_discriminatory:dafda35ea968557f:1', 'semantic_operation_id': locals().get('operation_id')})
                 seller.inventory[good.value] -= take
 
             exported_acquisition_qty = 0
@@ -1117,7 +1130,10 @@ def legacy_buy(region, t, good, price, total_asks):
             bought = max(0, min(agent_bid, min(total_asks - total_bought, int(a.cash / price))))
             cash = bought * price
             if bought > 0:
+                _public_write = begin_public_change(None, a)
                 a.cash = max(0.0, a.cash - cash)
+                finish_public_change(_public_write, 'region_market:legacy_buy',
+                                     inputs={'source_writer': 'region_market.py:legacy_buy:f849e32350fdcbd1:1', 'semantic_operation_id': locals().get('operation_id')})
             total_cash_purchases += cash
             if bought > 0:
                 if a.is_trader:
@@ -1163,7 +1179,10 @@ def legacy_sell(region, askers, good, price, t, total_bought, total_cash_purchas
             agent_ask = getattr(a, f'ask_{good.name}', a.ask)
             sold = min(agent_ask, total_bought - total_sold)
             total_sold += sold
+            _public_write = begin_public_change(None, a)
             a.cash += sold * price
+            finish_public_change(_public_write, 'region_market:legacy_sell',
+                                 inputs={'source_writer': 'region_market.py:legacy_sell:d3aa7bfd2155e8f7:1', 'semantic_operation_id': locals().get('operation_id')})
             a.inv_add(good, -sold)
             total_cash_sales += sold * price
     return total_cash_sales, total_sold
@@ -1923,7 +1942,10 @@ def trade(region, t):
                     bought = min(charity_bid, available, int(region.charity.cash / price))
                     if bought > 0:
                         seller.inv_add(Goods.food, -bought)
+                        _public_write = begin_public_change(None, seller)
                         seller.cash += bought * price
+                        finish_public_change(_public_write, 'region_market:trade',
+                                             inputs={'source_writer': 'region_market.py:trade:701e4d61110a0c48:1', 'semantic_operation_id': locals().get('operation_id')})
                         region.charity.pay_for_food(bought * price)
                         region.charity.receive_food(bought)
                         emit(region, kind='charity_food_purchase', record_class='transfer',
@@ -1980,7 +2002,10 @@ def trade(region, t):
                             seller_food_before = int(seller.inv_get(Goods.food, 0))
                             public_food_before = int(region.gov.food_inventory)
                             seller.inv_add(Goods.food, -bought)
+                            _public_write = begin_public_change(None, seller)
                             seller.cash += purchase_amount
+                            finish_public_change(_public_write, 'region_market:trade',
+                                                 inputs={'source_writer': 'region_market.py:trade:decd8fd0b840f957:1', 'semantic_operation_id': locals().get('operation_id')})
                             region.gov.pay_for_food(purchase_amount, trace_region=region)
                             region.gov.receive_food(bought)
                             purchase_event_id, purchase_operation_id = _trace_government_food_purchase(

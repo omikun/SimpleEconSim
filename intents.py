@@ -437,7 +437,10 @@ class BuildIntent(Intent):
 
         # 3. Conserved transfer: Gov pays contractor
         contractor_cash_before = float(contractor.cash)
+        _public_write = begin_public_change(None, contractor)
         contractor.cash += cost
+        finish_public_change(_public_write, 'intents:BuildIntent.execute',
+                             inputs={'source_writer': 'intents.py:BuildIntent.execute:7c35358662fc9f9b:1', 'semantic_operation_id': locals().get('operation_id')})
         contractor_cash_after = float(contractor.cash)
         transfer_contract = {
             'operation_type': 'public_construction_funding',
@@ -1006,8 +1009,14 @@ def execute_fiscal_transfer_and_build(world, nation_name: str, region_name: str,
                 # 1. Cash on hand
                 if ogov.agent.cash > 0:
                     take = min(transfer_amount - gathered, ogov.agent.cash)
+                    _public_write = begin_public_change(None, ogov.agent)
                     ogov.agent.cash -= take
+                    finish_public_change(_public_write, 'intents:execute_fiscal_transfer_and_build',
+                                         inputs={'source_writer': 'intents.py:execute_fiscal_transfer_and_build:ca2e4daa917e332c:1', 'semantic_operation_id': locals().get('operation_id')})
+                    _public_write = begin_public_change(None, rgov.agent)
                     rgov.agent.cash += take
+                    finish_public_change(_public_write, 'intents:execute_fiscal_transfer_and_build',
+                                         inputs={'source_writer': 'intents.py:execute_fiscal_transfer_and_build:c2fc38fa334a9836:1', 'semantic_operation_id': locals().get('operation_id')})
                     gathered += take
                     if gathered >= transfer_amount - 0.01:
                         break
@@ -1019,8 +1028,14 @@ def execute_fiscal_transfer_and_build(world, nation_name: str, region_name: str,
                     if take_dep > 0:
                         bank.Withdraw(ogov.agent, take_dep, trace_region=ot, t=t,
                                       reason='provincial_budget_transfer')
+                        _public_write = begin_public_change(None, ogov.agent)
                         ogov.agent.cash -= take_dep
+                        finish_public_change(_public_write, 'intents:execute_fiscal_transfer_and_build',
+                                             inputs={'source_writer': 'intents.py:execute_fiscal_transfer_and_build:acda784ec3a3d2db:1', 'semantic_operation_id': locals().get('operation_id')})
+                        _public_write = begin_public_change(None, rgov.agent)
                         rgov.agent.cash += take_dep
+                        finish_public_change(_public_write, 'intents:execute_fiscal_transfer_and_build',
+                                             inputs={'source_writer': 'intents.py:execute_fiscal_transfer_and_build:f57e93f6afac059e:1', 'semantic_operation_id': locals().get('operation_id')})
                         gathered += take_dep
                         if gathered >= transfer_amount - 0.01:
                             break
@@ -1032,8 +1047,14 @@ def execute_fiscal_transfer_and_build(world, nation_name: str, region_name: str,
         if nat_gov.agent.cash < transfer_amount:
             # Check national bank deposits
             return False, f"National sovereign treasury has insufficient cash (${nat_gov.agent.cash:.2f} < ${transfer_amount:.2f})."
+        _public_write = begin_public_change(None, nat_gov.agent)
         nat_gov.agent.cash -= transfer_amount
+        finish_public_change(_public_write, 'intents:execute_fiscal_transfer_and_build',
+                             inputs={'source_writer': 'intents.py:execute_fiscal_transfer_and_build:ea1421955a8e7c55:1', 'semantic_operation_id': locals().get('operation_id')})
+        _public_write = begin_public_change(None, rgov.agent)
         rgov.agent.cash += transfer_amount
+        finish_public_change(_public_write, 'intents:execute_fiscal_transfer_and_build',
+                             inputs={'source_writer': 'intents.py:execute_fiscal_transfer_and_build:1bc24321fd4b8b11:1', 'semantic_operation_id': locals().get('operation_id')})
 
     elif transfer_source == 'bank_loan':
         bank = getattr(region, 'bank', None)
@@ -1044,7 +1065,10 @@ def execute_fiscal_transfer_and_build(world, nation_name: str, region_name: str,
         bank.capital -= transfer_amount
         finish_change(bank, bank_trace_change, 'municipal_construction_transfer',
                       inputs={'amount': transfer_amount, 'turn': t})
+        _public_write = begin_public_change(None, rgov.agent)
         rgov.agent.cash += transfer_amount
+        finish_public_change(_public_write, 'intents:execute_fiscal_transfer_and_build',
+                             inputs={'source_writer': 'intents.py:execute_fiscal_transfer_and_build:e32feb2be473b8bd:1', 'semantic_operation_id': locals().get('operation_id')})
 
     # 2. Now execute BuildIntent
     intent = BuildIntent(nation_name, region_name, building_type, submitted_turn=t, regime_type=nation.regime_type)
@@ -1083,8 +1107,14 @@ def execute_equalization_grant(world, nation_name: str, region_name: str, grant_
         nat_gov = nation.government
         if nat_gov.agent.cash < grant_amount:
             return False, f"National sovereign treasury has insufficient cash (${nat_gov.agent.cash:.2f} < ${grant_amount:.2f})."
+        _public_write = begin_public_change(None, nat_gov.agent)
         nat_gov.agent.cash -= grant_amount
+        finish_public_change(_public_write, 'intents:execute_equalization_grant',
+                             inputs={'source_writer': 'intents.py:execute_equalization_grant:01bdfccb1c0b2fd8:1', 'semantic_operation_id': locals().get('operation_id')})
+        _public_write = begin_public_change(None, rgov.agent)
         rgov.agent.cash += grant_amount
+        finish_public_change(_public_write, 'intents:execute_equalization_grant',
+                             inputs={'source_writer': 'intents.py:execute_equalization_grant:c85f5ea7db90c285:1', 'semantic_operation_id': locals().get('operation_id')})
         source_name = "Sovereign National Treasury"
     elif grant_source == 'provincial_pool':
         province = getattr(region, 'province', None)
@@ -1097,8 +1127,14 @@ def execute_equalization_grant(world, nation_name: str, region_name: str, grant_
             if ogov is not None and ogov is not rgov:
                 if ogov.agent.cash > 0:
                     take = min(grant_amount - gathered, ogov.agent.cash)
+                    _public_write = begin_public_change(None, ogov.agent)
                     ogov.agent.cash -= take
+                    finish_public_change(_public_write, 'intents:execute_equalization_grant',
+                                         inputs={'source_writer': 'intents.py:execute_equalization_grant:89f09b8fadf82844:1', 'semantic_operation_id': locals().get('operation_id')})
+                    _public_write = begin_public_change(None, rgov.agent)
                     rgov.agent.cash += take
+                    finish_public_change(_public_write, 'intents:execute_equalization_grant',
+                                         inputs={'source_writer': 'intents.py:execute_equalization_grant:e5712d8df4457c33:1', 'semantic_operation_id': locals().get('operation_id')})
                     gathered += take
                     if gathered >= grant_amount - 0.01:
                         break

@@ -1,6 +1,7 @@
 """Generalized debt, sovereign bonds, and revenue intercept dynamics."""
 
 from __future__ import annotations
+from treasury_trace import begin_public_change, finish_public_change
 
 from typing import Any, Dict
 from scenarios.modules.base import BaseDynamicModule
@@ -67,11 +68,17 @@ class DebtClaimsModule(BaseDynamicModule):
             gov_cash = float(getattr(player.government.agent, 'cash', 0.0))
             collected = min(levy, gov_cash)
             if collected > 0:
+                _public_write = begin_public_change(None, player.government.agent)
                 player.government.agent.cash -= collected
+                finish_public_change(_public_write, 'scenarios.modules.debt:DebtClaimsModule.advance_turn',
+                                     inputs={'source_writer': 'scenarios/modules/debt.py:DebtClaimsModule.advance_turn:5c42538baaa0afe5:1', 'semantic_operation_id': locals().get('operation_id')})
                 if creditors:
                     split_cash = collected / len(creditors)
                     for c in creditors:
+                        _public_write = begin_public_change(None, c.government.agent)
                         c.government.agent.cash += split_cash
+                        finish_public_change(_public_write, 'scenarios.modules.debt:DebtClaimsModule.advance_turn',
+                                             inputs={'source_writer': 'scenarios/modules/debt.py:DebtClaimsModule.advance_turn:4e294aa9e415c19f:1', 'semantic_operation_id': locals().get('operation_id')})
                 state.setdefault('debt_ledger', []).append({
                     'turn': turn,
                     'kind': 'levy_collection',

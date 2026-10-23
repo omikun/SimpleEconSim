@@ -1,6 +1,7 @@
 """Conserved cotton procurement and contested cloth settlement for the small scenario."""
 
 from __future__ import annotations
+from treasury_trace import begin_public_change, finish_public_change
 
 from collections import defaultdict, deque
 
@@ -32,7 +33,10 @@ def initialize_market(world):
         buyer_ids = state['cloth_buyer_ids'].get(region.name, ())
         for person in region.agents:
             if person.id in buyer_ids:
+                _public_write = begin_public_change(None, person)
                 person.cash += 120.0
+                finish_public_change(_public_write, 'labor_frontier_market:initialize_market',
+                                     inputs={'source_writer': 'labor_frontier_market.py:initialize_market:affe9419d54e8684:1', 'semantic_operation_id': locals().get('operation_id')})
     state['initial_buyer_endowment_each'] = 120.0
     state['market_sales'] = []
     state['market_summary'] = {}
@@ -73,9 +77,18 @@ def start_machinery_project(world, nation_name, turn, public_contribution=15):
     coal_cost = region.recipes[Goods.coal]['price']
     if iron_cost + coal_cost + 8 > 45:
         return False, 'Input prices exceed the funded 45 cash budget.'
+    _public_write = begin_public_change(None, owner)
     owner.cash -= owner_share
+    finish_public_change(_public_write, 'labor_frontier_market:start_machinery_project',
+                         inputs={'source_writer': 'labor_frontier_market.py:start_machinery_project:e9c40f02059daa9e:1', 'semantic_operation_id': locals().get('operation_id')})
+    _public_write = begin_public_change(None, gov)
     gov.cash -= public_contribution
+    finish_public_change(_public_write, 'labor_frontier_market:start_machinery_project',
+                         inputs={'source_writer': 'labor_frontier_market.py:start_machinery_project:a4daf06b9eb67316:1', 'semantic_operation_id': locals().get('operation_id')})
+    _public_write = begin_public_change(None, firm)
     firm.cash += 45
+    finish_public_change(_public_write, 'labor_frontier_market:start_machinery_project',
+                         inputs={'source_writer': 'labor_frontier_market.py:start_machinery_project:ec3ef6c5c9b405cd:1', 'semantic_operation_id': locals().get('operation_id')})
     if public_contribution > 0:
         from run_trace import emit
         emit(region, kind='machinery_public_funding', record_class='transfer',
@@ -89,13 +102,25 @@ def start_machinery_project(world, nation_name, turn, public_contribution=15):
     for good, amount, price in ((Goods.iron, 2, iron_cost),
                                 (Goods.coal, 1, coal_cost)):
         seller = sellers[good]
+        _public_write = begin_public_change(None, firm)
         firm.cash -= price
+        finish_public_change(_public_write, 'labor_frontier_market:start_machinery_project',
+                             inputs={'source_writer': 'labor_frontier_market.py:start_machinery_project:9e806d4d39fd2c45:1', 'semantic_operation_id': locals().get('operation_id')})
+        _public_write = begin_public_change(None, seller)
         seller.cash += price
+        finish_public_change(_public_write, 'labor_frontier_market:start_machinery_project',
+                             inputs={'source_writer': 'labor_frontier_market.py:start_machinery_project:455e4aaec8281444:1', 'semantic_operation_id': locals().get('operation_id')})
         seller.inv_add(good, -amount)
         firm.inv_add(good, amount)
     artisan = sellers[Goods.iron]
+    _public_write = begin_public_change(None, firm)
     firm.cash -= 8
+    finish_public_change(_public_write, 'labor_frontier_market:start_machinery_project',
+                         inputs={'source_writer': 'labor_frontier_market.py:start_machinery_project:20ba43b3021ec194:1', 'semantic_operation_id': locals().get('operation_id')})
+    _public_write = begin_public_change(None, artisan)
     artisan.cash += 8
+    finish_public_change(_public_write, 'labor_frontier_market:start_machinery_project',
+                         inputs={'source_writer': 'labor_frontier_market.py:start_machinery_project:c9a0bf5df4aaf146:1', 'semantic_operation_id': locals().get('operation_id')})
     project = {'nation': nation_name, 'firm_id': firm.id, 'start_turn': turn,
                'due_turn': turn + 2, 'status': 'active',
                'owner_paid': owner_share, 'public_paid': public_contribution,
@@ -235,10 +260,19 @@ def _buy_cotton(world, turn):
             if freight > 0 and carrier is None:
                 break
             price = delivered - freight
+            _public_write = begin_public_change(None, firm)
             firm.cash -= delivered
+            finish_public_change(_public_write, 'labor_frontier_market:_buy_cotton',
+                                 inputs={'source_writer': 'labor_frontier_market.py:_buy_cotton:5e00da7d5c59b139:1', 'semantic_operation_id': locals().get('operation_id')})
             tax = round(price * COTTON_TAX_RATE, 6)
+            _public_write = begin_public_change(None, grower)
             grower.cash += price - tax
+            finish_public_change(_public_write, 'labor_frontier_market:_buy_cotton',
+                                 inputs={'source_writer': 'labor_frontier_market.py:_buy_cotton:369888dd373af367:1', 'semantic_operation_id': locals().get('operation_id')})
+            _public_write = begin_public_change(None, field.gov.agent)
             field.gov.agent.cash += tax
+            finish_public_change(_public_write, 'labor_frontier_market:_buy_cotton',
+                                 inputs={'source_writer': 'labor_frontier_market.py:_buy_cotton:dc8a97fcba1c7e46:1', 'semantic_operation_id': locals().get('operation_id')})
             field.gov.record_income(turn, 'cotton_sales_tax', tax)
             from run_trace import emit
             emit(field, kind='scenario_cotton_sales_tax', record_class='transfer',
@@ -252,7 +286,10 @@ def _buy_cotton(world, turn):
                  cause_event_ids=([selected_quote_event_id]
                                   if selected_quote_event_id else None))
             if carrier is not None:
+                _public_write = begin_public_change(None, carrier)
                 carrier.cash += freight
+                finish_public_change(_public_write, 'labor_frontier_market:_buy_cotton',
+                                     inputs={'source_writer': 'labor_frontier_market.py:_buy_cotton:0b855e1386359680:1', 'semantic_operation_id': locals().get('operation_id')})
             grower.inv_add(Goods.cotton, -1)
             old_stock = firm.inv_get(Goods.cotton, 0)
             old_cost = firm.cost_get(Goods.cotton, 3.0)
@@ -400,11 +437,20 @@ def _sell_cloth(world, turn):
                 continue
             (delivered, _, source, firm, ask, freight,
              selected_quote_event_id) = min(offers, key=lambda row: row[:2])
+            _public_write = begin_public_change(None, buyer)
             buyer.cash -= delivered
+            finish_public_change(_public_write, 'labor_frontier_market:_sell_cloth',
+                                 inputs={'source_writer': 'labor_frontier_market.py:_sell_cloth:f23a1cef8d1f0b24:1', 'semantic_operation_id': locals().get('operation_id')})
+            _public_write = begin_public_change(None, firm)
             firm.cash += ask
+            finish_public_change(_public_write, 'labor_frontier_market:_sell_cloth',
+                                 inputs={'source_writer': 'labor_frontier_market.py:_sell_cloth:d848f47def9c018b:1', 'semantic_operation_id': locals().get('operation_id')})
             carrier = _freight_recipient(source)
             if freight:
+                _public_write = begin_public_change(None, carrier)
                 carrier.cash += freight
+                finish_public_change(_public_write, 'labor_frontier_market:_sell_cloth',
+                                     inputs={'source_writer': 'labor_frontier_market.py:_sell_cloth:4dc9a021841186ce:1', 'semantic_operation_id': locals().get('operation_id')})
             firm.inv_add(Goods.cloth, -1)
             buyer.inv_add(Goods.cloth, 1)
             paid_event_id = emit(
@@ -431,8 +477,14 @@ def _sell_cloth(world, turn):
                 cause_event_ids=([selected_quote_event_id]
                                  if selected_quote_event_id else None))
             tax = round(ask * CLOTH_TAX_RATE, 6)
+            _public_write = begin_public_change(None, firm)
             firm.cash -= tax
+            finish_public_change(_public_write, 'labor_frontier_market:_sell_cloth',
+                                 inputs={'source_writer': 'labor_frontier_market.py:_sell_cloth:e5a09a48194829b0:1', 'semantic_operation_id': locals().get('operation_id')})
+            _public_write = begin_public_change(None, source.gov.agent)
             source.gov.agent.cash += tax
+            finish_public_change(_public_write, 'labor_frontier_market:_sell_cloth',
+                                 inputs={'source_writer': 'labor_frontier_market.py:_sell_cloth:c0391410efa932ef:1', 'semantic_operation_id': locals().get('operation_id')})
             source.gov.record_income(turn, 'cloth_sales_tax', tax)
             from run_trace import emit
             emit(source, kind='scenario_cloth_sales_tax', record_class='transfer',
@@ -485,8 +537,14 @@ def _sweep_sales_tax(world, sales, purchases=()):
     for region in world['tiles']:
         amount = min(region.gov.agent.cash, due[region.name])
         if amount > 0:
+            _public_write = begin_public_change(None, region.gov.agent)
             region.gov.agent.cash -= amount
+            finish_public_change(_public_write, 'labor_frontier_market:_sweep_sales_tax',
+                                 inputs={'source_writer': 'labor_frontier_market.py:_sweep_sales_tax:20c96f7a06fbcd43:1', 'semantic_operation_id': locals().get('operation_id')})
+            _public_write = begin_public_change(None, region.owner_nation.government.agent)
             region.owner_nation.government.agent.cash += amount
+            finish_public_change(_public_write, 'labor_frontier_market:_sweep_sales_tax',
+                                 inputs={'source_writer': 'labor_frontier_market.py:_sweep_sales_tax:16a024f28524d64e:1', 'semantic_operation_id': locals().get('operation_id')})
             transfers.append({'region': region.name,
                               'nation': region.owner_nation.name, 'amount': amount})
     return transfers

@@ -11,6 +11,7 @@ Implements the English Poor Laws & Workhouse System:
    inmates starve, triggering a Workhouse Bread Riot that damages municipal order
    and escalates popular unrest.
 """
+from treasury_trace import begin_public_change, finish_public_change
 
 from goods import Goods
 
@@ -211,8 +212,14 @@ def step_workhouse(region, t: int) -> list[dict]:
             if seller is None:
                 break
             seller.inv_add(Goods.food, -1)
+            _public_write = begin_public_change(None, gov_agent)
             gov_agent.cash -= food_price
+            finish_public_change(_public_write, 'workhouse:step_workhouse',
+                                 inputs={'source_writer': 'workhouse.py:step_workhouse:c0e1de98a028b103:1', 'semantic_operation_id': locals().get('operation_id')})
+            _public_write = begin_public_change(None, seller)
             seller.cash += food_price
+            finish_public_change(_public_write, 'workhouse:step_workhouse',
+                                 inputs={'source_writer': 'workhouse.py:step_workhouse:48356d58069dc56c:1', 'semantic_operation_id': locals().get('operation_id')})
             from economy.actor_accounts import record as record_economic_event
             record_economic_event(
                 region, 'workhouse_food_purchase', turn=t,

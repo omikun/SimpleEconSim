@@ -1,6 +1,7 @@
 """Authored setup and player-facing content for Egypt's 1877 crisis scenario."""
 
 from __future__ import annotations
+from treasury_trace import begin_public_change, finish_public_change
 
 from contextlib import contextmanager
 from copy import deepcopy
@@ -391,10 +392,16 @@ def prepare_world(world: dict) -> dict:
     households.sort(key=lambda agent: (float(agent.cash), agent.id))
     treasury = egypt.government.agent
     transfer = max(0.0, float(treasury.cash) - 235.0)
+    _public_write = begin_public_change(None, treasury)
     treasury.cash -= transfer
+    finish_public_change(_public_write, 'scenario_egypt_1877:prepare_world',
+                         inputs={'source_writer': 'scenario_egypt_1877.py:prepare_world:b0b528072f9a528f:1', 'semantic_operation_id': locals().get('operation_id')})
     affluent = households[-max(1, len(households) // 5):]
     for agent in affluent:
+        _public_write = begin_public_change(None, agent)
         agent.cash += transfer / len(affluent)
+        finish_public_change(_public_write, 'scenario_egypt_1877:prepare_world',
+                             inputs={'source_writer': 'scenario_egypt_1877.py:prepare_world:bc94b0016c4764ba:1', 'semantic_operation_id': locals().get('operation_id')})
         agent.energy_reserve_kcal = 60000.0
     # Food remains in private stores, but poorer households have little access.
     vulnerable = households[:len(households) // 4]
@@ -406,8 +413,14 @@ def prepare_world(world: dict) -> dict:
         agent.calorie_deficit_kcal = agent.calorie_need_kcal
         agent.energy_reserve_kcal = 20000.0
         purchasing_power = agent.cash * .95
+        _public_write = begin_public_change(None, agent)
         agent.cash -= purchasing_power
+        finish_public_change(_public_write, 'scenario_egypt_1877:prepare_world',
+                             inputs={'source_writer': 'scenario_egypt_1877.py:prepare_world:02a7e18445e1abc4:1', 'semantic_operation_id': locals().get('operation_id')})
+        _public_write = begin_public_change(None, affluent[index % len(affluent)])
         affluent[index % len(affluent)].cash += purchasing_power
+        finish_public_change(_public_write, 'scenario_egypt_1877:prepare_world',
+                             inputs={'source_writer': 'scenario_egypt_1877.py:prepare_world:b647a0853006fbb0:1', 'semantic_operation_id': locals().get('operation_id')})
     world["scenario_feedback"] = "Opening crisis: low Nile, threatened maize harvest, and debt service."
     world["scenario_location_by_tile"] = _assign_location_roles(egypt)
     from scenario_political_economy import initialize as initialize_political_economy

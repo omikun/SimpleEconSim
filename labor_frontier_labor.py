@@ -1,6 +1,7 @@
 """Bounded owner choices and targeted commons policy for the rivalry scenario."""
 
 from __future__ import annotations
+from treasury_trace import begin_public_change, finish_public_change
 
 from goods import Goods
 from labor_laws import submit_law_petition
@@ -312,8 +313,14 @@ def _advance_restriction(world, nation_name, turn):
         return
     treasury_cash_before_payment = float(treasury.cash)
     officer_cash_before_payment = float(officer.cash)
+    _public_write = begin_public_change(None, treasury)
     treasury.cash -= PATROL_COST
+    finish_public_change(_public_write, 'labor_frontier_labor:_advance_restriction',
+                         inputs={'source_writer': 'labor_frontier_labor.py:_advance_restriction:3968fa87c79fdeba:1', 'semantic_operation_id': locals().get('operation_id')})
+    _public_write = begin_public_change(None, officer)
     officer.cash += PATROL_COST
+    finish_public_change(_public_write, 'labor_frontier_labor:_advance_restriction',
+                         inputs={'source_writer': 'labor_frontier_labor.py:_advance_restriction:1ebf13cd1b3e292c:1', 'semantic_operation_id': locals().get('operation_id')})
     operation_id = f'commons-patrol:{nation_name}:{border.name}:{turn}:{officer.id}'
     currency = getattr(border, 'home_currency', None) or border.owner_nation.currency
     from finance_trace import (account_ref, cash_transfer_contract,
@@ -409,9 +416,18 @@ def _fair_terms(world, nation_name, turn):
                  for worker in firm.employees if worker.alive]
     if not decisions or not all(d.accepted for d in decisions):
         return False, 'Workers did not accept the funded offer.'
+    _public_write = begin_public_change(None, firm.owner)
     firm.owner.cash -= 20
+    finish_public_change(_public_write, 'labor_frontier_labor:_fair_terms',
+                         inputs={'source_writer': 'labor_frontier_labor.py:_fair_terms:a6c0a4ee7564c5df:1', 'semantic_operation_id': locals().get('operation_id')})
+    _public_write = begin_public_change(None, gov)
     gov.cash -= 10
+    finish_public_change(_public_write, 'labor_frontier_labor:_fair_terms',
+                         inputs={'source_writer': 'labor_frontier_labor.py:_fair_terms:968f458c7c6b26e3:1', 'semantic_operation_id': locals().get('operation_id')})
+    _public_write = begin_public_change(None, firm)
     firm.cash += 30
+    finish_public_change(_public_write, 'labor_frontier_labor:_fair_terms',
+                         inputs={'source_writer': 'labor_frontier_labor.py:_fair_terms:a5fc793e452f2532:1', 'semantic_operation_id': locals().get('operation_id')})
     from run_trace import emit
     emit(capital, kind='fair_terms_public_funding', record_class='transfer',
          phase='scenario_labor', subject={'type': 'nation', 'id': nation_name},
@@ -527,14 +543,26 @@ def _owner_decision(world, nation_name, turn):
             decision = 'machinery'
             reason = 'Lost orders justify owner-funded productivity work.'
     elif len(mill.employees) < 4 and owner is not None and owner.cash >= 20:
+        _public_write = begin_public_change(None, owner)
         owner.cash -= 20
+        finish_public_change(_public_write, 'labor_frontier_labor:_owner_decision',
+                             inputs={'source_writer': 'labor_frontier_labor.py:_owner_decision:cdfb14a5c6e72454:1', 'semantic_operation_id': locals().get('operation_id')})
+        _public_write = begin_public_change(None, mill)
         mill.cash += 20
+        finish_public_change(_public_write, 'labor_frontier_labor:_owner_decision',
+                             inputs={'source_writer': 'labor_frontier_labor.py:_owner_decision:b565e03e9342356d:1', 'semantic_operation_id': locals().get('operation_id')})
         mill.wage = round(mill.wage + 0.25, 3)
         decision = 'better_wage'
         reason = 'Vacancies justify a funded wage offer.'
     elif mill.cash < len(mill.employees) * mill.wage and owner is not None and owner.cash >= 20:
+        _public_write = begin_public_change(None, owner)
         owner.cash -= 20
+        finish_public_change(_public_write, 'labor_frontier_labor:_owner_decision',
+                             inputs={'source_writer': 'labor_frontier_labor.py:_owner_decision:426f7518c45ea994:1', 'semantic_operation_id': locals().get('operation_id')})
+        _public_write = begin_public_change(None, mill)
         mill.cash += 20
+        finish_public_change(_public_write, 'labor_frontier_labor:_owner_decision',
+                             inputs={'source_writer': 'labor_frontier_labor.py:_owner_decision:d8700d22c5ab8955:1', 'semantic_operation_id': locals().get('operation_id')})
         decision = 'payroll_bridge'
         reason = 'Owner funds another payroll from private wealth.'
     elif own == 0 and mill.cash < len(mill.employees) * mill.wage:
