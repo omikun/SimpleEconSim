@@ -28,6 +28,7 @@ class RunTrace:
         from treasury_trace import TreasuryTraceBook
         self.treasury_book = TreasuryTraceBook(self)
         self._active_turn = None
+        self._stock_closures = {}
         self._calculated = set()
         self._calculated_values = {}
         self._latest_calculation_event_ids = {}
@@ -78,6 +79,7 @@ class RunTrace:
             self._active_turn = clock.get('turn', 0)
             self.bank_book.start_turn(self._active_turn)
             self.treasury_book.start_turn(self._active_turn)
+            self._stock_closures.clear()
             self._calculated.clear()
             self._calculated_values.clear()
             self._latest_calculation_event_ids.clear()
@@ -228,6 +230,9 @@ class RunTrace:
                     row['confidence'] = 'unknown'
         provenance_key = (metric_id, json.dumps(subject, sort_keys=True)
                           if subject is not None else None)
+        if kind == 'price_bridge':
+            self._stock_closures[provenance_key] = (
+                row.get('explanation_status') == 'ordered_writes_reconciled', after)
         if record_class in ('calculation', 'transfer', 'outcome') and row.get(
                 'formula_replay', {}).get('matches', True):
             self._calculated.add(provenance_key)
@@ -395,6 +400,9 @@ class RunTrace:
         key = (metric_id, json.dumps(subject, sort_keys=True))
         explained = (self.write_error is None and key in self._calculated_values
                      and self._calculated_values[key] == after)
+        if metric_id == 'goods.price':
+            verified, closing = self._stock_closures.get(key, (False, None))
+            explained = explained and verified and closing == after
         event_id = self.emit(clock, kind='metric_snapshot', record_class='observation',
                              subject=subject, metric_id=metric_id, unit=unit,
                              before=before, after=after,

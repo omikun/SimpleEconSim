@@ -385,3 +385,15 @@ keeps all treasury and bank changes explained (114,757 rows). Report:
 `tmp/trace_coverage_default_composition_2026_10_23.json`. Creation/removal of
 nations outside native setters and arbitrary direct edits remain unsupported
 composition paths; provenance and complete scenario gates are still open.
+
+
+### Provenance audit progress (2026-10-23)
+
+Added a streaming, disk-backed audit for event identity, sequence/checkpoints,
+declared cause links and supported formula replay. Unsupported formulas and
+calculations without formula contracts are reported independently; the report
+never labels those as complete causality. Price snapshots now require a verified
+ordered price bridge, preventing a coincidentally matching last calculation
+from concealing a broken stock chain. Audit/recorder/codec checks passed 43 tests.
+The per-metric required-input/source contract inventory remains open; this slice
+is a structural validator, not a declaration that all metrics are complete.
