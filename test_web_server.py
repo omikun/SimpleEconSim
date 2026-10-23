@@ -228,7 +228,8 @@ class TestWebServerEndpoints(unittest.TestCase):
         compact = MockHttpRequestHandler(self.mock_server, 'GET',
                                          '/api/trace/download?format=compact')
         self.assertEqual(compact.response_status, 200)
-        self.assertTrue(compact.get_body().startswith(b'COCTRACE2\n'))
+        from trace_codec import MAGIC
+        self.assertTrue(compact.get_body().startswith(MAGIC))
         self.assertLess(len(compact.get_body()), len(handler.get_body()))
         self.assertTrue(compact.response_headers['content-disposition'].endswith('.ctr"'))
 
@@ -481,7 +482,8 @@ class TestWebServerEndpoints(unittest.TestCase):
                 row = rows[0]
                 self.assertAlmostEqual(
                     history[history_key][-1],
-                    round(row['value_after'] * scale, 1), places=1)
+                    round(row['value_after'] * scale, 2 if family == 'market_demand_ratio' else 1),
+                    places=2 if family == 'market_demand_ratio' else 1)
                 self.assertTrue(any(
                     contribution['source_link_status'] in (
                         'linked', 'linked_observation')

@@ -10,16 +10,18 @@ def trace_command_boundary(function):
     @wraps(function)
     def wrapped(server,command):
         kind=getattr(command.cmd_type,'value',str(command.cmd_type))
-        if kind in {'STEP','PLAY','PAUSE','SET_SPEED','SELECT_NATION','SELECT_REGION'}:
+        if kind in {'PLAY','PAUSE','SET_SPEED','SELECT_NATION','SELECT_REGION','GET_STATE'}:
             return function(server,command)
         trace=getattr(server,'run_trace',None)
         tiles=getattr(server,'tiles',())
         if trace is None or not tiles:return function(server,command)
         with server._lock:
+            if trace.write_error:
+                return {'success':False,'error':'Trace recording failed; restore a verified checkpoint before applying another command.','requires_recovery':True}
             supplied_id=getattr(command,'command_id',None)
             request=command.to_dict()
-            if supplied_id is not None:
-                stable_id=f'client:{command.client_id}:{supplied_id}'
+            stable_id=f'client:{command.client_id}:{supplied_id}' if supplied_id is not None else None
+            if stable_id is not None:
                 existing=trace.query(subject={'type':'command','id':stable_id},kind='player_command_result',limit=1)['events']
                 if existing:
                     inputs=existing[0]['inputs']
@@ -27,26 +29,54 @@ def trace_command_boundary(function):
                         return {'success':False,'error':'Command ID was already used for a different request.'}
                     return inputs['response']
             clock=tiles[0]._collective_trace_clock
+            turn_before=server.turn
             clock['epoch']=clock.get('epoch',0)+1
             clock['phase']='player_command'
-            operation_id=stable_id if supplied_id is not None else f'{trace.run_id}:command:{clock["next"]}'
+            operation_id=stable_id or f'{trace.identity_prefix}:command:{clock["next"]}'
             started=trace.emit(clock,kind='player_command_started',record_class='decision',
                                subject={'type':'command','id':operation_id},
                                inputs={'command':kind,'payload':command.payload,'operation_id':operation_id})
             clock['command_event_id']=started
             clock['command_id']=operation_id
             try:
-                result=function(server,command)
+                failure=None
+                try:
+                    result=function(server,command)
+                except Exception as error:
+                    # Persist partial failures too, so their IDs cannot settle
+                    # the same partial action again on retry.
+                    failure=error
+                    result={'success':False,'error':str(error),'partial_state_possible':True}
+                if server.run_trace is not trace:
+                    previous_trace=trace
+                    trace=server.run_trace
+                    new_clock=server.tiles[0]._collective_trace_clock
+                    previous_trace.emit(clock,kind='player_command_handoff',record_class='audit',
+                                        inputs={'operation_id':operation_id,'new_run_id':trace.run_id},cause_event_ids=[started])
+                    previous_trace.checkpoint(clock)
+                    clock.pop('command_event_id',None);clock.pop('command_id',None)
+                    clock=new_clock
+                    turn_before=server.turn
+                    started=trace.emit(clock,kind='player_command_started',record_class='decision',
+                                       subject={'type':'command','id':operation_id},
+                                       inputs={'command':kind,'payload':command.payload,
+                                               'operation_id':operation_id,'previous_run_id':previous_trace.run_id})
                 trace.emit(clock,kind='player_command_result',record_class='outcome',
                            subject={'type':'command','id':operation_id},
                            inputs={'command':kind,'success':bool(result.get('success',False)),
                                    'message':result.get('message',result.get('error')),
                                    'request':request,'response':result},
                            cause_event_ids=[started])
+                if failure is not None:
+                    raise failure
                 return result
             finally:
-                from trace_snapshots import record
-                record(server)
-                trace.checkpoint(clock)
-                clock.pop('command_event_id',None);clock.pop('command_id',None)
+                try:
+                    # STEP already closed every advanced gameplay turn.
+                    if server.turn==turn_before:
+                        from trace_snapshots import record
+                        record(server)
+                    trace.checkpoint(clock)
+                finally:
+                    clock.pop('command_event_id',None);clock.pop('command_id',None)
     return wrapped

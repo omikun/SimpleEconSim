@@ -22,11 +22,11 @@ Do not equate these different checks:
 4. Ordered writes reconcile the opening and closing stock.
 5. The selected UI value uses that same metric, timing, membership and units.
 
-A three-turn default probe currently verifies nine treasury account closures and
+At plan start, a three-turn default probe verified nine treasury account closures and
 144 changed bank-stock snapshots. It does not exercise war, default, coups,
 annexation, many scenario actions, save/resume or long-run performance.
 
-## Source findings affecting implementation
+## Starting source findings (2026-10-22)
 
 - `begin_public_change()` / `finish_public_change()` provide explicit account
   probes. Many older transfer records still lack these stock probes. Extend
@@ -491,3 +491,26 @@ unsupported replay records and 41,764 formula records outside required-source
 contracts; these remain explicitly unverified. Report:
 `tmp/replay_source_contracts_default_2026_10_23.json`. AI/scenario formulas and
 full per-metric provenance contracts remain open.
+
+
+### Bounded inspection and durable retry progress (2026-10-23)
+
+CLI reports and paired-run snapshot comparisons stream with bounded buffers;
+comparison joins use temporary SQLite storage. Live queries release the simulation
+lock before indexing/decoding. Per-file index locks serialize concurrent cache
+updates; deleted/corrupt/incompatible sidecars rebuild without treating lock
+contention as corruption. Fixed-boundary concurrent queries agree with sequential
+results while source appends. Decoded frame limits are checked before publishing.
+
+Browser transport assigns a fresh action ID for each deliberate command and
+reuses it after a lost response. The HTTP endpoint preserves those IDs. Step,
+world reload and exceptions after partial account writes have durable receipts;
+retries return their recorded outcome without repeating the action. Partial
+failures close their observed state, and a recorder failure prevents another
+mutating command from being mistaken for a retry. Existing moving-average
+comparison assertions now use the chart's actual two-decimal demand-ratio
+precision, and compact-download tests use the current codec magic. The recorder,
+index, command, reader and web regressions passed 71 tests; focused reader/index/
+historical membership checks passed 23. The JavaScript transport check verifies
+identical retry bodies and a new ID for a new action. Memory/runtime budgets and
+full long-run acceptance remain open.

@@ -140,12 +140,14 @@ class CoCHTTPRequestHandler(BaseHTTPRequestHandler):
                     subject = dict(subject or {})
                     subject['class_group'] = class_group
                 with sim._lock:
-                    result = sim.run_trace.query(turn=turn, subject=subject,
-                                                 metric_id=metric_id,
-                                                 kind=kind,
-                                                 event_id=event_id,
-                                                 offset=offset, limit=limit,
-                                                 boundary=int(query['boundary'][0]) if 'boundary' in query else None)
+                    trace = sim.run_trace
+                    published = trace._compact_writer.end_offset
+                selected_boundary = int(query['boundary'][0]) if 'boundary' in query else published
+                if selected_boundary > published:
+                    raise ValueError('trace boundary exceeds published data')
+                result = trace.query(turn=turn, subject=subject, metric_id=metric_id,
+                                     kind=kind, event_id=event_id, offset=offset, limit=limit,
+                                     boundary=selected_boundary)
                 body = json.dumps(result, allow_nan=False).encode('utf-8')
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json; charset=utf-8')
@@ -192,6 +194,8 @@ class CoCHTTPRequestHandler(BaseHTTPRequestHandler):
                 else:
                     for payload in iter_payloads(trace_path, end_offset=boundary):
                         self.wfile.write(payload.encode('utf-8') + b'\n')
+            except (BrokenPipeError, ConnectionResetError):
+                return
             except Exception as exc:
                 self._send_error_json(500, f'Error exporting trace: {exc}')
             return
@@ -377,7 +381,13 @@ class CoCHTTPRequestHandler(BaseHTTPRequestHandler):
                     self._send_error_json(400, f"Invalid cmd_type '{cmd_type_str}'")
                     return
 
-                res = self.server.sim_server.execute_command(CommandMessage(cmd_type, payload))
+                command_id = data.get('command_id')
+                client_id = data.get('client_id', 'player_1')
+                if (command_id is not None and (not isinstance(command_id, str) or not 1 <= len(command_id) <= 128)) or not isinstance(client_id, str) or not 1 <= len(client_id) <= 128:
+                    self._send_error_json(400, 'Command and client IDs must be nonempty strings up to 128 characters')
+                    return
+                res = self.server.sim_server.execute_command(CommandMessage(cmd_type, payload,
+                                                                            client_id=client_id, command_id=command_id))
                 resp_body = json.dumps(res).encode('utf-8')
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json; charset=utf-8')

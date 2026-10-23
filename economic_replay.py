@@ -24,7 +24,9 @@ def replay(row):
     if formula=='forex.bank_conversion.v1':
         rate=i['rate_home_per_foreign']
         if i['direction']=='sell_foreign':
-            settled=min(i['requested_foreign'],i['trader_fx_before'],i['bank_fx_pool_before']/rate) if rate>0 else 0
+            settled=min(i['requested_foreign'],i['trader_fx_before'])
+            if settled*rate>max(0.0,i['bank_fx_pool_before']):
+                settled=max(0.0,i['bank_fx_pool_before'])/rate if rate>0 else 0
             return i['trader_fx_before']-max(0,settled)
         settled=min(i['requested_foreign'],i['bank_foreign_reserves_before'])
         if i['trader_cash_before']<settled*rate:

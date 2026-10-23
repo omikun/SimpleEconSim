@@ -112,7 +112,7 @@ assert.equal(globalThis.CoCCharts.getTraceBinding('soil').chartScale, 100);
 assert.equal(globalThis.CoCCharts.getTraceBinding('bodily_wear').chartScale, 100);
 assert.equal(globalThis.CoCCharts.getChartCatalog().economic.length, 22);
 assert.equal(globalThis.CoCCharts.getChartCatalog().ecological.length, 13);
-assert.equal(globalThis.CoCCharts.getChartCatalog().labor.length, 9);
+assert.equal(globalThis.CoCCharts.getChartCatalog().labor.length, 10);
 assert.deepEqual(globalThis.CoCCharts.getTraceBinding('hungry').tilePath,
   ['economic', 'pop_hunger', 'hungry']);
 assert.deepEqual(globalThis.CoCCharts.getTraceBinding('untreated_cases').tilePath,
@@ -218,6 +218,22 @@ const sync = globalThis.CoCStateSync.createStateSync({
   assert.equal(calls[2][1].headers['X-COC-Token'], 'local-token');
   assert.deepEqual(commandResult, { success: true });
   assert.equal(networkError, undefined);
+  const sent = [];
+  let acknowledgements = 0;
+  const retrying = globalThis.CoCStateSync.createStateSync({
+    fetchImpl: async (_url, options) => {
+      sent.push(JSON.parse(options.body));
+      if (sent.length === 1) throw new Error('response lost after settlement');
+      return { json: async () => ({ success: true }) };
+    },
+    onCommandResult: () => { acknowledgements += 1; }
+  });
+  await retrying.sendCommand('STEP');
+  assert.equal(sent.length, 2);
+  assert.deepEqual(sent[0], sent[1]);
+  assert.equal(acknowledgements, 1);
+  await retrying.sendCommand('STEP');
+  assert.notEqual(sent[0].command_id, sent[2].command_id);
   console.log('UI utility, geometry, and API transport checks passed');
 })().catch(error => {
   console.error(error);

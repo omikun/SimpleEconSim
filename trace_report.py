@@ -8,16 +8,18 @@ import argparse
 import json
 from pathlib import Path
 import sys
+import sqlite3
+import tempfile
+from contextlib import closing
 
 from trace_codec import decoded_size, iter_payloads
 
 
-def report(path, *, turn=None, entity=None, metric=None, kind=None,
+def iter_report(path, *, turn=None, entity=None, metric=None, kind=None,
            good=None, person_id=None, event_id=None):
     subject_type, _, subject_id = entity.partition(':') if entity else (None, None, None)
     if entity and (not subject_type or not subject_id):
         raise ValueError('entity must be type:id')
-    rows = []
     for line_number, payload in enumerate(iter_payloads(path), start=1):
         try:
             row = json.loads(payload)
@@ -45,8 +47,12 @@ def report(path, *, turn=None, entity=None, metric=None, kind=None,
             continue
         if good is not None and subject.get('good') != good:
             continue
-        rows.append(row)
-    return rows
+        yield row
+
+
+def report(path, **filters):
+    """Materialized helper for callers needing comparison or random access."""
+    return list(iter_report(path, **filters))
 
 
 def render(row):
@@ -91,6 +97,28 @@ def diff_snapshots(left_rows, right_rows):
     return changes
 
 
+def iter_snapshot_differences(left_rows, right_rows):
+    """Bounded-memory equivalent of diff_snapshots for CLI run comparisons."""
+    with tempfile.TemporaryDirectory() as directory:
+        with closing(sqlite3.connect(str(Path(directory)/'comparison.sqlite'))) as database:
+            database.execute('PRAGMA cache_size=-2048')
+            database.execute('CREATE TABLE snapshots(side TEXT,turn INTEGER,subject TEXT,metric TEXT,value TEXT,PRIMARY KEY(side,turn,subject,metric))')
+            for side,rows in (('left',left_rows),('right',right_rows)):
+                for row in rows:
+                    if row.get('kind')!='metric_snapshot':continue
+                    database.execute('INSERT OR REPLACE INTO snapshots VALUES(?,?,?,?,?)',
+                                     (side,row.get('turn'),json.dumps(row.get('subject'),sort_keys=True),
+                                      row.get('metric_id'),json.dumps(row.get('value_after'),allow_nan=False)))
+            query = """SELECT a.turn,a.subject,a.metric,a.value,b.value
+                       FROM snapshots a JOIN snapshots b ON a.turn=b.turn AND a.subject=b.subject AND a.metric=b.metric
+                       WHERE a.side='left' AND b.side='right' ORDER BY a.turn,a.subject,a.metric"""
+            for turn,subject,metric,left,right in database.execute(query):
+                a,b=json.loads(left),json.loads(right)
+                if a!=b:
+                    yield {'turn':turn,'subject':json.loads(subject),'metric_id':metric,
+                           'left':a,'right':b,'difference':b-a if isinstance(a,(int,float)) and isinstance(b,(int,float)) else None}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--run', required=True, type=Path)
@@ -133,17 +161,17 @@ def main():
         from run_trace import verify
         check = verify(args.run)
         print(f"Verified {check['rows']} rows and {check['checkpoints']} checkpoints")
-    rows = report(args.run, turn=args.turn, entity=args.entity, metric=args.metric,
+    rows = iter_report(args.run, turn=args.turn, entity=args.entity, metric=args.metric,
                   kind=args.kind,
                   good=args.good, person_id=args.person_id,
                   event_id=args.event_id)
     if args.compare_run:
-        other = report(args.compare_run, turn=args.turn,
+        other = iter_report(args.compare_run, turn=args.turn,
                        entity=args.entity, metric=args.metric, kind=args.kind,
                        good=args.good,
                        person_id=args.person_id, event_id=args.event_id)
         print('In-game run comparison; differing values alone do not prove a cause.')
-        for change in diff_snapshots(rows, other):
+        for change in iter_snapshot_differences(rows, other):
             print(json.dumps(change, sort_keys=True, allow_nan=False))
     else:
         for row in rows:

@@ -4,8 +4,27 @@ import hashlib
 import json
 from pathlib import Path
 import sqlite3
+import threading
+import weakref
+
+_LOCKS = weakref.WeakValueDictionary()
+_LOCK_GUARD = threading.Lock()
+
+
+def _path_lock(path):
+    with _LOCK_GUARD:
+        key = str(path.resolve())
+        lock = _LOCKS.get(key)
+        if lock is None:
+            lock = threading.RLock()
+            _LOCKS[key] = lock
+        return lock
 
 from trace_codec import iter_records, CorruptTrace
+
+
+class IndexCacheError(ValueError):
+    pass
 
 
 class TraceIndex:
@@ -14,11 +33,14 @@ class TraceIndex:
         self.index_path=self.path.with_suffix(self.path.suffix+'.index.sqlite')
 
     def _connect(self):
-        db=sqlite3.connect(self.index_path)
+        db=sqlite3.connect(self.index_path, timeout=30)
         try:
             db.execute('PRAGMA cache_size=-2048')
             db.execute('CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY,value TEXT)')
             db.execute('CREATE TABLE IF NOT EXISTS events(n INTEGER PRIMARY KEY,id TEXT UNIQUE,turn INTEGER,kind TEXT,metric TEXT,subject TEXT,good TEXT,block INTEGER,position INTEGER,end INTEGER,sha TEXT,class TEXT)')
+            expected = ['n','id','turn','kind','metric','subject','good','block','position','end','sha','class']
+            if [row[1] for row in db.execute('PRAGMA table_info(events)')] != expected:
+                raise IndexCacheError('incompatible index schema')
             for field in ('id','turn','kind','metric','good'):
                 db.execute(f'CREATE INDEX IF NOT EXISTS by_{field} ON events({field})')
         except BaseException:
@@ -27,11 +49,18 @@ class TraceIndex:
         return db
 
     def query(self, **filters):
+        with _path_lock(self.index_path):
+            return self._query_or_rebuild(**filters)
+
+    def _query_or_rebuild(self, **filters):
         try:
             return self._query(**filters)
-        except sqlite3.DatabaseError as error:
+        except (sqlite3.DatabaseError, IndexCacheError) as error:
             if isinstance(error, sqlite3.IntegrityError):
                 raise CorruptTrace('duplicate event identity in trace source') from error
+            code = getattr(error, 'sqlite_errorcode', None)
+            if not isinstance(error, IndexCacheError) and code not in (sqlite3.SQLITE_CORRUPT, sqlite3.SQLITE_NOTADB):
+                raise
             # The sidecar is derived data. Preserve the authoritative source and
             # rebuild a damaged database once; errors in the source still fail.
             self.index_path.unlink(missing_ok=True)
@@ -48,8 +77,14 @@ class TraceIndex:
             try:first=next(records).payload
             finally:records.close()
             identity=json.dumps([self.path.stat().st_dev,self.path.stat().st_ino,hashlib.sha256(first.encode()).hexdigest()])
-            previous=int(meta.get('end','0'))
-            if meta.get('identity')!=identity or previous>size:
+            try:
+                previous=int(meta.get('end','0'))
+                for name in ('block','count'):
+                    if name in meta:int(meta[name])
+            except ValueError as error:
+                raise IndexCacheError('invalid index boundary metadata') from error
+            if (meta.get('identity')!=identity or previous>size
+                    or (previous==size and meta.get('mtime')!=str(self.path.stat().st_mtime_ns))):
                 db.execute('DELETE FROM events');db.execute('DELETE FROM meta');meta={};previous=0
             # Index the caller's fixed published boundary. Re-read at most the
             # last block to verify coordinates before appending new rows.
@@ -61,14 +96,14 @@ class TraceIndex:
                     sha=hashlib.sha256(record.payload.encode()).hexdigest()
                     if record.end_offset<=previous:
                         old=db.execute('SELECT sha FROM events WHERE block=? AND position=?',(record.block_offset,record.record_in_block)).fetchone()
-                        if old is None or old[0]!=sha:raise CorruptTrace('indexed source prefix changed')
+                        if old is None or old[0]!=sha:raise IndexCacheError('cached prefix differs from source')
                         continue
                     row=json.loads(record.payload);subject_json=json.dumps(row.get('subject',{}),sort_keys=True,separators=(',',':'))
                     db.execute('INSERT INTO events VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
                                (number,row.get('event_id'),row.get('turn'),row.get('kind'),row.get('metric_id'),subject_json,
                                 row.get('subject',{}).get('good'),record.block_offset,record.record_in_block,record.end_offset,sha,row.get('record_class')))
                     number+=1;last_block=record.block_offset
-                for key,value in {'identity':identity,'end':str(boundary),'block':str(last_block),'count':str(number)}.items():
+                for key,value in {'identity':identity,'end':str(boundary),'block':str(last_block),'count':str(number),'mtime':str(self.path.stat().st_mtime_ns)}.items():
                     db.execute('INSERT OR REPLACE INTO meta VALUES(?,?)',(key,value))
             clauses=['class != ?','end <= ?'];parameters=['metadata',boundary]
             for column,value in [('turn',turn),('metric',metric_id),('kind',kind),('id',event_id)]:
@@ -87,7 +122,7 @@ class TraceIndex:
                 if record.block_offset!=block:break
                 if record.record_in_block in positions:
                     if hashlib.sha256(record.payload.encode()).hexdigest()!=positions[record.record_in_block]:
-                        raise CorruptTrace('indexed record differs from source')
+                        raise IndexCacheError('cached record differs from source')
                     decoded[block,record.record_in_block]=json.loads(record.payload)
                 if record.record_in_block>=max(positions):break
         for block,position,_ in selected:events.append(decoded[block,position])

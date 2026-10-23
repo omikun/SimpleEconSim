@@ -54,11 +54,14 @@ class CompactTraceWriter:
     def append(self, payload):
         if '\n' in payload:
             raise ValueError('trace payload must be one canonical JSON line')
+        encoded = (payload+'\n').encode()
+        if len(encoded) > MAX_FRAME:
+            raise ValueError('decoded trace record exceeds configured size limit')
         start = self.compressor is None or self.in_block >= self.block_records
         if start:
             self.compressor = zlib.compressobj(self.level, zlib.DEFLATED, -15)
             self.in_block = 0
-        chunk = self.compressor.compress((payload+'\n').encode()) + self.compressor.flush(zlib.Z_SYNC_FLUSH)
+        chunk = self.compressor.compress(encoded) + self.compressor.flush(zlib.Z_SYNC_FLUSH)
         if len(chunk) > MAX_FRAME:
             raise ValueError('trace frame exceeds configured size limit')
         frame = HEADER.pack(b'D', len(chunk), zlib.crc32(chunk)) + chunk
