@@ -56,7 +56,7 @@ annexation, many scenario actions, save/resume or long-run performance.
 | 1–2 | Military/medical/sovereign/rescue/subsidy fixtures; 127 further public probes; command boundaries | Rare branches and complete semantic payment-to-write contracts |
 | 3 | Timed native ownership/institution setters with shared-account fixtures | Additional nation creation/direct edits and scenario acceptance |
 | 4 | Independent economic replay, stock/source contracts and linked snapshots | Unsupported AI/scenario formulas and complete per-metric provenance |
-| 5 | Atomic full SimServer saves, branches, recovery; full economic graph/RNG/action equality in default and both authored server scenarios | Native Egypt continuation acceptance |
+| 5 | Atomic full saves/branches/recovery; full economic graph/RNG/action continuation in default, both authored server scenarios and native Egypt | Repeat longer native branch/recovery cases in final release evidence |
 | 6 | Block index/rebuild, stable queries/export, bounded identity cache and streamed CLI comparisons | Measured memory/query/runtime budgets and retired-reference audit |
 | 7 | Shared web/desktop/CLI explanations, native recording, F11 inspector, historical membership and iPad browser checks | Full scenario/history acceptance and physical-device follow-up if available |
 | 8 | Short probes and deterministic negative fixtures | Multi-seed 30/100-turn acceptance, off/on state/actions and published budgets/report |
@@ -821,3 +821,23 @@ discovery does not promote scope, execution or closure status. Web-client metric
 references now include the actual `web_client/` sources instead of depending on
 the client static symlink. Four inventory fixtures pass, including probe-literal
 discovery without review promotion and a real web binding candidate.
+
+### Full native Egypt checkpoint continuation (2026-10-23)
+
+`native_simulation_checkpoint.py` adapts the actual native world to the verified
+state/trace-pair mechanism. It preserves the complete dictionary identity,
+including debt-service objects pointing back to that world. Named render
+resources are detached only during serialization and restored in `finally`;
+their GPU/surface objects are recreated after load. Unknown unsupported state
+still fails before publishing a manifest. A bounded pure-Python pickle fallback
+handles the authored map's deep cyclic geometry without increasing the C stack
+budget; temporary recursion limits are restored on success and failure.
+
+The native Egypt fixture passes full economic graph/RNG/action continuation
+across a fresh process and within the saving process, verifies native debt-world
+and recorder aliases, preserves the source trace prefix, and rejects an unknown
+lock without publishing a save. The server publication-failure/torn-tail/interior
+corruption fixture also passes after the pickler change. The shared CLI now
+creates and resumes all four canonical scenarios using their actual runners;
+the reader guide documents native save/restore and branch/recovery usage.
+Longer recovery/branch acceptance and final save/query/runtime budgets remain.

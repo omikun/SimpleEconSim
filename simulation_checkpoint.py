@@ -21,6 +21,7 @@ import random
 import sys
 import types
 import uuid
+from contextlib import contextmanager
 
 import numpy as np
 
@@ -34,6 +35,17 @@ ROOT = Path(__file__).resolve().parent
 # account state are already retained through the simulation graph.
 SERVICE_PREFIXES = ('client.', 'render_engine', 'worldview', 'test_', 'logger',
                     'simulation_checkpoint', 'trace_', 'run_trace', 'causal_gap_inventory')
+
+
+@contextmanager
+def _graph_recursion_budget(limit=20000):
+    """Bounded depth for the authored 1,000-cell cyclic native map graph."""
+    previous = sys.getrecursionlimit()
+    try:
+        sys.setrecursionlimit(max(previous, limit))
+        yield
+    finally:
+        sys.setrecursionlimit(previous)
 
 
 def _modules():
@@ -120,7 +132,7 @@ def _restore_native_callback(operator_id, field, name, digest):
     return function
 
 
-class CheckpointPickler(pickle.Pickler):
+class _NativeCallbackReducers:
     def reducer_override(self, value):
         if isinstance(value, types.FunctionType) and '<locals>' in value.__qualname__:
             # These native ontology callbacks have no closures. Resolve them
@@ -133,6 +145,19 @@ class CheckpointPickler(pickle.Pickler):
                         digest = code_signature(value.__code__)
                         return _restore_native_callback, (operator.id, field, value.__qualname__, digest)
         return NotImplemented
+
+
+class CheckpointPickler(_NativeCallbackReducers, pickle.Pickler):
+    pass
+
+
+class _DeepGraphPickler(_NativeCallbackReducers, pickle._Pickler):
+    """Heap-backed Python frames for maps deeper than the C pickler permits.
+
+    The artifact remains ordinary version-pinned protocol-5 pickle. Using the
+    Python implementation for this fallback avoids raising the C stack budget
+    for the large linked geometry graph.
+    """
 
 
 def _fsync_directory(path):
@@ -194,7 +219,13 @@ def save(server, directory):
         # Fail before publishing a manifest if any active gameplay state is not
         # serializable. No economic registry is silently dropped on failure.
         buffer = io.BytesIO()
-        CheckpointPickler(buffer, protocol=5).dump(state)
+        try:
+            with _graph_recursion_budget():
+                CheckpointPickler(buffer, protocol=5).dump(state)
+        except RecursionError:
+            buffer = io.BytesIO()
+            with _graph_recursion_budget(100000):
+                _DeepGraphPickler(buffer, protocol=5).dump(state)
         payload = buffer.getvalue()
         identity = uuid.uuid4().hex
         state_path = directory / (identity + '.state')
@@ -244,7 +275,8 @@ def restore(manifest_path, branch_directory):
     payload = artifact('state_file').read_bytes()
     if hashlib.sha256(payload).hexdigest() != manifest['state_sha256']:
         raise ValueError('checkpoint state digest mismatch')
-    state = pickle.loads(payload)
+    with _graph_recursion_budget():
+        state = pickle.loads(payload)
     server = state['server']
     trace = server.run_trace
     clock = server.tiles[0]._collective_trace_clock
@@ -306,7 +338,9 @@ def main():
     parser.add_argument('--recover-trace', type=Path)
     parser.add_argument('--directory', type=Path, default=Path('tmp/checkpoints'))
     parser.add_argument('--turns', type=int, default=1)
-    parser.add_argument('--seed', type=int, default=4242)
+    parser.add_argument('--seed', type=int)
+    parser.add_argument('--scenario', choices=('default', 'labor_frontier_rivalry',
+                                              'supply_rivalry', 'egypt_1877'), default='default')
     args = parser.parse_args()
     if args.recover_trace and not args.restore:
         parser.error('--recover-trace requires --restore')
@@ -317,11 +351,27 @@ def main():
         else:
             server = restore(args.restore, args.directory)
     else:
-        from sim_server.sim_server import SimServer
-        server = SimServer(seed=args.seed, terrain_seed=args.seed, nation_seed=args.seed)
+        seed = args.seed if args.seed is not None else {
+            'default':4242, 'labor_frontier_rivalry':612, 'supply_rivalry':812,
+            'egypt_1877':1877}[args.scenario]
+        if args.scenario == 'egypt_1877':
+            from world_config import set_map_topology
+            from worldview_engine import build_world_view
+            from native_simulation_checkpoint import NativeSimulation
+            set_map_topology('voronoi')
+            world = build_world_view(seed=seed, terrain_seed=seed, nation_seed=seed,
+                                     scenario_id=args.scenario)
+            server = NativeSimulation(world)
+        else:
+            from sim_server.sim_server import SimServer
+            server = SimServer(seed=seed, terrain_seed=seed, nation_seed=seed,
+                               scenario_id=None if args.scenario=='default' else args.scenario,
+                               topology='voronoi' if args.scenario=='default' else 'hex')
     for _ in range(args.turns):
         server.step()
-    print(save(server, args.directory))
+    from native_simulation_checkpoint import NativeSimulation, save_world
+    print(save_world(server.world, args.directory, engine_module=server.engine_module)
+          if isinstance(server, NativeSimulation) else save(server, args.directory))
 
 
 if __name__ == '__main__':

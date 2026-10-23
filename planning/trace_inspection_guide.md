@@ -39,6 +39,28 @@ venv/bin/python trace_report.py --run tmp/traces/RUN.ctr --decode-jsonl -
 CLI reports and snapshot comparisons stream with bounded buffers. `.ctr` is the
 source; JSONL is only an export. Earlier compact formats are not accepted.
 
+## Save, branch and recover a full simulation
+
+Choose `default`, `labor_frontier_rivalry`, `supply_rivalry` or `egypt_1877`:
+
+```bash
+venv/bin/python simulation_checkpoint.py --scenario egypt_1877 --turns 1 --directory tmp/checkpoints
+venv/bin/python simulation_checkpoint.py --restore tmp/checkpoints/SAVE.checkpoint.json --turns 1 --directory tmp/branches
+venv/bin/python simulation_checkpoint.py --restore tmp/checkpoints/SAVE.checkpoint.json --recover-trace tmp/traces/DAMAGED.ctr --turns 0 --directory tmp/recovery
+```
+
+The command prints the new manifest path. Every restore creates a branch and
+preserves the parent trace. Saves contain the full live economic graph, scenario
+state, RNG and pending causal links. Egypt uses its native campaign engine.
+These version-pinned, trusted local Python saves are separate from map presets.
+Named desktop rendering resources are recreated on restore; unknown unsupported
+objects fail the save. In a running native world, call
+`native_simulation_checkpoint.save_world(world, directory)` and restore with
+`restore_world(manifest_path, branch_directory)`; the returned dictionary preserves
+native scenario references and its recorder. SimServer exposes the corresponding
+checkpoint methods. Recovery rejects interior corruption and uses the verified
+saved boundary when a live tail is incomplete.
+
 ## Evidence labels
 
 - **Observation:** a measured or sampled value.
