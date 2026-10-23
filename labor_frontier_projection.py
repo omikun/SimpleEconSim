@@ -109,7 +109,7 @@ def project(world):
                          and not any(p['nation'] == player.name and p['status'] == 'active'
                                      for p in state.get('machinery_projects', ())))
     actions.append(_action('cofund_machinery', 'Cofund machinery',
-                           'Owner 30 + treasury 15; two iron and one coal are purchased; two turns.',
+                           'Owner 30 + treasury 15; reserve two iron and one coal for construction; two turns.',
                            can_machinery, 'Requires owner cash 30, treasury 15, and no active project; physical inputs are checked on order.', 'Economic position'))
     actions.append(_action('release_relief', 'Release six food',
                            'Three border residents receive two food each; troops share this reserve.',

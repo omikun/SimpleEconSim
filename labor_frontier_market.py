@@ -77,6 +77,9 @@ def start_machinery_project(world, nation_name, turn, public_contribution=15):
     coal_cost = region.recipes[Goods.coal]['price']
     if iron_cost + coal_cost + 8 > 45:
         return False, 'Input prices exceed the funded 45 cash budget.'
+    operation_id = f'machinery:{nation_name}:{region.name}:{firm.id}:{turn}'
+    reserved_materials = {}
+    material_event_ids = {}
     _public_write = begin_public_change(None, owner)
     owner.cash -= owner_share
     finish_public_change(_public_write, 'labor_frontier_market:start_machinery_project',
@@ -110,8 +113,23 @@ def start_machinery_project(world, nation_name, turn, public_contribution=15):
         seller.cash += price
         finish_public_change(_public_write, 'labor_frontier_market:start_machinery_project',
                              inputs={'source_writer': 'labor_frontier_market.py:start_machinery_project:455e4aaec8281444:1', 'semantic_operation_id': locals().get('operation_id')})
+        seller_stock_before = seller.inv_get(good, 0)
         seller.inv_add(good, -amount)
-        firm.inv_add(good, amount)
+        # Paid construction inputs belong to the pending project. Exposing
+        # them as mill stock lets its normal auction resell them before due.
+        reserved_materials[good.name] = amount
+        from run_trace import emit
+        material_event_id = emit(region, kind='scenario_machinery_material_reserved', record_class='transfer',
+             phase='scenario_market',
+             subject={'type':'tile/project/good','id':operation_id,'tile':region.name,'good':good.name},
+             metric_id='construction.material_stock', unit='units', before=0, after=amount,
+             formula_id='construction.reserve_purchase.v1',
+             inputs={'project_id':operation_id, 'supplier_id':seller.id,
+                     'supplier_stock_before':seller_stock_before,
+                     'supplier_stock_after':seller.inv_get(good, 0),
+                     'purchased_units':amount, 'purchase_cost':price})
+        if material_event_id is not None:
+            material_event_ids[good.name] = material_event_id
     artisan = sellers[Goods.iron]
     _public_write = begin_public_change(None, firm)
     firm.cash -= 8
@@ -122,6 +140,9 @@ def start_machinery_project(world, nation_name, turn, public_contribution=15):
     finish_public_change(_public_write, 'labor_frontier_market:start_machinery_project',
                          inputs={'source_writer': 'labor_frontier_market.py:start_machinery_project:c9a0bf5df4aaf146:1', 'semantic_operation_id': locals().get('operation_id')})
     project = {'nation': nation_name, 'firm_id': firm.id, 'start_turn': turn,
+               'project_id':operation_id, 'construction_site':region.name,
+               'reserved_materials':reserved_materials,
+               '_trace_material_event_ids':material_event_ids,
                'due_turn': turn + 2, 'status': 'active',
                'owner_paid': owner_share, 'public_paid': public_contribution,
                'iron_supplier_id': sellers[Goods.iron].id,
@@ -136,11 +157,29 @@ def _advance_machinery(world, turn):
         if project['status'] != 'active' or project['due_turn'] > turn:
             continue
         firm = firms.get(project['firm_id'])
-        if firm is None or firm.inv_get(Goods.iron, 0) < 2 or firm.inv_get(Goods.coal, 0) < 1:
+        reserved = project['reserved_materials']
+        if firm is None or reserved.get('iron', 0) < 2 or reserved.get('coal', 0) < 1:
             project['status'] = 'stalled'
+            project['stall_reason'] = ('target_firm_unavailable' if firm is None
+                                       else 'reserved_materials_unavailable')
             continue
-        firm.inv_add(Goods.iron, -2)
-        firm.inv_add(Goods.coal, -1)
+        region = next(tile for tile in world['tiles'] if tile.name == project['construction_site'])
+        for good, amount in ((Goods.iron, 2), (Goods.coal, 1)):
+            before = reserved[good.name]
+            reserved[good.name] -= amount
+            from run_trace import emit
+            reservation_id = project.get('_trace_material_event_ids', {}).get(good.name)
+            emit(region, kind='scenario_machinery_material_consumed', record_class='outcome',
+                 phase='scenario_market',
+                 subject={'type':'tile/project/good','id':project['project_id'],
+                          'tile':region.name,'good':good.name},
+                 metric_id='construction.material_stock', unit='units',
+                 before=before, after=reserved[good.name],
+                 formula_id='construction.consume_reserved_materials.v1',
+                 inputs={'project_id':project['project_id'],'required_units':amount,
+                         'turn':turn,'due_turn':project['due_turn'],
+                         'reservation_event_id':reservation_id},
+                 cause_event_ids=[reservation_id] if reservation_id else None)
         firm.machinery_level += 1
         project['status'] = 'complete'
         project['completed_turn'] = turn

@@ -12,6 +12,32 @@ from trace_audit import audit
 
 
 class PublicActorAliasTraceTests(unittest.TestCase):
+    def test_authored_project_reserves_survive_market_ticks_and_retry(self):
+        from sim_server.sim_server import SimServer
+        from sim_server.protocol import CommandMessage, CommandType
+        from trace_coverage import coverage
+        server=SimServer(seed=612,scenario_id='labor_frontier_rivalry')
+        command=CommandMessage(CommandType.SCENARIO_ACTION,
+                               {'action_id':'cofund_machinery'},command_id='reserved-input-project')
+        first=server.execute_command(command)
+        self.assertTrue(first['success'],first)
+        self.assertEqual(first,server.execute_command(command))
+        self.assertEqual(1,len(server.scenario_state['machinery_projects']))
+        for _ in range(2):server.step()
+        project=server.scenario_state['machinery_projects'][0]
+        self.assertEqual('complete',project['status'])
+        self.assertEqual({'iron':0,'coal':0},project['reserved_materials'])
+        rows=server.run_trace.query(metric_id='construction.material_stock',limit=100)['events']
+        self.assertEqual(4,len(rows))
+        self.assertTrue(all(row['formula_replay']['matches'] for row in rows))
+        self.assertEqual(0,sum(row['delta'] for row in rows))
+        from causal_contracts import validate
+        consumed=next(row for row in rows if row['kind']=='scenario_machinery_material_consumed')
+        consumed['cause_event_ids']=[]
+        self.assertFalse(validate(consumed,lambda ident: server.run_trace.query(event_id=ident)['events'][0])['matches'])
+        self.assertTrue(audit(server.run_trace.path)['structural_and_supported_formula_checks_pass'])
+        self.assertEqual(0,coverage(server.run_trace.path)['_treasury_account_closure']['gaps'])
+
     def test_government_contractor_materials_and_navvy_wages_close(self):
         with tempfile.TemporaryDirectory() as directory:
             nation=Nation('Public contractor','C',register=False)

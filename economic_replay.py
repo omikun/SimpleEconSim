@@ -60,6 +60,11 @@ def replay(row):
         resources=delivered/required if required>0 else 1
         labor=min(1.5,len(i['navvy_ids'])/i['required_workers'])
         return min(100,before+100/max(1,i['total_turns'])*max(.2,resources)*labor)
+    if formula=='construction.reserve_purchase.v1':
+        return before+i['supplier_stock_before']-i['supplier_stock_after']
+    if formula=='construction.consume_reserved_materials.v1':
+        if i['turn']<i['due_turn']:raise ValueError('project materials consumed before due turn')
+        return before-i['required_units']
     if formula=='labor.tightness_mrpl_cash_policy.v1':
         tightness=i['labor_market_tightness'];wage=before
         ceiling=min(i['mrpl_wage_ceiling'],i['wage_cap']) if i['wage_cap'] is not None else i['mrpl_wage_ceiling']

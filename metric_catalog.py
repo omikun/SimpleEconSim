@@ -102,6 +102,8 @@ METRICS = {
     'construction.funding_decision': ('tile/intent', 'funded', 'intents.BuildIntent.execute; public wallet/deposit/bank-capital source legs, bank settlement limits, rollback, and sufficiency result'),
     'construction.project_commission': ('tile/project', 'projects', 'intents.BuildIntent.execute; contractor payment and funded project commissioning'),
     'construction.progress': ('tile/project', 'percent', 'buildings.ConstructionProject.step'),
+    'construction.material_stock': ('tile/project/good', 'units', 'labor_frontier_market machinery project reserved purchase and construction consumption'),
+    'goods.foraged_receipt': ('tile/good', 'units', 'foraging.forage_tile actual per-agent food receipts contributing to wilderness production'),
     'construction.emergency_subsidy': ('tile/project', 'local_currency', 'construction_politics.subsidize_contractor; conserved treasury grant and project resume outcome'),
     'war.battle': ('tile/attacker/defender', 'soldiers', 'army.resolve_battle'),
     'military.upkeep': ('nation/unit', 'turn outcome', 'army.MilitaryUnit.pay_and_feed; wage and ration coverage, morale change, and desertion'),
@@ -612,7 +614,7 @@ TRACE_INSTRUMENTED = set(LEGACY_HISTORY_TO_METRIC.values()) | {
     'military.supply_procurement', 'military.fleet_upkeep',
     'goods.military_supply',
     # Literal metric IDs emitted by production trace call sites (catalog audit).
-    'construction.progress', 'contract.crop_delivery', 'diplomacy.relation',
+    'construction.progress', 'construction.material_stock', 'goods.foraged_receipt', 'contract.crop_delivery', 'diplomacy.relation',
     'economy.cash', 'finance.bank_bond_writeoff', 'finance.bank_capital',
     'finance.bank_registration', 'finance.bank_balance_operation', 'finance.public_account_balance', 'finance.treasury_membership',
     'finance.bank_deposits', 'finance.bank_liabilities',

@@ -949,3 +949,33 @@ still discovering the fields read/written inside their implementations. The
 register now has 88 actual history-field candidates and two history-method
 callsites. A focused AST regression and the five inventory checks pass. This
 corrects the queue; history sampling and UI binding reviews remain required.
+
+### Passing hundred-turn rerun and reserved machinery inputs (2026-10-23)
+
+The `7d5316d` default seed-4242 100-turn pair passes every matrix gate: full
+economic state/RNG/action equality, zero currency violations, no unexplained
+changed snapshots, no bank/public closure gaps and no supported replay/source
+failures. Its 4,473,499 rows still include 348,612 unsupported-formula records
+and 1,734,319 unsupported-source-contract records; this is passing declared
+checks, not universal provenance completion. Result:
+`tmp/acceptance-hundred-repair-2026-10-23/matrix.json`.
+
+Frontier regression work found a real construction problem: the ordinary market
+could resell machinery coal before the two-turn project completed. Paid inputs
+now move from suppliers into explicit project reserves, remain unavailable to
+the auction, and are consumed only at completion. Each reserve/consumption has
+primitive replay; consumption requires the matching reservation source. A native
+server-command fixture verifies normal ticks, conserved material/cash funding,
+idempotent retries, replay, missing-source rejection and public-account closure.
+The shared web/desktop action text explains reserved inputs. The catalog also
+registers the existing per-agent forage receipt metric discovered by its gate.
+
+Petition fixtures now follow the actual competitive trigger (after initial crop
+reserves), retaining the real two-turn decision window and next-turn patrol.
+They no longer require gathering-right closure to guarantee estate jobs or
+higher stochastic output: independent field rights remain. Instead they verify
+lost foraging and named rights. Protective investment must complete, retain
+commons, win actual orders and pay its public cost; finite demand need not make
+it dominate waiting in every short window. All 54 combined frontier/auction/
+project/replay/inventory/catalog tests pass. Gameplay change is limited to
+reserved construction inputs; owner/worker strategy thresholds are unchanged.

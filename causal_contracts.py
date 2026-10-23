@@ -8,7 +8,8 @@ import math
 
 SUPPORTED = {'bank.opening_plus_transitions.v1', 'treasury.account_chain.v1',
              'treasury.closed_accounts.v1', 'production.sum_receipts.v1','market.discriminatory_clear.v2',
-             'disease.threshold_crossing_fatalities.v1', 'gini.recorded_sample.v1'}
+             'disease.threshold_crossing_fatalities.v1', 'gini.recorded_sample.v1',
+             'construction.consume_reserved_materials.v1'}
 
 
 def requirements(row):
@@ -59,6 +60,10 @@ def requirements(row):
         result.append(('source_event_id', i.get('source_event_id'),
                        {'metric_id':'economy.gini', 'subject':row['subject'],
                         'value_after':i['sampled_gini']}))
+    elif formula=='construction.consume_reserved_materials.v1':
+        result.append(('reservation_event_id', i.get('reservation_event_id'),
+                       {'kind':'scenario_machinery_material_reserved',
+                        'subject':row['subject'],'value_after':row['value_before']}))
     return result
 
 
