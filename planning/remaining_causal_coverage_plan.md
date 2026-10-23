@@ -775,3 +775,16 @@ a bounded nearby northern outlet on either side only when both fail. A geography
 regression verifies distinct coastal outlets, a continuous connected branch and
 idempotence for release seeds 1877/1878. Full seed-1878 simulation acceptance
 still requires a rerun. This map correction is separate from trace allocation.
+
+### Frontier currency-loss diagnosis (2026-10-23)
+
+The turn-30 CNY loss is an actual denomination bug, not missing destruction:
+government agent 672 kept `home_currency='c22'` from region construction while
+its seated cash was counted as CNY. After entering trading it debited 10.56 CNY
+and credited settlers' wallets under fictitious currency `c22`. `Nation.add_tile`
+skips government agents during citizen registration; it now separately binds
+the sovereign/local government cash currency to the claimed nation's currency.
+A native public-trader frontier fixture verifies conserved CNY and absence of
+tile-name currency credits. Nine focused currency/account fixtures pass.
+The correction changes native currency handling and is committed separately
+from observation repairs; full native long-run currency verification is running.

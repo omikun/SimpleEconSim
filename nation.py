@@ -115,6 +115,15 @@ class Nation:
         region.home_currency = self.currency
         # Sync the government's currency pointer (kept in lockstep).
         self.government.currency = self.currency
+        self.government.agent.home_currency = self.currency
+        # The seated local government is skipped by citizen registration below,
+        # but its hand cash has the same denomination as every other tile wallet.
+        # Leaving its construction-time tile name here makes later frontier
+        # payments debit national cash while crediting a fictitious currency.
+        local_government = getattr(region, 'gov', None)
+        if local_government is not None:
+            local_government.currency = self.currency
+            local_government.agent.home_currency = self.currency
         # Record the owning nation's claim on the tile (strength 1.0).
         claims = self._claims_of(region)
         claims[self.name] = 1.0
