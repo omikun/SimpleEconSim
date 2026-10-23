@@ -2362,3 +2362,16 @@ sum reconciliation. Military, political, sovereign cash and scenario/manual
 public writes still need further stock probes; missing writes remain gaps.
 Full scenario, persistence/index/recovery and long-run performance gates remain
 open. This is not a claim of gamewide completion.
+
+
+## Next execution plan — Remaining causal coverage gaps (2026-10-22)
+
+[The remaining-gap plan](remaining_causal_coverage_plan.md) supersedes the old
+Phase 6 assumptions about source JSONL and backward trace compatibility. It
+orders the remaining work: authoritative gap inventory; financial/military
+writers; political/manual/scenario writers; timed account/territory composition;
+provenance and displayed metrics; durable simulation/trace checkpoint pairs;
+compressed-block indexing; shared player explanations; scenario/performance
+acceptance. Each phase has deliverables, fixtures and a completion gate.
+Planning only: these phases have not been implemented. The first slice is the
+gap register followed by military/medical account probes.
