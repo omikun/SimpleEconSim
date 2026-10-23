@@ -40,6 +40,10 @@ def summarize(left,right):
             'on_report':left['report_file'],'off_report':right['report_file'],
             'step_runtime_ratio_on_over_off':left['step_seconds']/right['step_seconds'],
             'trace_bytes_per_completed_turn':left['trace_bytes']/max(1,left['completed_turns'])}
+    if left.get('step_cpu_seconds') is not None and right.get('step_cpu_seconds'):
+        result['step_cpu_ratio_on_over_off']=left['step_cpu_seconds']/right['step_cpu_seconds']
+    if left.get('decoded_trace_bytes') is not None:
+        result['decoded_trace_bytes_per_completed_turn']=left['decoded_trace_bytes']/max(1,left['completed_turns'])
     if not same:
         with gzip.open(left['semantic_state_file'],'rt') as file:a=json.load(file)
         with gzip.open(right['semantic_state_file'],'rt') as file:b=json.load(file)

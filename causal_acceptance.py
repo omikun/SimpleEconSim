@@ -33,6 +33,7 @@ def run(scenario,seed,turns,traced,out,*,audit_trace=True):
         set_map_topology('voronoi')
         random.seed(seed);np.random.seed(seed)
         started=time.perf_counter()
+        started_cpu=time.process_time()
         world=build_world_view(seed=seed,terrain_seed=seed,nation_seed=seed,scenario_id=scenario,trace_enabled=traced)
         def step():return step_world(world)
         def context():return world['turn'],world['tiles'],world['nations'],world.get('scenario_state',{}),world.get('run_trace')
@@ -43,6 +44,7 @@ def run(scenario,seed,turns,traced,out,*,audit_trace=True):
         from sim_server.sim_server import SimServer
         random.seed(seed);np.random.seed(seed)
         started=time.perf_counter()
+        started_cpu=time.process_time()
         server=SimServer(seed=seed,terrain_seed=seed,nation_seed=seed,
                          topology='voronoi' if scenario=='default' else 'hex',
                          scenario_id=None if scenario=='default' else scenario,trace_enabled=traced)
@@ -53,10 +55,12 @@ def run(scenario,seed,turns,traced,out,*,audit_trace=True):
                             'violations':server.violations,'player_nation_name':server.player_nation_name,
                             'nation_history':server._nation_history}
     setup_seconds=time.perf_counter()-started
+    setup_cpu_seconds=time.process_time()-started_cpu
     starting_turn=context()[0]
-    durations=[];violations=[]
+    durations=[];cpu_durations=[];violations=[]
     for number in range(turns):
-        before,*_=context();tick=time.perf_counter();step();durations.append(time.perf_counter()-tick)
+        before,*_=context();tick=time.perf_counter();cpu_tick=time.process_time()
+        step();durations.append(time.perf_counter()-tick);cpu_durations.append(time.process_time()-cpu_tick)
         after,tiles,nations,state,trace=context()
         violations.extend(extra()['violations'])
         if after==before:break
@@ -69,6 +73,8 @@ def run(scenario,seed,turns,traced,out,*,audit_trace=True):
             'requested_turns':turns,'starting_turn':starting_turn,'final_turn':turn,
             'completed_turns':turn-starting_turn,'native_ending':scenario_state.get('ending'),
             'trace_enabled':traced,'setup_seconds':setup_seconds,'step_seconds':sum(durations),
+            'setup_cpu_seconds':setup_cpu_seconds,'step_cpu_seconds':sum(cpu_durations),
+            'median_turn_cpu_seconds':statistics.median(cpu_durations) if cpu_durations else None,
             'median_turn_seconds':statistics.median(durations) if durations else None,'peak_simulation_rss_mb':rss,
             'currency_violations':violations,'python':platform.python_version(),'numpy':np.__version__,
             'platform':platform.platform(),'cpu_count':os.cpu_count(),
@@ -108,6 +114,7 @@ def run(scenario,seed,turns,traced,out,*,audit_trace=True):
             from trace_audit import audit
             from trace_coverage import coverage
             begin=time.perf_counter();result['audit']=audit(trace.path);result['coverage']=coverage(trace.path)
+            result['decoded_trace_bytes']=result['audit']['decoded_trace_bytes']
             result['inspection_seconds']=time.perf_counter()-begin
     out.write_text(json.dumps(result,indent=2,sort_keys=True))
     print(json.dumps({'report':str(out),'completed_turns':turn,'semantic_sha256':result['semantic_sha256']},sort_keys=True),flush=True)

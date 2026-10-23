@@ -991,3 +991,20 @@ are counted setup stock; they do not claim a public transfer record. The review
 keeps rare public buyer/seller/carrier aliases and exact semantic monetary-write
 contracts open. Current register: 99 source-reviewed candidates, 408 pending,
 386 declared metrics, 88 history fields and two history-method callsites.
+
+### Audit precision and benchmark measurement refinement (2026-10-23)
+
+Audits now count decoded UTF-8 JSONL bytes independently of compact storage,
+with an export-size regression. The completed short default trace is 9,177,537
+compact bytes versus 139,054,878 decoded bytes across 121,332 rows (about 15.2×
+smaller). Benchmark reports now separate process CPU from wall time for setup
+and stepping; old reports without these fields do not imply zero CPU usage.
+
+Malformed required-source inputs now produce explicit failed audit records
+rather than aborting the report. Thirty-three audit/history/project/bank/public
+closure fixtures pass, including malformed-source rejection and actual streamed
+export byte agreement. A bounded source-cache experiment preserved results but
+was slower on the completed short trace (roughly 3.01s CPU versus 2.90s without
+it); it was discarded. SQLite remains the bounded source lookup store. These
+measurements do not set final cross-scenario regression budgets; the new CPU/
+decoded-byte fields still need a frozen-source native acceptance rerun.
