@@ -81,7 +81,8 @@ class SimServer:
     def __init__(self, seed: Optional[int] = None, terrain_seed: Optional[int] = None,
                  nation_seed: Optional[int] = None,
                  topology: Optional[str] = None, scenario_id: Optional[str] = None,
-                 autoplay_nations: bool = False):
+                 autoplay_nations: bool = False, trace_enabled: bool = True):
+        self.trace_enabled = bool(trace_enabled)
         self.scenario_id = scenario_id
         self.autoplay_nations = bool(autoplay_nations)
         if scenario_id in ('labor_frontier_rivalry', 'supply_rivalry'):
@@ -205,6 +206,9 @@ class SimServer:
                     'turns': [], 'treasury': [], 'gdp': [], 'pop': [], 'food_price': [], 'unrest': []
                 }
             self._record_history(0)
+            if not self.trace_enabled:
+                self.run_trace = None
+                return
             run_id = f'{self.instance_id}-{self.world_generation}'
             trace_path = Path(__file__).resolve().parents[1] / 'tmp' / 'traces' / f'{run_id}.ctr'
             self.run_trace = RunTrace(trace_path, run_id, seed=self.seed,
@@ -308,9 +312,10 @@ class SimServer:
             treasury_boundary(self.tiles, self.nations, 'bond_market')
 
             self._record_history(t)
-            from trace_snapshots import record
-            record(self)
-            if self.tiles:
+            if self.run_trace is not None:
+                from trace_snapshots import record
+                record(self)
+            if self.tiles and self.run_trace is not None:
                 self.run_trace.checkpoint(self.tiles[0]._collective_trace_clock)
             self.state_revision += 1
             self._broadcast(ServerEvent.TURN_ADVANCED, {'turn': t})

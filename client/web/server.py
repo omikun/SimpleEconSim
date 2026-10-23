@@ -141,6 +141,9 @@ class CoCHTTPRequestHandler(BaseHTTPRequestHandler):
                     subject['class_group'] = class_group
                 with sim._lock:
                     trace = sim.run_trace
+                    if trace is None:
+                        self._send_error_json(404, 'Causal recording is disabled for this run')
+                        return
                     published = trace._compact_writer.end_offset
                 selected_boundary = int(query['boundary'][0]) if 'boundary' in query else published
                 if selected_boundary > published:
@@ -170,6 +173,9 @@ class CoCHTTPRequestHandler(BaseHTTPRequestHandler):
                 from trace_codec import decoded_size, iter_payloads
                 sim = self.server.sim_server
                 with sim._lock:
+                    if sim.run_trace is None:
+                        self._send_error_json(404, 'Causal recording is disabled for this run')
+                        return
                     trace_path = sim.run_trace.path
                     run_id = sim.run_trace.run_id
                     boundary = sim.run_trace._compact_writer.end_offset

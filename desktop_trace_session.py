@@ -39,8 +39,10 @@ def attach(world):
 def traced_world_builder(function):
     @wraps(function)
     def wrapped(*args,**kwargs):
+        enabled=kwargs.pop('trace_enabled',True)
         world=function(*args,**kwargs)
-        attach(world)
+        world['_trace_enabled']=enabled
+        if enabled:attach(world)
         return world
     return wrapped
 
@@ -48,6 +50,7 @@ def traced_world_builder(function):
 def traced_world_step(function):
     @wraps(function)
     def wrapped(world,*args,**kwargs):
+        if not world.get('_trace_enabled',True):return function(world,*args,**kwargs)
         from trace_snapshots import record, sample
         session=attach(world);trace=session.run_trace
         clock=session.tiles[0]._collective_trace_clock if session.tiles else None

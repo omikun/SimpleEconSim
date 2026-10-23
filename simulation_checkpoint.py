@@ -12,7 +12,6 @@ import hashlib
 from enum import Enum
 import importlib
 import io
-import marshal
 import json
 import os
 from pathlib import Path
@@ -27,6 +26,7 @@ import numpy as np
 
 from run_trace import verify
 from trace_codec import iter_records, CorruptTrace, TornTraceTail
+from python_code_signature import code_signature
 
 VERSION = 1
 ROOT = Path(__file__).resolve().parent
@@ -115,7 +115,7 @@ def _restore_native_callback(operator_id, field, name, digest):
     from economy.transformation_graph import TransformationGraph
     function = getattr(TransformationGraph.get_operator(operator_id), field)
     if (function.__qualname__ != name or function.__closure__
-            or hashlib.sha256(marshal.dumps(function.__code__)).hexdigest() != digest):
+            or code_signature(function.__code__) != digest):
         raise ValueError('checkpoint native action function mismatch: ' + operator_id)
     return function
 
@@ -130,7 +130,7 @@ class CheckpointPickler(pickle.Pickler):
             for operator in TransformationGraph.all_operators():
                 for field in ('on_execute', 'check_prerequisites', 'estimate_return_hook'):
                     if getattr(operator, field) is value and not value.__closure__:
-                        digest = hashlib.sha256(marshal.dumps(value.__code__)).hexdigest()
+                        digest = code_signature(value.__code__)
                         return _restore_native_callback, (operator.id, field, value.__qualname__, digest)
         return NotImplemented
 
@@ -176,6 +176,8 @@ def save(server, directory):
     directory.mkdir(parents=True, exist_ok=True)
     with server._lock:
         trace = server.run_trace
+        if trace is None:
+            raise ValueError('a full causal checkpoint requires an enabled recorder')
         if trace.write_error:
             raise OSError(trace.write_error)
         clock = server.tiles[0]._collective_trace_clock

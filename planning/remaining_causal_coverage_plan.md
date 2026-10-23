@@ -587,3 +587,30 @@ from instrumentation. A hash-layout fixture verifies equal partitions under
 three object hash arrangements; existing generation, clustering/connectivity and
 degree-cap checks passed (four tests). No current live world's territory is
 rewritten by this change. Acceptance proceeds against the deterministic rules.
+
+
+### Full economic state acceptance tooling (2026-10-23)
+
+Added a real recorder-off option for both canonical runners and a fresh-process
+acceptance harness. The comparison retains economic quantities, native ordering,
+shared aliases, pending objects, callback closures, gameplay globals and Python/
+NumPy RNG. Registered domain UUIDs are renamed consistently; explicit observation
+fields are counted separately. Unknown native state objects fail serialization.
+A one-dollar change, changed policy ordering, changed alias and changed callback
+closure all produce differences in negative fixtures.
+
+Default seed 4242, three turns, now produces the same full state digest with
+recording on and off. A marshal-based code fingerprint initially produced a false
+callback difference; stable bytecode/constants fingerprints now retain rule
+identity without marshal interning artifacts, also protecting checkpoint callback
+validation. Seven semantic/checkpoint tests passed; the first test invocation
+also named a nonexistent command test module, which is rerun under its real name.
+These preliminary timing measurements were concurrent with tests and are not
+benchmark baselines.
+
+The sequential matrix runner pins a committed Git source archive so later edits
+cannot mix rules within a run. Smoke coverage uses all four canonical scenarios.
+Release coverage uses two seeds, 30/100 default sandbox turns and the authored
+20-turn scenario horizons (or earlier native endings). Completed turns are
+reported honestly; terminal campaigns are not forced to continue to 100 turns.
+Full scenario equality, measured budgets and remaining provenance gates stay open.
