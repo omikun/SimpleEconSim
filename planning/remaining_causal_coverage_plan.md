@@ -614,3 +614,44 @@ Release coverage uses two seeds, 30/100 default sandbox turns and the authored
 20-turn scenario horizons (or earlier native endings). Completed turns are
 reported honestly; terminal campaigns are not forced to continue to 100 turns.
 Full scenario equality, measured budgets and remaining provenance gates stay open.
+
+
+### Authored-scenario acceptance findings (2026-10-23)
+
+The first pinned smoke matrix (`9c6dbf5`) passes default, but correctly leaves
+frontier, supply and Egypt failing. Frontier/supply expose missing public-account
+probes in named obligation settlements, public taxpayers and labor-law petition
+fees. Added actual before/after probes and linked obligation and petition records;
+public creditor, debtor and internal-transfer fixtures pass alongside existing
+closure and state-normalization regressions (17 tests). No money rule changed.
+
+Native journals share the recorder clock: inserted trace rows change sequence
+numbers, while append order is the same. Acceptance now ranks recorded journal
+sequences globally, preserving order and ties across journals; a reversed-order
+negative fixture still fails. The labor-surplus source ID is observational and
+explicitly omitted; all surplus amounts remain. Egypt starts at turn 1, so the
+harness now reports starting/final turns separately from completed steps.
+
+Egypt also exposes late public receipts, disease counts changing after treatment,
+and a legitimacy record whose extra subject dimension prevents snapshot matching.
+These remain active repairs, not accepted coverage. Currency-audit violations in
+Egypt also require investigation against the recorder-off run. The release
+matrix will follow the corrected short gates.
+
+
+### Egypt sampling and geography corrections (2026-10-23)
+
+The native disease chart stores pre-treatment case counts, while snapshots had
+used closing live counts. These are now separate metrics: `health.disease_cases`
+uses the actual chart history, and `health.active_disease_cases` records the
+closing live census. A cured-patient fixture verifies history 1 versus live 0;
+no treatment or gameplay timing changed. The foreclosure legitimacy record now
+uses the national scalar subject and retains the affected person in its inputs.
+
+The full Egypt graph also exposed nondeterministic equal-flux river decomposition
+from set iteration. Stable corner-index tie breaks are committed separately as
+`d063a73`; three hash-layout fixtures plus polygon/geography tests passed (20
+tests). River paths remain part of acceptance state because scenario generation
+uses them to select the Nile. They were not hidden by the comparator. The one
+Egypt currency violation (-5 EGP at turn 2) is identical with tracing on/off,
+so it remains a separate accounting investigation, not a recorder divergence.

@@ -328,6 +328,8 @@ def step_medical_care(region, t: int, rand_gen=None) -> dict:
 
     # Track disease breakdown this step
     counts = {DIS_MALNUTRITION: 0, DIS_WATERBORNE: 0, DIS_RESPIRATORY: 0, DIS_CHEMICAL: 0, DIS_PESTILENCE: 0}
+    case_ids_before_treatment={disease:[a.id for a in agents if disease in (getattr(a,'diseases',[]) or [])]
+                               for disease in ALL_DISEASES}
 
     for a in agents:
         dis_list = getattr(a, 'diseases', [])
@@ -569,18 +571,13 @@ def step_medical_care(region, t: int, rand_gen=None) -> dict:
     region.disease_fatalities_log.append(fatalities)
 
     from run_trace import emit
-    post_treatment_cases = {disease: sum(
-        1 for person in agents
-        if getattr(person, 'alive', True) and disease in getattr(person, 'diseases', []))
-        for disease in ALL_DISEASES}
-    for disease, case_count in post_treatment_cases.items():
+    for disease, case_ids in case_ids_before_treatment.items():
         emit(region, kind='disease_cases_observed', record_class='calculation',
              subject={'type': 'tile', 'id': region.name, 'disease': disease},
-             metric_id='health.disease_cases', unit='people', after=case_count,
+             metric_id='health.disease_cases', unit='people', after=len(case_ids),
              formula_id='disease.count_active_cases.v1',
-             inputs={'disease': disease, 'counted_after_treatment': True,
-                     'case_agent_ids': [person.id for person in agents
-                         if getattr(person, 'alive', True) and disease in getattr(person, 'diseases', [])]})
+             inputs={'disease': disease, 'counted_after_treatment': False,
+                     'sample_point':'pre_treatment_history','case_agent_ids':case_ids})
     emit(region, kind='medical_care_summary', record_class='calculation',
          subject={'type': 'tile', 'id': region.name},
          metric_id='health.medical_spending', unit='local_currency',

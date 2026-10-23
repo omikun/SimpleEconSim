@@ -10,6 +10,7 @@ from finance_trace import (account_ref, cash_transfer_contract,
                            transfer_contract)
 from goods import Goods
 from nutrition import deficit_fraction
+from treasury_trace import begin_public_change,finish_public_change
 
 
 NATIONAL_ACTIONS = frozenset({'buy_private_grain', 'requisition_private_grain',
@@ -764,6 +765,7 @@ def _assess_arrears(world, tile, assessed_ids):
         local = collected - national
         if nation is not None:
             national_before = float(nation.government.agent.cash)
+            national_public_change=begin_public_change(tile,nation.government.agent)
             nation.government.agent.cash += national
             national_after = float(nation.government.agent.cash)
             pool_after_national = collected - national
@@ -774,6 +776,9 @@ def _assess_arrears(world, tile, assessed_ids):
                 pool_before=collected, pool_after=pool_after_national,
                 treasury_before=national_before, treasury_after=national_after,
                 payment_event_ids=payment_event_ids)
+            finish_public_change(national_public_change,'cadastral_tax_national_receipt',
+                inputs={'semantic_operation_id':collection_operation_id},
+                cause_event_ids=[allocation_id] if allocation_id else None)
             if allocation_id is not None:
                 allocation_trace_ids.append(allocation_id)
             nation.government.record_income(turn, 'tax', national)
@@ -782,6 +787,7 @@ def _assess_arrears(world, tile, assessed_ids):
             national = 0.0
             pool_after_national = collected
         local_before = float(tile.gov.agent.cash)
+        local_public_change=begin_public_change(tile,tile.gov.agent)
         tile.gov.agent.cash += local
         local_after = float(tile.gov.agent.cash)
         allocation_id = _trace_tax_treasury_allocation(
@@ -790,6 +796,9 @@ def _assess_arrears(world, tile, assessed_ids):
             pool_before=pool_after_national, pool_after=0.0,
             treasury_before=local_before, treasury_after=local_after,
             payment_event_ids=payment_event_ids)
+        finish_public_change(local_public_change,'cadastral_tax_local_receipt',
+            inputs={'semantic_operation_id':collection_operation_id},
+            cause_event_ids=[allocation_id] if allocation_id else None)
         if allocation_id is not None:
             allocation_trace_ids.append(allocation_id)
         tile.gov.record_income(turn, 'tax', local)
@@ -866,7 +875,11 @@ def _foreclose(world, tile, cultivator, row, *, cause_event_ids=None):
         if payment_event_id is not None:
             cash_event_ids.append(payment_event_id)
         government_cash_before = float(tile.gov.agent.cash)
+        recovery_public_change=begin_public_change(tile,tile.gov.agent)
         tile.gov.agent.cash += recovery
+        finish_public_change(recovery_public_change,'cadastral_foreclosure_tax_recovery',
+            inputs={'semantic_operation_id':operation_id,'recovery':recovery},
+            cause_event_ids=[payment_event_id] if payment_event_id else None)
         government_cash_after = float(tile.gov.agent.cash)
         if recovery > 0:
             recovery_pool = account_ref(
@@ -1043,12 +1056,11 @@ def _foreclose(world, tile, cultivator, row, *, cause_event_ids=None):
         nation.legitimacy = max(0.0, float(nation.legitimacy) - .005)
         emit(tile, kind='cadastral_foreclosure_legitimacy_loss',
              record_class='outcome', phase='scenario_economy',
-             subject={'type': 'nation', 'id': nation.name,
-                      'agent_id': cultivator.id},
+             subject={'type': 'nation', 'id': nation.name},
              metric_id='politics.legitimacy', unit='ratio',
              before=legitimacy_before, after=float(nation.legitimacy),
              formula_id='cadastral_tax.foreclosure_legitimacy_loss.v1',
-             inputs={'operation_id': operation_id,
+             inputs={'operation_id': operation_id,'agent_id':cultivator.id,
                      'foreclosure_event_id': foreclosure_event_id,
                      'change': float(nation.legitimacy) - legitimacy_before},
              cause_event_ids=([foreclosure_event_id]
@@ -1436,7 +1448,10 @@ def apply_action(world, nation, action_id, tile=None):
             _set_reserved(world, region, reserved_before - units)
             nation.government.food_inventory += units
             if price:
+                grain_public_change=begin_public_change(region,treasury)
                 treasury.cash -= units * price
+                finish_public_change(grain_public_change,'public_private_grain_purchase',
+                    inputs={'action_id':action_id,'units':units,'unit_price':price,'payee_id':owner.id})
                 owner.cash += units * price
                 paid += units * price
             if not price:

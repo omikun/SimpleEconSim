@@ -13,6 +13,28 @@ from run_trace import RunTrace
 
 
 class TestUntreatedDiseaseTrace(unittest.TestCase):
+    def test_cured_case_history_and_closing_live_count_are_distinct(self):
+        from trace_snapshots import sample,record
+        from types import SimpleNamespace
+        with tempfile.TemporaryDirectory() as tmp:
+            region=Region('Cure timing',0,number_of_agents=0)
+            patient=Agent(0);initialize_agent(patient,Goods.wood,0,5,100)
+            patient.diseases=[DIS_RESPIRATORY];region.agents=[patient]
+            trace=RunTrace(Path(tmp)/'cure.ctr','cure')
+            region._run_trace=trace
+            region._collective_trace_clock={'turn':1,'phase':'healthcare','next':1}
+            step_medical_care(region,1,rand_gen=random.Random(1))
+            self.assertNotIn(DIS_RESPIRATORY,patient.diseases)
+            self.assertEqual(1,region.disease_cases_log[-1][DIS_RESPIRATORY])
+            values=sample([region],[])
+            self.assertEqual(1,values[('health.disease_cases',region.name,DIS_RESPIRATORY)][2])
+            self.assertEqual(0,values[('health.active_disease_cases',region.name,DIS_RESPIRATORY)][2])
+            record(SimpleNamespace(tiles=[region],nations=[],run_trace=trace,_trace_previous={}))
+            rows=trace.query(metric_id='health.active_disease_cases',subject={'disease':DIS_RESPIRATORY})['events']
+            census=next(row for row in rows if row['kind']=='closing_active_disease_census')
+            self.assertEqual([],census['inputs']['case_agent_ids'])
+            self.assertTrue(census['formula_replay']['matches'])
+
     def test_unaffordable_case_is_linked_to_aggregate_chart_point(self):
         with tempfile.TemporaryDirectory() as tmp:
             region = Region('Medical_Trace_Tile', 1)

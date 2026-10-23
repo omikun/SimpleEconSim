@@ -177,6 +177,9 @@ def settle_obligations(region, turn, *,
         creditor_cash_before = float(creditor.cash)
         paid = min(max(0.0, float(debtor.cash)), max(0.0, claim.balance))
         if paid:
+            from treasury_trace import begin_public_change
+            debtor_public_change=begin_public_change(region,debtor)
+            creditor_public_change=begin_public_change(region,creditor)
             debtor.cash -= paid
             creditor.cash += paid
             claim.balance = max(0.0, claim.balance - paid)
@@ -260,6 +263,19 @@ def settle_obligations(region, turn, *,
                         'actor_account_event_id': journal_event['id']},
                 cause_event_ids=([settlement_event_id]
                                  if settlement_event_id else None))
+            from treasury_trace import finish_public_change
+            from finance_trace import emit_public_account_flow
+            for context,agent,signed in ((debtor_public_change,debtor,-paid),
+                                         (creditor_public_change,creditor,paid)):
+                writes=finish_public_change(context,'cash_obligation_payment',
+                    inputs={'semantic_operation_id':operation_id,'obligation_id':claim.id,
+                            'origin':claim.origin,'transfer_contract':contract},
+                    cause_event_ids=[payment_event_id] if payment_event_id else None)
+                emit_public_account_flow(region,agent,kind='government_cash_obligation_payment',
+                    signed_amount=signed,
+                    inputs={'operation_id':operation_id,'origin':claim.origin,
+                            'transfer_contract':contract},
+                    cause_event_ids=([payment_event_id] if payment_event_id else [])+writes)
             if payment_event_id and payment_trace_event_ids_by_origin is not None:
                 payment_trace_event_ids_by_origin.setdefault(
                     claim.origin, []).append(payment_event_id)

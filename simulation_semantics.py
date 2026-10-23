@@ -27,6 +27,7 @@ OBSERVATIONAL_FIELDS = frozenset({
     '_pending_trader_float_traces','_last_market_novelty_trace','_decision_event_id',
     '_labor_workforce_event_ids','_trade_price_event_ids','_last_execution_times',
     '_last_border_vulnerability_event_id','_last_diplomacy_event_id',
+    '_latest_labor_surplus_event_id',
     'trace_event_id','trace_event_ids','cause_event_ids','formula_replay','_cached_wealth',
     'source_link_status',
 })
@@ -45,7 +46,7 @@ def canonical_state(tiles,nations,*,extra=None):
     import numpy as np
     from simulation_checkpoint import capture_globals
     globals_state,_=capture_globals()
-    identities={};seen={};omitted=Counter()
+    identities={};seen={};omitted=Counter();journal_sequences=set()
     # Only registered native UUID fields are normalized. Numeric strings,
     # economic codes and arbitrary eight-character values remain untouched.
     identities={}
@@ -72,7 +73,7 @@ def canonical_state(tiles,nations,*,extra=None):
     def skip(name,event=False,trace_derived=False,chart_point=False):
         if (isinstance(name,str) and (name in OBSERVATIONAL_FIELDS or name.startswith('_trace_')
                 or name.endswith(('_trace_event_id','_trace_event_ids','_trace_id','_trace_ids'))
-                or (event and name=='sequence') or (trace_derived and name=='source_event_id') or (chart_point and name=='event_id'))):
+                or (trace_derived and name=='source_event_id') or (chart_point and name=='event_id'))):
             omitted[name]+=1;return True
         return False
     def key(value):
@@ -122,6 +123,7 @@ def canonical_state(tiles,nations,*,extra=None):
             entries=[]
             for k,v in value.items():
                 if skip(k,event,'source_link_status' in value,set(value)=={'turn','value','event_id'}):continue
+                if k=='sequence' and 'turn' in value and isinstance(v,int):v=sequence_ranks[v]
                 if k=='source_id' and 'kind' in value and 'amount' in value and (v is None or
                         isinstance(v,str) and re.match(r'^(?:desktop-)?[0-9a-f]{32}(?:-[0-9]+)?:',v)):
                     omitted[k]+=1;continue
@@ -159,7 +161,9 @@ def canonical_state(tiles,nations,*,extra=None):
             continue
         if id(value) in discovered:continue
         discovered.add(id(value))
-        if isinstance(value,dict):items=list(value.items())
+        if isinstance(value,dict):
+            items=list(value.items())
+            if 'turn' in value and isinstance(value.get('sequence'),int):journal_sequences.add(value['sequence'])
         elif isinstance(value,(list,tuple,deque,set,frozenset)):
             to_discover.extend(reversed(list(value)));continue
         else:items=list(fields_of(value).items())
@@ -169,11 +173,14 @@ def canonical_state(tiles,nations,*,extra=None):
         to_discover.extend(item for name,item in reversed(items) if not (isinstance(name,str) and (name in OBSERVATIONAL_FIELDS or name.startswith('_trace_') or name.endswith(('_trace_event_id','_trace_event_ids','_trace_id','_trace_ids')))))
     if identities:
         pattern=re.compile(r'(?<![0-9a-f])(?:'+'|'.join(re.escape(value) for value in sorted(identities,key=len,reverse=True))+r')(?![0-9a-f])')
+    # Tracing inserts records into the shared journal clock. Preserve exact
+    # relative order and ties across journals while removing those inserted gaps.
+    sequence_ranks={value:index for index,value in enumerate(sorted(journal_sequences),1)}
     root=encode({'tiles':tiles,'nations':nations,'globals':globals_state,'extra':extra,
                  'python_rng':random.getstate(),'numpy_rng':np.random.get_state()})
     while pending:
         number,value=pending.popleft();fill(number,value)
-    return {'graph':{'root':root,'objects':objects},'normalization':{'domain_uuid_count':len(identities),'omitted_observation_fields':dict(omitted)}}
+    return {'graph':{'root':root,'objects':objects},'normalization':{'domain_uuid_count':len(identities),'journal_sequences_ranked':len(sequence_ranks),'omitted_observation_fields':dict(omitted)}}
 
 
 def state_digest(state):

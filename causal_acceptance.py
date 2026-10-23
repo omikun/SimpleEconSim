@@ -53,6 +53,7 @@ def run(scenario,seed,turns,traced,out,*,audit_trace=True):
                             'violations':server.violations,'player_nation_name':server.player_nation_name,
                             'nation_history':server._nation_history}
     setup_seconds=time.perf_counter()-started
+    starting_turn=context()[0]
     durations=[];violations=[]
     for number in range(turns):
         before,*_=context();tick=time.perf_counter();step();durations.append(time.perf_counter()-tick)
@@ -65,7 +66,8 @@ def run(scenario,seed,turns,traced,out,*,audit_trace=True):
     rss=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss/(1024**2 if sys.platform=='darwin' else 1024)
     result={'scenario':scenario,'runner':'worldview_engine' if scenario=='egypt_1877' else 'SimServer',
             'seed':seed,'python_hash_seed':os.environ.get('PYTHONHASHSEED'),
-            'requested_turns':turns,'completed_turns':turn,'native_ending':scenario_state.get('ending'),
+            'requested_turns':turns,'starting_turn':starting_turn,'final_turn':turn,
+            'completed_turns':turn-starting_turn,'native_ending':scenario_state.get('ending'),
             'trace_enabled':traced,'setup_seconds':setup_seconds,'step_seconds':sum(durations),
             'median_turn_seconds':statistics.median(durations) if durations else None,'peak_simulation_rss_mb':rss,
             'currency_violations':violations,'python':platform.python_version(),'numpy':np.__version__,

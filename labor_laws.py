@@ -44,6 +44,9 @@ def submit_law_petition(sponsor, region, law, fee, turn):
     if gov is None or any(p['law'] == law and p['status'] == 'proposed'
                           for p in getattr(region, 'labor_law_petitions', [])):
         return None
+    from treasury_trace import begin_public_change,finish_public_change
+    sponsor_change=begin_public_change(region,sponsor)
+    government_change=begin_public_change(region,gov)
     sponsor.cash -= fee
     gov.cash += fee
     petition = {'id': int(getattr(region, '_next_law_petition_id', 1)),
@@ -52,6 +55,21 @@ def submit_law_petition(sponsor, region, law, fee, turn):
                 'status': 'proposed'}
     region._next_law_petition_id = petition['id'] + 1
     region.labor_law_petitions.append(petition)
+    from run_trace import emit
+    operation=f'law-petition:{region.name}:{petition["id"]}'
+    event=emit(region,kind='labor_law_petition_fee',record_class='transfer',
+               phase='labor_politics',subject={'type':'tile','id':region.name},
+               metric_id='finance.cash_transfer',unit=getattr(region,'home_currency',None) or 'local_currency',
+               after=float(fee),inputs={'operation_id':operation,'petition_id':petition['id'],
+                   'law':law,'payer_id':sponsor.id,'recipient_id':gov.id})
+    for context,actor,amount in ((sponsor_change,sponsor,-fee),(government_change,gov,fee)):
+        writes=finish_public_change(context,'labor_law_petition_fee',
+            inputs={'semantic_operation_id':operation,'petition_id':petition['id'],'law':law},
+            cause_event_ids=[event] if event else None)
+        from finance_trace import emit_public_account_flow
+        emit_public_account_flow(region,actor,kind='government_labor_law_petition_fee',
+            signed_amount=amount,inputs={'operation_id':operation,'petition_id':petition['id'],'law':law},
+            cause_event_ids=([event] if event else [])+writes)
     return petition
 
 

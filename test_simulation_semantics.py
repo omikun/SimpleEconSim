@@ -54,5 +54,14 @@ class SemanticStateTests(unittest.TestCase):
         second=SimpleNamespace(callback=callback(6))
         self.assertNotEqual(self.state([first]),self.state([second]))
 
+    def test_native_journal_sequence_gaps_preserve_relative_order(self):
+        left=SimpleNamespace(journal=[{'turn':1,'sequence':20,'amount':5},
+                                      {'turn':1,'sequence':100,'amount':7}])
+        right=SimpleNamespace(journal=[{'turn':1,'sequence':1,'amount':5},
+                                       {'turn':1,'sequence':2,'amount':7}])
+        self.assertEqual(self.state([left]),self.state([right]))
+        right.journal[0]['sequence']=3
+        self.assertNotEqual(self.state([left]),self.state([right]))
+
 
 if __name__=='__main__':unittest.main()

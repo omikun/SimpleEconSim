@@ -370,6 +370,170 @@
       "unit": "existing_local_currency",
       "writer": "explicit_conditional_public_probe"
     },
+    "labor_laws.py:submit_law_petition:706cda858af3e6a5:1": {
+      "calling_path": "submit_law_petition",
+      "closure": "scenario_rerun_pending",
+      "fixtures": [
+        "causal_acceptance.py: labor_frontier_rivalry seed 612 three-turn rerun pending"
+      ],
+      "formula": "not_applicable_direct_write",
+      "links": "semantic_operation_recorded",
+      "missing_work": "Complete scenario rerun and relevant rejected/refunded branches; this source classification does not certify complete source provenance.",
+      "owner": "labor_laws.py:submit_law_petition",
+      "review": "reviewed_scenario_acceptance_repair",
+      "sampling": "actual_mutation_boundary",
+      "ui": "shared_account_inspector",
+      "unit": "existing_local_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "labor_laws.py:submit_law_petition:be37e76f6dd8aee1:1": {
+      "calling_path": "submit_law_petition",
+      "closure": "scenario_rerun_pending",
+      "fixtures": [
+        "causal_acceptance.py: labor_frontier_rivalry seed 612 three-turn rerun pending"
+      ],
+      "formula": "not_applicable_direct_write",
+      "links": "semantic_operation_recorded",
+      "missing_work": "Complete scenario rerun and relevant rejected/refunded branches; this source classification does not certify complete source provenance.",
+      "owner": "labor_laws.py:submit_law_petition",
+      "review": "reviewed_scenario_acceptance_repair",
+      "sampling": "actual_mutation_boundary",
+      "ui": "shared_account_inspector",
+      "unit": "existing_local_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "livelihood_access.py:settle_obligations:16b1e926b8aa001c:1": {
+      "calling_path": "settle_obligations",
+      "closure": "scenario_rerun_pending",
+      "fixtures": [
+        "test_obligation_payment_trace.ObligationPaymentTraceTests.test_public_creditor_and_debtor_writes_close_and_link_payment"
+      ],
+      "formula": "not_applicable_direct_write",
+      "links": "semantic_operation_recorded",
+      "missing_work": "Complete scenario rerun and relevant rejected/refunded branches; this source classification does not certify complete source provenance.",
+      "owner": "livelihood_access.py:settle_obligations",
+      "review": "reviewed_scenario_acceptance_repair",
+      "sampling": "actual_mutation_boundary",
+      "ui": "shared_account_inspector",
+      "unit": "existing_local_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "livelihood_access.py:settle_obligations:6cbcce3e0ad5c7fd:1": {
+      "calling_path": "settle_obligations",
+      "closure": "scenario_rerun_pending",
+      "fixtures": [
+        "test_obligation_payment_trace.ObligationPaymentTraceTests.test_public_creditor_and_debtor_writes_close_and_link_payment"
+      ],
+      "formula": "not_applicable_direct_write",
+      "links": "semantic_operation_recorded",
+      "missing_work": "Complete scenario rerun and relevant rejected/refunded branches; this source classification does not certify complete source provenance.",
+      "owner": "livelihood_access.py:settle_obligations",
+      "review": "reviewed_scenario_acceptance_repair",
+      "sampling": "actual_mutation_boundary",
+      "ui": "shared_account_inspector",
+      "unit": "existing_local_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "region_finance.py:collect_tax:224c78dacc339e99:1": {
+      "calling_path": "collect_tax",
+      "closure": "scenario_rerun_pending",
+      "fixtures": [
+        "causal_acceptance.py: labor_frontier_rivalry seed 612 three-turn rerun pending"
+      ],
+      "formula": "not_applicable_direct_write",
+      "links": "assessment_context_recorded",
+      "missing_work": "Complete scenario rerun and relevant rejected/refunded branches; this source classification does not certify complete source provenance.",
+      "owner": "region_finance.py:collect_tax",
+      "review": "reviewed_scenario_acceptance_repair",
+      "sampling": "actual_mutation_boundary",
+      "ui": "shared_account_inspector",
+      "unit": "existing_local_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "region_finance.py:collect_tax:353f4eda15a18971:1": {
+      "calling_path": "collect_tax",
+      "closure": "scenario_rerun_pending",
+      "fixtures": [
+        "causal_acceptance.py: labor_frontier_rivalry seed 612 three-turn rerun pending"
+      ],
+      "formula": "not_applicable_direct_write",
+      "links": "assessment_context_recorded",
+      "missing_work": "Complete scenario rerun and relevant rejected/refunded branches; this source classification does not certify complete source provenance.",
+      "owner": "region_finance.py:collect_tax",
+      "review": "reviewed_scenario_acceptance_repair",
+      "sampling": "actual_mutation_boundary",
+      "ui": "shared_account_inspector",
+      "unit": "existing_local_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "scenario_political_economy.py:_assess_arrears:b3bf7c9ead7c3488:1": {
+      "calling_path": "_assess_arrears",
+      "closure": "scenario_rerun_pending",
+      "fixtures": [
+        "test_cadastral_tax_trace.CadastralTaxTraceTests",
+        "causal_acceptance.py: egypt_1877 seed 1877 rerun pending"
+      ],
+      "formula": "not_applicable_direct_write",
+      "links": "semantic_operation_recorded",
+      "missing_work": "Complete scenario rerun and relevant rejected/refunded branches; this source classification does not certify complete source provenance.",
+      "owner": "scenario_political_economy.py:_assess_arrears",
+      "review": "reviewed_scenario_acceptance_repair",
+      "sampling": "actual_mutation_boundary",
+      "ui": "shared_account_inspector",
+      "unit": "existing_local_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "scenario_political_economy.py:_assess_arrears:c820082920c58d3f:1": {
+      "calling_path": "_assess_arrears",
+      "closure": "scenario_rerun_pending",
+      "fixtures": [
+        "test_cadastral_tax_trace.CadastralTaxTraceTests",
+        "causal_acceptance.py: egypt_1877 seed 1877 rerun pending"
+      ],
+      "formula": "not_applicable_direct_write",
+      "links": "semantic_operation_recorded",
+      "missing_work": "Complete scenario rerun and relevant rejected/refunded branches; this source classification does not certify complete source provenance.",
+      "owner": "scenario_political_economy.py:_assess_arrears",
+      "review": "reviewed_scenario_acceptance_repair",
+      "sampling": "actual_mutation_boundary",
+      "ui": "shared_account_inspector",
+      "unit": "existing_local_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "scenario_political_economy.py:_foreclose:1df583dd4173c302:1": {
+      "calling_path": "_foreclose",
+      "closure": "scenario_rerun_pending",
+      "fixtures": [
+        "test_cadastral_tax_trace.CadastralTaxTraceTests",
+        "causal_acceptance.py: egypt_1877 seed 1877 rerun pending"
+      ],
+      "formula": "not_applicable_direct_write",
+      "links": "semantic_operation_recorded",
+      "missing_work": "Complete scenario rerun and relevant rejected/refunded branches; this source classification does not certify complete source provenance.",
+      "owner": "scenario_political_economy.py:_foreclose",
+      "review": "reviewed_scenario_acceptance_repair",
+      "sampling": "actual_mutation_boundary",
+      "ui": "shared_account_inspector",
+      "unit": "existing_local_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "scenario_political_economy.py:apply_action:301b2b479ee3363f:1": {
+      "calling_path": "apply_action",
+      "closure": "scenario_rerun_pending",
+      "fixtures": [
+        "test_cadastral_tax_trace.CadastralTaxTraceTests",
+        "causal_acceptance.py: egypt_1877 seed 1877 rerun pending"
+      ],
+      "formula": "not_applicable_direct_write",
+      "links": "semantic_operation_recorded",
+      "missing_work": "Complete scenario rerun and relevant rejected/refunded branches; this source classification does not certify complete source provenance.",
+      "owner": "scenario_political_economy.py:apply_action",
+      "review": "reviewed_scenario_acceptance_repair",
+      "sampling": "actual_mutation_boundary",
+      "ui": "shared_account_inspector",
+      "unit": "existing_local_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
     "sovereign_bonds.py:InternationalRatingBureau.acquire_board_seat:fe3b49f4bb66a383:1": {
       "calling_path": "InternationalRatingBureau.acquire_board_seat",
       "closure": "partial_fixture_evidence",
@@ -777,6 +941,45 @@
       "ui": "generic_trace_inspector_only",
       "unit": "existing_local_currency",
       "writer": "explicit_conditional_public_probe"
+    },
+    "world_names.py:assign_world_identities:20d950ecc6bf610b:1": {
+      "calling_path": "world initialization and geographic naming",
+      "closure": "not_applicable",
+      "formula": "not_applicable",
+      "links": "not_applicable",
+      "missing_work": "None for financial tracing; geographic ownership transitions are tracked separately.",
+      "owner": "world_names.assign_world_identities",
+      "review": "reviewed_nonfinancial_attribute",
+      "sampling": "world_generation",
+      "ui": "map_capital_label",
+      "unit": "region_object_reference",
+      "writer": "not_financial_capital_is_region_reference"
+    },
+    "world_names.py:assign_world_identities:2f74e2452ad3b12e:1": {
+      "calling_path": "world initialization and geographic naming",
+      "closure": "not_applicable",
+      "formula": "not_applicable",
+      "links": "not_applicable",
+      "missing_work": "None for financial tracing; geographic ownership transitions are tracked separately.",
+      "owner": "world_names.assign_world_identities",
+      "review": "reviewed_nonfinancial_attribute",
+      "sampling": "world_generation",
+      "ui": "map_capital_label",
+      "unit": "region_object_reference",
+      "writer": "not_financial_capital_is_region_reference"
+    },
+    "world_names.py:assign_world_identities:8db39db5fce6bf17:1": {
+      "calling_path": "world initialization and geographic naming",
+      "closure": "not_applicable",
+      "formula": "not_applicable",
+      "links": "not_applicable",
+      "missing_work": "None for financial tracing; geographic ownership transitions are tracked separately.",
+      "owner": "world_names.assign_world_identities",
+      "review": "reviewed_nonfinancial_attribute",
+      "sampling": "world_generation",
+      "ui": "map_capital_label",
+      "unit": "region_object_reference",
+      "writer": "not_financial_capital_is_region_reference"
     }
   }
 }

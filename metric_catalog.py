@@ -311,7 +311,8 @@ METRICS = {
     'ecology.pollution_air': ('tile/nation', 'index', 'externalities.step_tile_externalities; equal-tile Nation chart mean in trace_snapshots.nation_chart_aggregation_rows'),
     'ecology.pollution_water': ('tile/nation', 'index', 'externalities.step_tile_externalities; equal-tile Nation chart mean in trace_snapshots.nation_chart_aggregation_rows'),
     'ecology.pollution_soil': ('tile/nation', 'index', 'externalities.step_tile_externalities; equal-tile Nation chart mean in trace_snapshots.nation_chart_aggregation_rows'),
-    'health.disease_cases': ('tile/nation/disease', 'people', 'disease.step_medical_care; Nation chart sums current member-tile cases in trace_snapshots.nation_chart_aggregation_rows'),
+    'health.disease_cases': ('tile/nation/disease', 'people', 'disease.step_medical_care; pre-treatment cases in disease_cases_log; Nation chart sums recorded member-tile history values'),
+    'health.active_disease_cases': ('tile/disease', 'people', 'trace_snapshots; closing live cases after treatment, migration and mortality, separate from the pre-treatment chart history'),
     'health.disease_incidence': ('tile/agent', 'cases', 'disease.step_agent_disease_onset'),
     'health.attrition': ('tile/agent', 'attrition_points', 'disease.step_agent_disease_onset'),
     'health.average_bodily_wear': ('tile/nation', 'attrition_points', 'alienation.step_tile_alienation; mean accumulated bodily wear across living non-corporate agents; equal-tile Nation chart mean in trace_snapshots'),
@@ -469,6 +470,7 @@ EVENT_JOURNAL_TO_METRICS = {
 
 
 TRACE_INSTRUMENTED = set(LEGACY_HISTORY_TO_METRIC.values()) | {
+    'health.active_disease_cases',
     'labor.primary_livelihood', 'labor.employment_status',
     'labor.hungry_adults', 'labor.temporary_work_share',
     'innovation.domain_experience', 'innovation.bottleneck_pressure',

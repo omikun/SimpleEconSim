@@ -799,12 +799,18 @@ def collect_tax(region, t):
                     actual = min(tax_amount, a.cash + bank_balance)
                     if actual > 0:
                         cash_taken = min(a.cash, actual)
+                        public_change=begin_public_change(region,a,cash=True)
                         a.cash -= cash_taken
+                        finish_public_change(public_change,'public_taxpayer_cash_debit',
+                                             inputs={'assessed_amount':tax_amount,'paid_cash':cash_taken})
                         deposit_taken = min(bank_balance, actual - cash_taken)
                         if deposit_taken > 0:
                             bank.Withdraw(a, deposit_taken, trace_region=region, t=t,
                                           reason='income_tax_payment')
+                            public_change=begin_public_change(region,a,cash=True)
                             a.cash -= deposit_taken
+                            finish_public_change(public_change,'public_taxpayer_withdrawn_cash_debit',
+                                                 inputs={'assessed_amount':tax_amount,'paid_cash':deposit_taken})
                         try:
                             from economy.true_cost_ledger import get_true_cost_ledger
                             get_true_cost_ledger().record_finance_deductions(

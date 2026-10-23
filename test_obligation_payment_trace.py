@@ -57,6 +57,41 @@ def _state(fixture):
 
 
 class ObligationPaymentTraceTests(unittest.TestCase):
+    def test_public_creditor_and_debtor_writes_close_and_link_payment(self):
+        from nation import Nation
+        from pathlib import Path
+        import tempfile
+        from run_trace import RunTrace
+        from trace_audit import audit
+        for public_side in ('creditor','debtor','both'):
+            with self.subTest(public_side=public_side),tempfile.TemporaryDirectory() as directory:
+                nation=Nation('Obligation public','C',initial_cash=100,register=False)
+                tile=Region('Parish',t=0,number_of_agents=0);nation.add_tile(tile)
+                private=Agent(0);private.cash=12;private.home_currency='C';tile.agents.append(private)
+                debtor=nation.government.agent if public_side in ('debtor','both') else private
+                creditor=tile.gov.agent if public_side in ('creditor','both') else private
+                for agent in (debtor,creditor):
+                    if agent not in tile.agents:tile.agents.append(agent)
+                trace=RunTrace(Path(directory)/'obligation.ctr','obligation-public')
+                clock={'turn':0,'phase':'setup','next':1}
+                for source in (tile,nation):source._run_trace=trace;source._collective_trace_clock=clock
+                trace.treasury_book.register_nations([nation],clock)
+                before={('finance.treasury',nation.name):(None,'C',nation.treasury()['total'])}
+                clock['turn']=1
+                assess_obligation(tile,debtor.id,creditor.id,'cash_tax',30,due_turn=1)
+                settle_obligations(tile,1)
+                trace.treasury_book.close([nation],clock,before)
+                closures=trace.query(kind='treasury_account_closure')['events']
+                self.assertTrue(all(row['formula_replay']['matches'] for row in closures))
+                payment=trace.query(kind='cash_obligation_payment')['events'][0]
+                writes=trace.query(kind='public_account_write')['events']
+                self.assertEqual(2 if public_side=='both' else 1,len(writes))
+                for row in writes:
+                    self.assertIn(payment['event_id'],row['cause_event_ids'])
+                    self.assertEqual(payment['inputs']['operation_id'],row['inputs']['semantic_operation_id'])
+                trace.checkpoint(clock)
+                self.assertTrue(audit(trace.path)['structural_and_supported_formula_checks_pass'])
+
     def test_partial_payment_records_both_wallets_and_links_claim_settlement(self):
         baseline = _fixture(traced=False)
         traced = _fixture(traced=True)

@@ -772,8 +772,12 @@ def sample(tiles, nations, *, labor_censuses=None):
             and disease in (getattr(person, 'diseases', []) or []))
             for disease in ('malnutrition', 'waterborne', 'respiratory', 'chemical', 'pestilence')}
         for disease, count in disease_cases.items():
-            values[('health.disease_cases', tile.name, disease)] = (
+            values[('health.active_disease_cases', tile.name, disease)] = (
                 {**tile_subject, 'disease': disease}, 'people', count)
+            history=getattr(tile,'disease_cases_log',())
+            if history:
+                values[('health.disease_cases',tile.name,disease)]=(
+                    {**tile_subject,'disease':disease},'people',history[-1].get(disease,0))
         private_medical = getattr(tile, 'medical_spending_private_log', ())
         public_medical = getattr(tile, 'medical_spending_public_log', ())
         if private_medical or public_medical:
@@ -1015,6 +1019,16 @@ def record(server):
                         if bridge['inputs']['reconciled'] else
                         'unexplained_population_residual'))
         for tile in server.tiles:
+            from disease import ALL_DISEASES
+            for disease in ALL_DISEASES:
+                case_ids=[person.id for person in tile.agents if getattr(person,'alive',True)
+                          and disease in (getattr(person,'diseases',[]) or [])]
+                server.run_trace.emit(clock,kind='closing_active_disease_census',
+                    record_class='calculation',phase='snapshot',
+                    subject={'type':'tile','id':tile.name,'disease':disease},
+                    metric_id='health.active_disease_cases',unit='people',after=len(case_ids),
+                    formula_id='disease.count_active_cases.v1',
+                    inputs={'sample_point':'closing_live_state','case_agent_ids':case_ids,'disease':disease})
             for metric_id, field, formula_id in (
                     ('people.births', 'births_this_turn', 'people.registered_births.v1'),
                     ('people.deaths', 'deaths_this_turn', 'people.registered_deaths.v1')):
