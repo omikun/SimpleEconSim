@@ -14,6 +14,7 @@ import time
 os.environ.setdefault('SDL_AUDIODRIVER', 'dummy')
 
 import pygame
+from desktop_evidence_panel import render_with_evidence, handle_event as handle_evidence_event
 from goods import Goods
 from logger import logInit
 
@@ -150,6 +151,7 @@ def is_any_modal_open(world) -> bool:
         world.get('compare_open') or
         world.get('comparison_open') or
         world.get('help_open') or
+        world.get('_causal_panel') or
         world.get('settings_open') or
         world.get('scenario_bookend_modal') or
         world.get('scenario_warning_modal') or
@@ -213,6 +215,7 @@ def _draw_cached_map(surface, world, font, font_small):
                  pygame.Rect(0, TOP_BAR_H, MAP_RIGHT, HEIGHT - TOP_BAR_H - TICKER_H))
 
 
+@render_with_evidence
 def render_frame(surface, world, mouse_pos=None):
     """Draw one full frame (map + top bar + panel + ticker + zoom hud + comparison table + sovereign actions + help)."""
     from ui_targets import clear_targets
@@ -544,6 +547,9 @@ def main():
             next_animation_ms = now + 66
 
         for event in events:
+            if handle_evidence_event(event, world):
+                _mark_dirty(world, map_changed=False)
+                continue
             if event.type == pygame.QUIT:
                 running = False
             elif event.type == RESTART_EVENT_TYPE:

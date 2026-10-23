@@ -2945,6 +2945,51 @@
 
   const TRACE_PAGE_SIZE = 200;
 
+  function formatTraceValue(value) {
+    if (value == null) return 'value unavailable';
+    if (typeof value === 'number') return (Math.abs(value) < 1e-8 ? 0 : value).toLocaleString(undefined, { maximumFractionDigits: 3 });
+    if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+    if (typeof value === 'string') return value.replaceAll('_', ' ');
+    return 'Structured state (expand recorded evidence)';
+  }
+
+  function appendCausalExplanation(output, explanation) {
+    if (!explanation) return;
+    const block = document.createElement('section');
+    block.className = 'causal-explanation';
+    const label = document.createElement('strong');
+    label.textContent = explanation.label;
+    block.appendChild(label);
+    for (const note of explanation.notes || []) {
+      const line = document.createElement('p'); line.textContent = note; block.appendChild(line);
+    }
+    if (explanation.treasury) {
+      const table = document.createElement('dl');
+      const labels = { opening: 'Opening treasury', recorded_receipts: 'Recorded receipts',
+        recorded_spending: 'Recorded spending', confirmed_internal_cash_deposit_transfers: 'Confirmed internal cash/deposit transfers',
+        membership_effect: 'Ownership and account membership effect', closing: 'Closing treasury',
+        unclassified_flow_residual: 'Unclassified flow residual' };
+      for (const [key, title] of Object.entries(labels)) {
+        const term = document.createElement('dt'); term.textContent = title;
+        const value = document.createElement('dd');
+        value.textContent = explanation.treasury[key] == null ? 'Evidence unavailable' :
+          `${formatTraceValue(explanation.treasury[key])} ${explanation.unit || ''}`;
+        table.append(term, value);
+      }
+      block.appendChild(table);
+    }
+    for (const contribution of (explanation.contributors || []).slice(0, 3)) {
+      const line = document.createElement('p');
+      line.textContent = `${contribution.label}: ${contribution.value}`; block.appendChild(line);
+    }
+    for (const issue of explanation.issues || []) {
+      const line = document.createElement('p');
+      line.textContent = `Evidence gap: ${issue.problem}${issue.source_event_id ? ` (${issue.source_event_id})` : ''}`;
+      block.appendChild(line);
+    }
+    output.appendChild(block);
+  }
+
   function appendTracePagination(output, result, offset, onPage) {
     const total = Number(result?.total) || 0;
     const rows = result?.events || [];
@@ -3011,6 +3056,7 @@
     const eventIdInput = detail.querySelector('.trace-event-id');
     const output = detail.querySelector('.price-trace-result');
     let pageOffset = 0;
+    let traceBoundary = null;
     const load = async () => {
       const selected = Number(turnInput.value);
       const eventId = eventIdInput.value.trim();
@@ -3026,9 +3072,12 @@
           : new URLSearchParams({ turn: String(selected), entity,
             good, metric: priceKind.value, limit: String(TRACE_PAGE_SIZE),
             offset: String(pageOffset) });
+        params.set('explain', '1');
+        if (traceBoundary !== null) params.set('boundary', String(traceBoundary));
         const response = await fetch(`/api/trace?${params}`);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const result = await response.json();
+        traceBoundary = result.boundary;
         const rows = result.events || [];
         const bridge = !eventId && priceKind.value === 'goods.price'
           ? rows.find(row => row.kind === 'price_bridge') : null;
@@ -3055,6 +3104,7 @@
           output.appendChild(line);
         }
         for (const row of writes) {
+          appendCausalExplanation(output, (result.explanations || []).find(item => item.event_id === row.event_id));
           const line = document.createElement('p');
           const i = row.inputs || {};
           const rowMetric = row.metric_id || priceKind.value;
@@ -3096,7 +3146,7 @@
               const inspect = document.createElement('button');
               inspect.type = 'button';
               inspect.className = 'btn btn-secondary btn-xs';
-              inspect.textContent = causeId;
+              inspect.textContent = ((result.explanations || []).find(item => item.event_id === row.event_id)?.sources || []).find(source => source.event_id === causeId)?.label || causeId;
               inspect.addEventListener('click', () => {
                 eventIdInput.value = causeId;
                 load();
@@ -3112,6 +3162,7 @@
       } catch (error) { output.textContent = `Could not load price records: ${error.message}`; }
     };
     detail.querySelector('.trace-load').addEventListener('click', () => {
+      traceBoundary = null;
       pageOffset = 0;
       load();
     });
@@ -3138,6 +3189,7 @@
     const eventIdInput = detail.querySelector('.trace-event-id');
     const output = detail.querySelector('.trace-record-result');
     let pageOffset = 0;
+    let traceBoundary = null;
     const load = async () => {
       const selected = Number(turnInput.value);
       const eventId = eventIdInput.value.trim();
@@ -3156,9 +3208,12 @@
         const params = eventId
           ? new URLSearchParams({ event_id: eventId, limit: '1' })
           : new URLSearchParams(filters);
+        params.set('explain', '1');
+        if (traceBoundary !== null) params.set('boundary', String(traceBoundary));
         const response = await fetch(`/api/trace?${params}`);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const result = await response.json();
+        traceBoundary = result.boundary;
         const rows = result.events || [];
         output.replaceChildren();
         const summary = document.createElement('p');
@@ -3170,15 +3225,15 @@
         for (const row of rows) {
           const article = document.createElement('article');
           article.className = 'trace-record';
-          const before = row.value_before == null ? null : Number(row.value_before);
-          const after = row.value_after == null ? null : Number(row.value_after);
-          const valueText = before == null
-            ? (after == null ? 'value unavailable' : `value ${after}`)
-            : `${before} → ${after}`;
+          const valueText = row.value_before == null
+            ? formatTraceValue(row.value_after)
+            : `${formatTraceValue(row.value_before)} → ${formatTraceValue(row.value_after)}`;
           const heading = document.createElement('p');
-          heading.textContent = `${row.kind || 'record'} · ${valueText} ${row.unit || ''} · ${row.explanation_status || row.confidence || row.record_class || 'status unavailable'} · ${row.event_id || ''}`;
+          heading.textContent = `Turn ${row.turn} · ${(row.kind || 'record').replaceAll('_', ' ')} · ${valueText} ${row.unit || ''}`;
           article.appendChild(heading);
+          appendCausalExplanation(article, (result.explanations || []).find(item => item.event_id === row.event_id));
           const evidence = {
+            event_id: row.event_id, value_before: row.value_before, value_after: row.value_after,
             record_class: row.record_class,
             phase: row.phase,
             formula_id: row.formula_id,
@@ -3206,7 +3261,7 @@
               const inspect = document.createElement('button');
               inspect.type = 'button';
               inspect.className = 'btn btn-secondary btn-xs';
-              inspect.textContent = causeId;
+              inspect.textContent = ((result.explanations || []).find(item => item.event_id === row.event_id)?.sources || []).find(source => source.event_id === causeId)?.label || causeId;
               inspect.addEventListener('click', () => {
                 eventIdInput.value = causeId;
                 pageOffset = 0;
@@ -3224,6 +3279,7 @@
       } catch (error) { output.textContent = `Could not load metric records: ${error.message}`; }
     };
     detail.querySelector('.trace-load').addEventListener('click', () => {
+      traceBoundary = null;
       pageOffset = 0;
       load();
     });

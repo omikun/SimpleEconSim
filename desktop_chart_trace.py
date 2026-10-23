@@ -310,6 +310,20 @@ def select_chart_trace(region, chart_mode, chart_idx, chart, plot_rect,
             contributing_tiles = list(nation_tiles or ())
             if not contributing_tiles and region is not None:
                 contributing_tiles = [region]
+            current_tile_names = {tile.name for tile in contributing_tiles}
+            nation_result = trace.query(turn=turn, subject=subject,
+                                       metric_id=binding['metric_id'], limit=200)
+            nation_calculations = [row for row in nation_result.get('events', ())
+                                   if row.get('record_class') == 'calculation'
+                                   and row.get('kind') != 'metric_snapshot'
+                                   and row.get('value_after') is not None]
+            recorded_members = ((nation_calculations[-1].get('inputs') or {}).get('member_tiles')
+                                if nation_calculations else None)
+            membership_basis = 'nation.tiles at inspection time'
+            if recorded_members is not None:
+                from types import SimpleNamespace
+                contributing_tiles = [SimpleNamespace(name=name) for name in recorded_members]
+                membership_basis = 'recorded historical nation membership'
             member_values = []
             source_rows = []
             for tile in contributing_tiles:
@@ -361,15 +375,8 @@ def select_chart_trace(region, chart_mode, chart_idx, chart, plot_rect,
                 'plotted_value': plotted_replay,
                 'matches_chart_point': (plotted_replay is not None and
                                         abs(plotted_replay - point['value']) <= tolerance),
-                'membership_basis': 'nation.tiles at inspection time',
+                'membership_basis': membership_basis,
             }
-            nation_result = trace.query(
-                turn=turn, subject=subject,
-                metric_id=binding['metric_id'], limit=200)
-            nation_calculations = [row for row in nation_result.get('events', ())
-                                   if row.get('record_class') == 'calculation'
-                                   and row.get('kind') != 'metric_snapshot'
-                                   and row.get('value_after') is not None]
             if nation_calculations:
                 nation_row = nation_calculations[-1]
                 recorded_value = float(nation_row['value_after'])
@@ -383,7 +390,7 @@ def select_chart_trace(region, chart_mode, chart_idx, chart, plot_rect,
                         abs(recorded_plotted - point['value']) <= tolerance),
                     'recorded_membership_matches_current': (
                         set(recorded_members)
-                        == {tile.name for tile in contributing_tiles}),
+                        == current_tile_names),
                 })
             rows = source_rows
         else:
@@ -451,7 +458,11 @@ def select_chart_trace(region, chart_mode, chart_idx, chart, plot_rect,
                                     abs(replay - point['value']) <= tolerance),
             'component': binding.get('component'),
         }
+    from trace_explanation import ExplanationReader, describe
+    reader = ExplanationReader(trace.path) if trace is not None and getattr(trace, 'path', None) else None
+    explanations = [reader.explain(row) if reader else describe(row) for row in rows[:4]]
     return {
+        'explanations': explanations,
         'tile': region.name,
         'nation': nation_name if chart_scope == 'nation' else None,
         'chart_scope': chart_scope,
@@ -551,6 +562,12 @@ def draw_trace_selection(surface, selection, rect, font):
         lines.append('No run trace is attached to this tile.')
     elif not events:
         lines.append('No matching records were captured for this point.')
+    for explanation in selection.get('explanations', ())[:1]:
+        lines.append(explanation['label'])
+        for contribution in explanation.get('contributors', ())[:2]:
+            lines.append(f"{contribution['label']}: {contribution['value']:,.3g}")
+        for issue in explanation.get('issues', ())[:1]:
+            lines.append('Evidence gap: ' + issue['problem'])
     for row in events[:1]:
         if source_window and source_window.get('component'):
             component_value = next((item.get('value') for item in

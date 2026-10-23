@@ -148,6 +148,10 @@ class CoCHTTPRequestHandler(BaseHTTPRequestHandler):
                 result = trace.query(turn=turn, subject=subject, metric_id=metric_id,
                                      kind=kind, event_id=event_id, offset=offset, limit=limit,
                                      boundary=selected_boundary)
+                if query.get('explain', ['0'])[0] == '1':
+                    from trace_explanation import ExplanationReader
+                    reader = ExplanationReader(trace.path, result['boundary'])
+                    result['explanations'] = [reader.explain(row) for row in result['events']]
                 body = json.dumps(result, allow_nan=False).encode('utf-8')
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json; charset=utf-8')

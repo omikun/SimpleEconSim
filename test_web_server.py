@@ -220,6 +220,11 @@ class TestWebServerEndpoints(unittest.TestCase):
         next_page = json.loads(MockHttpRequestHandler(
             self.mock_server, 'GET', f'/api/trace?{next_page_query}').get_body())
         self.assertEqual(next_page['events'], first_page['events'][1:2])
+        explained_query = urllib.parse.urlencode({'event_id': payload['events'][0]['event_id'], 'explain': 1})
+        explained = json.loads(MockHttpRequestHandler(self.mock_server, 'GET', '/api/trace?' + explained_query).get_body())
+        from trace_explanation import ExplanationReader
+        shared = ExplanationReader(self.sim.run_trace.path, explained['boundary'])
+        self.assertEqual([shared.explain(explained['events'][0])], explained['explanations'])
         handler = MockHttpRequestHandler(self.mock_server, 'GET', '/api/trace/download')
         self.assertEqual(handler.response_status, 200)
         self.assertIn(b'"run_id"', handler.get_body())

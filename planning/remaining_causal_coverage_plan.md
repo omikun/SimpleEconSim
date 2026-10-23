@@ -48,6 +48,19 @@ annexation, many scenario actions, save/resume or long-run performance.
   compatibility are superseded: `.ctr` is authoritative. No legacy JSONL input
   or backward trace compatibility is required. JSONL remains a decoded export.
 
+## Current completion gates (2026-10-23)
+
+| Phase | Implemented evidence | Remaining gate |
+|---|---|---|
+| 0 | Writer/metric/history inventory; 31 source reviews of 507 financial candidates | 476 reviews, active-path and complete history/UI classifications |
+| 1–2 | Military/medical/sovereign/rescue/subsidy fixtures; 127 further public probes; command boundaries | Rare branches and complete semantic payment-to-write contracts |
+| 3 | Timed native ownership/institution setters with shared-account fixtures | Additional nation creation/direct edits and scenario acceptance |
+| 4 | Independent economic replay, stock/source contracts and linked snapshots | Unsupported AI/scenario formulas and complete per-metric provenance |
+| 5 | Atomic full SimServer state/trace saves, new branches, RNG and pending-state fixtures, torn-tail recovery | Full semantic/action digest and all-scenario continuation acceptance |
+| 6 | Block index/rebuild, stable queries/export, bounded identity cache and streamed CLI comparisons | Measured memory/query/runtime budgets and retired-reference audit |
+| 7 | Shared web/desktop/CLI explanations, native recording, F11 inspector, historical membership and iPad browser checks | Full scenario/history acceptance and physical-device follow-up if available |
+| 8 | Short probes and deterministic negative fixtures | Multi-seed 30/100-turn acceptance, off/on state/actions and published budgets/report |
+
 ## Execution order and gates
 
 Proceed in the order below. Phase 4 may start after the writer inventory, but
@@ -514,3 +527,31 @@ index, command, reader and web regressions passed 71 tests; focused reader/index
 historical membership checks passed 23. The JavaScript transport check verifies
 identical retry bodies and a new ID for a new action. Memory/runtime budgets and
 full long-run acceptance remain open.
+
+
+### Shared player explanations and native recording (2026-10-23)
+
+Added one explanation model for web/iPad, desktop and CLI, including local source
+validation, explicit observation/forecast/formula/chain/gap labels and the largest
+recorded contributors. Treasury separates known receipts/spending, confirmed
+internal cash/deposit moves, timed membership effects and flow residuals. Numeric
+reconciliation never certifies complete payment classification. Raw values and
+IDs remain available through disclosures and source links.
+
+Both native world builders now attach a recorder; pending player actions close
+before a new gameplay turn can reset their evidence. F11 opens a paged native
+inspector for treasury, prices, unrest, FX and nation AI, including historical
+turns, source paging and Back. Native chart aggregation uses recorded former
+membership when available. The web inspector retains stable boundaries across
+pages and cause navigation and uses touch-sized, named account buttons.
+
+Reader/native/checkpoint/inventory checks passed 31 tests, reader/index/historical
+membership checks passed 23 and recorder/index/command/web regression checks
+passed 71. Targeted HTTP/model parity passed; browser transport checks passed.
+An isolated Chrome iPad-sized touch check passed treasury values, 44-pixel targets,
+account-source navigation, empty and request-error states. Native and iPad
+renderings were visually checked (`tmp/desktop-causal-evidence.png`,
+`tmp/ipad-causal-evidence.png`). No physical iPad test is claimed. Reproduction
+commands and evidence labels: [inspection guide](trace_inspection_guide.md).
+The gate table above remains authoritative; full scenario/provenance/performance
+acceptance is still pending.

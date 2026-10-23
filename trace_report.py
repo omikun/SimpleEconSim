@@ -134,6 +134,7 @@ def main():
                         help='losslessly decode the whole run to OUTPUT, or - for stdout')
     parser.add_argument('--storage-stats', action='store_true',
                         help='print stored size, decoded JSONL size and compression ratio')
+    parser.add_argument('--explain', action='store_true', help='show the shared player explanation and coverage status')
     parser.add_argument('--verify', action='store_true', help='verify turn checkpoints')
     parser.add_argument('--compare-run', type=Path,
                         help='compare matched snapshots in another run (in-game counterfactual)')
@@ -174,8 +175,12 @@ def main():
         for change in iter_snapshot_differences(rows, other):
             print(json.dumps(change, sort_keys=True, allow_nan=False))
     else:
+        from trace_explanation import ExplanationReader
+        reader = ExplanationReader(args.run, args.run.stat().st_size) if args.explain else None
         for row in rows:
             print(render(row))
+            if reader is not None:
+                print(json.dumps(reader.explain(row), sort_keys=True, allow_nan=False))
 
 
 if __name__ == '__main__':

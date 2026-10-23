@@ -3,6 +3,7 @@ Simulation stepping, event ticking, and world state initialization for worldview
 """
 
 import random
+from desktop_trace_session import traced_world_builder, traced_world_step
 import forex as fx
 from hexmap import rectangular_hex_layout, hex_bbox
 from sim_world import build_world, GRID_ROWS, GRID_COLS
@@ -21,6 +22,7 @@ def get_reverse_layout():
     return {v: k for k, v in get_layout().items()}
 
 
+@traced_world_builder
 def build_world_view(seed=None, terrain_seed=None, nation_seed=None, scenario_id=None):
     """Build the 9x9 hex world + prepare viewer state."""
     from scenario_egypt_1877 import SCENARIO, is_scenario_id
@@ -133,6 +135,7 @@ def ticker_push(world, t, kind, text, color, n=140):
         del world['ticker_events'][:len(world['ticker_events']) - n]
 
 
+@traced_world_step
 def step_world(world):
     """Advance one turn of the engine via sim_engine."""
     if world.get('scenario_id') == 'egypt_1877' and world.get('scenario_state', {}).get('ending'):

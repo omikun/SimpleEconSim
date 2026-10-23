@@ -2133,3 +2133,11 @@ input[type="range"] {
 .trace-pagination span {
   margin-right: auto;
 }
+
+.causal-explanation { margin: .6rem 0; padding: .7rem; border: 1px solid #475569; border-radius: .5rem; background: #0f172a; }
+.causal-explanation dl { display: grid; grid-template-columns: minmax(10rem, 1fr) 1fr; gap: .4rem 1rem; }
+.causal-explanation dd { margin: 0; font-variant-numeric: tabular-nums; }
+.trace-pagination button, .trace-record button { min-height: 44px; min-width: 44px; }
+.trace-record pre { overflow: auto; max-height: 24rem; }
+
+.trace-record button { font-size: .85rem; padding: .45rem .65rem; max-width: 100%; white-space: normal; text-align: left; margin: .2rem; }

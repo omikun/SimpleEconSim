@@ -33,6 +33,31 @@ class FakeRegion:
 
 
 class DesktopChartTraceTests(unittest.TestCase):
+    def test_historical_nation_point_uses_recorded_former_membership(self):
+        from unittest.mock import patch
+        class HistoricalTrace:
+            def query(self,**filters):
+                subject=filters.get('subject',{})
+                if subject.get('type')=='nation':
+                    rows=[{'kind':'national_aggregate','record_class':'calculation','value_after':5,
+                           'inputs':{'member_tiles':['Former']}}]
+                else:
+                    value=5 if subject.get('id')=='Former' else 100
+                    rows=[{'kind':'tile_production_total','record_class':'calculation','value_after':value,
+                           'event_id':'source-'+subject.get('id','')}]
+                return {'events':rows,'total':len(rows)}
+        current=SimpleNamespace(name='Current',_last_turn=1,_run_trace=HistoricalTrace())
+        point={'value':5,'label':'food','series_length':1,'point_index':0}
+        with patch('desktop_chart_trace.chart_point_at_pixel',return_value=point):
+            selected=select_chart_trace(current,'econ',3,('Production','line',[[5]],[],['food']),
+                                        (0,0,100,100),(50,50),100,chart_scope='nation',
+                                        nation_name='A',nation_tiles=[current])
+        aggregate=selected['aggregation']
+        self.assertEqual(5,aggregate['source_value'])
+        self.assertEqual('Former',aggregate['member_values'][0]['tile_id'])
+        self.assertFalse(aggregate['recorded_membership_matches_current'])
+        self.assertEqual('recorded historical nation membership',aggregate['membership_basis'])
+
     def test_bindings_cover_economic_and_ecological_series_names(self):
         self.assertEqual(
             chart_trace_binding('econ', 1, 'WOOD'),

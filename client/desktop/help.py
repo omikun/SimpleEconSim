@@ -91,6 +91,7 @@ def draw_help_modal(surface, world, font, font_small):
             ("C", "Open 3-Tab Nations Comparison Matrix"),
             ("H / ?", "Toggle this 3-Page System Guide"),
             ("Left Click", "Select & inspect hex tile economy"),
+            ("F11", "Causal evidence: treasury, prices, unrest, FX, AI"),
             ("Esc", "Close modals / clear selection"),
         ]
         for key, desc in col1_items:
