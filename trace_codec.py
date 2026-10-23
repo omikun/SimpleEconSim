@@ -50,6 +50,16 @@ class CompactTraceWriter:
             with self.path.open('xb') as stream:
                 stream.write(MAGIC)
             self.end_offset = len(MAGIC)
+        # One writer owns this append-only file. Unbuffered writes publish each
+        # complete frame to readers without opening/stat-ing the path per row.
+        self._stream=self.path.open('ab',buffering=0)
+
+    def close(self):
+        stream=getattr(self,'_stream',None)
+        if stream is not None:stream.close()
+
+    def __del__(self):
+        self.close()
 
     def append(self, payload):
         if '\n' in payload:
@@ -65,11 +75,11 @@ class CompactTraceWriter:
         if len(chunk) > MAX_FRAME:
             raise ValueError('trace frame exceeds configured size limit')
         frame = HEADER.pack(b'D', len(chunk), zlib.crc32(chunk)) + chunk
-        with self.path.open('ab') as stream:
-            if start:
-                stream.write(HEADER.pack(b'S', 0, 0))
-            stream.write(frame)
-        self.end_offset = self.path.stat().st_size
+        if start:frame=HEADER.pack(b'S',0,0)+frame
+        if self._stream.closed:raise OSError('compact trace writer is closed')
+        written=self._stream.write(frame)
+        if written!=len(frame):raise OSError('incomplete compact trace frame write')
+        self.end_offset += written
         self.in_block += 1
 
 

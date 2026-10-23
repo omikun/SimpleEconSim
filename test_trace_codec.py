@@ -8,11 +8,31 @@ import tempfile
 import unittest
 
 from run_trace import RunTrace, verify
-from trace_codec import MAGIC, iter_payloads
+from trace_codec import MAGIC, iter_payloads,CompactTraceWriter,TornTraceTail
 from trace_report import report
 
 
 class TraceCodecTests(unittest.TestCase):
+    def test_persistent_writer_publishes_without_path_reopens_and_rejects_short_write(self):
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory)/'persistent.ctr';writer=CompactTraceWriter(path)
+            with patch.object(Path,'open',side_effect=AssertionError('append reopened file')),patch.object(Path,'stat',side_effect=AssertionError('append stat-ed file')):
+                for index in range(300):writer.append(json.dumps({'index':index}))
+            self.assertEqual(writer.end_offset,path.stat().st_size)
+            self.assertEqual(300,len(list(iter_payloads(path))))
+            boundary=writer.end_offset;stream=writer._stream
+            class ShortWrite:
+                closed=False
+                def write(self,data):return stream.write(data[:-1])
+            with patch.object(writer,'_stream',ShortWrite()):
+                with self.assertRaisesRegex(OSError,'incomplete'):writer.append('{"index":300}')
+            self.assertEqual(boundary,writer.end_offset)
+            self.assertEqual(300,len(list(iter_payloads(path,end_offset=boundary))))
+            with self.assertRaises(TornTraceTail):list(iter_payloads(path))
+            writer.close()
+            with self.assertRaisesRegex(OSError,'closed'):writer.append('{}')
+
     def test_compact_roundtrip_query_verify_and_cli_export(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
