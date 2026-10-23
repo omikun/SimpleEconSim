@@ -558,10 +558,10 @@ class PolygonMapGenerator:
                             active_edges.add((cn, cn.downslope))
 
         incoming: Dict[Corner, List[Corner]] = defaultdict(list)
-        for u, v in active_edges:
+        for u, v in sorted(active_edges,key=lambda edge:(edge[0].index,edge[1].index)):
             incoming[v].append(u)
         for v in incoming:
-            incoming[v].sort(key=lambda u: u.river, reverse=True)
+            incoming[v].sort(key=lambda u:(-u.river,u.index))
 
         outgoing = {u: v for u, v in active_edges}
         terminals = [v for u, v in active_edges if v not in outgoing]
@@ -593,7 +593,7 @@ class PolygonMapGenerator:
                 unvisited = [u for u in incoming[v] if (u, v) not in visited_edges]
                 if unvisited:
                     candidates.append((v, unvisited[0].river))
-            candidates.sort(key=lambda item: item[1], reverse=True)
+            candidates.sort(key=lambda item:(-item[1],item[0].index))
             found = False
             for conf_node, _ in candidates:
                 b = trace_branch(conf_node)
@@ -1638,5 +1638,4 @@ class PolygonMapGenerator:
             elev_scale=elev_scale,
         )
         return export_island_wireframe_usdz(self, triangles, usdz_path, wire_width=wire_width)
-
 
