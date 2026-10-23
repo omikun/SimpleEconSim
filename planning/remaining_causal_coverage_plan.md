@@ -397,3 +397,12 @@ ordered price bridge, preventing a coincidentally matching last calculation
 from concealing a broken stock chain. Audit/recorder/codec checks passed 43 tests.
 The per-metric required-input/source contract inventory remains open; this slice
 is a structural validator, not a declaration that all metrics are complete.
+
+
+### Native command correction (2026-10-23)
+
+Command-boundary review found the bond rating lobbying command passed a string
+and an unsupported keyword to the native rating API after charging the fee. It
+now passes the Nation and turn and lets the native API settle the fee once. A
+command fixture verifies the $200 debit and unchanged game turn. This gameplay
+correction is committed separately from trace storage and lifecycle changes.

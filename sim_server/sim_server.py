@@ -776,11 +776,9 @@ class SimServer:
 
                 elif action == 'lobby_upgrade':
                     if nation.government.agent.cash >= 200.0:
-                        nation.government.agent.cash -= 200.0
-                        ok = market.isrb.lobby_upgrade(nation.name, cost=200.0)
-                        msg = f"ISRB rating upgraded for {nation.name}." if ok else "Lobbying failed."
+                        ok, msg, scandal = market.isrb.lobby_upgrade(nation, self.turn)
                         self.push_ticker(self.turn, 'ISRB', msg, (120, 240, 160) if ok else (240, 90, 90))
-                        return {'success': ok, 'message': msg}
+                        return {'success': ok, 'message': msg, 'scandal': scandal}
                     return {'success': False, 'error': "Insufficient treasury funds ($200 required)."}
 
                 return {'success': False, 'error': f"Unknown bond action '{action}'."}
