@@ -949,9 +949,12 @@ def run_web_server(sim_server: Optional['SimServer'] = None, host: str = '0.0.0.
 if __name__ == '__main__':
     from sim_server.sim_server import SimServer
     import argparse
+    from pathlib import Path
     parser = argparse.ArgumentParser(description="Call of Capital (CoC) Mobile Web Server")
     parser.add_argument('--host', type=str, default='0.0.0.0', help="Host address to bind (default 0.0.0.0)")
     parser.add_argument('--port', type=int, default=8080, help="Port to listen on (default 8080)")
+    parser.add_argument('--restore-checkpoint', type=Path, default=None, help='Resume a trusted local full simulation checkpoint into a new branch')
+    parser.add_argument('--checkpoint-branches', type=Path, default=Path('tmp/checkpoint-branches'))
     parser.add_argument('--seed', type=int, default=None, help="Simulation seed (default: Mapgen2 slot one)")
     parser.add_argument('--terrain-seed', type=int, default=None, help="Terrain seed")
     parser.add_argument('--nation-seed', type=int, default=None, help="Nation seed")
@@ -960,7 +963,10 @@ if __name__ == '__main__':
     parser.add_argument('--scenario', choices=['labor-frontier-rivalry'], default=None)
     args = parser.parse_args()
 
-    sim = SimServer(seed=args.seed, terrain_seed=args.terrain_seed, nation_seed=args.nation_seed,
-                    topology=args.topology,
-                    scenario_id='labor_frontier_rivalry' if args.scenario else None)
+    if args.restore_checkpoint:
+        sim = SimServer.restore_checkpoint(args.restore_checkpoint, args.checkpoint_branches)
+    else:
+        sim = SimServer(seed=args.seed, terrain_seed=args.terrain_seed, nation_seed=args.nation_seed,
+                        topology=args.topology,
+                        scenario_id='labor_frontier_rivalry' if args.scenario else None)
     run_web_server(sim_server=sim, host=args.host, port=args.port, wait_forever=True)

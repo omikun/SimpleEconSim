@@ -115,6 +115,28 @@ class SimServer:
 
         self.init_world()
 
+    def __getstate__(self):
+        state = dict(self.__dict__)
+        state.pop('_lock', None)
+        state.pop('_subscribers', None)
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self._lock = threading.RLock()
+        self._subscribers = []
+        self.playing = False
+        self.last_tick_time = time.time()
+
+    def save_checkpoint(self, directory):
+        from simulation_checkpoint import save
+        return save(self, directory)
+
+    @classmethod
+    def restore_checkpoint(cls, manifest_path, branch_directory):
+        from simulation_checkpoint import restore
+        return restore(manifest_path, branch_directory)
+
     def init_world(self):
         """Build and initialize authoritative world state."""
         with self._lock:

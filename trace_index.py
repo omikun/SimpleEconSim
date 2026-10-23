@@ -15,11 +15,15 @@ class TraceIndex:
 
     def _connect(self):
         db=sqlite3.connect(self.index_path)
-        db.execute('PRAGMA cache_size=-2048')
-        db.execute('CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY,value TEXT)')
-        db.execute('CREATE TABLE IF NOT EXISTS events(n INTEGER PRIMARY KEY,id TEXT UNIQUE,turn INTEGER,kind TEXT,metric TEXT,subject TEXT,good TEXT,block INTEGER,position INTEGER,end INTEGER,sha TEXT,class TEXT)')
-        for field in ('id','turn','kind','metric','good'):
-            db.execute(f'CREATE INDEX IF NOT EXISTS by_{field} ON events({field})')
+        try:
+            db.execute('PRAGMA cache_size=-2048')
+            db.execute('CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY,value TEXT)')
+            db.execute('CREATE TABLE IF NOT EXISTS events(n INTEGER PRIMARY KEY,id TEXT UNIQUE,turn INTEGER,kind TEXT,metric TEXT,subject TEXT,good TEXT,block INTEGER,position INTEGER,end INTEGER,sha TEXT,class TEXT)')
+            for field in ('id','turn','kind','metric','good'):
+                db.execute(f'CREATE INDEX IF NOT EXISTS by_{field} ON events({field})')
+        except BaseException:
+            db.close()
+            raise
         return db
 
     def query(self, **filters):

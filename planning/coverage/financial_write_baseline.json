@@ -439,7 +439,6 @@
     "sim_server/sim_server.py:SimServer.execute_command:1da86897d01d9a3a:1",
     "sim_server/sim_server.py:SimServer.execute_command:4fea59098d6f2cb4:1",
     "sim_server/sim_server.py:SimServer.execute_command:50ecbee8239267e0:1",
-    "sim_server/sim_server.py:SimServer.execute_command:5bf7dc164683c559:1",
     "sim_server/sim_server.py:SimServer.execute_command:606929e243442718:1",
     "sim_server/sim_server.py:SimServer.execute_command:65ded6c263c10afa:1",
     "sim_server/sim_server.py:SimServer.execute_command:7048a6c8bc81afe0:1",

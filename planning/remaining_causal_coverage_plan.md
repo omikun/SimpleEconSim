@@ -425,3 +425,32 @@ through the next turn. Storage/recorder/web/bond checks passed 69 tests; focused
 retry/index checks passed two more. Existing trace input is intentionally not
 supported. Full simulation checkpoint publication/restore, recovery, browser
 retry IDs, memory/performance budgets and the remaining global gates are open.
+
+
+### Full simulation checkpoint progress (2026-10-23)
+
+Implemented trusted local checkpoints containing the live world, shared object
+graph, discovered gameplay module/class registries and imported mutable aliases,
+Python/NumPy/cached random state, pending causal maps and account books. Source
+and runtime fingerprints fail closed across incompatible rules. Native ontology
+callbacks are resolved against validated code; no gameplay registry is omitted
+when serialization fails. Immutable state and trace files are fsynced before an
+atomic manifest is published. Restore always forks; inherited event/account
+identities remain stable, new branch identities are distinct, address-based bank
+and public-account keys are rebuilt, and retry responses survive restore.
+
+Default-world tests compare every sampled metric and RNG state after the next
+turn, including a fresh-process continuation, command deduplication, source
+preservation, failed manifest publication, damaged state and torn-tail recovery.
+Interior corruption is rejected. Three integration fixtures also verify pending
+cargo delivery, shared loan references/repayment and retained technology causes.
+Checkpoint/inventory/codec/recorder/web checks passed 72 tests. Multi-scenario
+and long-run acceptance remain open.
+The bond command correction removed one obsolete direct debit; its reviewed
+removal is reflected in the financial-write baseline (507 candidates, 31 source
+reviews, 476 pending).
+
+Local usage: `venv/bin/python simulation_checkpoint.py --turns 3 --directory
+tmp/checkpoints` prints the committed manifest. Continue with `--restore
+<manifest> --turns 3`. The web server accepts `--restore-checkpoint <manifest>`
+and resumes paused on a new branch. These saves are separate from map presets.

@@ -61,7 +61,7 @@ class BankTraceBook:
         key = id(bank)
         if key not in self.banks:
             value = dict(opening) if opening is not None else balances(bank)
-            info = {'id': f'{self.trace.run_id}:bank:{len(self.banks) + 1}',
+            info = {'id': f'{self.trace.identity_prefix}:bank:{len(self.banks) + 1}',
                     'bank': bank, 'opening': value, 'observed_close': dict(value),
                     'currency': getattr(region, 'home_currency', None) or 'local_currency',
                     'opening_events': {}, 'registration_basis': basis}

@@ -62,6 +62,32 @@ class RunTrace:
                       'seed': seed, 'scenario': scenario,
                       'storage_format': 'framed-deflate-blocks-v1'})
 
+    @property
+    def identity_prefix(self):
+        return self.run_id if self.branch_id == 'main' else f'{self.run_id}:{self.branch_id}'
+
+    def __getstate__(self):
+        state = dict(self.__dict__)
+        state.pop('_compact_writer', None)
+        return state
+
+    def rebind(self, path, branch_id):
+        """Attach restored state to a verified branch, never its saved parent."""
+        self.path = Path(path)
+        self.branch_id = branch_id
+        self._known_event_ids.path = self.path
+        self._compact_writer = CompactTraceWriter(self.path, resume=True)
+        self.bank_book.banks = {id(info['bank']): info for info in self.bank_book.banks.values()}
+        book = self.treasury_book
+        book.accounts = {('cash', id(info['agent'])) if info['bank'] is None else
+                         ('deposit', id(info['agent']), id(info['bank'])): info
+                         for info in book.accounts.values()}
+        by_id = {info['id']: key for key, info in book.accounts.items()}
+        for collection in (book.observed_memberships, book.opening_memberships):
+            for rows in collection.values():
+                for ident, metadata in rows.items():
+                    metadata['key'] = by_id[ident]
+
     def _append(self, row):
         # No default=str: unsupported values are instrumentation errors.
         if self.write_error is not None:
@@ -97,7 +123,8 @@ class RunTrace:
             self._turn_living_cost_events = {}
             self._latest_food_intake_events = {}
         row = {'schema_version': SCHEMA_VERSION, 'run_id': self.run_id,
-               'branch_id': self.branch_id, 'event_id': f'{self.run_id}:{sequence}',
+               'branch_id': self.branch_id, 'event_id': (f'{self.run_id}:{sequence}' if self.branch_id == 'main'
+                            else f'{self.run_id}:{self.branch_id}:{sequence}'),
                'sequence': sequence, 'turn': clock.get('turn', 0), 'epoch':clock.get('epoch',0),
                'phase': phase or clock.get('phase', 'unknown'),
                'kind': kind, 'record_class': record_class,

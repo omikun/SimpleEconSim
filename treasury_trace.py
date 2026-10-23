@@ -49,7 +49,7 @@ def finish_public_change(context, kind, *, inputs=None, cause_event_ids=None):
     if context is None:
         return []
     book, clock, before, source_name = context
-    operation_id = f'{book.trace.run_id}:public-write:{clock["next"]}'
+    operation_id = f'{book.trace.identity_prefix}:public-write:{clock["next"]}'
     cause_event_ids = list(cause_event_ids or ())
     command = clock.get('command_event_id')
     if command is not None and command not in cause_event_ids:cause_event_ids.append(command)
@@ -114,7 +114,7 @@ class TreasuryTraceBook:
                         source = next(iter(getattr(bank, '_attached_regions', ())), nation)
                         bank_id = self.trace.bank_book.register(
                             bank, source, clock, basis='public_account_inventory')['id']
-                    info = {'id': f'{self.trace.run_id}:public-account:{len(self.accounts) + 1}',
+                    info = {'id': f'{self.trace.identity_prefix}:public-account:{len(self.accounts) + 1}',
                             'agent': agent, 'bank': bank, 'bank_id': bank_id,
                             'currency': getattr(agent, 'home_currency', None), 'last_source': None}
                     value = self.value(info)
