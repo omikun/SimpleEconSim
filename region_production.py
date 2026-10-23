@@ -537,7 +537,9 @@ def produce(region, t):
                 inputs={'temporary_work_share': float(getattr(
                     a, 'temporary_work_share', 0.0)),
                         'inventory_before': a.inv_get(a.output, 0),
-                        'collective_event_ids': source_event_ids})
+                        'collective_event_ids': source_event_ids,
+                        'is_striking': bool(getattr(a, 'is_striking', False)),
+                        'in_revolt': bool(getattr(a, 'in_revolt', False))})
             continue
         r = region.recipes[a.output]
         if r.get('import_only', False):

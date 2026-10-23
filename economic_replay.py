@@ -25,6 +25,15 @@ def replay(row):
     if formula=='labor.effective_workday_cap_sample.v1':return i['effective_workday_cap']
     if formula=='society.entertainment_level_sample.v1':return i['configured_entertainment_level']
     if formula=='elite.market_novelty.v1':return len(i['new_goods'])
+    if formula=='elite.planning_cadence.v2':
+        actor=i['actor_basis']
+        elite=(actor['is_lord'] or actor['is_corporation'] or actor['owns_company']
+               or actor['cash']>=150 or (actor['is_trader'] and actor['cash']>=50))
+        trigger=i['matched_trigger']
+        same_turn_trigger=bool(trigger and trigger['turn']==i['turn']
+                              and row['subject']['id'] in (trigger.get('buyer_id'),trigger.get('sponsor_id')))
+        return int(elite and (i['market_has_new_items'] or same_turn_trigger
+                              or i['turn']%i['cadence_modulus']==0))
     if formula=='water.capacity_rainfall_maintenance.v1':return i['capacity']*i['rainfall']*i['canal_condition']
     if formula=='rent.obligation_settlement.v1':return sum(claim['paid'] for claim in i['paid_claims'])
     if formula=='rent.active_obligations.v1':return sum(claim['balance'] for claim in i['active_rent_claims'])
@@ -128,6 +137,10 @@ def replay(row):
                 or (reason=='input_material_unavailable' and not i['inputs_available'])
                 or (reason=='nonpositive_recipe_output' and i['recipe_production']<=0)):
             return 0
+        if reason in ('worker_strike_withheld_labor','worker_revolt_withheld_labor'):
+            flag='is_striking' if reason=='worker_strike_withheld_labor' else 'in_revolt'
+            if not i[flag]:raise ValueError('withheld production requires actual participation')
+            return 0
         return NotImplemented
     if formula=='mortality.age_wealth_crowding_health.v1':
         result=i['age_base_probability']*i['wealth_discount']*i['crowding_factor']
@@ -169,6 +182,17 @@ def replay(row):
     if formula=='medicine.cure_chance.v1':return 0 if i['cure_draw']<i['effective_cure_chance'] else 1
     if formula=='disease.exposure_risk.v1':return before+sum(1 for check in i['risk_checks'].values() if check['draw']<check['capped_risk'])
     if formula=='health.untreated_case_rollup.v1':return len(i['untreated_patients'])
+    if formula=='health.environmental_exposure_wear.v1':
+        wear=.0015*max(0,i['air_pollution']-15)+.002*max(0,i['water_pollution']-20)
+        if i['pesticide_use'] and not i['biological_pest_control'] and i['agent_output']=='food':
+            wear+=.04
+        else:wear+=.0015*max(0,i['soil_toxicity']-25)
+        if i['nutrition_density']<.85:wear+=.025*(1-i['nutrition_density'])
+        return before+wear
+    if formula=='route.freight_settlement.v1':return i['quantity']*i['freight_per_unit']
+    if formula=='route.transit_countdown.v1':return max(0,before-1)
+    if formula=='route.delay.congestion.v1':
+        return i['base_delay']+i['queue_depth_before_load']//max(1,i['capacity_per_unit'])
     if formula=='ecology.downstream_advection.v1':return min(100.0,before+(i['source_pollution_before_emission']+i['source_emission'])*i['advection_fraction']/i['downstream_tile_count'])
     if formula=='ecology.soil_balance.v1':return clamp(before+i['regeneration_rate']-i['extraction_rate'],row['constraints']['lower_bound'],row['constraints']['upper_bound'])
     if formula=='ecology.nutrition_transition.v1':return before+(i['target_density']-before)*i['blend_fraction']

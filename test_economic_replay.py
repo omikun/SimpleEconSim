@@ -5,6 +5,41 @@ from price_trace import replay_event
 
 
 class EconomicReplayTests(unittest.TestCase):
+    def test_environmental_wear_uses_primitive_exposure_and_exclusive_pesticide_branch(self):
+        row={'formula_id':'health.environmental_exposure_wear.v1','value_before':.2,
+             'value_after':.285,'inputs':{'air_pollution':25,'water_pollution':30,
+                 'soil_toxicity':45,'nutrition_density':.6,'pesticide_use':True,
+                 'biological_pest_control':False,'agent_output':'food',
+                 'attrition_delta':99,'source_components':{'untrusted':99}}}
+        self.assertTrue(replay_event(row)['matches'])
+        row['inputs']['biological_pest_control']=True
+        self.assertFalse(replay_event(row)['matches'])
+        row['value_after']=.275
+        self.assertTrue(replay_event(row)['matches'])
+
+    def test_route_freight_and_countdown_ignore_claimed_result_inputs(self):
+        freight={'formula_id':'route.freight_settlement.v1','value_after':2.4,
+                 'inputs':{'quantity':6,'freight_per_unit':.4,'amount':999}}
+        self.assertTrue(replay_event(freight)['matches'])
+        freight['inputs']['quantity']=7
+        self.assertFalse(replay_event(freight)['matches'])
+        countdown={'formula_id':'route.transit_countdown.v1','value_before':1,'value_after':0,
+                   'inputs':{'raw_turns_after_decrement':999}}
+        self.assertTrue(replay_event(countdown)['matches'])
+        countdown['value_before']=0
+        self.assertTrue(replay_event(countdown)['matches'])
+        delay={'formula_id':'route.delay.congestion.v1','value_after':4,
+               'inputs':{'base_delay':2,'queue_depth_before_load':5,'capacity_per_unit':2,
+                         'congestion_delay':999,'turns_left_on_load':999}}
+        self.assertTrue(replay_event(delay)['matches'])
+
+    def test_withheld_production_needs_participation_in_addition_to_reason_label(self):
+        row={'formula_id':'production.independent_zero.v1','value_after':0,
+             'inputs':{'reason':'worker_strike_withheld_labor','is_striking':True}}
+        self.assertTrue(replay_event(row)['matches'])
+        row['inputs']['is_striking']=False
+        with self.assertRaises(ValueError):replay_event(row)
+
     def test_fractional_charity_stock_uses_native_whole_unit_issue_gate(self):
         row={'formula_id':'charity.food_distribution_transfer.v1','value_after':1,
              'inputs':{'charity_inventory_before':.5,'charity_inventory_after':-.5}}

@@ -841,3 +841,18 @@ corruption fixture also passes after the pickler change. The shared CLI now
 creates and resumes all four canonical scenarios using their actual runners;
 the reader guide documents native save/restore and branch/recovery usage.
 Longer recovery/branch acceptance and final save/query/runtime budgets remain.
+
+### Additional primitive replay coverage (2026-10-23)
+
+Environmental health wear now independently derives smog, water, exclusive
+pesticide/soil and nutrition effects from raw exposure inputs, ignoring recorded
+component totals. Freight, congestion delay and transit countdown replay actual
+quantities, rates, queue depth and prior remaining time. Withheld independent
+production captures real strike/revolt flags; a reason label alone cannot verify
+zero output. Planner cadence v2 captures actor eligibility primitives and matched
+event turn/actor IDs; replay derives eligibility and activation rather than
+trusting the recorded reason or selected result. Negative fixtures change
+exposure, contribution totals, participation or trigger turn. The combined
+planner/economic/environmental/recorder suites pass 82 tests. Source contracts
+for these new formulas remain separate unfinished work; later changes require
+their own frozen-source native rerun.

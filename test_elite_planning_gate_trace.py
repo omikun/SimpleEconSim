@@ -110,6 +110,12 @@ class ElitePlanningGateTraceTests(unittest.TestCase):
                 if supply_event or concession_event:
                     self.assertEqual(gate['inputs']['matched_trigger']['status'],
                                      (supply_event or concession_event)['status'])
+                from price_trace import replay_event
+                replay_row = {**gate, 'value_after': gate['after']}
+                self.assertTrue(replay_event(replay_row)['matches'])
+                if supply_event or concession_event:
+                    gate['inputs']['matched_trigger']['turn'] -= 1
+                    self.assertFalse(replay_event(replay_row)['matches'])
 
     def test_trace_does_not_change_novelty_or_cadence_results(self):
         results = []

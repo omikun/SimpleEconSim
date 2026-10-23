@@ -160,18 +160,24 @@ class EliteCapitalistPlanner:
         if matched_trigger is not None:
             trigger_detail = {
                 key: matched_trigger.get(key)
-                for key in ('proposal_id', 'petition_id', 'kind', 'status', 'reason')
+                for key in ('proposal_id', 'petition_id', 'kind', 'status', 'reason',
+                            'turn', 'buyer_id', 'sponsor_id')
                 if key in matched_trigger
             }
         emit(region, kind='elite_planning_gate', record_class='decision',
              phase='local', subject={'type': 'agent', 'id': agent.id,
                                      'tile': getattr(region, 'name', 'default')},
              metric_id='market.elite_planning_gate', unit='boolean',
-             after=int(should_run), formula_id='elite.planning_cadence.v1',
+             after=int(should_run), formula_id='elite.planning_cadence.v2',
              cause_event_ids=cause_event_ids,
              inputs={
                  'turn': int(t),
                  'eligible_elite': True,
+                 'actor_basis': {'is_lord': bool(getattr(agent, 'is_lord', False)),
+                                 'is_corporation': bool(getattr(agent, 'is_corporation', False)),
+                                 'owns_company': getattr(agent, 'company_owned', None) is not None,
+                                 'is_trader': bool(getattr(agent, 'is_trader', False)),
+                                 'cash': float(getattr(agent, 'cash', 0.0))},
                  'market_has_new_items': bool(market_has_new_items),
                  'considered_gates': considered_gates,
                  'reason': reason,
