@@ -59,7 +59,7 @@ annexation, many scenario actions, save/resume or long-run performance.
 | 5 | Atomic full saves/branches/recovery; full economic graph/RNG/action continuation in default, both authored server scenarios and native Egypt | Repeat longer native branch/recovery cases in final release evidence |
 | 6 | Block index/rebuild, stable queries/export, bounded identity cache and streamed CLI comparisons | Measured memory/query/runtime budgets and retired-reference audit |
 | 7 | Shared web/desktop/CLI explanations, native recording, F11 inspector, historical membership and iPad browser checks | Full scenario/history acceptance and physical-device follow-up if available |
-| 8 | Four-scenario measured smoke; buffered default seed 4243 passes 30 turns; prior source default 4243 passes 30/100; Egypt seed 1878 passes corrected 20; labor-frontier and supply-rivalry seed pairs pass 20 | Buffered default 100-turn and Egypt long-run reruns; measured optimization budget; final report |
+| 8 | Four-scenario measured smoke; buffered default seed 4243 passes 30/100 turns; Egypt seed 1878 passes corrected 20; labor-frontier and supply-rivalry seed pairs pass 20 | Buffered Egypt long-run rerun; performance budget; final report |
 
 The latest measured short acceptance is pinned to `9bafd9a`: all four canonical
 scenarios × recording on/off, three steps each, pass the declared state/RNG,
@@ -1147,5 +1147,23 @@ equality, currency, public closure, changed snapshots and supported replay/sourc
 checks. Step CPU overhead is 3.877x and trace size is 4.095 MB per turn. The
 earlier pinned source's 30-turn ratio was 3.896x, a small directional difference
 that does not establish a controlled performance improvement. The current
-buffered 100-turn run is still required; the older 100-turn result remains
-correctness evidence for `9bafd9a` only.
+The buffered-source default seed-4243 100-turn pair passes all six gates at
+`tmp/acceptance-default-100-buffered-2026-10-24/matrix.json`. It records
+4,496,577 rows, 434,992,071 compact bytes and 5,552,599,827 decoded bytes;
+peak simulation RSS is 483.7 MB, index build takes 83.71s and inspection
+139.37s. The measured step CPU ratio is 6.61x (428.29s with recording vs
+64.78s without); median recorded turn CPU is 2.07s. All state/RNG/actions,
+currency, closure, changed-snapshot and supported replay/source checks pass.
+This ratio is higher than the earlier `9bafd9a` 4.60x measurement, while the
+median turn time, memory and index build remain comparable. Since unrecorded
+CPU and release hosts vary, this is a performance signal to diagnose, not a
+declared budget failure. Phase 6 and the release budget stay open.
+
+A profiled three-turn default run produced 121,171 emitted rows. Cumulative
+`run_trace.emit` time was 3.83s, its JSON append/serialization path 2.60s and
+compact compression/write append 1.31s. The profile also spent 15.81s in
+canonical state serialization and 3.47s in audit; these acceptance diagnostics
+are measured outside the step-runtime ratio but explain the profile total.
+This supports keeping the codec change bounded to I/O publication: codec append
+alone is not the dominant traced-run cost. Event construction, row serialization
+and event volume need targeted profiling before another format-level rewrite.
