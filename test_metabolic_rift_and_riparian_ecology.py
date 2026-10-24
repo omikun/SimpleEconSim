@@ -268,6 +268,18 @@ class TestMetabolicRiftAndRiparianEcology(unittest.TestCase):
 
         self.assertTrue(getattr(self.nation_a, '_great_stink_triggered', False))
         self.assertLessEqual(self.nation_a.legitimacy, 0.60)
+        trace = world['_trace_session'].run_trace
+        legitimacy_event = trace.query(
+            kind='great_stink_legitimacy_loss')['events'][0]
+        self.assertEqual(legitimacy_event['metric_id'], 'politics.legitimacy')
+        self.assertEqual(legitimacy_event['formula_id'], 'policy.additive_floor.v1')
+        self.assertAlmostEqual(legitimacy_event['value_after'],
+                               max(0.05, legitimacy_event['value_before'] - 0.20))
+        self.assertAlmostEqual(legitimacy_event['value_after'], self.nation_a.legitimacy)
+        self.assertEqual(legitimacy_event['inputs']['pollution_water_threshold'], 60.0)
+        pollution_event_id = legitimacy_event['inputs']['pollution_water_event_id']
+        if pollution_event_id is not None:
+            self.assertIn(pollution_event_id, legitimacy_event['cause_event_ids'])
 
 
 if __name__ == '__main__':

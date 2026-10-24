@@ -1059,12 +1059,21 @@ records and 1,690,078 unsupported-source-contract records.
 Both 20-turn Egypt pairs preserve full state/RNG/actions, currency and public
 account closure, and pass supported replay/source checks. The snapshot gate
 found two actual writers: the missed debt-service deadline's -0.15 legitimacy
-loss and state terror's -0.20 loss in the resistance manager. Both now emit
-replayable `politics.legitimacy` events; debt loss cites the defaulted bond
-events, and state terror links its event to the enforcement outcome. Existing
-fixtures now assert these values and links. The emergency constable and Egypt
-crisis trace suites pass 20 tests. A fresh seed-1878 20-turn on/off pair is
-required to close the snapshot and state-neutrality gates for these fixes.
+loss and a turn-20 -0.20 loss. The initial source inspection incorrectly
+attributed the latter to resistance state terror. The corrected seed-1878 run
+after the debt and state-terror trace additions removed the turn-7 gap but kept
+the France turn-20 gap. Inspection of that run showed the actual writer was the
+Great Stink water-pollution catalyst in the engine.
+
+The debt-default loss now cites the emitted defaulted-bond events. State terror
+also records its own legitimacy loss and links it to the enforcement outcome;
+that is a valid instrumentation improvement, but it did not explain the
+acceptance gap. The Great Stink now uses one shared helper from both desktop and
+worldview engine paths. It records the exact before/after, the 60-point water
+threshold, whether a pollution record was available, and links that record when
+present. The existing Great Stink fixture now checks the replayable formula and
+upstream link. Its focused test passes. A fresh seed-1878 20-turn on/off pair is
+required to close the remaining snapshot and state-neutrality gates.
 
 Egypt's pre-fix 20-turn measurements show 7.6–7.8 million rows, about 5.1–5.3
 GB decoded data, 654–660 MB peak RSS and 31.6–35.6× step CPU cost with recording.

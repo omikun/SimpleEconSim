@@ -214,7 +214,8 @@ def step_world(world):
             has_sewer = any(getattr(b, 'name', '') == 'trunk_sewer' for b in getattr(cap_tile, 'buildings', []))
             if not has_sewer:
                 n._great_stink_triggered = True
-                n.legitimacy = max(0.05, getattr(n, 'legitimacy', 0.6) - 0.20)
+                from externalities import apply_great_stink_legitimacy_loss
+                apply_great_stink_legitimacy_loss(n, cap_tile, t)
                 ticker_push(
                     world, t, 'ALERT',
                     f"🚨 THE GREAT STINK: Putrid river effluent engulfs Parliament in {cap_tile.name}! Chamber evacuated; {n.name} legitimacy plunges!",

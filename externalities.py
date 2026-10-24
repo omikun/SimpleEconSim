@@ -25,6 +25,38 @@ from goods import Goods
 from random_cache import rand
 
 
+def apply_great_stink_legitimacy_loss(nation, capital_tile, turn):
+    """Apply and trace the Great Stink's national legitimacy loss."""
+    before = float(getattr(nation, 'legitimacy', 0.6))
+    after = max(0.05, before - 0.20)
+    nation.legitimacy = after
+
+    from run_trace import emit
+    trace = getattr(capital_tile, '_run_trace', None)
+    pollution_subject = {'type': 'tile', 'id': capital_tile.name}
+    pollution_event_id = (
+        trace.latest_metric_event_id('ecology.pollution_water', pollution_subject)
+        if trace is not None else None)
+    return emit(
+        capital_tile, kind='great_stink_legitimacy_loss',
+        record_class='outcome', phase='catalyst',
+        subject={'type': 'nation', 'id': nation.name},
+        metric_id='politics.legitimacy', unit='ratio',
+        before=before, after=after,
+        formula_id='policy.additive_floor.v1',
+        inputs={'change': -0.20, 'floor': 0.05, 'turn': int(turn),
+                'reason': 'great_stink_without_trunk_sewer',
+                'capital_tile': capital_tile.name,
+                'pollution_water': float(capital_tile.pollution_water),
+                'pollution_water_threshold': 60.0,
+                'trunk_sewer_present': False,
+                'pollution_water_event_id': pollution_event_id,
+                'pollution_source_status': ('linked' if pollution_event_id is not None
+                                            else 'no_prior_pollution_record')},
+        cause_event_ids=([pollution_event_id]
+                         if pollution_event_id is not None else None))
+
+
 def step_tile_externalities(region, t: int) -> dict:
     """Execute per-turn ecological update for a region: soil, nutrition, air, water, and soil toxicity."""
     if not hasattr(region, 'soil_fertility'):
