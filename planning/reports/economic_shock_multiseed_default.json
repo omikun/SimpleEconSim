@@ -1,0 +1,1393 @@
+{
+  "experiments": {
+    "furniture_demand_increase": {
+      "by_seed": {
+        "4242": {
+          "market_gates_pass": true,
+          "market_rows": [
+            720,
+            720
+          ],
+          "measures": {
+            "food:food_intake.shortfall_units": {
+              "effect": 0.0,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "furniture:nonfood_consumption.units_consumed": {
+              "effect": 5,
+              "expected_turns": 4,
+              "observed_turns": 3,
+              "statistic": "sum"
+            },
+            "furniture:offered_supply_units": {
+              "effect": 0,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "furniture:production_units": {
+              "effect": 1,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "furniture:submitted_bids": {
+              "effect": 8,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "furniture:transaction_vwap": {
+              "effect": -0.03396690244678313,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "mean_percent"
+            },
+            "furniture:units_sold": {
+              "effect": 0,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            }
+          },
+          "pre_shock_states_match": true,
+          "target_currency": "CNY",
+          "target_tile": "c50"
+        },
+        "4243": {
+          "market_gates_pass": true,
+          "market_rows": [
+            720,
+            720
+          ],
+          "measures": {
+            "food:food_intake.shortfall_units": {
+              "effect": 0.0,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "furniture:nonfood_consumption.units_consumed": {
+              "effect": -1,
+              "expected_turns": 4,
+              "observed_turns": 3,
+              "statistic": "sum"
+            },
+            "furniture:offered_supply_units": {
+              "effect": 2,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "furniture:production_units": {
+              "effect": 0,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "furniture:submitted_bids": {
+              "effect": 7,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "furniture:transaction_vwap": {
+              "effect": -0.46148895813575286,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "mean_percent"
+            },
+            "furniture:units_sold": {
+              "effect": 2,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            }
+          },
+          "pre_shock_states_match": true,
+          "target_currency": "CNY",
+          "target_tile": "c74"
+        },
+        "4244": {
+          "market_gates_pass": true,
+          "market_rows": [
+            720,
+            720
+          ],
+          "measures": {
+            "food:food_intake.shortfall_units": {
+              "effect": 0.0,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "furniture:nonfood_consumption.units_consumed": {
+              "effect": -2,
+              "expected_turns": 4,
+              "observed_turns": 2,
+              "statistic": "sum"
+            },
+            "furniture:offered_supply_units": {
+              "effect": 0,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "furniture:production_units": {
+              "effect": 0,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "furniture:submitted_bids": {
+              "effect": 12,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "furniture:transaction_vwap": {
+              "effect": 0.0,
+              "expected_turns": 4,
+              "observed_turns": 3,
+              "statistic": "mean_percent"
+            },
+            "furniture:units_sold": {
+              "effect": 0,
+              "expected_turns": 4,
+              "observed_turns": 3,
+              "statistic": "sum"
+            }
+          },
+          "pre_shock_states_match": true,
+          "target_currency": "USD",
+          "target_tile": "c74"
+        },
+        "4245": {
+          "market_gates_pass": true,
+          "market_rows": [
+            720,
+            720
+          ],
+          "measures": {
+            "food:food_intake.shortfall_units": {
+              "effect": 0.0,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "furniture:nonfood_consumption.units_consumed": {
+              "effect": -3,
+              "expected_turns": 4,
+              "observed_turns": 2,
+              "statistic": "sum"
+            },
+            "furniture:offered_supply_units": {
+              "effect": 0,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "furniture:production_units": {
+              "effect": 0,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "furniture:submitted_bids": {
+              "effect": 9,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "furniture:transaction_vwap": {
+              "effect": 0.0,
+              "expected_turns": 4,
+              "observed_turns": 3,
+              "statistic": "mean_percent"
+            },
+            "furniture:units_sold": {
+              "effect": 0,
+              "expected_turns": 4,
+              "observed_turns": 3,
+              "statistic": "sum"
+            }
+          },
+          "pre_shock_states_match": true,
+          "target_currency": "JPY",
+          "target_tile": "c78"
+        },
+        "4246": {
+          "market_gates_pass": true,
+          "market_rows": [
+            720,
+            720
+          ],
+          "measures": {
+            "food:food_intake.shortfall_units": {
+              "effect": 0.0,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "furniture:nonfood_consumption.units_consumed": {
+              "effect": 0,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "furniture:offered_supply_units": {
+              "effect": 1,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "furniture:production_units": {
+              "effect": 0,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "furniture:submitted_bids": {
+              "effect": 7,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "furniture:transaction_vwap": {
+              "effect": 0.0,
+              "expected_turns": 4,
+              "observed_turns": 3,
+              "statistic": "mean_percent"
+            },
+            "furniture:units_sold": {
+              "effect": 0,
+              "expected_turns": 4,
+              "observed_turns": 3,
+              "statistic": "sum"
+            }
+          },
+          "pre_shock_states_match": true,
+          "target_currency": "JPY",
+          "target_tile": "c71"
+        }
+      },
+      "market_gate_pass_count": 5,
+      "measures": {
+        "food:food_intake.shortfall_units": {
+          "by_seed": {
+            "4242": {
+              "effect": 0.0,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "4243": {
+              "effect": 0.0,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "4244": {
+              "effect": 0.0,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "4245": {
+              "effect": 0.0,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "4246": {
+              "effect": 0.0,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            }
+          },
+          "good": "food",
+          "label": "Food shortfall units",
+          "maximum": 0.0,
+          "mean": 0.0,
+          "median": 0.0,
+          "minimum": 0.0,
+          "seeds_observed": 5,
+          "statistic": "sum"
+        },
+        "furniture:nonfood_consumption.units_consumed": {
+          "by_seed": {
+            "4242": {
+              "effect": 5,
+              "expected_turns": 4,
+              "observed_turns": 3,
+              "statistic": "sum"
+            },
+            "4243": {
+              "effect": -1,
+              "expected_turns": 4,
+              "observed_turns": 3,
+              "statistic": "sum"
+            },
+            "4244": {
+              "effect": -2,
+              "expected_turns": 4,
+              "observed_turns": 2,
+              "statistic": "sum"
+            },
+            "4245": {
+              "effect": -3,
+              "expected_turns": 4,
+              "observed_turns": 2,
+              "statistic": "sum"
+            },
+            "4246": {
+              "effect": 0,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            }
+          },
+          "good": "furniture",
+          "label": "Furniture consumed",
+          "maximum": 5,
+          "mean": -0.2,
+          "median": -1,
+          "minimum": -3,
+          "seeds_observed": 5,
+          "statistic": "sum"
+        },
+        "furniture:offered_supply_units": {
+          "by_seed": {
+            "4242": {
+              "effect": 0,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "4243": {
+              "effect": 2,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "4244": {
+              "effect": 0,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "4245": {
+              "effect": 0,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "4246": {
+              "effect": 1,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            }
+          },
+          "good": "furniture",
+          "label": "Furniture offered supply",
+          "maximum": 2,
+          "mean": 0.6,
+          "median": 0,
+          "minimum": 0,
+          "seeds_observed": 5,
+          "statistic": "sum"
+        },
+        "furniture:production_units": {
+          "by_seed": {
+            "4242": {
+              "effect": 1,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "4243": {
+              "effect": 0,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "4244": {
+              "effect": 0,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "4245": {
+              "effect": 0,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "4246": {
+              "effect": 0,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            }
+          },
+          "good": "furniture",
+          "label": "Furniture production",
+          "maximum": 1,
+          "mean": 0.2,
+          "median": 0,
+          "minimum": 0,
+          "seeds_observed": 5,
+          "statistic": "sum"
+        },
+        "furniture:submitted_bids": {
+          "by_seed": {
+            "4242": {
+              "effect": 8,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "4243": {
+              "effect": 7,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "4244": {
+              "effect": 12,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "4245": {
+              "effect": 9,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "4246": {
+              "effect": 7,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            }
+          },
+          "good": "furniture",
+          "label": "Furniture submitted bids",
+          "maximum": 12,
+          "mean": 8.6,
+          "median": 8,
+          "minimum": 7,
+          "seeds_observed": 5,
+          "statistic": "sum"
+        },
+        "furniture:transaction_vwap": {
+          "by_seed": {
+            "4242": {
+              "effect": -0.03396690244678313,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "mean_percent"
+            },
+            "4243": {
+              "effect": -0.46148895813575286,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "mean_percent"
+            },
+            "4244": {
+              "effect": 0.0,
+              "expected_turns": 4,
+              "observed_turns": 3,
+              "statistic": "mean_percent"
+            },
+            "4245": {
+              "effect": 0.0,
+              "expected_turns": 4,
+              "observed_turns": 3,
+              "statistic": "mean_percent"
+            },
+            "4246": {
+              "effect": 0.0,
+              "expected_turns": 4,
+              "observed_turns": 3,
+              "statistic": "mean_percent"
+            }
+          },
+          "good": "furniture",
+          "label": "Furniture paid VWAP change (%)",
+          "maximum": 0.0,
+          "mean": -0.0990911721165072,
+          "median": 0.0,
+          "minimum": -0.46148895813575286,
+          "seeds_observed": 5,
+          "statistic": "mean_percent"
+        },
+        "furniture:units_sold": {
+          "by_seed": {
+            "4242": {
+              "effect": 0,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "4243": {
+              "effect": 2,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "4244": {
+              "effect": 0,
+              "expected_turns": 4,
+              "observed_turns": 3,
+              "statistic": "sum"
+            },
+            "4245": {
+              "effect": 0,
+              "expected_turns": 4,
+              "observed_turns": 3,
+              "statistic": "sum"
+            },
+            "4246": {
+              "effect": 0,
+              "expected_turns": 4,
+              "observed_turns": 3,
+              "statistic": "sum"
+            }
+          },
+          "good": "furniture",
+          "label": "Furniture units sold",
+          "maximum": 2,
+          "mean": 0.4,
+          "median": 0,
+          "minimum": 0,
+          "seeds_observed": 5,
+          "statistic": "sum"
+        }
+      },
+      "title": "Temporary local furniture inventory-target increase",
+      "turn7_match_count": 5
+    },
+    "wood_supply_reduction": {
+      "by_seed": {
+        "4242": {
+          "market_gates_pass": true,
+          "market_rows": [
+            720,
+            720
+          ],
+          "measures": {
+            "food:food_intake.shortfall_units": {
+              "effect": 0.0,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "furniture:transaction_vwap": {
+              "effect": 0.0,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "mean_percent"
+            },
+            "furniture:units_sold": {
+              "effect": 0,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "wood:nonfood_consumption.units_consumed": {
+              "effect": -16,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "wood:offered_supply_units": {
+              "effect": -60,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "wood:production_units": {
+              "effect": -39,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "wood:submitted_bids": {
+              "effect": 73,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "wood:transaction_vwap": {
+              "effect": 0.10357006378218792,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "mean_percent"
+            },
+            "wood:units_sold": {
+              "effect": -60,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            }
+          },
+          "pre_shock_states_match": true,
+          "target_currency": "CNY",
+          "target_tile": "c50"
+        },
+        "4243": {
+          "market_gates_pass": true,
+          "market_rows": [
+            720,
+            720
+          ],
+          "measures": {
+            "food:food_intake.shortfall_units": {
+              "effect": 0.0,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "furniture:transaction_vwap": {
+              "effect": 0.2066115702479332,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "mean_percent"
+            },
+            "furniture:units_sold": {
+              "effect": 0,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "wood:nonfood_consumption.units_consumed": {
+              "effect": -34,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "wood:offered_supply_units": {
+              "effect": -87,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "wood:production_units": {
+              "effect": -54,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "wood:submitted_bids": {
+              "effect": 60,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "wood:transaction_vwap": {
+              "effect": 0.24589205627966182,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "mean_percent"
+            },
+            "wood:units_sold": {
+              "effect": -87,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            }
+          },
+          "pre_shock_states_match": true,
+          "target_currency": "JPY",
+          "target_tile": "c59"
+        },
+        "4244": {
+          "market_gates_pass": true,
+          "market_rows": [
+            720,
+            720
+          ],
+          "measures": {
+            "food:food_intake.shortfall_units": {
+              "effect": 0.0,
+              "expected_turns": 4,
+              "observed_turns": 2,
+              "statistic": "sum"
+            },
+            "furniture:transaction_vwap": {
+              "effect": -0.2762430939226457,
+              "expected_turns": 4,
+              "observed_turns": 2,
+              "statistic": "mean_percent"
+            },
+            "furniture:units_sold": {
+              "effect": -1,
+              "expected_turns": 4,
+              "observed_turns": 2,
+              "statistic": "sum"
+            },
+            "wood:nonfood_consumption.units_consumed": {
+              "effect": -34,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "wood:offered_supply_units": {
+              "effect": -82,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "wood:production_units": {
+              "effect": -54,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "wood:submitted_bids": {
+              "effect": 40,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "wood:transaction_vwap": {
+              "effect": 0.3250436721914607,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "mean_percent"
+            },
+            "wood:units_sold": {
+              "effect": -82,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            }
+          },
+          "pre_shock_states_match": true,
+          "target_currency": "JPY",
+          "target_tile": "c76"
+        },
+        "4245": {
+          "market_gates_pass": true,
+          "market_rows": [
+            720,
+            720
+          ],
+          "measures": {
+            "food:food_intake.shortfall_units": {
+              "effect": 0.0,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "furniture:transaction_vwap": {
+              "effect": 0.0,
+              "expected_turns": 4,
+              "observed_turns": 3,
+              "statistic": "mean_percent"
+            },
+            "furniture:units_sold": {
+              "effect": 0,
+              "expected_turns": 4,
+              "observed_turns": 3,
+              "statistic": "sum"
+            },
+            "wood:nonfood_consumption.units_consumed": {
+              "effect": -6,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "wood:offered_supply_units": {
+              "effect": -10,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "wood:production_units": {
+              "effect": -9,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "wood:submitted_bids": {
+              "effect": 10,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "wood:transaction_vwap": {
+              "effect": 1.7019483771077315,
+              "expected_turns": 4,
+              "observed_turns": 3,
+              "statistic": "mean_percent"
+            },
+            "wood:units_sold": {
+              "effect": -10,
+              "expected_turns": 4,
+              "observed_turns": 3,
+              "statistic": "sum"
+            }
+          },
+          "pre_shock_states_match": true,
+          "target_currency": "USD",
+          "target_tile": "c56"
+        },
+        "4246": {
+          "market_gates_pass": true,
+          "market_rows": [
+            720,
+            720
+          ],
+          "measures": {
+            "food:food_intake.shortfall_units": {
+              "effect": 0.0,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "furniture:transaction_vwap": {
+              "effect": 0.0,
+              "expected_turns": 4,
+              "observed_turns": 3,
+              "statistic": "mean_percent"
+            },
+            "furniture:units_sold": {
+              "effect": 0,
+              "expected_turns": 4,
+              "observed_turns": 3,
+              "statistic": "sum"
+            },
+            "wood:nonfood_consumption.units_consumed": {
+              "effect": -13,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "wood:offered_supply_units": {
+              "effect": -23,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "wood:production_units": {
+              "effect": -23,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "wood:submitted_bids": {
+              "effect": 10,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "wood:transaction_vwap": {
+              "effect": 4.361845833977446,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "mean_percent"
+            },
+            "wood:units_sold": {
+              "effect": -23,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            }
+          },
+          "pre_shock_states_match": true,
+          "target_currency": "USD",
+          "target_tile": "c78"
+        }
+      },
+      "market_gate_pass_count": 5,
+      "measures": {
+        "food:food_intake.shortfall_units": {
+          "by_seed": {
+            "4242": {
+              "effect": 0.0,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "4243": {
+              "effect": 0.0,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "4244": {
+              "effect": 0.0,
+              "expected_turns": 4,
+              "observed_turns": 2,
+              "statistic": "sum"
+            },
+            "4245": {
+              "effect": 0.0,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "4246": {
+              "effect": 0.0,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            }
+          },
+          "good": "food",
+          "label": "Food shortfall units",
+          "maximum": 0.0,
+          "mean": 0.0,
+          "median": 0.0,
+          "minimum": 0.0,
+          "seeds_observed": 5,
+          "statistic": "sum"
+        },
+        "furniture:transaction_vwap": {
+          "by_seed": {
+            "4242": {
+              "effect": 0.0,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "mean_percent"
+            },
+            "4243": {
+              "effect": 0.2066115702479332,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "mean_percent"
+            },
+            "4244": {
+              "effect": -0.2762430939226457,
+              "expected_turns": 4,
+              "observed_turns": 2,
+              "statistic": "mean_percent"
+            },
+            "4245": {
+              "effect": 0.0,
+              "expected_turns": 4,
+              "observed_turns": 3,
+              "statistic": "mean_percent"
+            },
+            "4246": {
+              "effect": 0.0,
+              "expected_turns": 4,
+              "observed_turns": 3,
+              "statistic": "mean_percent"
+            }
+          },
+          "good": "furniture",
+          "label": "Furniture paid VWAP change (%)",
+          "maximum": 0.2066115702479332,
+          "mean": -0.013926304734942496,
+          "median": 0.0,
+          "minimum": -0.2762430939226457,
+          "seeds_observed": 5,
+          "statistic": "mean_percent"
+        },
+        "furniture:units_sold": {
+          "by_seed": {
+            "4242": {
+              "effect": 0,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "4243": {
+              "effect": 0,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "4244": {
+              "effect": -1,
+              "expected_turns": 4,
+              "observed_turns": 2,
+              "statistic": "sum"
+            },
+            "4245": {
+              "effect": 0,
+              "expected_turns": 4,
+              "observed_turns": 3,
+              "statistic": "sum"
+            },
+            "4246": {
+              "effect": 0,
+              "expected_turns": 4,
+              "observed_turns": 3,
+              "statistic": "sum"
+            }
+          },
+          "good": "furniture",
+          "label": "Furniture units sold",
+          "maximum": 0,
+          "mean": -0.2,
+          "median": 0,
+          "minimum": -1,
+          "seeds_observed": 5,
+          "statistic": "sum"
+        },
+        "wood:nonfood_consumption.units_consumed": {
+          "by_seed": {
+            "4242": {
+              "effect": -16,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "4243": {
+              "effect": -34,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "4244": {
+              "effect": -34,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "4245": {
+              "effect": -6,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "4246": {
+              "effect": -13,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            }
+          },
+          "good": "wood",
+          "label": "Wood consumed",
+          "maximum": -6,
+          "mean": -20.6,
+          "median": -16,
+          "minimum": -34,
+          "seeds_observed": 5,
+          "statistic": "sum"
+        },
+        "wood:offered_supply_units": {
+          "by_seed": {
+            "4242": {
+              "effect": -60,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "4243": {
+              "effect": -87,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "4244": {
+              "effect": -82,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "4245": {
+              "effect": -10,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "4246": {
+              "effect": -23,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            }
+          },
+          "good": "wood",
+          "label": "Wood offered supply",
+          "maximum": -10,
+          "mean": -52.4,
+          "median": -60,
+          "minimum": -87,
+          "seeds_observed": 5,
+          "statistic": "sum"
+        },
+        "wood:production_units": {
+          "by_seed": {
+            "4242": {
+              "effect": -39,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "4243": {
+              "effect": -54,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "4244": {
+              "effect": -54,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "4245": {
+              "effect": -9,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "4246": {
+              "effect": -23,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            }
+          },
+          "good": "wood",
+          "label": "Wood production",
+          "maximum": -9,
+          "mean": -35.8,
+          "median": -39,
+          "minimum": -54,
+          "seeds_observed": 5,
+          "statistic": "sum"
+        },
+        "wood:submitted_bids": {
+          "by_seed": {
+            "4242": {
+              "effect": 73,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "4243": {
+              "effect": 60,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "4244": {
+              "effect": 40,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "4245": {
+              "effect": 10,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "4246": {
+              "effect": 10,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            }
+          },
+          "good": "wood",
+          "label": "Wood submitted bids",
+          "maximum": 73,
+          "mean": 38.6,
+          "median": 40,
+          "minimum": 10,
+          "seeds_observed": 5,
+          "statistic": "sum"
+        },
+        "wood:transaction_vwap": {
+          "by_seed": {
+            "4242": {
+              "effect": 0.10357006378218792,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "mean_percent"
+            },
+            "4243": {
+              "effect": 0.24589205627966182,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "mean_percent"
+            },
+            "4244": {
+              "effect": 0.3250436721914607,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "mean_percent"
+            },
+            "4245": {
+              "effect": 1.7019483771077315,
+              "expected_turns": 4,
+              "observed_turns": 3,
+              "statistic": "mean_percent"
+            },
+            "4246": {
+              "effect": 4.361845833977446,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "mean_percent"
+            }
+          },
+          "good": "wood",
+          "label": "Wood paid VWAP change (%)",
+          "maximum": 4.361845833977446,
+          "mean": 1.3476600006676975,
+          "median": 0.3250436721914607,
+          "minimum": 0.10357006378218792,
+          "seeds_observed": 5,
+          "statistic": "mean_percent"
+        },
+        "wood:units_sold": {
+          "by_seed": {
+            "4242": {
+              "effect": -60,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "4243": {
+              "effect": -87,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "4244": {
+              "effect": -82,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            },
+            "4245": {
+              "effect": -10,
+              "expected_turns": 4,
+              "observed_turns": 3,
+              "statistic": "sum"
+            },
+            "4246": {
+              "effect": -23,
+              "expected_turns": 4,
+              "observed_turns": 4,
+              "statistic": "sum"
+            }
+          },
+          "good": "wood",
+          "label": "Wood units sold",
+          "maximum": -10,
+          "mean": -52.4,
+          "median": -60,
+          "minimum": -87,
+          "seeds_observed": 5,
+          "statistic": "sum"
+        }
+      },
+      "title": "Temporary local wood supply reduction",
+      "turn7_match_count": 5
+    }
+  },
+  "seeds": [
+    4242,
+    4243,
+    4244,
+    4245,
+    4246
+  ],
+  "source_provenance_by_seed": {
+    "4242": [
+      {
+        "source_commit": "dd850255bea13d107733a859fd13b0a8ac315448",
+        "tracked_worktree_dirty": false
+      },
+      {
+        "source_commit": "dd850255bea13d107733a859fd13b0a8ac315448",
+        "tracked_worktree_dirty": false
+      },
+      {
+        "source_commit": "dd850255bea13d107733a859fd13b0a8ac315448",
+        "tracked_worktree_dirty": false
+      },
+      {
+        "source_commit": "dd850255bea13d107733a859fd13b0a8ac315448",
+        "tracked_worktree_dirty": false
+      }
+    ],
+    "4243": [
+      {
+        "source_commit": "21d3c6bc39567eb9b7834d0d62cc3b859fa910a4",
+        "tracked_worktree_dirty": false
+      },
+      {
+        "source_commit": "21d3c6bc39567eb9b7834d0d62cc3b859fa910a4",
+        "tracked_worktree_dirty": false
+      },
+      {
+        "source_commit": "18c88875446fcc541f2ba4461e8948aef2c1376a",
+        "tracked_worktree_dirty": false
+      },
+      {
+        "source_commit": "18c88875446fcc541f2ba4461e8948aef2c1376a",
+        "tracked_worktree_dirty": false
+      }
+    ],
+    "4244": [
+      {
+        "source_commit": "21d3c6bc39567eb9b7834d0d62cc3b859fa910a4",
+        "tracked_worktree_dirty": false
+      },
+      {
+        "source_commit": "21d3c6bc39567eb9b7834d0d62cc3b859fa910a4",
+        "tracked_worktree_dirty": false
+      },
+      {
+        "source_commit": "21d3c6bc39567eb9b7834d0d62cc3b859fa910a4",
+        "tracked_worktree_dirty": false
+      },
+      {
+        "source_commit": "21d3c6bc39567eb9b7834d0d62cc3b859fa910a4",
+        "tracked_worktree_dirty": false
+      }
+    ],
+    "4245": [
+      {
+        "source_commit": "21d3c6bc39567eb9b7834d0d62cc3b859fa910a4",
+        "tracked_worktree_dirty": false
+      },
+      {
+        "source_commit": "21d3c6bc39567eb9b7834d0d62cc3b859fa910a4",
+        "tracked_worktree_dirty": false
+      },
+      {
+        "source_commit": "21d3c6bc39567eb9b7834d0d62cc3b859fa910a4",
+        "tracked_worktree_dirty": false
+      },
+      {
+        "source_commit": "21d3c6bc39567eb9b7834d0d62cc3b859fa910a4",
+        "tracked_worktree_dirty": false
+      }
+    ],
+    "4246": [
+      {
+        "source_commit": "21d3c6bc39567eb9b7834d0d62cc3b859fa910a4",
+        "tracked_worktree_dirty": false
+      },
+      {
+        "source_commit": "21d3c6bc39567eb9b7834d0d62cc3b859fa910a4",
+        "tracked_worktree_dirty": false
+      },
+      {
+        "source_commit": "21d3c6bc39567eb9b7834d0d62cc3b859fa910a4",
+        "tracked_worktree_dirty": false
+      },
+      {
+        "source_commit": "21d3c6bc39567eb9b7834d0d62cc3b859fa910a4",
+        "tracked_worktree_dirty": false
+      }
+    ]
+  }
+}

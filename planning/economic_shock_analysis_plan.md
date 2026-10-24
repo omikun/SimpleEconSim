@@ -1,8 +1,9 @@
 # Economic response to supply and demand shocks
 
-Date: 2026-10-24. Status: baseline and one-seed paired screens complete;
-initial mechanical/formula audits applied. Multi-seed and cross-scenario
-robustness, treasury residual attribution and empirical calibration remain.
+Date: 2026-10-24. Status: baseline, five-seed default-game paired screens and
+initial mechanical/formula audits complete. Cross-scenario robustness,
+treasury residual attribution, full stock/welfare accounting and empirical
+calibration remain.
 Preserve game rules during diagnosis; put any eventual economic fixes in
 separate changes.
 
@@ -11,8 +12,8 @@ separate changes.
 | Phase | Status | Evidence / remaining work |
 |---|---|---|
 | 1. Baseline evidence and case studies | Complete for the selected 20-turn trace | Added streaming panel extraction and a baseline report. It identifies the furniture-input and local-food cases below; the trace does not cover every household, balance or in-transit stock. |
-| 2. Controlled shock experiments | Two paired 20-turn screens complete at default seed 4242 | Both control/treatment pairs match complete canonical state at turn 7 and carry explicit intervention/removal events. One seed is exploratory; run seeds 4242–4246 and a supply-rivalry sample before robustness claims. |
-| 3. Criteria and interpretation | Initial market, structural/formula and account-closure gates applied | Market settlement bounds and supported structural/formula checks pass on the four traces; treasury attribution is incomplete. No recovery tolerance or empirical benchmark has yet been applied. |
+| 2. Controlled shock experiments | Five paired 20-turn default-game seeds complete | Seeds 4242–4246 match complete canonical state at turn 7 for both shock pairs; original seed-4243 no-op attempts are excluded. Active role targets are selected and recorded per seed. The paired report gives per-seed effects and coverage. |
+| 3. Criteria and interpretation | Market gates pass in all ten valid seed-pairs; deeper audits applied to seed 4242 | Market settlement bounds pass throughout the five-seed sample. Supported structural/formula and account-closure checks pass on the four seed-4242 traces; treasury flow attribution remains incomplete. No recovery-time or empirical-realism claim is made. |
 
 The old `market_price_stabilization_plan.md` describes an earlier price rule.
 Current `region_market.update_price_ref` already demand-gates positive scarcity
@@ -46,15 +47,17 @@ compares market panels and end-of-turn state metrics.
 The private market hook is absent by default and only reads explicit
 `_analysis_demand_target_overrides`. Submitted buyer-order events record the
 adjusted target and its unshocked value when a treatment override applies.
-The first valid run is a diagnostic screen at default seed 4242. Tile names are
-not stable economic roles across seeds: the initial seed-4243 attempt found no
-wood producers and no eligible households on c50, making both interventions
-no-ops despite a matched turn-7 state. Those runs are excluded from effect
-summaries. The selector now prefers c50 only when that shock has an active
-target, otherwise it deterministically chooses a relevant active tile; every
-arm records its tile and selection evidence, and the pair must select the same
-tile. Rerun the default sample at seeds 4243–4246 under this rule and complete a
-supply-rivalry cross-scenario sample before making robustness claims.
+The first valid run was a diagnostic screen at default seed 4242. Tile names
+are not stable economic roles across seeds: the initial seed-4243 attempt found
+no wood producers and no eligible households on c50, making both interventions
+no-ops despite a matched turn-7 state. Those original attempts are excluded
+from effect summaries. The selector now prefers c50 only when that shock has
+an active target, otherwise it deterministically chooses a relevant active
+tile; every corrected arm records its tile and selection evidence, and paired
+arms must select the same tile. The seed-4242 run predates the selection
+metadata, but its intervention event records 11 affected wood producers and
+67 of 134 eligible furniture-demand residents, and the corresponding market
+panels show realized treatment responses.
 
 ### Results from the default-seed paired screen
 
@@ -96,6 +99,45 @@ The report now includes import and total-offer deltas, nonfood consumption,
 shock-window totals with observed-turn denominators, and per-run audit gates.
 `--reuse-existing --audit` reanalyzes the saved traces without rerunning the
 simulation or creating another decoded export.
+
+### Five-seed default-game screen
+
+The corrected paired sample for seeds 4242–4246 is summarized in
+`planning/reports/economic_shock_multiseed_default.md`, with machine-readable
+paired effects in `planning/reports/economic_shock_multiseed_default.json`.
+Each control/treatment pair has the same complete turn-7 state; both shock
+pairs pass the market-mechanics gates in all five seeds (10/10 pairs). The
+screen uses active local targets selected for the relevant economic role:
+wood targets are c50, c59, c76, c56 and c78; furniture-demand targets are c50,
+c74, c74, c78 and c71. Currency is preserved per seed and paid-price effects
+are summarized as within-seed percent changes.
+
+- The temporary wood-output reduction lowered target-tile production in all
+  five seeds (−9 to −54 units over turns 8–11; mean −35.8) and lowered offered
+  supply/sales in all five (−10 to −87; mean −52.4). Submitted bids increased
+  in all five (+10 to +73; mean +38.6), target-tile wood consumption fell in
+  all five (−6 to −34; mean −20.6), and paid VWAP increased in observed rows
+  (+0.104% to +4.362%; mean +1.348%). Price coverage is 19/20 shock-window
+  seed-turns and selected downstream measures have lower coverage, as detailed
+  in the report.
+- The furniture inventory-target increase raised submitted bids in all five
+  seeds (+7 to +12; mean +8.6), but offered supply (mean +0.6), sales (mean
+  +0.4) and production (mean +0.2) changed little. Paid VWAP changes were
+  small and non-positive in this sample (−0.461% to 0%; mean −0.099%).
+  Furniture-consumption coverage is 14/20 shock-window seed-turns and its
+  observed effects vary from −3 to +5 units.
+- Observed food-shortfall deltas are zero in both screens, but the wood-screen
+  food measure is missing for some seed-turns. This is not a welfare finding.
+  The five-seed sample is descriptive, has no confidence interval, and does
+  not establish historical realism. We do not infer recovery time from the
+  post-shock traces: the intervention can change later random-number paths,
+  and a recovery tolerance was not operationalized for this screen.
+
+This is evidence for the immediate local mechanisms tested: reduced physical
+wood output tightens offers/sales and raises bids/prices; extra furniture
+desired inventory creates bids more reliably than it creates supply or fills
+under the current cash, stock and reference-price constraints. It does not
+establish a general equilibrium response or a welfare improvement/loss.
 
 ## Questions and standards
 
@@ -344,24 +386,24 @@ accounting follow-up.
 
 ## Deliverables and next action
 
-The compact baseline report and the two named case studies are complete in
-`planning/reports/economic_shock_baseline.md`. The first paired negative
-physical-supply and positive-demand screens are complete in
-`planning/reports/economic_shock_screen_seed4242.md`. Continue in this order:
+The compact baseline report, the seed-4242 case studies, and the corrected
+five-seed default-game summary are complete in
+`planning/reports/economic_shock_baseline.md`,
+`planning/reports/economic_shock_screen_seed4242.md`, and
+`planning/reports/economic_shock_multiseed_default.md`. Continue in this order:
 
 1. Diagnose the treasury reconciliation residuals in the control trace, starting
    with the repeated US T4 residual. Add transfer-source reconciliation or
    identify and document the legitimately omitted accounting flows; rerun the
    paired audit before making a complete-accounting claim.
-2. Run the two default-game interventions on seeds 4243–4246 and summarize
-   paired effect distributions (not just pooled sums). Predeclare recovery
-   tolerance and report uncertainty/coverage before using the term robust.
-3. Add a scenario-aware intervention adapter and test supply rivalry on seeds
+2. Add a scenario-aware intervention adapter and test supply rivalry on seeds
    812–816. Confirm that native scenario stepping does not overwrite the shock;
    compare local production, shipment, arrival, price and welfare response.
-4. Add stable-cohort household outcomes, wages/profit/credit and separate
+3. Add stable-cohort household outcomes, wages/profit/credit and separate
    producer, trader, household and in-transit stock measures before concluding
    on welfare or goods conservation.
+4. Define and calculate an explicit, coverage-aware recovery measure for
+   future paired runs; post-shock RNG divergence limits causal interpretation.
 5. Select historical primary evidence for the relevant setting before making
    empirical-realism claims; until then this is a code-behavior study.
 
