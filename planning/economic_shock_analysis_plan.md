@@ -9,7 +9,7 @@ put any eventual economic fixes in separate changes.
 | Phase | Status | Evidence / remaining work |
 |---|---|---|
 | 1. Baseline evidence and case studies | Complete for the selected 20-turn trace | Added streaming panel extraction and a baseline report. It identifies the furniture-input and local-food cases below; the trace does not cover every household, balance or in-transit stock. |
-| 2. Controlled shock experiments | Not started | Still need fresh-process matched control/treatment runs, explicit audit events for interventions and multi-seed response analysis. |
+| 2. Controlled shock experiments | Runner and intervention hooks implemented; paired runs pending | Need run the two screens from a clean committed source, verify identical turn-7 state, then report treatment-minus-control paths. The first screen is one seed; five-pair and cross-scenario robustness remains. |
 | 3. Criteria and interpretation | Criteria defined; not yet applied to controlled runs | Add mechanical gates and response assertions after first paired runs; empirical calibration remains separate. |
 
 The old `market_price_stabilization_plan.md` describes an earlier price rule.
@@ -17,6 +17,32 @@ Current `region_market.update_price_ref` already demand-gates positive scarcity
 and discounts negative inventory scarcity only when demand is slack. Treat the
 older diagnosis as historical; do not implement its proposed formula changes
 without reproducing a current-source failure.
+
+### Implemented paired screens
+
+`economic_shock_experiment.py` starts each control and treatment in a fresh
+process, fixes Python/NumPy/hash seeds, records a complete canonical state digest
+after turn 7, and uses the same default-game seed in both arms. It writes audit
+events when the shock is applied and removed, retains compressed traces, and
+compares market panels and end-of-turn state metrics.
+
+- `wood_supply_reduction`: at c50, multiply the wood recipe output by 0.5 for
+  turns 8–11 and restore it before turn 12. This is a temporary productivity /
+  physical-supply intervention. It destroys no stock and its result must be
+  measured from realized wood production and offers.
+- `furniture_demand_increase`: raise desired furniture inventory by a factor of
+  1.5 for every other eligible resident in c50 on turns 8–11. Assignment is
+  deterministic by agent ID. Unit orders are integral and rounded up, so at the
+  baseline one-unit target the treated cohort target is two units; this yields
+  an aggregate 50% target increase at the shock start. It creates no transfer
+  or money. Household budgets, credit and purchases of other goods remain
+  endogenous and are measured as spillovers.
+
+The private market hook is absent by default and only reads explicit
+`_analysis_demand_target_overrides`. Submitted buyer-order events record the
+adjusted target and its unshocked value when a treatment override applies.
+The first run is a diagnostic screen at default seed 4242; run seeds 4242–4246
+and a supply-rivalry cross-scenario sample before making robustness claims.
 
 ## Questions and standards
 

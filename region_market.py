@@ -1317,6 +1317,18 @@ def _trace_government_food_purchase(region, seller, *, quantity, unit_price,
     return event_id, operation_id
 
 
+def _analysis_demand_target(region, good, agent_id, base_target):
+    """Return an opt-in experimental inventory target, if this agent has one."""
+    overrides = getattr(region, '_analysis_demand_target_overrides', {}) or {}
+    factor = overrides.get(good, {}).get(agent_id)
+    if factor is None:
+        return int(base_target)
+    factor = float(factor)
+    if not math.isfinite(factor) or factor <= 0:
+        raise ValueError('analysis demand target multipliers must be finite and positive')
+    return max(0, int(math.ceil(int(base_target) * factor)))
+
+
 def trade(region, t):
     """Run market trading session for goods and transport services."""
     from run_trace import emit
@@ -1428,7 +1440,8 @@ def trade(region, t):
         mult = a.consumption_multiplier
         for g in goods_goods:
             p = prices[g]
-            d = desires[g]
+            base_desired = desires[g]
+            d = _analysis_demand_target(region, g, a.id, base_desired)
             cash_before_funding = float(getattr(a, 'cash', 0.0))
             remaining_before_funding = float(getattr(a, 'remainingCash', 0.0))
             inventory_before_order = float(a.inv_get(g, 0))
@@ -1476,6 +1489,9 @@ def trade(region, t):
                             'input_units_per_output': ar.get('numInput', 0),
                             'output_units_per_turn': ar.get('production', 0),
                             'current_desired': d,
+                            **({'base_desired_target': base_desired,
+                                'analysis_demand_target_override': True}
+                               if d != base_desired else {}),
                             'consumption_multiplier': mult,
                             'inventory_before_order': inventory_before_order,
                             'cash_before_funding': cash_before_funding,
