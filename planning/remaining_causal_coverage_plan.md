@@ -61,11 +61,14 @@ annexation, many scenario actions, save/resume or long-run performance.
 | 7 | Shared web/desktop/CLI explanations, native recording, F11 inspector, historical membership and iPad browser checks | Full scenario/history acceptance and physical-device follow-up if available |
 | 8 | Short probes and deterministic negative fixtures | Multi-seed 30/100-turn acceptance, off/on state/actions and published budgets/report |
 
-Latest short acceptance: `ce15dcf`, four canonical scenarios × on/off, three
-steps each, all checks pass. Matrix: `tmp/acceptance-smoke3-2026-10-23/matrix.json`.
-The release matrix finished from a pinned archive of that commit and failed its
-long-run gates. Its results
-do not certify later edits until affected gates are rerun.
+The latest measured short acceptance is pinned to `9bafd9a`: all four canonical
+scenarios × recording on/off, three steps each, pass the declared state/RNG,
+currency, public closure, snapshot and supported replay gates. Matrix:
+`tmp/acceptance-measured-2026-10-23/matrix.json`. This is a smoke run, not a
+release budget. An older release matrix (`5692825`) is superseded for corrected
+Gini/legitimacy sampling and the frontier construction reservation fix; its
+results remain useful failure evidence but do not certify the current source.
+A current-source release rerun is in progress.
 
 ## Execution order and gates
 
@@ -1008,3 +1011,23 @@ was slower on the completed short trace (roughly 3.01s CPU versus 2.90s without
 it); it was discarded. SQLite remains the bounded source lookup store. These
 measurements do not set final cross-scenario regression budgets; the new CPU/
 decoded-byte fields still need a frozen-source native acceptance rerun.
+
+### Current-source measured smoke and release rerun (2026-10-23)
+
+The `9bafd9a` four-scenario smoke passes every declared gate. It records step
+CPU on/off ratios of 3.74× for default, 3.20× for frontier, 2.88× for supply,
+and 15.51× for three-turn Egypt. Egypt emits 794,134 rows and 38,558,080
+compact bytes (539,899,282 decoded bytes), with 510.5 MB peak RSS; its cold
+index build and inspection take 15.82s and 21.12s. Default emits 121,332 rows
+in 9,177,537 compact bytes and 139,054,878 decoded bytes. These short-run
+measurements reveal scale variation and are not proposed as limits.
+
+The older `5692825` 20-turn Egypt pair emitted 7.8 million rows and 380.7 MB
+compact trace, reaching roughly 36.4s per turn with recording versus 0.93s
+without. It also retained one old legitimacy snapshot gap and Gini mismatches
+that were addressed by later native-history sampling fixes. The corrected
+20-turn pairs and default seed-4243 30/100 pairs are being rerun from one
+immutable current-source archive before the budget report is set. The profile
+still points to per-event serialization/compression/write work as a material
+cost; any batching change must preserve fixed-boundary query visibility, torn
+tail detection, checkpoint durability and identical decoded records.
