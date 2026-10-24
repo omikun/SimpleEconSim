@@ -75,7 +75,22 @@ def _load_seed(root: Path, seed: int) -> dict:
 
 def summarize(root: Path, seeds: list[int]) -> dict:
     runs = {seed: _load_seed(root, seed) for seed in seeds}
-    output = {"seeds": seeds, "experiments": {}}
+    source_provenance = {}
+    for seed, result in runs.items():
+        arms = []
+        for pair in result["experiments"].values():
+            for path_key in ("control_result", "treatment_result"):
+                path = Path(pair[path_key])
+                if not path.exists():
+                    path = root / f"seed-{seed}" / path.name
+                child = json.loads(path.read_text()) if path.exists() else {}
+                arms.append({
+                    "source_commit": child.get("source_commit"),
+                    "tracked_worktree_dirty": child.get("tracked_worktree_dirty"),
+                })
+        source_provenance[str(seed)] = arms
+    output = {"seeds": seeds, "source_provenance_by_seed": source_provenance,
+              "experiments": {}}
     for experiment_id, config in EXPERIMENTS.items():
         per_seed = {}
         for seed, result in runs.items():
@@ -129,6 +144,19 @@ def _fmt(value):
 
 def render_report(summary: dict) -> str:
     seeds = summary["seeds"]
+    provenance = []
+    for seed in seeds:
+        arms = summary["source_provenance_by_seed"].get(str(seed), [])
+        by_commit = {}
+        for arm in arms:
+            commit = arm.get("source_commit")
+            if commit:
+                counts = by_commit.setdefault(commit, {"arms": 0, "dirty": 0})
+                counts["arms"] += 1
+                counts["dirty"] += arm.get("tracked_worktree_dirty") is True
+        revisions = [f"`{commit}` (dirty arms: {counts['dirty']}/{counts['arms']})"
+                     for commit, counts in sorted(by_commit.items())]
+        provenance.append(f"{seed} " + (", ".join(revisions) or "revision unavailable"))
     lines = [
         f"# {len(seeds)}-seed default-game shock screen", "",
         f"Paired 20-turn screens at seeds {', '.join(map(str, seeds))}; "
@@ -139,6 +167,7 @@ def render_report(summary: dict) -> str:
         "the control and treatment must match at turn 7. Later RNG streams can "
         "diverge after the intervention, so recovery-path differences are not "
         "draw-aligned.", "",
+        "Simulation source provenance by seed: " + "; ".join(provenance) + ".", "",
     ]
     for experiment_id, experiment in summary["experiments"].items():
         lines += [f"## {experiment['title']}", "",
