@@ -67,20 +67,24 @@ def _trace_debt(world, kind, bond=None, *, before=None, after=None,
                 flow_nation=None, flow_amount=None, **inputs):
     """Trace campaign debt mutations and their actual sovereign cash transfers."""
     from run_trace import emit
+    event_ids = []
     if bond is not None and (before is not None or after is not None):
         debtor = _nation(world, bond.issuer_nation)
         if debtor and debtor.tiles:
             currency = (getattr(debtor, 'currency', None)
                         or getattr(debtor.tiles[0], 'home_currency', None)
                         or getattr(bond, 'currency', None) or 'USD')
-            emit(debtor.tiles[0], kind=f'caisse_{kind}', record_class='outcome',
-                 phase='scenario_debt',
-                 subject={'type': 'nation/obligation', 'id': bond.bond_id},
-                 metric_id='finance.obligation_balance', unit=currency,
-                 before=before, after=after,
-                 formula_id='scenario.caisse_principal_change.v1',
-                 inputs={'issuer': bond.issuer_nation, 'creditor': bond.holder_nation,
-                         'bond_purpose': bond.bond_purpose, **inputs})
+            event_id = emit(
+                debtor.tiles[0], kind=f'caisse_{kind}', record_class='outcome',
+                phase='scenario_debt',
+                subject={'type': 'nation/obligation', 'id': bond.bond_id},
+                metric_id='finance.obligation_balance', unit=currency,
+                before=before, after=after,
+                formula_id='scenario.caisse_principal_change.v1',
+                inputs={'issuer': bond.issuer_nation, 'creditor': bond.holder_nation,
+                        'bond_purpose': bond.bond_purpose, **inputs})
+            if event_id is not None:
+                event_ids.append(event_id)
     if flow_nation is not None and flow_amount is not None and flow_nation.tiles:
         from finance_trace import account_ref, emit_treasury_leg, transfer_contract
         currency = (getattr(flow_nation, 'currency', None)
@@ -120,7 +124,7 @@ def _trace_debt(world, kind, bond=None, *, before=None, after=None,
             counterparty_leg_status='paired_nation_leg_uses_same_operation_id',
             mutation_reference={'bond_id': bond.bond_id if bond else None,
                                 'debt_event': kind, 'turn': turn})
-        emit_treasury_leg(
+        event_id = emit_treasury_leg(
             flow_nation.tiles[0], kind=f'caisse_{kind}',
             nation_name=flow_nation.name, currency=currency,
             signed_amount=flow_amount, contract=contract,
@@ -128,6 +132,9 @@ def _trace_debt(world, kind, bond=None, *, before=None, after=None,
             inputs={'counterparty': inputs.get('counterparty'),
                     'bond_id': bond.bond_id if bond else None,
                     'debt_event': kind, **inputs})
+        if event_id is not None:
+            event_ids.append(event_id)
+    return event_ids
 
 
 def revise(world, amount, due_turn=None):
@@ -317,14 +324,17 @@ def default(world):
     from imperialism import get_imperialism_manager
     manager = get_imperialism_manager()
     existing = {item['bond_id'] for item in manager.delinquent_defaults}
+    event_ids = []
     for bond in bonds(world):
         if bond.status == 'active':
             bond.status = 'defaulted'
-        _trace_debt(world, 'default', bond, before=bond.principal,
-                    after=bond.principal, status=bond.status)
+        event_id = _trace_debt(world, 'default', bond, before=bond.principal,
+                               after=bond.principal, status=bond.status)
+        event_ids.extend(event_id or ())
         if bond.bond_id not in existing:
             manager.register_default(bond, world, int(world['turn']))
     _entry(world, 'default', outstanding(world))
+    return event_ids
 
 
 def intercept_assigned_revenue(world, government, source, gross, turn):

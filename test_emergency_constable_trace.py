@@ -149,6 +149,15 @@ class EmergencyConstableTraceTests(unittest.TestCase):
         self.assertEqual(outcome['inputs']['legitimacy_before'], legitimacy_before)
         self.assertAlmostEqual(outcome['inputs']['legitimacy_after'],
                                legitimacy_before - 0.2)
+        legitimacy = next(row for row in fixture[5].rows
+                          if row.get('kind') == 'state_terror_legitimacy_loss')
+        self.assertEqual(legitimacy['metric_id'], 'politics.legitimacy')
+        self.assertEqual(legitimacy['formula_id'], 'policy.additive_floor.v1')
+        self.assertAlmostEqual(legitimacy['before'], legitimacy_before)
+        self.assertAlmostEqual(legitimacy['after'], legitimacy_before - 0.2)
+        self.assertEqual(outcome['inputs']['legitimacy_event_id'],
+                         legitimacy['event_id'])
+        self.assertIn(legitimacy['event_id'], outcome['cause_event_ids'])
         self.assertEqual(outcome['inputs']['terror_cooldown_after'], 10)
         self.assertFalse(any('emergency_constable' in row.get('kind', '')
                              for row in fixture[5].rows))

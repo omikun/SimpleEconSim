@@ -541,6 +541,26 @@ def _trace_national_maize_release(world, nation, *, operation_id, turn,
         cause_event_ids=cause_event_ids)
 
 
+def _trace_default_legitimacy_loss(nation, *, before, turn, reason,
+                                   cause_event_ids=None):
+    region = (getattr(nation, 'capital', None)
+              or next(iter(getattr(nation, 'tiles', ())), None))
+    after = float(nation.legitimacy)
+    if region is None:
+        return None
+    from run_trace import emit
+    return emit(
+        region, kind='caisse_default_legitimacy_loss',
+        record_class='outcome', phase='scenario_debt',
+        subject={'type': 'nation', 'id': nation.name},
+        metric_id='politics.legitimacy', unit='ratio',
+        before=float(before), after=after,
+        formula_id='policy.additive_floor.v1',
+        inputs={'change': -0.15, 'floor': 0.0, 'turn': int(turn),
+                'reason': str(reason)},
+        cause_event_ids=cause_event_ids or None)
+
+
 def apply_action(world: dict, action_id: str) -> tuple[bool, str]:
     """Resolve a scenario choice against simulation state and record its cost."""
     if not is_scenario_id(world.get("scenario_id")):
@@ -771,9 +791,13 @@ def apply_action(world: dict, action_id: str) -> tuple[bool, str]:
         if action_id == "default_remittance":
             state["payment_status"] = "defaulted"
             state["creditor_confidence"] = 0.0
-            nation.legitimacy = max(0.0, float(getattr(nation, "legitimacy", 0.5)) - 0.15)
+            legitimacy_before = float(getattr(nation, "legitimacy", 0.5))
+            nation.legitimacy = max(0.0, legitimacy_before - 0.15)
             from scenario_debt import default as default_debt
-            default_debt(world)
+            default_events = default_debt(world)
+            _trace_default_legitimacy_loss(
+                nation, before=legitimacy_before, turn=turn,
+                reason='player_default_remittance', cause_event_ids=default_events)
             message = "Defaulted on the remittance: creditor confidence collapsed and government legitimacy fell."
         elif action_id in ("pay_remittance", "concede_revenue"):
             amount = amount if action_id == "pay_remittance" else amount * 0.5
@@ -888,9 +912,13 @@ def advance_scenario(world: dict, turn: int, ticker_push, on_phase=None) -> None
     elif turn > int(state.get("payment_window_turn", 6)) and state.get("payment_status") == "unpaid":
         state["payment_status"] = "defaulted"
         state["creditor_confidence"] = 0.0
-        nation.legitimacy = max(0.0, float(getattr(nation, "legitimacy", 0.5)) - 0.15)
+        legitimacy_before = float(getattr(nation, "legitimacy", 0.5))
+        nation.legitimacy = max(0.0, legitimacy_before - 0.15)
         from scenario_debt import default as default_debt
-        default_debt(world)
+        default_events = default_debt(world)
+        _trace_default_legitimacy_loss(
+            nation, before=legitimacy_before, turn=turn,
+            reason='missed_debt_service_window', cause_event_ids=default_events)
         ticker_push(world, turn, "ALERT", "The government missed the debt-service window; default deepens the crisis.", (240, 90, 82))
     if on_phase:
         on_phase('deadline')

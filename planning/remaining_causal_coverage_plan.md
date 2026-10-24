@@ -59,7 +59,7 @@ annexation, many scenario actions, save/resume or long-run performance.
 | 5 | Atomic full saves/branches/recovery; full economic graph/RNG/action continuation in default, both authored server scenarios and native Egypt | Repeat longer native branch/recovery cases in final release evidence |
 | 6 | Block index/rebuild, stable queries/export, bounded identity cache and streamed CLI comparisons | Measured memory/query/runtime budgets and retired-reference audit |
 | 7 | Shared web/desktop/CLI explanations, native recording, F11 inspector, historical membership and iPad browser checks | Full scenario/history acceptance and physical-device follow-up if available |
-| 8 | Short probes and deterministic negative fixtures | Multi-seed 30/100-turn acceptance, off/on state/actions and published budgets/report |
+| 8 | Four-scenario measured smoke; default seed 4243 passes 30/100-turn on/off acceptance from pinned `9bafd9a` | Re-run corrected Egyptian 20-turn cases; budget and final release report |
 
 The latest measured short acceptance is pinned to `9bafd9a`: all four canonical
 scenarios × recording on/off, three steps each, pass the declared state/RNG,
@@ -1043,3 +1043,31 @@ partial: government-actor aliases, zero/short-funding and liquidation branches,
 and exact semantic-payment-to-mutation IDs still need forced fixtures and source
 contracts. Inventory regeneration reports 105 reviewed and 402 pending of 507;
 the review count is source classification, not a coverage percentage.
+
+### Current-source release findings and legitimacy source fixes (2026-10-24)
+
+The pinned `9bafd9a` release matrix completed at
+`tmp/acceptance-current-release-2026-10-23/matrix.json`. Default seed 4243 passes
+both 30 and 100 turns: full state/RNG/action equality, currency, public closure,
+changed snapshots and declared replay/source checks all pass. Its 100-turn trace
+has 4,496,577 rows, 434,943,836 compact bytes, 5,551,956,283 decoded bytes,
+470.8 MB peak RSS, 85.38s index build and 140.34s inspection. The step CPU ratio
+is 4.60×. This remains a declared-surface pass, not complete provenance: the
+trace includes 24 calculations without formula, 311,302 unsupported-formula
+records and 1,690,078 unsupported-source-contract records.
+
+Both 20-turn Egypt pairs preserve full state/RNG/actions, currency and public
+account closure, and pass supported replay/source checks. The snapshot gate
+found two actual writers: the missed debt-service deadline's -0.15 legitimacy
+loss and state terror's -0.20 loss in the resistance manager. Both now emit
+replayable `politics.legitimacy` events; debt loss cites the defaulted bond
+events, and state terror links its event to the enforcement outcome. Existing
+fixtures now assert these values and links. The emergency constable and Egypt
+crisis trace suites pass 20 tests. A fresh seed-1878 20-turn on/off pair is
+required to close the snapshot and state-neutrality gates for these fixes.
+
+Egypt's pre-fix 20-turn measurements show 7.6–7.8 million rows, about 5.1–5.3
+GB decoded data, 654–660 MB peak RSS and 31.6–35.6× step CPU cost with recording.
+This material performance gap and the large indexed-inspection cost keep phase
+6 and the phase 8 budget gate open. No regression threshold is declared until
+the diagnosed event-volume and serialization costs have an optimization pass.

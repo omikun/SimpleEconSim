@@ -354,6 +354,31 @@ class ScenarioNavalCrisisTraceTests(unittest.TestCase):
         self.assertEqual(escalation['inputs']['reason'],
                          'contest_customs_claim')
 
+    def test_explicit_debt_default_records_and_links_legitimacy_loss(self):
+        from scenario_egypt_1877 import apply_action
+        world, trace = _fixture(stage='none', turn=7)
+        state = world['scenario_state']
+        state['payment_window_turn'] = 6
+        state['payment_status'] = 'unpaid'
+        state['last_action_turn'] = None
+        egypt = next(nation for nation in world['nations']
+                     if nation.name == 'Egypt')
+        egypt.legitimacy = 0.12
+
+        success, _ = apply_action(world, 'default_remittance')
+
+        self.assertTrue(success)
+        row = next(event for event in trace.rows
+                   if event.get('kind') == 'caisse_default_legitimacy_loss')
+        self.assertEqual(row['metric_id'], 'politics.legitimacy')
+        self.assertAlmostEqual(row['before'], 0.12)
+        self.assertEqual(row['after'], 0.0)
+        self.assertEqual(row['formula_id'], 'policy.additive_floor.v1')
+        default_ids = {event['event_id'] for event in trace.rows
+                       if event.get('kind') == 'caisse_default'}
+        self.assertEqual(set(row['cause_event_ids']), default_ids)
+        self.assertEqual(row['inputs']['reason'], 'player_default_remittance')
+
     def test_active_crisis_rejects_a_repeat_trigger_without_state_change(self):
         world, trace = _fixture(stage='ultimatum')
         before = world['scenario_state']['naval_crisis'].copy()

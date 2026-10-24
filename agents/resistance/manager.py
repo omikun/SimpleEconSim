@@ -517,6 +517,7 @@ class PopularResistanceManager:
                              if owner is not None else None)
         capacity_event_id = None
         payment_event_id = None
+        legitimacy_event_id = None
 
         def record_outcome(outcome, success, details=None, casualty_ids=None):
             if not trace_enabled:
@@ -526,7 +527,8 @@ class PopularResistanceManager:
                            if str(agent.id) in participant_ids_before
                            and getattr(agent, 'alive', True)]
             cause_ids = [event_id for event_id in
-                         (capacity_event_id, payment_event_id) if event_id]
+                         (capacity_event_id, payment_event_id,
+                          legitimacy_event_id) if event_id]
             from run_trace import emit
             return emit(
                 tile, kind='enclosure_revolt_interdiction_outcome',
@@ -556,6 +558,7 @@ class PopularResistanceManager:
                         for unit in getattr(tile, 'military_units', ()))),
                     'capacity_event_id': capacity_event_id,
                     'mobilization_payment_event_id': payment_event_id,
+                    'legitimacy_event_id': legitimacy_event_id,
                 },
                 cause_event_ids=cause_ids or None)
 
@@ -769,7 +772,24 @@ class PopularResistanceManager:
 
             owner = getattr(tile, 'owner_nation', None)
             if owner:
-                owner.legitimacy = max(0.05, getattr(owner, 'legitimacy', 0.6) - 0.20)
+                legitimacy_before = float(getattr(owner, 'legitimacy', 0.6))
+                owner.legitimacy = max(0.05, legitimacy_before - 0.20)
+                if trace_enabled:
+                    from run_trace import emit
+                    cause_ids = [event_id for event_id in
+                                 (capacity_event_id, payment_event_id) if event_id]
+                    legitimacy_event_id = emit(
+                        tile, kind='state_terror_legitimacy_loss',
+                        record_class='outcome', phase='policy_action',
+                        subject={'type': 'nation', 'id': owner.name},
+                        metric_id='politics.legitimacy', unit='ratio',
+                        before=legitimacy_before, after=float(owner.legitimacy),
+                        formula_id='policy.additive_floor.v1',
+                        inputs={'change': -0.20, 'floor': 0.05,
+                                'reason': 'state_terror',
+                                'tile_id': tile.name,
+                                'casualties': int(kill_count)},
+                        cause_event_ids=cause_ids or None)
 
             msg = f"🩸 STATE TERROR: Armed state forces ruthlessly crushed the peasant march in {tile.name} ({kill_count} killed). A 10-turn terrorized peace smothers revolt organizing."
             if world:
