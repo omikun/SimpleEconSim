@@ -108,9 +108,12 @@ def emit_tax_distribution(region, *, turn, closing, receipts=(), opening=None,
     latest = (getattr(recorder, 'latest_metric_calculation_event_id', None)
               or getattr(recorder, 'latest_metric_event_id', None))
     event_ids = []
+    receipt_write_ids = [event_id for receipt in receipts
+                         for event_id in receipt.get('public_write_event_ids', ())]
     for tier in tiers:
         subject = {'type': 'tile', 'id': region.name, 'tax_tier': tier}
         causes = list(cause_event_ids or ())
+        causes.extend(receipt_write_ids)
         previous_id = latest('finance.tax_distribution', subject) if callable(latest) else None
         if previous_id is not None:
             causes.append(previous_id)

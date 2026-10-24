@@ -178,6 +178,7 @@ class CoCHTTPRequestHandler(BaseHTTPRequestHandler):
                         return
                     trace_path = sim.run_trace.path
                     run_id = sim.run_trace.run_id
+                    sim.run_trace.publish()
                     boundary = sim.run_trace._compact_writer.end_offset
                 compact = query.get('format', ['jsonl'])[0] == 'compact'
                 download_extension = 'ctr' if compact else 'jsonl'

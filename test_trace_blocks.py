@@ -18,6 +18,7 @@ class TraceBlockTests(unittest.TestCase):
     def test_torn_tail_and_checksum_corruption_are_different(self):
         with tempfile.TemporaryDirectory() as d:
             path=Path(d)/'blocks.ctr';writer=CompactTraceWriter(path);writer.append('a');writer.append('b')
+            writer.publish()
             original=path.read_bytes();path.write_bytes(original[:-1])
             with self.assertRaises(TornTraceTail):list(iter_payloads(path))
             changed=bytearray(original);changed[-6]^=1;path.write_bytes(changed)

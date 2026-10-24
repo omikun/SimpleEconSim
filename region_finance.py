@@ -738,7 +738,9 @@ def collect_tax(region, t):
                               reason='government_debt_service')
             public_change = begin_public_change(region, gov, cash=True)
             gov.cash -= payment
-            finish_public_change(public_change, 'fiscal_debt_service')
+            debt_service_write_ids = finish_public_change(
+                public_change, 'fiscal_debt_service',
+                inputs={'amount': payment, 'loan_principal_remaining_before': remaining})
             loan.pay(payment)
             from economy.actor_accounts import record as record_economic_event
             record_economic_event(region, 'bank_loan_repayment', turn=t,
@@ -748,7 +750,8 @@ def collect_tax(region, t):
             service_id = _trace_treasury_flow(
                 region, 'government_loan_service', -payment,
                 {'loan_principal_remaining_before': remaining,
-                 'amount_due': amount_due})
+                 'amount_due': amount_due},
+                cause_event_ids=debt_service_write_ids)
             if service_id is not None:
                 debt_service_trace_ids.append(service_id)
         if loan.isPaid():
@@ -882,6 +885,7 @@ def collect_tax(region, t):
                     prov_gov = getattr(province, 'gov', None) if province else None
                     tile_gov = region.gov
                     nat_share = prov_share = tile_share = 0.0
+                    public_write_event_ids = []
 
                     if nat_gov is not None and nat_gov is not tile_gov:
                         if prov_gov is not None and prov_gov is not tile_gov and prov_gov is not nat_gov:
@@ -892,17 +896,26 @@ def collect_tax(region, t):
 
                             public_change = begin_public_change(region, nat_gov.agent, cash=True)
                             nat_gov.agent.cash += nat_share
-                            finish_public_change(public_change, 'national_income_tax_receipt')
+                            public_write_event_ids.extend(finish_public_change(
+                                public_change, 'national_income_tax_receipt',
+                                inputs={'payer_id': a.id, 'amount': nat_share,
+                                        'tax_tier': 'national'}))
                             nat_gov.record_income(t, 'tax', nat_share)
 
                             public_change = begin_public_change(region, prov_gov.agent, cash=True)
                             prov_gov.agent.cash += prov_share
-                            finish_public_change(public_change, 'provincial_income_tax_receipt')
+                            public_write_event_ids.extend(finish_public_change(
+                                public_change, 'provincial_income_tax_receipt',
+                                inputs={'payer_id': a.id, 'amount': prov_share,
+                                        'tax_tier': 'provincial'}))
                             prov_gov.record_income(t, 'tax', prov_share)
 
                             public_change = begin_public_change(region, tile_gov.agent, cash=True)
                             tile_gov.agent.cash += tile_share
-                            finish_public_change(public_change, 'local_income_tax_receipt')
+                            public_write_event_ids.extend(finish_public_change(
+                                public_change, 'local_income_tax_receipt',
+                                inputs={'payer_id': a.id, 'amount': tile_share,
+                                        'tax_tier': 'municipal'}))
                             tile_gov.record_income(t, 'tax', tile_share)
 
                             turn_nat_tax += nat_share
@@ -916,12 +929,18 @@ def collect_tax(region, t):
 
                             public_change = begin_public_change(region, nat_gov.agent, cash=True)
                             nat_gov.agent.cash += nat_share
-                            finish_public_change(public_change, 'national_income_tax_receipt')
+                            public_write_event_ids.extend(finish_public_change(
+                                public_change, 'national_income_tax_receipt',
+                                inputs={'payer_id': a.id, 'amount': nat_share,
+                                        'tax_tier': 'national'}))
                             nat_gov.record_income(t, 'tax', nat_share)
 
                             public_change = begin_public_change(region, tile_gov.agent, cash=True)
                             tile_gov.agent.cash += tile_share
-                            finish_public_change(public_change, 'local_income_tax_receipt')
+                            public_write_event_ids.extend(finish_public_change(
+                                public_change, 'local_income_tax_receipt',
+                                inputs={'payer_id': a.id, 'amount': tile_share,
+                                        'tax_tier': 'municipal'}))
                             tile_gov.record_income(t, 'tax', tile_share)
 
                             turn_nat_tax += nat_share
@@ -932,7 +951,10 @@ def collect_tax(region, t):
                         tile_share = actual
                         public_change = begin_public_change(region, tile_gov.agent, cash=True)
                         tile_gov.agent.cash += actual
-                        finish_public_change(public_change, 'local_income_tax_receipt')
+                        public_write_event_ids.extend(finish_public_change(
+                            public_change, 'local_income_tax_receipt',
+                            inputs={'payer_id': a.id, 'amount': actual,
+                                    'tax_tier': 'municipal'}))
                         tile_gov.record_income(t, 'tax', actual)
                         turn_tile_tax += actual
 
@@ -943,6 +965,7 @@ def collect_tax(region, t):
                     tax_receipts.append({
                         'payer_id': a.id, 'amount': float(actual),
                         'allocations': allocations, 'split_rule': split_rule,
+                        'public_write_event_ids': public_write_event_ids,
                         'recipient_governments': {
                             tier: getattr(treasury, 'name', None) for tier, treasury in
                             (('national', nat_gov), ('provincial', prov_gov),

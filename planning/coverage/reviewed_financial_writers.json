@@ -2001,37 +2001,203 @@
       "unit": "existing_local_currency",
       "writer": "explicit_conditional_public_probe"
     },
-    "region_finance.py:collect_tax:224c78dacc339e99:1": {
+    "region_finance.py:collect_tax:2054736b5027684b:1": {
+      "account_type": "government cash",
       "calling_path": "collect_tax",
-      "closure": "scenario_rerun_pending",
+      "closure": "covered by timed public account chain in registered world fixtures; individual branch closure remains scenario-dependent",
       "fixtures": [
-        "causal_acceptance.py: labor_frontier_rivalry seed 612 three-turn rerun pending"
+        "test_fiscal_policy_trace.FiscalPolicyTraceTests.test_trace_preserves_borrowing_debt_service_and_random_state",
+        "test_fiscal_policy_trace.FiscalPolicyTraceTests.test_assessment_and_all_treasury_splits_match_untraced_outcomes"
       ],
       "formula": "not_applicable_direct_write",
-      "links": "assessment_context_recorded",
-      "missing_work": "Complete scenario rerun and relevant rejected/refunded branches; this source classification does not certify complete source provenance.",
+      "links": "public_account_write linked to government_loan_service for debt service; recipient writes linked from tax receipt to tax distribution",
+      "missing_work": "Complete authored scenario acceptance and government alias/ownership lifecycle coverage.",
       "owner": "region_finance.py:collect_tax",
-      "review": "reviewed_scenario_acceptance_repair",
-      "sampling": "actual_mutation_boundary",
-      "ui": "shared_account_inspector",
-      "unit": "existing_local_currency",
-      "writer": "explicit_conditional_public_probe"
+      "review": "reviewed_source_classification",
+      "sampling": "immediately before and after the actual government cash mutation",
+      "semantic_records": [
+        "tax_revenue_distribution_calculation",
+        "public_account_write"
+      ],
+      "ui": "shared trace inspector",
+      "unit": "existing local currency",
+      "writer": "conditional_treasury_cash_probe"
+    },
+    "region_finance.py:collect_tax:224c78dacc339e99:1": {
+      "account_type": "private cash; excluded from public treasury stock",
+      "calling_path": "collect_tax",
+      "closure": "not applicable to public treasury; taxpayer cash is privately owned",
+      "fixtures": [
+        "test_fiscal_policy_trace.FiscalPolicyTraceTests.test_tax_bases_capture_deductions_losses_and_liquidity_limits",
+        "test_fiscal_policy_trace.FiscalPolicyTraceTests.test_assessment_and_all_treasury_splits_match_untraced_outcomes"
+      ],
+      "formula": "fiscal.income_tax_assessment.v1",
+      "links": "assessment calculation stores payer amount and cash/deposit before and after; public recipient writes linked through tax receipts",
+      "missing_work": "Does not establish every scenario caller or UI history binding.",
+      "owner": "region_finance.py:collect_tax",
+      "review": "reviewed_source_classification",
+      "sampling": "assessment bill records payer cash before and after debit",
+      "semantic_records": [
+        "income_tax_assessment_calculation",
+        "tax_revenue_distribution_calculation"
+      ],
+      "ui": "shared trace inspector",
+      "unit": "existing local currency",
+      "writer": "private_taxpayer_cash_debit"
+    },
+    "region_finance.py:collect_tax:2b7c90af34791a8c:1": {
+      "account_type": "government cash",
+      "calling_path": "collect_tax",
+      "closure": "covered by timed public account chain in registered world fixtures; individual branch closure remains scenario-dependent",
+      "fixtures": [
+        "test_fiscal_policy_trace.FiscalPolicyTraceTests.test_trace_preserves_borrowing_debt_service_and_random_state",
+        "test_fiscal_policy_trace.FiscalPolicyTraceTests.test_assessment_and_all_treasury_splits_match_untraced_outcomes"
+      ],
+      "formula": "not_applicable_direct_write",
+      "links": "public_account_write linked to government_loan_service for debt service; recipient writes linked from tax receipt to tax distribution",
+      "missing_work": "Complete authored scenario acceptance and government alias/ownership lifecycle coverage.",
+      "owner": "region_finance.py:collect_tax",
+      "review": "reviewed_source_classification",
+      "sampling": "immediately before and after the actual government cash mutation",
+      "semantic_records": [
+        "tax_revenue_distribution_calculation",
+        "public_account_write"
+      ],
+      "ui": "shared trace inspector",
+      "unit": "existing local currency",
+      "writer": "conditional_treasury_cash_probe"
     },
     "region_finance.py:collect_tax:353f4eda15a18971:1": {
+      "account_type": "private cash; excluded from public treasury stock",
       "calling_path": "collect_tax",
-      "closure": "scenario_rerun_pending",
+      "closure": "not applicable to public treasury; taxpayer cash is privately owned",
       "fixtures": [
-        "causal_acceptance.py: labor_frontier_rivalry seed 612 three-turn rerun pending"
+        "test_fiscal_policy_trace.FiscalPolicyTraceTests.test_tax_bases_capture_deductions_losses_and_liquidity_limits",
+        "test_fiscal_policy_trace.FiscalPolicyTraceTests.test_assessment_and_all_treasury_splits_match_untraced_outcomes"
+      ],
+      "formula": "fiscal.income_tax_assessment.v1",
+      "links": "assessment calculation stores payer amount and cash/deposit before and after; public recipient writes linked through tax receipts",
+      "missing_work": "Does not establish every scenario caller or UI history binding.",
+      "owner": "region_finance.py:collect_tax",
+      "review": "reviewed_source_classification",
+      "sampling": "assessment bill records payer cash before and after debit",
+      "semantic_records": [
+        "income_tax_assessment_calculation",
+        "tax_revenue_distribution_calculation"
+      ],
+      "ui": "shared trace inspector",
+      "unit": "existing local currency",
+      "writer": "private_taxpayer_cash_debit"
+    },
+    "region_finance.py:collect_tax:5239666a72b2b4d4:1": {
+      "account_type": "government cash",
+      "calling_path": "collect_tax",
+      "closure": "covered by timed public account chain in registered world fixtures; individual branch closure remains scenario-dependent",
+      "fixtures": [
+        "test_fiscal_policy_trace.FiscalPolicyTraceTests.test_trace_preserves_borrowing_debt_service_and_random_state",
+        "test_fiscal_policy_trace.FiscalPolicyTraceTests.test_assessment_and_all_treasury_splits_match_untraced_outcomes"
       ],
       "formula": "not_applicable_direct_write",
-      "links": "assessment_context_recorded",
-      "missing_work": "Complete scenario rerun and relevant rejected/refunded branches; this source classification does not certify complete source provenance.",
+      "links": "public_account_write linked to government_loan_service for debt service; recipient writes linked from tax receipt to tax distribution",
+      "missing_work": "Complete authored scenario acceptance and government alias/ownership lifecycle coverage.",
       "owner": "region_finance.py:collect_tax",
-      "review": "reviewed_scenario_acceptance_repair",
-      "sampling": "actual_mutation_boundary",
-      "ui": "shared_account_inspector",
-      "unit": "existing_local_currency",
-      "writer": "explicit_conditional_public_probe"
+      "review": "reviewed_source_classification",
+      "sampling": "immediately before and after the actual government cash mutation",
+      "semantic_records": [
+        "government_loan_service",
+        "public_account_write"
+      ],
+      "ui": "shared trace inspector",
+      "unit": "existing local currency",
+      "writer": "conditional_treasury_cash_probe"
+    },
+    "region_finance.py:collect_tax:54964e313bc74448:1": {
+      "account_type": "government cash",
+      "calling_path": "collect_tax",
+      "closure": "covered by timed public account chain in registered world fixtures; individual branch closure remains scenario-dependent",
+      "fixtures": [
+        "test_fiscal_policy_trace.FiscalPolicyTraceTests.test_trace_preserves_borrowing_debt_service_and_random_state",
+        "test_fiscal_policy_trace.FiscalPolicyTraceTests.test_assessment_and_all_treasury_splits_match_untraced_outcomes"
+      ],
+      "formula": "not_applicable_direct_write",
+      "links": "public_account_write linked to government_loan_service for debt service; recipient writes linked from tax receipt to tax distribution",
+      "missing_work": "Complete authored scenario acceptance and government alias/ownership lifecycle coverage.",
+      "owner": "region_finance.py:collect_tax",
+      "review": "reviewed_source_classification",
+      "sampling": "immediately before and after the actual government cash mutation",
+      "semantic_records": [
+        "tax_revenue_distribution_calculation",
+        "public_account_write"
+      ],
+      "ui": "shared trace inspector",
+      "unit": "existing local currency",
+      "writer": "conditional_treasury_cash_probe"
+    },
+    "region_finance.py:collect_tax:57ceaf2d344202d2:1": {
+      "account_type": "government cash",
+      "calling_path": "collect_tax",
+      "closure": "covered by timed public account chain in registered world fixtures; individual branch closure remains scenario-dependent",
+      "fixtures": [
+        "test_fiscal_policy_trace.FiscalPolicyTraceTests.test_trace_preserves_borrowing_debt_service_and_random_state",
+        "test_fiscal_policy_trace.FiscalPolicyTraceTests.test_assessment_and_all_treasury_splits_match_untraced_outcomes"
+      ],
+      "formula": "not_applicable_direct_write",
+      "links": "public_account_write linked to government_loan_service for debt service; recipient writes linked from tax receipt to tax distribution",
+      "missing_work": "Complete authored scenario acceptance and government alias/ownership lifecycle coverage.",
+      "owner": "region_finance.py:collect_tax",
+      "review": "reviewed_source_classification",
+      "sampling": "immediately before and after the actual government cash mutation",
+      "semantic_records": [
+        "tax_revenue_distribution_calculation",
+        "public_account_write"
+      ],
+      "ui": "shared trace inspector",
+      "unit": "existing local currency",
+      "writer": "conditional_treasury_cash_probe"
+    },
+    "region_finance.py:collect_tax:807d676ad86132e0:1": {
+      "account_type": "government cash",
+      "calling_path": "collect_tax",
+      "closure": "covered by timed public account chain in registered world fixtures; individual branch closure remains scenario-dependent",
+      "fixtures": [
+        "test_fiscal_policy_trace.FiscalPolicyTraceTests.test_trace_preserves_borrowing_debt_service_and_random_state",
+        "test_fiscal_policy_trace.FiscalPolicyTraceTests.test_assessment_and_all_treasury_splits_match_untraced_outcomes"
+      ],
+      "formula": "not_applicable_direct_write",
+      "links": "public_account_write linked to government_loan_service for debt service; recipient writes linked from tax receipt to tax distribution",
+      "missing_work": "Complete authored scenario acceptance and government alias/ownership lifecycle coverage.",
+      "owner": "region_finance.py:collect_tax",
+      "review": "reviewed_source_classification",
+      "sampling": "immediately before and after the actual government cash mutation",
+      "semantic_records": [
+        "tax_revenue_distribution_calculation",
+        "public_account_write"
+      ],
+      "ui": "shared trace inspector",
+      "unit": "existing local currency",
+      "writer": "conditional_treasury_cash_probe"
+    },
+    "region_finance.py:collect_tax:830e6e7c24ad7cb9:1": {
+      "account_type": "government cash",
+      "calling_path": "collect_tax",
+      "closure": "covered by timed public account chain in registered world fixtures; individual branch closure remains scenario-dependent",
+      "fixtures": [
+        "test_fiscal_policy_trace.FiscalPolicyTraceTests.test_trace_preserves_borrowing_debt_service_and_random_state",
+        "test_fiscal_policy_trace.FiscalPolicyTraceTests.test_assessment_and_all_treasury_splits_match_untraced_outcomes"
+      ],
+      "formula": "not_applicable_direct_write",
+      "links": "public_account_write linked to government_loan_service for debt service; recipient writes linked from tax receipt to tax distribution",
+      "missing_work": "Complete authored scenario acceptance and government alias/ownership lifecycle coverage.",
+      "owner": "region_finance.py:collect_tax",
+      "review": "reviewed_source_classification",
+      "sampling": "immediately before and after the actual government cash mutation",
+      "semantic_records": [
+        "tax_revenue_distribution_calculation",
+        "public_account_write"
+      ],
+      "ui": "shared trace inspector",
+      "unit": "existing local currency",
+      "writer": "conditional_treasury_cash_probe"
     },
     "region_finance.py:pay_wages:2781207220d5d2a8:1": {
       "account_type": "corporate_to_worker_cash_with_conditional_public_aliases",

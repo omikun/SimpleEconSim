@@ -11,6 +11,7 @@ import unittest
 from agent import Agent, initialize_agent
 from goods import Goods
 from government import Government
+from nation import Nation
 from region import Region
 from region_finance import collect_tax
 from run_trace import RunTrace
@@ -20,7 +21,8 @@ from trace_snapshots import sample
 def _region(*, cash=0.0, rate=0.25, gaps=()):
     region = Region('District', t=0, number_of_agents=0)
     region.home_currency = 'D'
-    region.owner_nation = SimpleNamespace(name='Nation', currency='D')
+    nation = Nation('Nation', 'D', initial_cash=0, register=False)
+    nation.add_tile(region)
     region.food_price = 1.0
     region.gov.agent.cash = cash
     region.gov.food_inventory = 0
@@ -62,6 +64,8 @@ def _income_region(tiers=3, *, limited_cash=False, deduction=0.0,
         region.bank.total_deposits = 1.0
     if tiers >= 2:
         region.owner_nation.government = Government('National', 0, initial_cash=0)
+    else:
+        region.owner_nation.government = None
     if tiers == 3:
         region.province = SimpleNamespace(
             gov=Government('Provincial', 0, initial_cash=0))
@@ -90,6 +94,8 @@ class FiscalPolicyTraceTests(unittest.TestCase):
                 traced._run_trace = trace
                 traced._collective_trace_clock = {
                     'turn': 1, 'phase': 'finance', 'next': 1}
+                trace.treasury_book.register_nations([traced.owner_nation],
+                                                     traced._collective_trace_clock)
                 collect_tax(traced, 1)
                 collect_tax(plain, 1)
                 self.assertEqual(_state(traced), _state(plain))
@@ -111,11 +117,20 @@ class FiscalPolicyTraceTests(unittest.TestCase):
                 distributions = [row for row in trace.recent
                                  if row.get('metric_id') == 'finance.tax_distribution']
                 self.assertEqual(len(distributions), 4)
+                receipt_write_ids = {
+                    event_id for receipt in distributions[0]['inputs']['receipts']
+                    for event_id in receipt['public_write_event_ids']}
+                expected_write_count = {1: 2, 2: 4, 3: 6}[tiers]
+                self.assertEqual(len(receipt_write_ids), expected_write_count)
+                rows_by_id = {row['event_id']: row for row in trace.recent}
+                for event_id in receipt_write_ids:
+                    self.assertEqual(rows_by_id[event_id]['kind'], 'public_account_write')
                 for row in distributions:
                     tier = row['subject']['tax_tier']
                     self.assertEqual(row['value_after'], expected_splits[tiers][tier])
                     self.assertTrue(row['formula_replay']['matches'])
                     self.assertIn(assessment['event_id'], row['cause_event_ids'])
+                    self.assertTrue(receipt_write_ids.issubset(set(row['cause_event_ids'])))
                 snapshots = sample([traced], [])
                 for tier, expected in expected_splits[tiers].items():
                     self.assertEqual(snapshots[(
@@ -217,6 +232,10 @@ class FiscalPolicyTraceTests(unittest.TestCase):
             service = next(row for row in rows
                            if row['kind'] == 'government_loan_service')
             self.assertIn(service['event_id'], budget['cause_event_ids'])
+            by_id = {row['event_id']: row for row in rows}
+            self.assertTrue(service['cause_event_ids'])
+            self.assertTrue(all(by_id[event_id]['kind'] == 'public_account_write'
+                                for event_id in service['cause_event_ids']))
             self.assertTrue(budget['formula_replay']['matches'])
             borrowing = [row for row in rows
                          if row['kind'] == 'government_bank_borrowing']

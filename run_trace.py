@@ -99,6 +99,14 @@ class RunTrace:
         self.count += 1
         self.digest = hashlib.sha256((self.digest + payload).encode('utf-8')).hexdigest()
 
+    def publish(self):
+        """Flush a complete trace prefix and retain delayed I/O failures."""
+        try:
+            return self._compact_writer.publish()
+        except OSError as exc:
+            self.write_error = str(exc)
+            raise
+
     def emit(self, clock, *, kind, record_class='observation', phase=None,
              subject=None, metric_id=None, before=None, after=None,
              unit=None, inputs=None, formula_id=None, constraints=None,
@@ -473,14 +481,17 @@ class RunTrace:
 
     def checkpoint(self, clock):
         """End a turn with a count and hash of every preceding decoded row."""
-        return self.emit(clock, kind='turn_checkpoint', record_class='audit',
-                         phase='checkpoint', count_before=self.count,
-                         sha256_before=self.digest)
+        event_id = self.emit(clock, kind='turn_checkpoint', record_class='audit',
+                             phase='checkpoint', count_before=self.count,
+                             sha256_before=self.digest)
+        self.publish()
+        return event_id
 
 
     def query(self, *, turn=None, subject=None, metric_id=None, kind=None,
               event_id=None, offset=0, limit=100, boundary=None):
         from trace_index import TraceIndex
+        self.publish()
         result = TraceIndex(self.path).query(
             boundary=self._compact_writer.end_offset if boundary is None else boundary,
             turn=turn,subject=subject,metric_id=metric_id,kind=kind,

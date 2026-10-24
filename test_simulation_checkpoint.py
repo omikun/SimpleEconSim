@@ -160,6 +160,8 @@ print('FULL_STATE_DIGEST='+state_digest(full))
             source=server.run_trace.path
             saved=json.loads(manifest.read_text())
             server.run_trace.emit(server.tiles[0]._collective_trace_clock,kind='uncommitted_test')
+            # Model a process crash after the uncommitted tail reached disk.
+            server.run_trace._compact_writer.publish()
             damaged=source.read_bytes()[:-1]
             source.write_bytes(damaged)
             recovered,report=recover(manifest,source,Path(directory)/'recovery')

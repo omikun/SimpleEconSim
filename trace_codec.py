@@ -1,13 +1,16 @@
 """Framed compact trace with independently decodable compressed blocks.
 
-Every record is synchronously flushed and checksummed. A new block resets the
-DEFLATE dictionary, providing safe seek/resume boundaries without pickling a
-compressor. JSONL is a decoded export; legacy trace input is not supported.
+Every record is checksummed. A new block resets the DEFLATE dictionary,
+providing safe seek/resume boundaries without pickling a compressor. Writers
+publish at block, query and checkpoint boundaries. JSONL is a decoded export;
+legacy trace input is not supported.
 """
 from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 import struct
+import threading
+import weakref
 import zlib
 
 MAGIC = b'COCTRACE3\n'
@@ -15,6 +18,9 @@ SYNC_MARKER = b'\x00\x00\xff\xff'
 HEADER = struct.Struct('>cII')
 BLOCK_RECORDS = 256
 MAX_FRAME = 64 * 1024 * 1024
+
+_OPEN_WRITERS = weakref.WeakValueDictionary()
+_OPEN_WRITERS_LOCK = threading.Lock()
 
 
 class TornTraceTail(ValueError):
@@ -50,13 +56,38 @@ class CompactTraceWriter:
             with self.path.open('xb') as stream:
                 stream.write(MAGIC)
             self.end_offset = len(MAGIC)
-        # One writer owns this append-only file. Unbuffered writes publish each
-        # complete frame to readers without opening/stat-ing the path per row.
-        self._stream=self.path.open('ab',buffering=0)
+        # Frames are independently decodable, but publishing every small frame
+        # forces a filesystem write for every causal event. Buffer bytes until a
+        # block boundary or an explicit reader/checkpoint publication.
+        self._stream=self.path.open('ab',buffering=1024 * 1024)
+        self._lock = threading.RLock()
+        self._published_file_size = self.path.stat().st_size
+        self._published_offset = self.end_offset
+        with _OPEN_WRITERS_LOCK:
+            _OPEN_WRITERS[str(self.path.resolve())] = self
 
     def close(self):
         stream=getattr(self,'_stream',None)
-        if stream is not None:stream.close()
+        if stream is not None and not stream.closed:
+            with getattr(self, '_lock', threading.RLock()):
+                if not stream.closed:
+                    stream.flush()
+                    stream.close()
+        with _OPEN_WRITERS_LOCK:
+            if _OPEN_WRITERS.get(str(self.path.resolve())) is self:
+                _OPEN_WRITERS.pop(str(self.path.resolve()), None)
+
+    def publish(self):
+        """Make all complete frames visible to readers and return their boundary."""
+        with self._lock:
+            if self._stream.closed:
+                raise OSError('compact trace writer is closed')
+            if self.path.stat().st_size != self._published_file_size:
+                raise OSError('compact trace changed outside its active writer')
+            self._stream.flush()
+            self._published_file_size += self.end_offset - self._published_offset
+            self._published_offset = self.end_offset
+            return self.end_offset
 
     def __del__(self):
         self.close()
@@ -76,16 +107,32 @@ class CompactTraceWriter:
             raise ValueError('trace frame exceeds configured size limit')
         frame = HEADER.pack(b'D', len(chunk), zlib.crc32(chunk)) + chunk
         if start:frame=HEADER.pack(b'S',0,0)+frame
-        if self._stream.closed:raise OSError('compact trace writer is closed')
-        written=self._stream.write(frame)
-        if written!=len(frame):raise OSError('incomplete compact trace frame write')
-        self.end_offset += written
-        self.in_block += 1
+        with self._lock:
+            if self._stream.closed:raise OSError('compact trace writer is closed')
+            written=self._stream.write(frame)
+            if written!=len(frame):raise OSError('incomplete compact trace frame write')
+            self.end_offset += written
+            self.in_block += 1
+            if self.in_block >= self.block_records:
+                self._stream.flush()
+                self._published_file_size += self.end_offset - self._published_offset
+                self._published_offset = self.end_offset
 
 
 def iter_records(path, *, start_offset=None, end_offset=None):
     """Yield payload and rebuildable block coordinates within a fixed boundary."""
     path = Path(path)
+    # Same-process readers (inspection, verification, checkpoints) see the
+    # writer's complete published prefix even when it has buffered a partial
+    # block. Other processes see completed blocks and explicit checkpoints.
+    with _OPEN_WRITERS_LOCK:
+        writer = _OPEN_WRITERS.get(str(path.resolve()))
+    if writer is not None and not writer._stream.closed:
+        try:
+            writer.publish()
+        except OSError as error:
+            if 'changed outside its active writer' not in str(error):
+                raise
     with path.open('rb') as stream:
         if stream.read(len(MAGIC)) != MAGIC:
             raise ValueError('unsupported causal trace format; expected current compact .ctr blocks')

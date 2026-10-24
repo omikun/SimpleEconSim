@@ -52,7 +52,7 @@ annexation, many scenario actions, save/resume or long-run performance.
 
 | Phase | Implemented evidence | Remaining gate |
 |---|---|---|
-| 0 | Writer/metric/history inventory; 105 source reviews of 507 financial candidates; 363 writer IDs located in probe literals | 402 reviews, active-path and complete history/UI classifications |
+| 0 | Writer/metric/history inventory; 112 source reviews of 507 financial candidates; 363 writer IDs located in probe literals | 395 reviews, active-path and complete history/UI classifications |
 | 1–2 | Military/medical/sovereign/rescue/subsidy fixtures; 127 further public probes; command boundaries | Rare branches and complete semantic payment-to-write contracts |
 | 3 | Timed native ownership/institution setters with shared-account fixtures | Additional nation creation/direct edits and scenario acceptance |
 | 4 | Independent economic replay, stock/source contracts and linked snapshots | Unsupported AI/scenario formulas and complete per-metric provenance |
@@ -1044,6 +1044,31 @@ and exact semantic-payment-to-mutation IDs still need forced fixtures and source
 contracts. Inventory regeneration reports 105 reviewed and 402 pending of 507;
 the review count is source classification, not a coverage percentage.
 
+### Trace publication batching and fiscal receipt links (2026-10-24)
+
+Changed compact writer publication from every event to complete 256-record block,
+explicit query, and checkpoint boundaries. The stream buffers up to 1 MiB; the
+writer keeps logical offsets and publishes all bytes before same-process readers,
+web compact downloads, and checkpoint verification use them. Readers detect an
+externally changed live file instead of flushing stale buffered rows into it.
+Torn-tail, fixed-boundary index, resume and checkpoint recovery tests pass.
+The 30,000-row writer-only comparison is 0.071s buffered versus 0.124s
+unbuffered (1.76x); encoded outputs decode identically. This isolates append I/O
+and does not show that the 33x Egypt simulation cost or index-inspection time is
+within budget. Current-source scenario acceptance and final performance limits
+remain open.
+
+Tax source review found that distribution receipts carried amounts and tier
+allocations but omitted links to the government cash mutations receiving them.
+Each tax receipt now stores its `public_account_write` event IDs and tax
+distribution calculations link to those writes. Government debt-service cash
+writes also link to the corresponding `government_loan_service` flow. Fiscal
+fixtures verify one-, two- and three-tier splits, all receipt links, debt-service
+links, and traced/untraced parity. Inventory regeneration reports 112 reviewed
+and 395 pending of 507; this remains source classification, not a coverage
+percentage. Authored scenario acceptance and all fiscal edge branches remain
+open.
+
 ### Current-source release findings and legitimacy source fixes (2026-10-24)
 
 The pinned `9bafd9a` release matrix completed at
@@ -1087,6 +1112,8 @@ performance budget remain open.
 
 Egypt's pre-fix 20-turn measurements show 7.6–7.8 million rows, about 5.1–5.3
 GB decoded data, 654–660 MB peak RSS and 31.6–35.6× step CPU cost with recording.
-This material performance gap and the large indexed-inspection cost keep phase
-6 and the phase 8 budget gate open. No regression threshold is declared until
-the diagnosed event-volume and serialization costs have an optimization pass.
+Block/query/checkpoint batching reduces writer-only append time by 1.76x in a
+30,000-row microbenchmark, but its effect on native scenarios has not yet been
+measured. This material performance gap and the large indexed-inspection cost
+keep phase 6 and the phase 8 budget gate open. No regression threshold is
+declared until the optimized writer is measured across the acceptance matrix.

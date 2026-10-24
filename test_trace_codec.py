@@ -13,12 +13,33 @@ from trace_report import report
 
 
 class TraceCodecTests(unittest.TestCase):
+    def test_writer_buffers_partial_block_until_reader_publishes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory)/'buffered.ctr';writer=CompactTraceWriter(path)
+            writer.append('{"index":0}')
+            writer.append('{"index":1}')
+            self.assertEqual(len(MAGIC),path.stat().st_size)
+            self.assertEqual(['{"index":0}','{"index":1}'],
+                             list(iter_payloads(path)))
+            self.assertEqual(writer.end_offset,path.stat().st_size)
+            writer.close()
+
+    def test_delayed_publish_io_failure_is_recorded_on_run_trace(self):
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as directory:
+            trace=RunTrace(Path(directory)/'publish-error.ctr','publish-error')
+            with patch.object(trace._compact_writer,'publish',side_effect=OSError('disk full')):
+                with self.assertRaisesRegex(OSError,'disk full'):
+                    trace.publish()
+            self.assertEqual('disk full',trace.write_error)
+
     def test_persistent_writer_publishes_without_path_reopens_and_rejects_short_write(self):
         from unittest.mock import patch
         with tempfile.TemporaryDirectory() as directory:
             path=Path(directory)/'persistent.ctr';writer=CompactTraceWriter(path)
             with patch.object(Path,'open',side_effect=AssertionError('append reopened file')),patch.object(Path,'stat',side_effect=AssertionError('append stat-ed file')):
                 for index in range(300):writer.append(json.dumps({'index':index}))
+            writer.publish()
             self.assertEqual(writer.end_offset,path.stat().st_size)
             self.assertEqual(300,len(list(iter_payloads(path))))
             boundary=writer.end_offset;stream=writer._stream
@@ -87,6 +108,7 @@ class TraceCodecTests(unittest.TestCase):
             clock = {'next': 1, 'turn': 1, 'phase': 'test'}
             compact = RunTrace(root / 'new.ctr', 'new')
             compact.emit(clock, kind='new', metric_id='goods.price', after=2)
+            compact._compact_writer.publish()
             path = compact.path
             data = path.read_bytes()
             path.write_bytes(data[:-2])
