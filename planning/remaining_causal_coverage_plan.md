@@ -59,7 +59,7 @@ annexation, many scenario actions, save/resume or long-run performance.
 | 5 | Atomic full saves/branches/recovery; full economic graph/RNG/action continuation in default, both authored server scenarios and native Egypt | Repeat longer native branch/recovery cases in final release evidence |
 | 6 | Block index/rebuild, stable queries/export, bounded identity cache and streamed CLI comparisons | Measured memory/query/runtime budgets and retired-reference audit |
 | 7 | Shared web/desktop/CLI explanations, native recording, F11 inspector, historical membership and iPad browser checks | Full scenario/history acceptance and physical-device follow-up if available |
-| 8 | Four-scenario measured smoke; default seed 4243 passes 30/100-turn on/off acceptance; Egypt seed 1878 passes corrected 20-turn acceptance from `9e2c5e7` | Remaining authored-scenario seeds; measured optimization and budget; final release report |
+| 8 | Four-scenario measured smoke; default seed 4243 passes 30/100-turn on/off acceptance; Egypt seed 1878 passes corrected 20-turn acceptance; labor-frontier and supply-rivalry seed pairs pass 20 turns | Buffered-writer long-run reruns; measured optimization budget; final release report |
 
 The latest measured short acceptance is pinned to `9bafd9a`: all four canonical
 scenarios × recording on/off, three steps each, pass the declared state/RNG,
@@ -1128,3 +1128,15 @@ Block/query/checkpoint batching reduces writer-only append time by 1.76x in a
 measured. This material performance gap and the large indexed-inspection cost
 keep phase 6 and the phase 8 budget gate open. No regression threshold is
 declared until the optimized writer is measured across the acceptance matrix.
+
+### Remaining authored scenario seeds on buffered writer (2026-10-24)
+
+The `ec51cfc` current-source release matrix passes four additional 20-turn
+on/off pairs, all six acceptance gates per pair, with no failures:
+`tmp/acceptance-authored-remain-2026-10-24/matrix.json`. Labor-frontier seeds
+612 and 613 measure 2.868x and 2.996x step CPU overhead. Supply-rivalry seeds
+812 and 813 measure 2.976x and 2.984x. Trace size is about 0.399–0.405 MB per
+turn for labor-frontier and 0.181 MB for supply-rivalry. These close the
+remaining 20-turn authored-seed pairs. The 30/100-turn default pair and both
+20-turn Egypt pairs still need reruns against the buffered source before the
+release report can close the current-source runtime and budget gates.
