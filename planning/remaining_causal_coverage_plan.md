@@ -52,7 +52,7 @@ annexation, many scenario actions, save/resume or long-run performance.
 
 | Phase | Implemented evidence | Remaining gate |
 |---|---|---|
-| 0 | Writer/metric/history inventory; 99 source reviews of 507 financial candidates; 363 writer IDs located in probe literals | 408 reviews, active-path and complete history/UI classifications |
+| 0 | Writer/metric/history inventory; 105 source reviews of 507 financial candidates; 363 writer IDs located in probe literals | 402 reviews, active-path and complete history/UI classifications |
 | 1–2 | Military/medical/sovereign/rescue/subsidy fixtures; 127 further public probes; command boundaries | Rare branches and complete semantic payment-to-write contracts |
 | 3 | Timed native ownership/institution setters with shared-account fixtures | Additional nation creation/direct edits and scenario acceptance |
 | 4 | Independent economic replay, stock/source contracts and linked snapshots | Unsupported AI/scenario formulas and complete per-metric provenance |
@@ -1031,3 +1031,15 @@ immutable current-source archive before the budget report is set. The profile
 still points to per-event serialization/compression/write work as a material
 cost; any batching change must preserve fixed-boundary query visibility, torn
 tail detection, checkpoint durability and identical decoded records.
+
+### Corporate wage writer source review (2026-10-23)
+
+Reviewed the six conditional cash writers in `region_finance.pay_wages` and
+`settle_wage_arrears`. The register now distinguishes legal-tender payroll from
+the scrip path, accrued claims from cash actually paid, payroll reserves,
+liquidation payments and worker currency-wallet settlements. It cites the
+existing labor, truck-system and owner-currency fixtures. Reviews remain
+partial: government-actor aliases, zero/short-funding and liquidation branches,
+and exact semantic-payment-to-mutation IDs still need forced fixtures and source
+contracts. Inventory regeneration reports 105 reviewed and 402 pending of 507;
+the review count is source classification, not a coverage percentage.

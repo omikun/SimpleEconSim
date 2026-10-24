@@ -2033,6 +2033,176 @@
       "unit": "existing_local_currency",
       "writer": "explicit_conditional_public_probe"
     },
+    "region_finance.py:pay_wages:2781207220d5d2a8:1": {
+      "account_type": "corporate_to_worker_cash_with_conditional_public_aliases",
+      "calling_path": "micro.region.stepper.step_economy -> region_finance.pay_wages",
+      "closure": "partial_fixture_evidence",
+      "definition": "Pays non-striking employees up to nominal wage from employer cash; separate scrip path creates no cash write. Unpaid cash wages accrue a worker claim.",
+      "fixtures": [
+        "test_plunder_labor",
+        "test_truck_system_and_scrip"
+      ],
+      "formula": "Cash or liability arithmetic has local fixture coverage; exact payment-to-write linkage remains incomplete.",
+      "links": "Existing wage/claim records are emitted; exact mutation-event IDs and wallet settlement links remain incomplete.",
+      "missing_work": "Force public employer/worker aliases, short-cash partial payroll and withheld zero wage; verify the wage event resolves to both exact cash-write IDs and regional currency in the same lifecycle.",
+      "owner": "region_finance.pay_wages",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "immediately_before_and_after_each_cash_leg",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "semantic_records": [
+        "wage",
+        "wage_arrears_accrued"
+      ],
+      "ui": "finance.wage_arrears and labor.wage_payment explanations; exact chart binding remains separately reviewed",
+      "unit": "regional_home_currency_or_unresolved_local_cash",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "region_finance.py:pay_wages:46655f1219471632:1": {
+      "account_type": "corporate_to_worker_cash_with_conditional_public_aliases",
+      "calling_path": "micro.region.stepper.step_economy -> region_finance.pay_wages",
+      "closure": "partial_fixture_evidence",
+      "definition": "Pays non-striking employees up to nominal wage from employer cash; separate scrip path creates no cash write. Unpaid cash wages accrue a worker claim.",
+      "fixtures": [
+        "test_plunder_labor",
+        "test_truck_system_and_scrip"
+      ],
+      "formula": "Cash or liability arithmetic has local fixture coverage; exact payment-to-write linkage remains incomplete.",
+      "links": "Existing wage/claim records are emitted; exact mutation-event IDs and wallet settlement links remain incomplete.",
+      "missing_work": "Force public employer/worker aliases, short-cash partial payroll and withheld zero wage; verify the wage event resolves to both exact cash-write IDs and regional currency in the same lifecycle.",
+      "owner": "region_finance.pay_wages",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "immediately_before_and_after_each_cash_leg",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "semantic_records": [
+        "wage",
+        "wage_arrears_accrued"
+      ],
+      "ui": "finance.wage_arrears and labor.wage_payment explanations; exact chart binding remains separately reviewed",
+      "unit": "regional_home_currency_or_unresolved_local_cash",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "region_finance.py:settle_wage_arrears:38fc853500d150a5:1": {
+      "account_type": "corporate_to_worker_cash_or_currency_wallet_claim_settlement",
+      "calling_path": "firm liquidation and finance lifecycle -> region_finance.settle_wage_arrears",
+      "closure": "partial_fixture_evidence",
+      "definition": "Pays accrued worker claims in age order from cash after payroll reserve, or all available cash during liquidation; wallet settlements route through FX and are not worker.cash writes.",
+      "fixtures": [
+        "test_plunder_labor",
+        "test_owner_currency_transfers"
+      ],
+      "formula": "Cash or liability arithmetic has local fixture coverage; exact payment-to-write linkage remains incomplete.",
+      "links": "Existing wage/claim records are emitted; exact mutation-event IDs and wallet settlement links remain incomplete.",
+      "missing_work": "Force each wallet/public alias, insufficient payroll reserve, dead claimant, liquidation, and partial claim settlement; link exact cash or wallet mutation IDs to the semantic settlement and claim reduction.",
+      "owner": "region_finance.settle_wage_arrears",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "immediately_before_and_after_each cash mutation and at actual claim settlement",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "semantic_records": [
+        "wage_arrears_paid"
+      ],
+      "ui": "finance.wage_arrears and labor.wage_payment explanations; exact chart binding remains separately reviewed",
+      "unit": "regional_home_currency_or_worker_wallet_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "region_finance.py:settle_wage_arrears:49f73179dd4447af:1": {
+      "account_type": "corporate_to_worker_cash_or_currency_wallet_claim_settlement",
+      "calling_path": "firm liquidation and finance lifecycle -> region_finance.settle_wage_arrears",
+      "closure": "partial_fixture_evidence",
+      "definition": "Pays accrued worker claims in age order from cash after payroll reserve, or all available cash during liquidation; wallet settlements route through FX and are not worker.cash writes.",
+      "fixtures": [
+        "test_plunder_labor",
+        "test_owner_currency_transfers"
+      ],
+      "formula": "Cash or liability arithmetic has local fixture coverage; exact payment-to-write linkage remains incomplete.",
+      "links": "Existing wage/claim records are emitted; exact mutation-event IDs and wallet settlement links remain incomplete.",
+      "missing_work": "Force each wallet/public alias, insufficient payroll reserve, dead claimant, liquidation, and partial claim settlement; link exact cash or wallet mutation IDs to the semantic settlement and claim reduction.",
+      "owner": "region_finance.settle_wage_arrears",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "immediately_before_and_after_each cash mutation and at actual claim settlement",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "semantic_records": [
+        "wage_arrears_paid"
+      ],
+      "ui": "finance.wage_arrears and labor.wage_payment explanations; exact chart binding remains separately reviewed",
+      "unit": "regional_home_currency_or_worker_wallet_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "region_finance.py:settle_wage_arrears:f04a045740ff4dd2:1": {
+      "account_type": "corporate_to_worker_cash_or_currency_wallet_claim_settlement",
+      "calling_path": "firm liquidation and finance lifecycle -> region_finance.settle_wage_arrears",
+      "closure": "partial_fixture_evidence",
+      "definition": "Pays accrued worker claims in age order from cash after payroll reserve, or all available cash during liquidation; wallet settlements route through FX and are not worker.cash writes.",
+      "fixtures": [
+        "test_plunder_labor",
+        "test_owner_currency_transfers"
+      ],
+      "formula": "Cash or liability arithmetic has local fixture coverage; exact payment-to-write linkage remains incomplete.",
+      "links": "Existing wage/claim records are emitted; exact mutation-event IDs and wallet settlement links remain incomplete.",
+      "missing_work": "Force each wallet/public alias, insufficient payroll reserve, dead claimant, liquidation, and partial claim settlement; link exact cash or wallet mutation IDs to the semantic settlement and claim reduction.",
+      "owner": "region_finance.settle_wage_arrears",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "immediately_before_and_after_each cash mutation and at actual claim settlement",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "semantic_records": [
+        "wage_arrears_paid"
+      ],
+      "ui": "finance.wage_arrears and labor.wage_payment explanations; exact chart binding remains separately reviewed",
+      "unit": "regional_home_currency_or_worker_wallet_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
+    "region_finance.py:settle_wage_arrears:f3d865cdd62fe3d3:1": {
+      "account_type": "corporate_to_worker_cash_or_currency_wallet_claim_settlement",
+      "calling_path": "firm liquidation and finance lifecycle -> region_finance.settle_wage_arrears",
+      "closure": "partial_fixture_evidence",
+      "definition": "Pays accrued worker claims in age order from cash after payroll reserve, or all available cash during liquidation; wallet settlements route through FX and are not worker.cash writes.",
+      "fixtures": [
+        "test_plunder_labor",
+        "test_owner_currency_transfers"
+      ],
+      "formula": "Cash or liability arithmetic has local fixture coverage; exact payment-to-write linkage remains incomplete.",
+      "links": "Existing wage/claim records are emitted; exact mutation-event IDs and wallet settlement links remain incomplete.",
+      "missing_work": "Force each wallet/public alias, insufficient payroll reserve, dead claimant, liquidation, and partial claim settlement; link exact cash or wallet mutation IDs to the semantic settlement and claim reduction.",
+      "owner": "region_finance.settle_wage_arrears",
+      "review": "source_reviewed_partial_runtime",
+      "sampling": "immediately_before_and_after_each cash mutation and at actual claim settlement",
+      "scenarios": [
+        "default",
+        "labor_frontier_rivalry",
+        "supply_rivalry",
+        "egypt_1877"
+      ],
+      "semantic_records": [
+        "wage_arrears_paid"
+      ],
+      "ui": "finance.wage_arrears and labor.wage_payment explanations; exact chart binding remains separately reviewed",
+      "unit": "regional_home_currency_or_worker_wallet_currency",
+      "writer": "explicit_conditional_public_probe"
+    },
     "scenario_political_economy.py:_assess_arrears:b3bf7c9ead7c3488:1": {
       "calling_path": "_assess_arrears",
       "closure": "scenario_rerun_pending",
