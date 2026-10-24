@@ -59,7 +59,7 @@ annexation, many scenario actions, save/resume or long-run performance.
 | 5 | Atomic full saves/branches/recovery; full economic graph/RNG/action continuation in default, both authored server scenarios and native Egypt | Repeat longer native branch/recovery cases in final release evidence |
 | 6 | Block index/rebuild, stable queries/export, bounded identity cache and streamed CLI comparisons | Measured memory/query/runtime budgets and retired-reference audit |
 | 7 | Shared web/desktop/CLI explanations, native recording, F11 inspector, historical membership and iPad browser checks | Full scenario/history acceptance and physical-device follow-up if available |
-| 8 | Four-scenario measured smoke; default seed 4243 passes 30/100-turn on/off acceptance from pinned `9bafd9a` | Re-run corrected Egyptian 20-turn cases; budget and final release report |
+| 8 | Four-scenario measured smoke; default seed 4243 passes 30/100-turn on/off acceptance; Egypt seed 1878 passes corrected 20-turn acceptance from `9e2c5e7` | Remaining authored-scenario seeds; measured optimization and budget; final release report |
 
 The latest measured short acceptance is pinned to `9bafd9a`: all four canonical
 scenarios × recording on/off, three steps each, pass the declared state/RNG,
@@ -1071,9 +1071,19 @@ that is a valid instrumentation improvement, but it did not explain the
 acceptance gap. The Great Stink now uses one shared helper from both desktop and
 worldview engine paths. It records the exact before/after, the 60-point water
 threshold, whether a pollution record was available, and links that record when
-present. The existing Great Stink fixture now checks the replayable formula and
-upstream link. Its focused test passes. A fresh seed-1878 20-turn on/off pair is
-required to close the remaining snapshot and state-neutrality gates.
+present. The existing Great Stink fixture checks the replayable formula and
+upstream link.
+
+The fresh `9e2c5e7` seed-1878 20-turn on/off pair passes all six gates, including
+zero unexplained changed snapshots and full state/RNG/action equality. Report:
+`tmp/acceptance-egypt-great-stink-2026-10-24/matrix.json`. Its trace has 7,615,416
+rows, 370,320,711 compact bytes and 5,145,794,883 decoded bytes; peak RSS is
+663.3 MB, median step CPU is 21.11s, index build is 114.96s, and inspection is
+155.71s. Tracing costs 33.18× the off-run step CPU. Twenty-eight combined debt,
+state-terror and Great Stink tests pass. The supported checks pass, but the trace
+still has 20 calculations without formula, 177,768 unsupported-formula records
+and 1,250,048 unsupported-source-contract records. Full provenance and the
+performance budget remain open.
 
 Egypt's pre-fix 20-turn measurements show 7.6–7.8 million rows, about 5.1–5.3
 GB decoded data, 654–660 MB peak RSS and 31.6–35.6× step CPU cost with recording.
