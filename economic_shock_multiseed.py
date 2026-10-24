@@ -18,7 +18,7 @@ SHOCK_END = 11
 
 EXPERIMENTS = {
     "wood_supply_reduction": {
-        "title": "Temporary c50 wood supply reduction",
+        "title": "Temporary local wood supply reduction",
         "measures": [
             ("wood", "production_units", "Wood production", "sum"),
             ("wood", "offered_supply_units", "Wood offered supply", "sum"),
@@ -32,7 +32,7 @@ EXPERIMENTS = {
         ],
     },
     "furniture_demand_increase": {
-        "title": "Temporary c50 furniture inventory-target increase",
+        "title": "Temporary local furniture inventory-target increase",
         "measures": [
             ("furniture", "submitted_bids", "Furniture submitted bids", "sum"),
             ("furniture", "offered_supply_units", "Furniture offered supply", "sum"),
