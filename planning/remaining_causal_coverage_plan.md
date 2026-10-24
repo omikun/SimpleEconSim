@@ -1069,6 +1069,17 @@ and 395 pending of 507; this remains source classification, not a coverage
 percentage. Authored scenario acceptance and all fiscal edge branches remain
 open.
 
+The committed `9fa9c8a` current-source smoke passes all four canonical
+three-turn on/off pairs and all six acceptance gates. Report:
+`tmp/acceptance-buffered-2026-10-24/matrix.json`. Step CPU ratios are 3.29x
+(default seed 4242), 2.73x (labor frontier seed 612), 2.71x (supply rivalry
+seed 812) and 13.85x (Egypt seed 1877). Egypt records 12.85 MB per turn. Compared
+with the earlier pinned `9bafd9a` short smoke's 15.51x Egypt ratio, this is a
+directional improvement, but the source commits and repeated run conditions
+differ, so it is not a controlled before/after attribution. The long-run Egypt
+performance budget remains open; run the remaining authored seeds and a same
+source long-run comparison before setting limits.
+
 ### Current-source release findings and legitimacy source fixes (2026-10-24)
 
 The pinned `9bafd9a` release matrix completed at
