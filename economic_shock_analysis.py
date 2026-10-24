@@ -30,6 +30,7 @@ PANEL_EVENT_KINDS = {
     "producer_inventory_total",
     "independent_production_zero",
     "firm_production_zero",
+    "household_nonfood_consumption",
     "household_food_intake",
 }
 
@@ -46,6 +47,7 @@ def _panel_row(panel: dict, turn: int, tile: str, good: str) -> dict:
             "production_units": None,
             "producer_inventory_units": None,
             "food_intake": None,
+            "nonfood_consumption": None,
             "production_zero_reasons": {},
             "production_zero_example_event_ids": {},
             "example_food_shortfall_event_id": None,
@@ -134,6 +136,24 @@ def analyze_trace(path: str | Path) -> dict[str, Any]:
         elif kind == "producer_inventory_total":
             out["producer_inventory_units"] = row.get("value_after")
             out["producer_inventory_event_id"] = event_id
+        elif kind == "household_nonfood_consumption":
+            consumption = out["nonfood_consumption"]
+            if consumption is None:
+                consumption = {"records": 0, "units_consumed": 0,
+                               "requested_units": 0,
+                               "requested_observed_records": 0}
+                out["nonfood_consumption"] = consumption
+            consumption["records"] += 1
+            consumption["units_consumed"] += int(
+                inputs.get("units_consumed", row.get("value_before", 0) -
+                           row.get("value_after", 0)) or 0)
+            components = inputs.get("consumption_components") or ()
+            requested = [component.get("requested_quantity")
+                         for component in components
+                         if component.get("requested_quantity") is not None]
+            if requested:
+                consumption["requested_units"] += sum(requested)
+                consumption["requested_observed_records"] += 1
         elif kind in ("independent_production_zero", "firm_production_zero"):
             reason = str(inputs.get("reason", "unspecified"))
             zero_counts[(turn, str(tile), str(good))][reason] += 1
@@ -176,6 +196,7 @@ def analyze_trace(path: str | Path) -> dict[str, Any]:
             "production": out["production_units"] is not None,
             "producer_inventory": out["producer_inventory_units"] is not None,
             "food_intake": out["food_intake"] is not None,
+            "nonfood_consumption": out["nonfood_consumption"] is not None,
         }
 
     return {

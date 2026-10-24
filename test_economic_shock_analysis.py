@@ -4,6 +4,7 @@ from tempfile import TemporaryDirectory
 import unittest
 
 from economic_shock_analysis import analyze_trace
+from economic_shock_experiment import _market_mechanical_gates
 from goods import Goods
 from region_market import _analysis_demand_target
 from trace_codec import CompactTraceWriter
@@ -74,6 +75,71 @@ class TracePanelCoverageTests(unittest.TestCase):
             self.assertEqual(zero["market"]["units_sold"], 0)
             self.assertEqual(result["market_reference_observation_count"], 2)
             self.assertEqual(result["market_clearing_missing_count"], 1)
+
+    def test_nonfood_consumption_is_aggregated_with_requested_coverage(self):
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "consumption.ctr"
+            writer = CompactTraceWriter(path)
+            writer.append(json.dumps({
+                "record_class": "metadata", "run_id": "fixture",
+                "seed": 1, "scenario": None, "schema_version": 1,
+            }))
+            writer.append(json.dumps({
+                "kind": "household_nonfood_consumption",
+                "event_id": "fixture:1", "turn": 8,
+                "subject": {"type": "tile/agent/good", "id": "7",
+                            "tile": "c50", "good": "furniture"},
+                "inputs": {"units_consumed": 1,
+                           "consumption_components": [
+                               {"quantity": 1, "requested_quantity": 2}]},
+                "value_before": 1, "value_after": 0,
+            }))
+            writer.append(json.dumps({
+                "kind": "household_nonfood_consumption",
+                "event_id": "fixture:2", "turn": 8,
+                "subject": {"type": "tile/agent/good", "id": "8",
+                            "tile": "c50", "good": "furniture"},
+                "inputs": {"units_consumed": 1,
+                           "consumption_components": [
+                               {"quantity": 1, "mechanism": "wear"}]},
+                "value_before": 1, "value_after": 0,
+            }))
+            writer.close()
+
+            result = analyze_trace(path)
+            row = result["panel"][0]
+            self.assertEqual(row["nonfood_consumption"], {
+                "records": 2, "units_consumed": 2, "requested_units": 2,
+                "requested_observed_records": 1,
+            })
+            self.assertTrue(row["coverage"]["nonfood_consumption"])
+
+
+class MarketMechanicalGateTests(unittest.TestCase):
+    def test_missing_settlement_is_not_counted_as_zero_or_failure(self):
+        result = _market_mechanical_gates([{
+            "turn": 1, "tile": "c50", "good": "furniture", "market": {},
+            "production_units": 0, "producer_inventory_units": 0,
+        }])
+        self.assertTrue(result["passed"])
+        self.assertEqual(result["settlements_checked"], 0)
+
+    def test_settlement_bounds_and_no_paid_sale_consistency(self):
+        good = {
+            "turn": 1, "tile": "c50", "good": "furniture",
+            "production_units": 1, "producer_inventory_units": 0,
+            "market": {"funded_demand_units": 5, "offered_supply_units": 4,
+                       "units_sold": 3, "cash_collected": 12,
+                       "import_units": 0, "no_paid_sale": False},
+        }
+        self.assertTrue(_market_mechanical_gates([good])["passed"])
+
+        bad = {**good, "market": {**good["market"], "units_sold": 5,
+                                   "no_paid_sale": True}}
+        result = _market_mechanical_gates([bad])
+        self.assertFalse(result["passed"])
+        self.assertEqual({item["check"] for item in result["violations"]}, {
+            "sales_within_recorded_supply", "no_paid_sale_matches_zero_sales"})
 
 
 if __name__ == "__main__":

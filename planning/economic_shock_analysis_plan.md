@@ -1,16 +1,18 @@
 # Economic response to supply and demand shocks
 
-Date: 2026-10-24. Status: Phase 1 baseline evidence complete; controlled shock
-runner and regression assertions remain. Preserve game rules during diagnosis;
-put any eventual economic fixes in separate changes.
+Date: 2026-10-24. Status: baseline and one-seed paired screens complete;
+initial mechanical/formula audits applied. Multi-seed and cross-scenario
+robustness, treasury residual attribution and empirical calibration remain.
+Preserve game rules during diagnosis; put any eventual economic fixes in
+separate changes.
 
 ## Implementation progress
 
 | Phase | Status | Evidence / remaining work |
 |---|---|---|
 | 1. Baseline evidence and case studies | Complete for the selected 20-turn trace | Added streaming panel extraction and a baseline report. It identifies the furniture-input and local-food cases below; the trace does not cover every household, balance or in-transit stock. |
-| 2. Controlled shock experiments | Runner and intervention hooks implemented; paired runs pending | Need run the two screens from a clean committed source, verify identical turn-7 state, then report treatment-minus-control paths. The first screen is one seed; five-pair and cross-scenario robustness remains. |
-| 3. Criteria and interpretation | Criteria defined; not yet applied to controlled runs | Add mechanical gates and response assertions after first paired runs; empirical calibration remains separate. |
+| 2. Controlled shock experiments | Two paired 20-turn screens complete at default seed 4242 | Both control/treatment pairs match complete canonical state at turn 7 and carry explicit intervention/removal events. One seed is exploratory; run seeds 4242–4246 and a supply-rivalry sample before robustness claims. |
+| 3. Criteria and interpretation | Initial market, structural/formula and account-closure gates applied | Market settlement bounds and supported structural/formula checks pass on the four traces; treasury attribution is incomplete. No recovery tolerance or empirical benchmark has yet been applied. |
 
 The old `market_price_stabilization_plan.md` describes an earlier price rule.
 Current `region_market.update_price_ref` already demand-gates positive scarcity
@@ -43,6 +45,47 @@ The private market hook is absent by default and only reads explicit
 adjusted target and its unshocked value when a treatment override applies.
 The first run is a diagnostic screen at default seed 4242; run seeds 4242–4246
 and a supply-rivalry cross-scenario sample before making robustness claims.
+
+### Results from the default-seed paired screen
+
+The runner and interventions were committed at `dd850255bea13d107733a859fd13b0a8ac315448`.
+All four 20-turn runs use seed 4242 and have exactly matching control/treatment
+canonical state at turn 7 (`94febc162853ef19d951d6720b4a58ea9be4543944e2675f31fbc8ce7c318cd9`).
+The trace-backed comparison and audit summary are in
+`planning/reports/economic_shock_screen_seed4242.md`; full compressed traces
+remain under ignored `tmp/traces/`.
+
+- **Wood supply screen:** halving c50 wood recipe output for turns 8–11 reduced
+  realized c50 wood production by 39 units and recorded wood offers/sales by
+  60 units cumulatively over the four shock turns. Submitted wood bids rose by
+  73 units in the matched panel. Traced nonfood wood consumption was 112 units
+  in control and 96 in treatment over all four turns. The c50 furniture
+  reference was already at its cap, and furniture sales did not fall during
+  the intervention window; this seed therefore demonstrates the physical-
+  supply first-order response but not a clean downstream price/welfare
+  response. Furniture and food shortfall indicators are reported separately.
+- **Furniture demand screen:** desired inventory rose for 67 of 134 eligible
+  c50 residents (one to two units at the start). Submitted furniture bids
+  rose by 8 units over turns 8–11, but cumulative fills were unchanged. The
+  posted reference remained capped at 50; paid-VWAP changes were small and
+  mixed in sign (mean treatment-minus-control paid VWAP -0.02 across four
+  paired turns). Traced furniture consumption was 24 control versus 29
+  treatment units, but only 3/4 turns had paired consumption records. This is
+  evidence that a stated preference/stock-target shock does not automatically
+  become extra fills or a clear price response when cash, stocks and the supply
+  cap bind; realized-consumption coverage is incomplete.
+- In both screens the c50 household food-shortfall units showed no net change
+  in the four-turn shock window. This does not establish no welfare spillover:
+  intake events are not a complete census, and the single seed is noisy.
+- The supply treatment changes later event/RNG paths. Turn-7 pairing proves
+  identical pre-intervention starts, but turn 12–20 differences combine the
+  lasting treatment state with divergent random draws. Do not label that path
+  a seed-aligned recovery effect.
+
+The report now includes import and total-offer deltas, nonfood consumption,
+shock-window totals with observed-turn denominators, and per-run audit gates.
+`--reuse-existing --audit` reanalyzes the saved traces without rerunning the
+simulation or creating another decoded export.
 
 ## Questions and standards
 
@@ -252,16 +295,74 @@ the full experiment; disable them only in explicitly isolated mechanism fixtures
   consumption effects. Nominal price levels and a cap of 50 have no standalone
   empirical meaning. Mark calibration as pending until that comparison exists.
 
+### Applied gates and unresolved accounting finding
+
+The four seed-4242 traces were checked with `economic_shock_experiment.py`
+market gates and the existing `trace_audit`/`trace_coverage` tools.
+
+- All four runs pass finite-value and observed settlement-bound checks across
+  their core-good market panels: no negative sales, sales above funded demand
+  or recorded supply, negative production/inventory, or contradictory
+  `no_paid_sale` flags were found. Missing clearings remain missing, not
+  synthetic zero trades.
+- All four runs pass the structural and supported-formula audit with zero
+  reported audit issues. This is a bounded supported-formula check, not full
+  causal coverage; the audit reports complete causal coverage as false.
+- Nation-account closure passes in all runs: 60 of 60 closes verified, zero
+  account-closure gaps.
+- Treasury flow attribution does **not** pass completely. The reconciler
+  fully attributes 46/60 turns in wood control and demand control, 50/60 in
+  wood treatment, and 53/60 in demand treatment. Absolute unattributed
+  residual totals are respectively 719.8684, 719.8684, 660.9925 and 667.0668
+  in the trace's mixed account currencies/units. These sums are gap indicators,
+  not a currency-converted national total. The recurring US T4 residual
+  (about -231.01) appears in both control pairs; treatment paths also create
+  additional country-turn residuals. In the shared control trace, US T4's
+  treasury delta is +212.0367 while recorded known flows total +443.0445,
+  leaving -231.0078. The flow list contains 31 government cash-obligation
+  payment records totaling +442.8677 and +0.1768 of government deposit
+  interest. The audit does not establish why that sum differs from the treasury
+  stock delta. Inspect both payer/payee public-account writes and the treasury
+  aggregation boundary before classifying the gap. Do not claim complete
+  monetary reconciliation until residual sources are identified or explicitly
+  classified as expected flows.
+
+The paired report distinguishes market mechanics from ledger attribution. The
+current mechanical gate does not prove goods conservation across household,
+producer, trader and in-transit stocks; those stock boundaries remain a separate
+accounting follow-up.
+
 ## Deliverables and next action
 
 The compact baseline report and the two named case studies are complete in
-`planning/reports/economic_shock_baseline.md`. Next implement one negative
-physical-supply and one positive-demand paired experiment before the full
-matrix. Include filtered trace excerpts, time series, interventions, coverage
-limitations and reproducible commands. Use streaming extraction and compressed
-traces; full decoded exports are unnecessary. The future indexed module/window
-work is recorded in `compact_trace_format.md` and does not block this analysis.
+`planning/reports/economic_shock_baseline.md`. The first paired negative
+physical-supply and positive-demand screens are complete in
+`planning/reports/economic_shock_screen_seed4242.md`. Continue in this order:
 
-After confirmed failures, add focused economic regression assertions for the
-observed response and separately documented fixes. Re-run paired cases on the
-fix, plus the unaffected controls; do not adjust thresholds merely to pass.
+1. Diagnose the treasury reconciliation residuals in the control trace, starting
+   with the repeated US T4 residual. Add transfer-source reconciliation or
+   identify and document the legitimately omitted accounting flows; rerun the
+   paired audit before making a complete-accounting claim.
+2. Run the two default-game interventions on seeds 4243–4246 and summarize
+   paired effect distributions (not just pooled sums). Predeclare recovery
+   tolerance and report uncertainty/coverage before using the term robust.
+3. Add a scenario-aware intervention adapter and test supply rivalry on seeds
+   812–816. Confirm that native scenario stepping does not overwrite the shock;
+   compare local production, shipment, arrival, price and welfare response.
+4. Add stable-cohort household outcomes, wages/profit/credit and separate
+   producer, trader, household and in-transit stock measures before concluding
+   on welfare or goods conservation.
+5. Select historical primary evidence for the relevant setting before making
+   empirical-realism claims; until then this is a code-behavior study.
+
+Use streaming extraction and compressed traces; full decoded exports are
+unnecessary. Indexed module/window access (including SQLite versus compressed
+trace plus sidecar tradeoffs) remains a trace-format follow-up in
+`compact_trace_format.md` and does not block the current paired analysis.
+
+The current screens do not establish a broken economic rule: the wood shock
+reduces physical output and offers, while the furniture-demand shock raises
+orders without reliably raising fills or paid price under a binding cap. Add
+focused economic regression assertions only after multi-seed or scenario tests
+confirm a repeatable failure. Keep any eventual rule fix separate, rerun the
+paired cases and unaffected controls, and do not tune thresholds merely to pass.

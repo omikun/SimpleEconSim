@@ -6,6 +6,8 @@ same seed and compares complete canonical state (including RNG) after turn 7.
 Example::
 
     venv/bin/python economic_shock_experiment.py --out-dir tmp/economic-shocks/seed-4242
+    venv/bin/python economic_shock_experiment.py --seed 4242 \
+        --out-dir tmp/economic-shocks/seed-4242 --reuse-existing --audit
 """
 from __future__ import annotations
 
@@ -32,7 +34,8 @@ CORE_GOODS = ("food", "wood", "furniture")
 MARKET_FIELDS = (
     "reference_price_after", "transaction_vwap", "demand_ratio",
     "funded_demand_units", "offered_supply_units", "submitted_bids",
-    "offered_asks", "units_sold", "cash_collected",
+    "offered_asks", "import_units", "units_sold", "cash_collected",
+    "no_paid_sale",
 )
 
 EXPERIMENTS = {
@@ -249,7 +252,7 @@ def _snapshot_rows(server, turn):
     return rows
 
 
-def _run_child(experiment_id, arm, seed, out_path):
+def _run_child(experiment_id, arm, seed, out_path, audit_trace=False):
     import numpy as np
 
     random.seed(seed)
@@ -292,6 +295,8 @@ def _run_child(experiment_id, arm, seed, out_path):
         row for row in panel["panel"]
         if 1 <= row["turn"] <= TURN_COUNT and row["good"] in CORE_GOODS
     ]
+    market_gates = _market_mechanical_gates(filtered_market_panel)
+    trace_gates = _trace_quality_gates(trace_path) if audit_trace else None
     git = _git_info()
     intervention_record = None
     if intervention is not None:
@@ -319,6 +324,8 @@ def _run_child(experiment_id, arm, seed, out_path):
         "trace_event_count": panel["event_count"],
         "trace_market_clearing_missing_count": panel["market_clearing_missing_count"],
         "market_panel": filtered_market_panel,
+        "market_mechanical_gates": market_gates,
+        "trace_quality_gates": trace_gates,
         "snapshot_time_series": time_series,
         **git,
         "python": platform.python_version(),
@@ -336,6 +343,101 @@ def _run_child(experiment_id, arm, seed, out_path):
 def _row_index(run):
     return {(row["turn"], row["tile"], row["good"]): row
             for row in run["market_panel"]}
+
+
+def _market_mechanical_gates(panel_rows):
+    """Check trace-observed settlement bounds without filling missing values."""
+    violations = []
+    settlements = 0
+    for row in panel_rows:
+        market = row.get("market", {})
+        for field in ("reference_price_after", "transaction_vwap",
+                      "funded_demand_units", "offered_supply_units",
+                      "submitted_bids", "offered_asks", "units_sold",
+                      "cash_collected", "import_units",
+                      "production_units", "producer_inventory_units"):
+            value = (market.get(field) if field in market else row.get(field))
+            if isinstance(value, (int, float)) and not math.isfinite(value):
+                violations.append({"turn": row["turn"], "tile": row["tile"],
+                                   "good": row["good"], "check": "finite",
+                                   "field": field, "value": value})
+        for field in ("funded_demand_units", "offered_supply_units",
+                      "submitted_bids", "offered_asks", "units_sold",
+                      "cash_collected", "import_units"):
+            value = market.get(field)
+            if (isinstance(value, (int, float)) and math.isfinite(value)
+                    and value < -1e-9):
+                violations.append({"turn": row["turn"], "tile": row["tile"],
+                                   "good": row["good"],
+                                   "check": "nonnegative_" + field,
+                                   "value": value})
+        for field in ("reference_price_after", "transaction_vwap"):
+            value = market.get(field)
+            if (isinstance(value, (int, float)) and math.isfinite(value)
+                    and value < -1e-9):
+                violations.append({"turn": row["turn"], "tile": row["tile"],
+                                   "good": row["good"],
+                                   "check": "nonnegative_" + field,
+                                   "value": value})
+        sold = market.get("units_sold")
+        demand = market.get("funded_demand_units")
+        supply = market.get("offered_supply_units")
+        if sold is not None:
+            settlements += 1
+            if sold < -1e-9:
+                violations.append({"turn": row["turn"], "tile": row["tile"],
+                                   "good": row["good"], "check": "nonnegative_sales",
+                                   "sold": sold})
+            if demand is not None and sold > demand + 1e-8:
+                violations.append({"turn": row["turn"], "tile": row["tile"],
+                                   "good": row["good"], "check": "sales_within_funded_demand",
+                                   "sold": sold, "funded_demand": demand})
+            if supply is not None and sold > supply + 1e-8:
+                violations.append({"turn": row["turn"], "tile": row["tile"],
+                                   "good": row["good"], "check": "sales_within_recorded_supply",
+                                   "sold": sold, "offered_supply": supply})
+            if market.get("no_paid_sale") is True and sold > 1e-9:
+                violations.append({"turn": row["turn"], "tile": row["tile"],
+                                   "good": row["good"],
+                                   "check": "no_paid_sale_matches_zero_sales",
+                                   "sold": sold})
+        for field in ("production_units", "producer_inventory_units"):
+            value = row.get(field)
+            if value is not None and value < -1e-9:
+                violations.append({"turn": row["turn"], "tile": row["tile"],
+                                   "good": row["good"], "check": "nonnegative_" + field,
+                                   "value": value})
+    return {"passed": not violations, "market_rows": len(panel_rows),
+            "settlements_checked": settlements,
+            "violations": violations}
+
+
+def _trace_quality_gates(trace_path):
+    from trace_audit import audit
+    from trace_coverage import coverage
+
+    structural = audit(trace_path)
+    observed = coverage(trace_path)
+    treasury = observed["_treasury_reconciliation"]
+    closures = observed["_treasury_account_closure"]
+    return {
+        "structural_and_supported_formula_checks_pass":
+            structural["structural_and_supported_formula_checks_pass"],
+        "complete_causal_coverage": structural["complete_causal_coverage"],
+        "audit_issue_count": len(structural["issues"]),
+        "counts": structural["counts"],
+        "treasury_reconciliation": {
+            **treasury,
+            "fully_attributed_turns": treasury["fully_attributed"],
+            "unattributed_turns": treasury["turns"] - treasury["fully_attributed"],
+            "fully_attributed": treasury["turns"] == treasury["fully_attributed"],
+        },
+        "treasury_account_closure": {
+            **closures,
+            "all_verified": (closures["nation_closes"] == closures["verified"]
+                             and closures["gaps"] == 0),
+        },
+    }
 
 
 def _compare_pair(control, treatment):
@@ -367,6 +469,15 @@ def _compare_pair(control, treatment):
             a = ((control_row or {}).get("food_intake") or {}).get(field)
             b = ((treatment_row or {}).get("food_intake") or {}).get(field)
             values[f"food_intake.{field}"] = {
+                "control": a, "treatment": b,
+                "treatment_minus_control": (b - a if isinstance(a, (int, float))
+                                               and isinstance(b, (int, float)) else None),
+            }
+        for field in ("units_consumed", "requested_units", "records",
+                      "requested_observed_records"):
+            a = ((control_row or {}).get("nonfood_consumption") or {}).get(field)
+            b = ((treatment_row or {}).get("nonfood_consumption") or {}).get(field)
+            values[f"nonfood_consumption.{field}"] = {
                 "control": a, "treatment": b,
                 "treatment_minus_control": (b - a if isinstance(a, (int, float))
                                                and isinstance(b, (int, float)) else None),
@@ -412,72 +523,171 @@ def _format(value):
     return str(value)
 
 
+def _window_summary(pair, good, key, start, end):
+    rows = [row for row in pair["comparison"]["market_response"]
+            if row["tile"] == TARGET_TILE and row["good"] == good
+            and start <= row["turn"] <= end]
+    paired = [row["values"].get(key, {}) for row in rows]
+    paired = [value for value in paired
+              if isinstance(value.get("control"), (int, float))
+              and isinstance(value.get("treatment"), (int, float))]
+    deltas = [value["treatment"] - value["control"] for value in paired]
+    return {
+        "control_total": sum(value["control"] for value in paired) if paired else None,
+        "treatment_total": sum(value["treatment"] for value in paired) if paired else None,
+        "delta_total": sum(deltas) if paired else None,
+        "mean_delta": sum(deltas) / len(deltas) if paired else None,
+        "paired_turns": len(paired),
+        "expected_turns": end - start + 1,
+    }
+
+
+def _quality_line(label, run):
+    market = run.get("market_mechanical_gates") or {}
+    trace = run.get("trace_quality_gates") or {}
+    treasury = trace.get("treasury_reconciliation") or {}
+    closure = trace.get("treasury_account_closure") or {}
+    formula = trace.get("structural_and_supported_formula_checks_pass")
+    attributed_turns = treasury.get(
+        "fully_attributed_turns",
+        treasury.get("turns", 0) - treasury.get("unattributed_turns", 0))
+    formula_text = "PASS" if formula is True else "FAIL" if formula is False else "not run"
+    return (
+        f"- `{label}`: settlement bounds **{'PASS' if market.get('passed') else 'FAIL'}** "
+        f"({market.get('settlements_checked', 0)}/{market.get('market_rows', 0)} "
+        f"rows had clearing summaries); structural/supported-formula checks "
+        f"**{formula_text}**; nation-account closes "
+        f"**{closure.get('verified', '—')}/{closure.get('nation_closes', '—')}** "
+        f"verified; treasury fully attributed "
+        f"**{attributed_turns}/{treasury.get('turns', '—')} turns** "
+        f"({'complete' if treasury.get('fully_attributed') is True else 'incomplete' if treasury.get('fully_attributed') is False else 'not run'})."
+    )
+
+
+def _quality_payload(run):
+    return {
+        "source_commit": run.get("source_commit"),
+        "market_mechanical_gates": run.get("market_mechanical_gates"),
+        "trace_quality_gates": run.get("trace_quality_gates"),
+    }
+
+
+def _display_path(value):
+    path = Path(value)
+    root = Path(__file__).resolve().parent
+    try:
+        return path.resolve().relative_to(root).as_posix()
+    except ValueError:
+        return str(value)
+
+
 def _render_report(result):
+    source_commits = sorted({
+        run.get("source_commit")
+        for pair in result["experiments"].values()
+        for run in (pair.get("control_result_data", {}),
+                    pair.get("treatment_result_data", {}))
+        if run.get("source_commit")
+    })
     lines = [
-        "# Paired 20-turn economic shock screen",
-        "",
-        f"Scenario `{result['scenario']}`, seed `{result['seed']}`, source "
-        f"commit `{result['source_commit']}`. Turns 1–7 are pre-shock; the "
-        "shock is active on turns 8–11 and removed before turn 12. Recovery "
-        "is observed through turn 20.",
-        "The sample is one paired seed per intervention and is exploratory, "
-        "not a robustness or empirical-calibration claim.",
-        "",
+        "# Paired 20-turn economic shock screen", "",
+        f"Scenario `{result['scenario']}`, seed `{result['seed']}`, simulation "
+        f"source commit(s) {', '.join(f'`{item}`' for item in source_commits) or '`unknown`'}. "
+        "Turns 1-7 are pre-shock; the shock is active on turns 8-11 and removed "
+        "before turn 12. Recovery is observed through turn 20.",
+        "One paired seed per intervention is an exploratory screen, not a "
+        "robustness or empirical-calibration claim.", "",
     ]
-    for experiment_id, pair in result["experiments"].items():
+    for experiment_id in EXPERIMENTS:
+        pair = result["experiments"][experiment_id]
+        comparison = pair["comparison"]
+        control = pair.get("control_result_data", {})
+        treatment = pair.get("treatment_result_data", {})
+        focus_good = EXPERIMENTS[experiment_id]["good"]
+        goods = {"wood", "furniture"} if experiment_id == "wood_supply_reduction" else {"furniture"}
         lines += [
             f"## {EXPERIMENTS[experiment_id]['title']}", "",
-            f"Turn-7 full canonical states match: **{pair['comparison']['pre_shock_states_match']}**. "
-            f"Control trace: `{pair['control_trace']}`. Treatment trace: "
-            f"`{pair['treatment_trace']}`.",
-            "",
-            "Treatment minus control on c50:",
-            "",
-            "| Turn | Good | Ref. price Δ | Paid VWAP Δ | Bids Δ | Offers Δ | Sold Δ | Output Δ | Inventory Δ | Food shortfall Δ |",
-            "|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|",
+            f"Turn-7 complete canonical states match: **{comparison['pre_shock_states_match']}**. "
+            f"Control trace: `{_display_path(pair['control_trace'])}`; treatment trace: "
+            f"`{_display_path(pair['treatment_trace'])}`.", "",
+            "Treatment minus control on c50 at selected turns:", "",
+            "| Turn | Good | Ref. delta | Paid VWAP delta | Bids | Offers | Imports | Supply | Sold | Output | Inventory | Food shortfall | Nonfood consumed |",
+            "|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
         ]
-        for row in pair["comparison"]["market_response"]:
-            if row["tile"] != TARGET_TILE or row["good"] not in CORE_GOODS:
+        for row in comparison["market_response"]:
+            if (row["tile"] != TARGET_TILE or row["good"] not in goods
+                    or row["turn"] not in {7, 8, 9, 10, 11, 12, 15, 20}):
                 continue
-            v = row["values"]
-            lines.append("| {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |".format(
-                row["turn"], row["good"],
-                _format(v["reference_price_after"]["treatment_minus_control"]),
-                _format(v["transaction_vwap"]["treatment_minus_control"]),
-                _format(v["submitted_bids"]["treatment_minus_control"]),
-                _format(v["offered_asks"]["treatment_minus_control"]),
-                _format(v["units_sold"]["treatment_minus_control"]),
-                _format(v["production_units"]["treatment_minus_control"]),
-                _format(v["producer_inventory_units"]["treatment_minus_control"]),
-                _format(v["food_intake.shortfall_units"]["treatment_minus_control"]),
-            ))
-        lines += [
-            "",
-            "At turns with missing market/transaction rows, the difference is "
-            "shown as unavailable. A positive or negative response is not "
-            "judged in isolation: prices, quantities, production, inventories "
-            "and household outcomes must move together, with funding and trade "
-            "channels checked in the linked traces.",
-            "",
-        ]
+            value = row["values"]
+            keys = ("reference_price_after", "transaction_vwap", "submitted_bids",
+                    "offered_asks", "import_units", "offered_supply_units",
+                    "units_sold", "production_units", "producer_inventory_units",
+                    "food_intake.shortfall_units", "nonfood_consumption.units_consumed")
+            cells = [str(row["turn"]), row["good"]] + [
+                _format(value[key]["treatment_minus_control"]) for key in keys]
+            lines.append("| " + " | ".join(cells) + " |")
+        lines += ["", "Shock-window totals on turns 8-11:", "",
+                  "| c50 measure | Control total | Treatment total | Delta | Paired turns |",
+                  "|---|---:|---:|---:|---:|"]
+        for key, label, good in (
+            ("units_sold", "Units sold", focus_good),
+            ("submitted_bids", "Submitted bids", focus_good),
+            ("offered_supply_units", "Recorded offered supply", focus_good),
+            ("production_units", "Production", focus_good),
+            ("food_intake.shortfall_units", "Food shortfall units", "food"),
+            ("nonfood_consumption.units_consumed", "Nonfood units consumed", focus_good),
+        ):
+            summary = _window_summary(pair, good, key, SHOCK_START, SHOCK_END)
+            lines.append(
+                f"| {label} | {_format(summary['control_total'])} | "
+                f"{_format(summary['treatment_total'])} | {_format(summary['delta_total'])} | "
+                f"{summary['paired_turns']}/{summary['expected_turns']} |"
+            )
+        for key, label in (("reference_price_after", "Mean reference-price delta"),
+                           ("transaction_vwap", "Mean paid-VWAP delta")):
+            summary = _window_summary(pair, focus_good, key, SHOCK_START, SHOCK_END)
+            lines.append(
+                f"| {label} | - | - | {_format(summary['mean_delta'])} | "
+                f"{summary['paired_turns']}/{summary['expected_turns']} |"
+            )
+        lines += ["", "Totals use only paired observations; denominators show "
+                  "coverage, and missing values remain unavailable.", "",
+                  "### Audit gates", "",
+                  _quality_line("control", control),
+                  _quality_line("treatment", treatment), "",
+                  "Structural and supported-formula checks cover only audited "
+                  "rules; complete causal coverage is not established. Nation "
+                  "account closes pass, but treasury reconciliation retains "
+                  "unattributed turn residuals. See the plan for counts and "
+                  "follow-up work.", ""]
+        if experiment_id == "wood_supply_reduction":
+            lines += [
+                "Read the intervention first against realized wood output, offers "
+                "and sales, then against downstream furniture. The posted "
+                "furniture reference is capped, so paid VWAP and quantities are "
+                "needed to assess price pressure. Turn-7 states match, but later "
+                "random streams are not draw-aligned after paths diverge.", "",
+            ]
+        else:
+            lines += [
+                "The intervention increases desired furniture stocks for half of "
+                "eligible residents. Submitted bids show demand; price, fills, "
+                "household consumption, food intake and budgets show whether it "
+                "became realized welfare or displaced other spending.", "",
+            ]
     lines += [
-        "## Reproduction",
-        "",
-        "```sh",
+        "## Reproduction", "", "```sh",
         f"venv/bin/python economic_shock_experiment.py --seed {result['seed']} \\",
-        f"  --out-dir {result['out_dir']}",
-        "```",
-        "",
-        "The JSON result contains per-turn market and state series, exact "
-        "intervention agent IDs, canonical pre-shock digests, and trace paths. "
-        "These trace files are generated under `tmp/traces/` and are not "
-        "checked into Git.",
-        "",
+        f"  --out-dir {_display_path(result['out_dir'])} --reuse-existing --audit",
+        "```", "",
+        "The JSON retains full turn panels, state snapshots, intervention IDs, "
+        "pre-shock digests, audit gates and trace paths. Compressed traces are "
+        "generated under `tmp/traces/` and are not checked into Git.", "",
     ]
     return "\n".join(lines)
 
 
-def _run_parent(seed, out_dir):
+def _run_parent(seed, out_dir, *, reuse_existing=False, audit_trace=False):
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     env = os.environ.copy()
@@ -488,11 +698,44 @@ def _run_parent(seed, out_dir):
         child_results[experiment_id] = {}
         for arm in ("control", "treatment"):
             child_path = out_dir / f"{experiment_id}-{arm}.json"
-            command = [sys.executable, str(script), "--child",
-                       "--experiment", experiment_id, "--arm", arm,
-                       "--seed", str(seed), "--out", str(child_path)]
-            subprocess.run(command, check=True, env=env)
-            child_results[experiment_id][arm] = json.loads(child_path.read_text())
+            if reuse_existing:
+                if not child_path.exists():
+                    raise FileNotFoundError(
+                        f"cannot reuse missing child result {child_path}; run without --reuse-existing")
+                child = json.loads(child_path.read_text())
+                if (child.get("experiment") != experiment_id
+                        or child.get("arm") != arm
+                        or child.get("seed") != seed):
+                    raise ValueError(
+                        f"saved child result identity does not match requested "
+                        f"{experiment_id}/{arm}/seed={seed}: {child_path}")
+                trace_path = Path(child["trace_path"])
+                if not trace_path.exists():
+                    raise FileNotFoundError(f"reused compact trace is missing: {trace_path}")
+                panel = analyze_trace(trace_path)
+                child["market_panel"] = [
+                    row for row in panel["panel"]
+                    if 1 <= row["turn"] <= TURN_COUNT and row["good"] in CORE_GOODS
+                ]
+                child["trace_event_count"] = panel["event_count"]
+                child["trace_market_clearing_missing_count"] = panel[
+                    "market_clearing_missing_count"]
+                child["market_mechanical_gates"] = _market_mechanical_gates(
+                    child["market_panel"])
+                if audit_trace:
+                    child["trace_quality_gates"] = _trace_quality_gates(trace_path)
+                elif "trace_quality_gates" not in child:
+                    child["trace_quality_gates"] = None
+                child_path.write_text(json.dumps(child, indent=2, sort_keys=True) + "\n")
+                child_results[experiment_id][arm] = child
+            else:
+                command = [sys.executable, str(script), "--child",
+                           "--experiment", experiment_id, "--arm", arm,
+                           "--seed", str(seed), "--out", str(child_path)]
+                if audit_trace:
+                    command.append("--audit")
+                subprocess.run(command, check=True, env=env)
+                child_results[experiment_id][arm] = json.loads(child_path.read_text())
 
     experiments = {}
     for experiment_id, arms in child_results.items():
@@ -503,11 +746,16 @@ def _run_parent(seed, out_dir):
             "control_result": str(out_dir / f"{experiment_id}-control.json"),
             "treatment_result": str(out_dir / f"{experiment_id}-treatment.json"),
             "comparison": _compare_pair(control, treatment),
+            "control_result_data": _quality_payload(control),
+            "treatment_result_data": _quality_payload(treatment),
         }
     git = _git_info()
     result = {"scenario": "default", "seed": seed,
               "out_dir": str(out_dir), "experiments": experiments,
-              **git}
+              "analysis_source_commit": git["source_commit"],
+              "analysis_worktree_dirty": git["tracked_worktree_dirty"],
+              "reuse_existing_traces": reuse_existing,
+              "deep_trace_audit_requested": audit_trace}
     result_path = out_dir / "paired-results.json"
     report_path = out_dir / "paired-results.md"
     result_path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
@@ -528,15 +776,22 @@ def main():
     parser.add_argument("--experiment", choices=tuple(EXPERIMENTS))
     parser.add_argument("--arm", choices=("control", "treatment"))
     parser.add_argument("--out", type=Path)
+    parser.add_argument("--audit", action="store_true",
+                        help="run structural/formula and treasury trace audits")
+    parser.add_argument("--reuse-existing", action="store_true",
+                        help="reanalyze saved child JSON and compact traces without rerunning simulation")
     args = parser.parse_args()
     if args.child:
         if not args.experiment or not args.arm or not args.out:
             parser.error("child mode requires --experiment, --arm and --out")
-        _run_child(args.experiment, args.arm, args.seed, args.out)
+        _run_child(args.experiment, args.arm, args.seed, args.out,
+                   audit_trace=args.audit)
         return
     if args.out_dir is None:
         parser.error("--out-dir is required")
-    _run_parent(args.seed, args.out_dir)
+    _run_parent(args.seed, args.out_dir,
+                reuse_existing=args.reuse_existing,
+                audit_trace=args.audit)
 
 
 if __name__ == "__main__":
