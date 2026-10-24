@@ -4,7 +4,10 @@ from tempfile import TemporaryDirectory
 import unittest
 
 from economic_shock_analysis import analyze_trace
-from economic_shock_experiment import _market_mechanical_gates
+from economic_shock_experiment import (
+    _market_mechanical_gates,
+    _select_target_tile,
+)
 from goods import Goods
 from region_market import _analysis_demand_target
 from trace_codec import CompactTraceWriter
@@ -32,6 +35,62 @@ class AnalysisDemandTargetTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "finite and positive"):
             _analysis_demand_target(Region(), Goods.furniture, 7, 1)
+
+
+class ShockTargetSelectionTests(unittest.TestCase):
+    def test_empty_preferred_tile_falls_back_to_active_market_cohort(self):
+        class Agent:
+            def __init__(self, agent_id, output=None):
+                self.id = agent_id
+                self.output = output
+                self.alive = True
+
+        class Tile:
+            def __init__(self, name, agents):
+                self.name = name
+                self.agents = agents
+                self.recipes = {
+                    Goods.wood: {"production": 2.0, "price": 1.0},
+                    Goods.furniture: {"production": 1.0, "price": 16.0},
+                }
+
+        class Server:
+            tiles = [
+                Tile("c50", []),
+                Tile("c10", [Agent(1, Goods.wood), Agent(2, Goods.furniture),
+                              Agent(3)]),
+            ]
+
+        supply_tile, supply_selection = _select_target_tile(
+            Server(), "wood_supply_reduction")
+        demand_tile, demand_selection = _select_target_tile(
+            Server(), "furniture_demand_increase")
+
+        self.assertEqual(supply_tile.name, "c10")
+        self.assertEqual(supply_selection["wood_producers"], 1)
+        self.assertEqual(demand_tile.name, "c10")
+        self.assertEqual(demand_selection["eligible_households"], 3)
+
+    def test_preferred_tile_is_kept_when_it_can_receive_the_shock(self):
+        class Agent:
+            id = 1
+            alive = True
+            output = Goods.wood
+
+        class Tile:
+            def __init__(self, name, agents):
+                self.name = name
+                self.agents = agents
+                self.recipes = {
+                    Goods.wood: {"production": 2.0, "price": 1.0},
+                    Goods.furniture: {"production": 1.0, "price": 16.0},
+                }
+
+        class Server:
+            tiles = [Tile("c10", [Agent()]), Tile("c50", [Agent()])]
+
+        tile, _selection = _select_target_tile(Server(), "wood_supply_reduction")
+        self.assertEqual(tile.name, "c50")
 
 
 class TracePanelCoverageTests(unittest.TestCase):

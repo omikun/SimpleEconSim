@@ -31,6 +31,18 @@ class PairedSeedAggregationTests(unittest.TestCase):
         self.assertEqual(result["observed_turns"], 2)
         self.assertEqual(result["expected_turns"], 3)
 
+    def test_effect_uses_the_pair_recorded_active_target_tile(self):
+        pair = {"target_tile": "c10", "comparison": {"market_response": [
+            {"turn": 8, "tile": "c10", "good": "wood",
+             "values": {"units_sold": {"treatment_minus_control": -3}}},
+            {"turn": 8, "tile": "c50", "good": "wood",
+             "values": {"units_sold": {"treatment_minus_control": 99}}},
+        ]}}
+        result = paired_effect(pair, "wood", "units_sold", "sum",
+                               start=8, end=8)
+        self.assertEqual(result["effect"], -3)
+        self.assertEqual(result["observed_turns"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()

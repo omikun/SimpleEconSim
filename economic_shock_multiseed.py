@@ -42,10 +42,12 @@ EXPERIMENTS = {
 
 
 def paired_effect(pair: dict, good: str, key: str, statistic: str,
-                  *, start: int = 8, end: int = 11) -> dict:
+                  *, start: int = 8, end: int = 11,
+                  target_tile: str | None = None) -> dict:
     """Compute treatment-minus-control effect without filling missing rows."""
+    target_tile = target_tile or pair.get("target_tile", "c50")
     rows = [row for row in pair["comparison"]["market_response"]
-            if row["tile"] == "c50" and row["good"] == good
+            if row["tile"] == target_tile and row["good"] == good
             and start <= row["turn"] <= end]
     deltas = [row["values"].get(key, {}).get("treatment_minus_control")
               for row in rows]
@@ -70,6 +72,13 @@ def _load_seed(root: Path, seed: int) -> dict:
     result = json.loads(path.read_text())
     if result.get("seed") != seed:
         raise ValueError(f"seed mismatch in {path}: expected {seed}, found {result.get('seed')}")
+    for pair in result["experiments"].values():
+        if "target_tile" not in pair:
+            arm_path = Path(pair["control_result"])
+            if not arm_path.exists():
+                arm_path = path.parent / arm_path.name
+            child = json.loads(arm_path.read_text())
+            pair["target_tile"] = child["target_tile"]
     return result
 
 
@@ -100,12 +109,15 @@ def summarize(root: Path, seeds: list[int]) -> dict:
             market_gates = [arm.get("market_mechanical_gates") or {}
                             for arm in arm_data]
             per_seed[seed] = {
+                "target_tile": pair["target_tile"],
                 "pre_shock_states_match": pair["comparison"]["pre_shock_states_match"],
                 "market_gates_pass": all(gate.get("passed") is True
                                           for gate in market_gates),
                 "market_rows": [gate.get("market_rows") for gate in market_gates],
                 "measures": {
-                    f"{good}:{key}": paired_effect(pair, good, key, statistic)
+                    f"{good}:{key}": paired_effect(
+                        pair, good, key, statistic,
+                        target_tile=pair["target_tile"])
                     for good, key, _label, statistic in config["measures"]
                 },
             }
@@ -170,7 +182,10 @@ def render_report(summary: dict) -> str:
         "Simulation source provenance by seed: " + "; ".join(provenance) + ".", "",
     ]
     for experiment_id, experiment in summary["experiments"].items():
+        target_tiles = ", ".join(
+            f"{seed}:{experiment['by_seed'][seed]['target_tile']}" for seed in seeds)
         lines += [f"## {experiment['title']}", "",
+                  f"Selected active target tiles by seed: {target_tiles}.",
                   f"Turn-7 states match: {experiment['turn7_match_count']}/{len(seeds)}; "
                   f"market mechanical gates pass: {experiment['market_gate_pass_count']}/{len(seeds)} "
                   "seed pairs in both arms.", "",

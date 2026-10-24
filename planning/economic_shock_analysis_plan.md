@@ -29,22 +29,32 @@ events when the shock is applied and removed, retains compressed traces, and
 compares market panels and end-of-turn state metrics.
 
 - `wood_supply_reduction`: at c50, multiply the wood recipe output by 0.5 for
-  turns 8–11 and restore it before turn 12. This is a temporary productivity /
-  physical-supply intervention. It destroys no stock and its result must be
-  measured from realized wood production and offers.
+  turns 8–11 and restore it before turn 12 when c50 has active wood producers.
+  Otherwise select the active tile with the most wood producers (ties use
+  downstream furniture producers, household count, then stable tile name). This
+  is a temporary productivity/physical-supply intervention. It destroys no
+  stock and its result must be measured from realized wood production and offers.
 - `furniture_demand_increase`: raise desired furniture inventory by a factor of
-  1.5 for every other eligible resident in c50 on turns 8–11. Assignment is
+  1.5 for every other eligible resident in c50 on turns 8–11 when c50 has an
+  eligible cohort. Otherwise select the tile with the largest eligible cohort
+  (ties use furniture-producer count, then stable tile name). Assignment is
   deterministic by agent ID. Unit orders are integral and rounded up, so at the
-  baseline one-unit target the treated cohort target is two units; this yields
-  an aggregate 50% target increase at the shock start. It creates no transfer
-  or money. Household budgets, credit and purchases of other goods remain
-  endogenous and are measured as spillovers.
+  baseline one-unit target the treated cohort target is two units; it creates no
+  transfer or money. Household budgets, credit and purchases of other goods
+  remain endogenous and are measured as spillovers.
 
 The private market hook is absent by default and only reads explicit
 `_analysis_demand_target_overrides`. Submitted buyer-order events record the
 adjusted target and its unshocked value when a treatment override applies.
-The first run is a diagnostic screen at default seed 4242; run seeds 4242–4246
-and a supply-rivalry cross-scenario sample before making robustness claims.
+The first valid run is a diagnostic screen at default seed 4242. Tile names are
+not stable economic roles across seeds: the initial seed-4243 attempt found no
+wood producers and no eligible households on c50, making both interventions
+no-ops despite a matched turn-7 state. Those runs are excluded from effect
+summaries. The selector now prefers c50 only when that shock has an active
+target, otherwise it deterministically chooses a relevant active tile; every
+arm records its tile and selection evidence, and the pair must select the same
+tile. Rerun the default sample at seeds 4243–4246 under this rule and complete a
+supply-rivalry cross-scenario sample before making robustness claims.
 
 ### Results from the default-seed paired screen
 

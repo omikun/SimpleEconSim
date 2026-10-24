@@ -29,7 +29,7 @@ TURN_COUNT = 20
 SHOCK_START = 8
 SHOCK_END = 11
 RECOVERY_START = 12
-TARGET_TILE = "c50"
+PREFERRED_TARGET_TILE = "c50"
 CORE_GOODS = ("food", "wood", "furniture")
 MARKET_FIELDS = (
     "reference_price_after", "transaction_vwap", "demand_ratio",
@@ -129,13 +129,59 @@ def _eligible_demand_cohort(region):
     )
 
 
-def _apply_shock(server, experiment_id):
+def _select_target_tile(server, experiment_id):
+    """Choose an active tile, preferring c50 when it can receive this shock."""
     from goods import Goods
 
     config = EXPERIMENTS[experiment_id]
-    tile = next((item for item in server.tiles if item.name == TARGET_TILE), None)
-    if tile is None:
-        raise RuntimeError(f"target tile {TARGET_TILE!r} is absent from this seed")
+    preferred = next((tile for tile in server.tiles
+                      if tile.name == PREFERRED_TARGET_TILE), None)
+
+    def counts(tile):
+        alive = [agent for agent in tile.agents if getattr(agent, "alive", True)]
+        return {
+            "wood_producers": sum(agent.output == Goods.wood for agent in alive),
+            "furniture_producers": sum(agent.output == Goods.furniture for agent in alive),
+            "eligible_households": len(_eligible_demand_cohort(tile)),
+        }
+
+    if config["kind"] == "physical_supply":
+        usable = [tile for tile in server.tiles
+                  if Goods.wood in tile.recipes
+                  and float(tile.recipes[Goods.wood].get("production", 0)) > 0
+                  and counts(tile)["wood_producers"] > 0]
+        if preferred in usable:
+            tile = preferred
+            rule = "prefer c50 when it has at least one active wood producer"
+        elif usable:
+            tile = max(usable, key=lambda item: (
+                counts(item)["wood_producers"],
+                counts(item)["furniture_producers"],
+                counts(item)["eligible_households"], item.name))
+            rule = "choose active tile with most wood producers; then downstream producers, households, name"
+        else:
+            raise RuntimeError("no tile has an active wood producer for this supply screen")
+    else:
+        usable = [tile for tile in server.tiles
+                  if Goods.furniture in tile.recipes
+                  and counts(tile)["eligible_households"] > 0]
+        if preferred in usable:
+            tile = preferred
+            rule = "prefer c50 when it has eligible households"
+        elif usable:
+            tile = max(usable, key=lambda item: (
+                counts(item)["eligible_households"],
+                counts(item)["furniture_producers"], item.name))
+            rule = "choose active tile with most eligible households; then furniture producers, name"
+        else:
+            raise RuntimeError("no tile has eligible households for this demand screen")
+    return tile, {"selection_rule": rule, **counts(tile)}
+
+
+def _apply_shock(server, experiment_id, tile):
+    from goods import Goods
+
+    config = EXPERIMENTS[experiment_id]
     good = getattr(Goods, config["good"])
     if config["kind"] == "physical_supply":
         recipe = tile.recipes[good]
@@ -224,7 +270,7 @@ def _remove_shock(server, experiment_id, applied):
         formula_id=formula_id, inputs=inputs)
 
 
-def _snapshot_rows(server, turn):
+def _snapshot_rows(server, turn, target_tile):
     from trace_snapshots import sample
 
     rows = []
@@ -240,7 +286,7 @@ def _snapshot_rows(server, turn):
             if subject.get("type") != "tile":
                 continue
         elif metric_id in SNAPSHOT_METRICS:
-            if tile_name != TARGET_TILE:
+            if tile_name != target_tile:
                 continue
         else:
             continue
@@ -271,9 +317,10 @@ def _run_child(experiment_id, arm, seed, out_path, audit_trace=False):
     pre_shock_state_digest = None
     final_state_digest = None
     time_series = []
+    target_tile, target_selection = _select_target_tile(server, experiment_id)
     for next_turn in range(1, TURN_COUNT + 1):
         if next_turn == SHOCK_START and arm == "treatment":
-            intervention = _apply_shock(server, experiment_id)
+            intervention = _apply_shock(server, experiment_id, target_tile)
         elif next_turn == RECOVERY_START and intervention is not None:
             removal_event_id = _remove_shock(server, experiment_id, intervention)
         server.step()
@@ -284,7 +331,7 @@ def _run_child(experiment_id, arm, seed, out_path, audit_trace=False):
             pre_shock_state_digest = _canonical_digest(server)
         if server.turn == TURN_COUNT:
             final_state_digest = _canonical_digest(server)
-        time_series.extend(_snapshot_rows(server, server.turn))
+        time_series.extend(_snapshot_rows(server, server.turn, target_tile.name))
 
     trace = server.run_trace
     trace_path = Path(trace.path)
@@ -315,7 +362,8 @@ def _run_child(experiment_id, arm, seed, out_path, audit_trace=False):
         "completed_turns": server.turn,
         "shock_turns": [SHOCK_START, SHOCK_END],
         "recovery_starts_turn": RECOVERY_START,
-        "target_tile": TARGET_TILE,
+        "target_tile": target_tile.name,
+        "target_tile_selection": target_selection,
         "intervention": intervention_record,
         "intervention_removal_event_id": removal_event_id,
         "pre_shock_canonical_state_sha256": pre_shock_state_digest,
@@ -523,9 +571,9 @@ def _format(value):
     return str(value)
 
 
-def _window_summary(pair, good, key, start, end):
+def _window_summary(pair, good, key, start, end, target_tile):
     rows = [row for row in pair["comparison"]["market_response"]
-            if row["tile"] == TARGET_TILE and row["good"] == good
+            if row["tile"] == target_tile and row["good"] == good
             and start <= row["turn"] <= end]
     paired = [row["values"].get(key, {}) for row in rows]
     paired = [value for value in paired
@@ -604,18 +652,20 @@ def _render_report(result):
         control = pair.get("control_result_data", {})
         treatment = pair.get("treatment_result_data", {})
         focus_good = EXPERIMENTS[experiment_id]["good"]
+        target_tile = pair.get("target_tile", PREFERRED_TARGET_TILE)
         goods = {"wood", "furniture"} if experiment_id == "wood_supply_reduction" else {"furniture"}
         lines += [
             f"## {EXPERIMENTS[experiment_id]['title']}", "",
-            f"Turn-7 complete canonical states match: **{comparison['pre_shock_states_match']}**. "
+            f"Target tile `{target_tile}`. Turn-7 complete canonical states match: "
+            f"**{comparison['pre_shock_states_match']}**. "
             f"Control trace: `{_display_path(pair['control_trace'])}`; treatment trace: "
             f"`{_display_path(pair['treatment_trace'])}`.", "",
-            "Treatment minus control on c50 at selected turns:", "",
+            f"Treatment minus control on `{target_tile}` at selected turns:", "",
             "| Turn | Good | Ref. delta | Paid VWAP delta | Bids | Offers | Imports | Supply | Sold | Output | Inventory | Food shortfall | Nonfood consumed |",
             "|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
         ]
         for row in comparison["market_response"]:
-            if (row["tile"] != TARGET_TILE or row["good"] not in goods
+            if (row["tile"] != target_tile or row["good"] not in goods
                     or row["turn"] not in {7, 8, 9, 10, 11, 12, 15, 20}):
                 continue
             value = row["values"]
@@ -627,7 +677,7 @@ def _render_report(result):
                 _format(value[key]["treatment_minus_control"]) for key in keys]
             lines.append("| " + " | ".join(cells) + " |")
         lines += ["", "Shock-window totals on turns 8-11:", "",
-                  "| c50 measure | Control total | Treatment total | Delta | Paired turns |",
+                  f"| {target_tile} measure | Control total | Treatment total | Delta | Paired turns |",
                   "|---|---:|---:|---:|---:|"]
         for key, label, good in (
             ("units_sold", "Units sold", focus_good),
@@ -637,7 +687,8 @@ def _render_report(result):
             ("food_intake.shortfall_units", "Food shortfall units", "food"),
             ("nonfood_consumption.units_consumed", "Nonfood units consumed", focus_good),
         ):
-            summary = _window_summary(pair, good, key, SHOCK_START, SHOCK_END)
+            summary = _window_summary(pair, good, key, SHOCK_START, SHOCK_END,
+                                      target_tile)
             lines.append(
                 f"| {label} | {_format(summary['control_total'])} | "
                 f"{_format(summary['treatment_total'])} | {_format(summary['delta_total'])} | "
@@ -645,7 +696,8 @@ def _render_report(result):
             )
         for key, label in (("reference_price_after", "Mean reference-price delta"),
                            ("transaction_vwap", "Mean paid-VWAP delta")):
-            summary = _window_summary(pair, focus_good, key, SHOCK_START, SHOCK_END)
+            summary = _window_summary(pair, focus_good, key, SHOCK_START, SHOCK_END,
+                                      target_tile)
             lines.append(
                 f"| {label} | - | - | {_format(summary['mean_delta'])} | "
                 f"{summary['paired_turns']}/{summary['expected_turns']} |"
@@ -740,7 +792,12 @@ def _run_parent(seed, out_dir, *, reuse_existing=False, audit_trace=False):
     experiments = {}
     for experiment_id, arms in child_results.items():
         control, treatment = arms["control"], arms["treatment"]
+        if control["target_tile"] != treatment["target_tile"]:
+            raise RuntimeError(
+                f"paired arms selected different target tiles for {experiment_id}: "
+                f"{control['target_tile']} != {treatment['target_tile']}")
         experiments[experiment_id] = {
+            "target_tile": control["target_tile"],
             "control_trace": control["trace_path"],
             "treatment_trace": treatment["trace_path"],
             "control_result": str(out_dir / f"{experiment_id}-control.json"),
