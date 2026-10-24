@@ -130,7 +130,7 @@ def _fmt(value):
 def render_report(summary: dict) -> str:
     seeds = summary["seeds"]
     lines = [
-        "# Five-seed default-game shock screen", "",
+        f"# {len(seeds)}-seed default-game shock screen", "",
         f"Paired 20-turn screens at seeds {', '.join(map(str, seeds))}; "
         "turns 8–11 are the shock window. Per-seed differences are matched "
         "treatment minus control; displayed ranges are descriptive, not "
@@ -146,8 +146,8 @@ def render_report(summary: dict) -> str:
                   f"market mechanical gates pass: {experiment['market_gate_pass_count']}/{len(seeds)} "
                   "seed pairs in both arms.", "",
                   "| Measure | " + " | ".join(map(str, seeds)) +
-                  " | Mean | Median | Range | Seed coverage |",
-                  "|---|" + "---:|" * (len(seeds) + 4)]
+                  " | Mean | Median | Range | Seeds observed | Seed coverage |",
+                  "|---|" + "---:|" * (len(seeds) + 5)]
         for _good, _key, label, _statistic in EXPERIMENTS[experiment_id]["measures"]:
             measure = experiment["measures"][f"{_good}:{_key}"]
             by_seed = measure["by_seed"]
@@ -160,7 +160,7 @@ def render_report(summary: dict) -> str:
                 for seed in seeds)
             lines.append("| " + " | ".join([
                 label, *cells, _fmt(measure["mean"]), _fmt(measure["median"]),
-                span, coverage,
+                span, str(measure["seeds_observed"]), coverage,
             ]) + " |")
         lines += ["", "A seed-level sum is cumulative over observed shock-window "
                   "turns for quantities and consumption; price rows show the "
