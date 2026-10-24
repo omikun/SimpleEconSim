@@ -59,7 +59,7 @@ annexation, many scenario actions, save/resume or long-run performance.
 | 5 | Atomic full saves/branches/recovery; full economic graph/RNG/action continuation in default, both authored server scenarios and native Egypt | Repeat longer native branch/recovery cases in final release evidence |
 | 6 | Block index/rebuild, stable queries/export, bounded identity cache and streamed CLI comparisons | Measured memory/query/runtime budgets and retired-reference audit |
 | 7 | Shared web/desktop/CLI explanations, native recording, F11 inspector, historical membership and iPad browser checks | Full scenario/history acceptance and physical-device follow-up if available |
-| 8 | Four-scenario measured smoke; default seed 4243 passes 30/100-turn on/off acceptance; Egypt seed 1878 passes corrected 20-turn acceptance; labor-frontier and supply-rivalry seed pairs pass 20 turns | Buffered-writer long-run reruns; measured optimization budget; final release report |
+| 8 | Four-scenario measured smoke; buffered default seed 4243 passes 30 turns; prior source default 4243 passes 30/100; Egypt seed 1878 passes corrected 20; labor-frontier and supply-rivalry seed pairs pass 20 | Buffered default 100-turn and Egypt long-run reruns; measured optimization budget; final report |
 
 The latest measured short acceptance is pinned to `9bafd9a`: all four canonical
 scenarios × recording on/off, three steps each, pass the declared state/RNG,
@@ -1140,3 +1140,12 @@ turn for labor-frontier and 0.181 MB for supply-rivalry. These close the
 remaining 20-turn authored-seed pairs. The 30/100-turn default pair and both
 20-turn Egypt pairs still need reruns against the buffered source before the
 release report can close the current-source runtime and budget gates.
+
+The buffered-source default seed-4243 30-turn pair also passes all six gates at
+`tmp/acceptance-default-buffered-2026-10-24/matrix.json`: semantic/RNG/action
+equality, currency, public closure, changed snapshots and supported replay/source
+checks. Step CPU overhead is 3.877x and trace size is 4.095 MB per turn. The
+earlier pinned source's 30-turn ratio was 3.896x, a small directional difference
+that does not establish a controlled performance improvement. The current
+buffered 100-turn run is still required; the older 100-turn result remains
+correctness evidence for `9bafd9a` only.
