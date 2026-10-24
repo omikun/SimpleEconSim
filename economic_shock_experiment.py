@@ -531,6 +531,7 @@ def _compare_pair(control, treatment):
                                                and isinstance(b, (int, float)) else None),
             }
         compared.append({"turn": key[0], "tile": key[1], "good": key[2],
+                         "currency": ((control_row or treatment_row or {}).get("currency")),
                          "values": values})
 
     control_snapshots = {

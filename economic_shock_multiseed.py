@@ -10,6 +10,11 @@ import json
 from pathlib import Path
 import statistics
 
+from economic_shock_experiment import _compare_pair
+
+SHOCK_START = 8
+SHOCK_END = 11
+
 
 EXPERIMENTS = {
     "wood_supply_reduction": {
@@ -19,9 +24,9 @@ EXPERIMENTS = {
             ("wood", "offered_supply_units", "Wood offered supply", "sum"),
             ("wood", "units_sold", "Wood units sold", "sum"),
             ("wood", "submitted_bids", "Wood submitted bids", "sum"),
-            ("wood", "transaction_vwap", "Wood paid VWAP", "mean"),
+            ("wood", "transaction_vwap", "Wood paid VWAP change (%)", "mean_percent"),
             ("furniture", "units_sold", "Furniture units sold", "sum"),
-            ("furniture", "transaction_vwap", "Furniture paid VWAP", "mean"),
+            ("furniture", "transaction_vwap", "Furniture paid VWAP change (%)", "mean_percent"),
             ("food", "food_intake.shortfall_units", "Food shortfall units", "sum"),
             ("wood", "nonfood_consumption.units_consumed", "Wood consumed", "sum"),
         ],
@@ -33,7 +38,7 @@ EXPERIMENTS = {
             ("furniture", "offered_supply_units", "Furniture offered supply", "sum"),
             ("furniture", "units_sold", "Furniture units sold", "sum"),
             ("furniture", "production_units", "Furniture production", "sum"),
-            ("furniture", "transaction_vwap", "Furniture paid VWAP", "mean"),
+            ("furniture", "transaction_vwap", "Furniture paid VWAP change (%)", "mean_percent"),
             ("food", "food_intake.shortfall_units", "Food shortfall units", "sum"),
             ("furniture", "nonfood_consumption.units_consumed", "Furniture consumed", "sum"),
         ],
@@ -49,15 +54,26 @@ def paired_effect(pair: dict, good: str, key: str, statistic: str,
     rows = [row for row in pair["comparison"]["market_response"]
             if row["tile"] == target_tile and row["good"] == good
             and start <= row["turn"] <= end]
-    deltas = [row["values"].get(key, {}).get("treatment_minus_control")
-              for row in rows]
-    observed = [value for value in deltas
-                if isinstance(value, (int, float))]
+    observed = []
+    for row in rows:
+        value = row["values"].get(key, {})
+        if statistic == "mean_percent":
+            control, treatment = value.get("control"), value.get("treatment")
+            if not isinstance(control, (int, float)) or not isinstance(treatment, (int, float)):
+                continue
+            if control > 0:
+                observed.append((treatment / control - 1.0) * 100.0)
+        else:
+            delta = value.get("treatment_minus_control")
+            if isinstance(delta, (int, float)):
+                observed.append(delta)
     if not observed:
         value = None
     elif statistic == "sum":
         value = sum(observed)
     elif statistic == "mean":
+        value = statistics.fmean(observed)
+    elif statistic == "mean_percent":
         value = statistics.fmean(observed)
     else:
         raise ValueError(f"unsupported statistic {statistic!r}")
@@ -73,12 +89,17 @@ def _load_seed(root: Path, seed: int) -> dict:
     if result.get("seed") != seed:
         raise ValueError(f"seed mismatch in {path}: expected {seed}, found {result.get('seed')}")
     for pair in result["experiments"].values():
-        if "target_tile" not in pair:
-            arm_path = Path(pair["control_result"])
+        children = {}
+        for arm, path_key in (("control", "control_result"),
+                              ("treatment", "treatment_result")):
+            arm_path = Path(pair[path_key])
             if not arm_path.exists():
                 arm_path = path.parent / arm_path.name
-            child = json.loads(arm_path.read_text())
-            pair["target_tile"] = child["target_tile"]
+            children[arm] = json.loads(arm_path.read_text())
+        if children["control"].get("target_tile") != children["treatment"].get("target_tile"):
+            raise ValueError(f"paired arms use different targets in {path}")
+        pair["target_tile"] = children["control"]["target_tile"]
+        pair["comparison"] = _compare_pair(children["control"], children["treatment"])
     return result
 
 
@@ -110,6 +131,12 @@ def summarize(root: Path, seeds: list[int]) -> dict:
                             for arm in arm_data]
             per_seed[seed] = {
                 "target_tile": pair["target_tile"],
+                "target_currency": next((row.get("currency")
+                    for row in pair["comparison"]["market_response"]
+                    if row["tile"] == pair["target_tile"]
+                    and row["good"] == config["measures"][0][0]
+                    and SHOCK_START <= row["turn"] <= SHOCK_END
+                    and row.get("currency")), None),
                 "pre_shock_states_match": pair["comparison"]["pre_shock_states_match"],
                 "market_gates_pass": all(gate.get("passed") is True
                                           for gate in market_gates),
@@ -183,7 +210,9 @@ def render_report(summary: dict) -> str:
     ]
     for experiment_id, experiment in summary["experiments"].items():
         target_tiles = ", ".join(
-            f"{seed}:{experiment['by_seed'][seed]['target_tile']}" for seed in seeds)
+            f"{seed}:{experiment['by_seed'][seed]['target_tile']} "
+            f"({experiment['by_seed'][seed]['target_currency'] or 'currency unavailable'})"
+            for seed in seeds)
         lines += [f"## {experiment['title']}", "",
                   f"Selected active target tiles by seed: {target_tiles}.",
                   f"Turn-7 states match: {experiment['turn7_match_count']}/{len(seeds)}; "
@@ -207,8 +236,9 @@ def render_report(summary: dict) -> str:
                 span, str(measure["seeds_observed"]), coverage,
             ]) + " |")
         lines += ["", "A seed-level sum is cumulative over observed shock-window "
-                  "turns for quantities and consumption; price rows show the "
-                  "mean per-turn paired delta. The coverage cells prevent a "
+                  "turns for quantities and consumption; price rows show mean "
+                  "per-turn percent changes from that seed's control so currencies "
+                  "remain comparable. Coverage cells prevent a "
                   "missing record from being silently counted as zero.", ""]
     lines += [
         "## Limits", "",

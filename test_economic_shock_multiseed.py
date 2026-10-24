@@ -43,6 +43,24 @@ class PairedSeedAggregationTests(unittest.TestCase):
         self.assertEqual(result["effect"], -3)
         self.assertEqual(result["observed_turns"], 1)
 
+    def test_cross_seed_price_effect_is_currency_free_percent_change(self):
+        pair = {"target_tile": "c59", "comparison": {"market_response": [
+            {"turn": 8, "tile": "c59", "good": "wood",
+             "currency": "USD",
+             "values": {"transaction_vwap": {
+                 "control": 2.0, "treatment": 2.2,
+                 "treatment_minus_control": 0.2}}},
+            {"turn": 9, "tile": "c59", "good": "wood",
+             "currency": "USD",
+             "values": {"transaction_vwap": {
+                 "control": 4.0, "treatment": 3.0,
+                 "treatment_minus_control": -1.0}}},
+        ]}}
+        result = paired_effect(pair, "wood", "transaction_vwap", "mean_percent",
+                               start=8, end=9)
+        self.assertAlmostEqual(result["effect"], -7.5)
+        self.assertEqual(result["observed_turns"], 2)
+
 
 if __name__ == "__main__":
     unittest.main()
