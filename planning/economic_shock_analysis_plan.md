@@ -47,6 +47,9 @@ seeds on clean source `270c688` attribute all 1,200/1,200 treasury turns. All
 1,200/1,200 public-account closes. Complete causal coverage remains false, so
 this closes the measured treasury reconciliation gate rather than proving all
 causal sources are instrumented.
+A clean-source fertilizer follow-up on `7dc4988` now closes all 95 intervals
+in five baseline controls and all 76 intervals in the seed-4242 four-arm
+paired sample; the remaining default all-goods balance is still open.
 
 ## Implementation progress
 
@@ -56,7 +59,7 @@ causal sources are instrumented.
 | 2. Controlled shock experiments | Five paired 20-turn default-game seeds and five paired supply-rivalry seeds complete; fixed default cohort measured | Default seeds 4242–4246 and scenario seeds 812–816 match complete canonical state at turn 7 for both shock pairs. All five scenario treatments preserve and remove their hooks on schedule; all ten scenario experiment-pairs pass market gates in both arms. The 20 scenario arm traces pass deep accounting and bounded structural/formula audits. Fixed cohorts and an enumerated stock census are captured in scenario arms. In default arms the turn-7 roster is matched for all ten pairs; currency-safe median cash/debt changes and recipient-side wage incidence are reported with person-turn coverage. The commit-pinned reruns are in `planning/reports/economic_shock_multiseed_default.md` and its JSON sidecar. |
 | 3. Criteria and interpretation | Default market, bounded formula, public-account and treasury reconciliation gates pass; causal coverage and recovery remain open | Five fresh default seed pairs and five supply-rivalry pairs match at turn 7 and pass market gates. On clean source `270c688`, all 20 default arms pass bounded structural/supported-formula checks with zero reported issues, 1,200/1,200 public-account closes, and 1,200/1,200 attributed treasury turns. Complete causal coverage remains false. Supply-rivalry arms separately pass 800/800 closes and treasury reconciliations. All 400 scenario stock snapshots contain no negative holdings. Recovery remains a short, RNG-divergent diagnostic. |
 | 4. Historical comparison | Analogue and primary-source scoping complete; calibration pending | Lancashire's cotton famine is a documented intermediate-input supply shock relevant to the scenario's cotton-to-cloth chain. Contemporary parliamentary evidence also describes lost export markets, relief and substitution, so it is not a clean single-shock calibration target. Compare mechanisms first; establish common geography, commodity definitions and time units before comparing magnitudes. |
-| 5. Physical stock-flow reconciliation | Supply-rivalry four-good closure complete; default all-goods diagnosis complete; default closure remains open | The corrected supply-rivalry runs on `8320f31` close cotton, cloth, food and wood in 380/380 intervals each. Default all-goods traces on `258a9b7` show 380/380 closure for cotton and sugar once recorded late corvée yields are included, but full-run closure is 0/20 arms. Food closes 146/380 intervals (maximum residual 1,144), wood 354/380 (4), furniture 329/380 (4), cloth 278/380 (8), and fertilizer 80/380 (27). The 19-good-plus-fertilizer report is `planning/reports/economic_shock_stock_flow_default_all_goods.md` with its JSON sidecar. Corvée output is a measurement-rule correction based on existing `elite_operator_execution` evidence, not a simulation change. Ordinary fertilizer inflow and crop-use mutations now emit exact physical stock deltas; clean-source default reruns are pending to establish whether this closes fertilizer. Food and the smaller goods residuals still need source-level diagnosis; complete causal coverage remains false. |
+| 5. Physical stock-flow reconciliation | Supply-rivalry four-good closure complete; fertilizer closes in scoped clean-source default traces; default all-goods closure remains open | The corrected supply-rivalry runs on `8320f31` close cotton, cloth, food and wood in 380/380 intervals each. Default all-goods traces on `258a9b7` show 380/380 closure for cotton and sugar once recorded late corvée yields are included, but full-run closure is 0/20 arms. Food closes 146/380 intervals (maximum residual 1,144), wood 354/380 (4), furniture 329/380 (4), cloth 278/380 (8), and fertilizer 80/380 (27) in that old trace set. The 19-good-plus-fertilizer report is `planning/reports/economic_shock_stock_flow_default_all_goods.md` with its JSON sidecar. Corvée output is a measurement-rule correction based on existing `elite_operator_execution` evidence, not a simulation change. On clean source `7dc4988`, source-linked fertilizer inflow/use deltas close 95/95 intervals across five default wood-supply-control baseline arms (seeds 4242–4246); a separate seed-4242 sample closes fertilizer in 76/76 intervals across all four paired arms. This confirms fertilizer closure in those measured traces only. Food and smaller goods residuals still need source-level diagnosis, and the other four seeds' treatment arms have not been rerun with the new events. Complete causal coverage remains false. |
 
 ### Default all-physical-goods stock-flow diagnosis
 
@@ -77,18 +80,24 @@ tile totals; both goods then balance in 380/380 intervals. This improves the
 audit's interpretation of existing trace evidence without changing simulation
 behavior or rerunning the game.
 
-Food remains the largest accounting gap: 146/380 intervals balance, with a
-maximum absolute residual of 1,144 units. Wood balances 354/380 intervals
-(maximum 4), furniture 329/380 (4), and cloth 278/380 (8). Fertilizer balances
-80/380 (27) in the original `258a9b7` traces; the census includes its
-environmental reserve, but those traces predate source-linked ordinary
-maritime/synthetic inflow and crop-use changes. Both mutations now emit exact
-fertilizer stock deltas, and a fresh paired sample is required to determine
-whether they explain the residual. Other goods balance in every interval,
-which can still hide offsetting unsupported flows. The food residuals have
-not yet been attributed to specific stock writers, losses, transfers or
-excluded reserve pools; they must remain open rather than be explained by a
-behavioral hypothesis.
+Food remains the largest accounting gap in the original sample: 146/380
+intervals balance, with a maximum absolute residual of 1,144 units. Wood
+balances 354/380 intervals (maximum 4), furniture 329/380 (4), and cloth
+278/380 (8). Fertilizer balances 80/380 (27) in the original `258a9b7` traces;
+those traces predate source-linked ordinary maritime/synthetic inflow and
+crop-use changes. Both mutations now emit exact before/after stock deltas. A
+clean-source follow-up on `7dc4988` closes fertilizer in all 95 intervals
+across five default wood-supply-control baseline arms (one per seed, 4242–4246).
+The seed-4242 four-arm paired sample also closes fertilizer in 76/76 intervals.
+The control-arm report and interval sidecar are
+`planning/reports/economic_shock_stock_flow_default_fertilizer_controls.md`
+and `.json`. This is a scoped confirmation, not a five-seed treatment-arm
+rerun; the other four seeds' shock arms still need tracing if fertilizer
+coverage across every intervention arm is required. Other goods balanced in
+every interval in the old trace set, which can still hide offsetting
+unsupported flows. The food residuals have not yet been attributed to
+specific stock writers, losses, transfers or excluded reserve pools; they
+must remain open rather than be explained by a behavioral hypothesis.
 
 The machine-readable interval details and source paths are in
 `planning/reports/economic_shock_stock_flow_default_all_goods.json`. A matching
@@ -715,13 +724,15 @@ coverage, stock-flow conservation or historical calibration.
 
 Continue with:
 
-1. Close the default-game material balances before treating welfare or
-   resilience outcomes as fully reconciled. Regenerate the five-seed sample
-   with the new fertilizer stock events, then diagnose food stock writers and
-   reserve queues and the smaller wood, furniture and cloth residuals. Trace
+1. Close the remaining default-game material balances before treating welfare
+   or resilience outcomes as fully reconciled. Fertilizer now closes in the
+   five baseline controls and all four seed-4242 paired arms on clean source;
+   rerun the other four seeds' treatment arms only if full intervention-wide
+   fertilizer coverage is needed. Prioritize food stock writers and reserve
+   queues, then the smaller wood, furniture and cloth residuals. Trace
    external trade and non-agent pools where a residual cannot be distinguished
    from offsetting flows. The all-goods census and auditor are in place; the
-   measured circuit still fails.
+   measured circuit still fails overall.
 2. The fixed turn-7 default resident cohort is measured in five seeds. The
    short-window results show little and mixed need/intake, survival, cash and
    wage-incidence effects; they do not establish persistence. Add distributional

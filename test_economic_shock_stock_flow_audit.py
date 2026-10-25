@@ -300,6 +300,9 @@ class EconomicShockStockFlowAuditTests(unittest.TestCase):
         interval = result["intervals"][0]
         self.assertEqual(interval["fertilizer_stock_change"], 3)
         self.assertEqual(interval["residual"], 0)
+        report = render_markdown([result])
+        self.assertIn("This selected-goods view", report)
+        self.assertIn("Traced before/after fertilizer-reserve changes", report)
 
     def test_foreign_trader_sale_within_census_boundary_is_internal_turnover(self):
         run = self._run([
@@ -334,6 +337,7 @@ class EconomicShockStockFlowAuditTests(unittest.TestCase):
         report = render_markdown([result])
 
         self.assertIn("# All-physical-goods aggregate stock-flow audit", report)
+        self.assertIn("no nonzero source-linked fertilizer", report)
         self.assertLess(report.index("| fertilizer |"),
                         report.index("Complete stock-flow closure:"))
 

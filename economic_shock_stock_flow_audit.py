@@ -374,8 +374,8 @@ def discover_runs(root, seeds, *, scenario="supply_rivalry"):
 def render_markdown(results):
     goods = tuple(results[0].get("audited_goods", AUDITED_GOODS))
     detailed_goods = goods == AUDITED_GOODS
-    title = ("Selected-goods" if detailed_goods or len(goods) < 10
-             else "All-physical-goods")
+    all_physical_goods = len(goods) >= 10
+    title = "All-physical-goods" if all_physical_goods else "Selected-goods"
     lines = [
         f"# {title} aggregate stock-flow audit",
         "",
@@ -497,13 +497,31 @@ def render_markdown(results):
                  "ordinary tile production total and otherwise appear as "
                  "unexplained stock increases."),
             ])
+        fertilizer_deltas = [
+            abs(interval.get("fertilizer_stock_change", 0.0))
+            for interval in all_intervals
+            if interval.get("good") == "fertilizer"
+        ]
+        if ("fertilizer" in goods
+                and any(delta > 1e-6 for delta in fertilizer_deltas)):
+            fertilizer_note = (
+                " Traced before/after fertilizer-reserve changes are included "
+                "in this sample's balance."
+            )
+        elif "fertilizer" in goods:
+            fertilizer_note = (
+                " This trace set has no nonzero source-linked fertilizer "
+                "reserve changes, so fertilizer inflow/use attribution may "
+                "be incomplete."
+            )
+        else:
+            fertilizer_note = ""
         lines.extend([
             "",
-            "This all-physical-goods view is a diagnostic screen. A nonzero "
+            f"This {'all-physical-goods' if all_physical_goods else 'selected-goods'} "
+            "view is a diagnostic screen. A nonzero "
             "residual identifies a stock-flow gap; zero residuals can still "
-            "hide offsetting unsupported flows. Fertilizer reserves are "
-            "included in the stock census, but their ordinary seasonal inflow "
-            "and use are not yet source-linked in the trace.",
+            "hide offsetting unsupported flows." + fertilizer_note,
         ])
     source_commits = sorted({result.get("source_commit") for result in results})
     lines.extend([
