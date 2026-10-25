@@ -110,6 +110,20 @@ class EconomicReplayTests(unittest.TestCase):
         source['subject']['good']='food';row['cause_event_ids']=[]
         self.assertFalse(validate(row,lambda _:source)['matches'])
 
+    def test_production_receipt_v2_keeps_causal_links(self):
+        from causal_contracts import validate
+        row = {'formula_id': 'production.sum_receipts.v2',
+               'subject': {'type': 'tile', 'id': 'North', 'good': 'food'},
+               'cause_event_ids': ['receipt-1'],
+               'inputs': {'producer_receipts': [
+                   {'event_id': 'receipt-1', 'units': 10}]}}
+        source = {'event_id': 'receipt-1', 'value_after': 10}
+
+        self.assertTrue(validate(row, lambda ident:
+                                 source if ident == 'receipt-1' else None)['matches'])
+        row['cause_event_ids'] = []
+        self.assertFalse(validate(row, lambda _ident: source)['matches'])
+
     def test_frozen_withdrawal_uses_cap_and_ignores_claimed_settlement(self):
         row={'formula_id':'bank.deposit_to_cash.v1','value_after':45,
              'inputs':{'deposit_before':50,'requested_amount':40,'bank_frozen':True,

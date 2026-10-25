@@ -136,6 +136,10 @@ def replay(row):
         counts={name:len(entries) for name,entries in i['flows'].items()}
         return before+sum(counts.get(k,0) for k in ('arrivals','births','external_entries','role_conversions_in'))-sum(counts.get(k,0) for k in ('departures','deaths','role_conversions_out','unknown_exits'))
     if formula=='production.sum_receipts.v1':return sum(v['units'] for v in i['producer_receipts'])+i['granary_release_units']+i['wool_from_pasture']
+    if formula=='production.sum_receipts.v2':return sum(v['units'] for v in i['producer_receipts'])+i['wool_from_pasture']
+    if formula=='production.granary_food_transfer.v1':
+        change=i['units'] if i['direction']=='deposit' else -i['units']
+        return i['granary_stock_before']+change
     if formula=='production.independent_zero.v1':
         reason=i['reason']
         if ((reason=='production_random_draw_failed' and i['draw']>=i['success_probability'])

@@ -515,6 +515,154 @@ def produce_independent(region, agent, recipe, output, num_agents_per_good,
                                           'quantity': num_output})
 
 
+def _record_granary_food_transfer(region, *, turn, direction, units,
+                                  granary_before, granary_after,
+                                  source_inventory_changes=(),
+                                  public_food_account_id=None,
+                                  public_food_before=None,
+                                  public_food_after=None,
+                                  cause_event_ids=None):
+    """Trace an exact physical transfer between a granary and food stocks."""
+    if units <= 0:
+        return None
+    from run_trace import emit
+
+    operation_id = f"granary-food:{region.name}:{int(turn)}:{direction}"
+    inventory_changes = [dict(row) for row in source_inventory_changes]
+    if direction == "deposit":
+        members = [{
+            "id": str(row["agent_id"]),
+            "currency": "food_units",
+            "amount": int(row["units"]),
+            "balance_before": int(row["inventory_before"]),
+            "balance_after": int(row["inventory_after"]),
+        } for row in inventory_changes]
+        payer = {
+            "type": "agent_inventory_group", "id": operation_id,
+            "currency": "food_units", "member_count": len(members),
+            "member_ids": [member["id"] for member in members],
+            "members": members,
+            "balance_before": sum(row["balance_before"] for row in members),
+            "balance_after": sum(row["balance_after"] for row in members),
+            "balance_scope": "member_food_inventories",
+        }
+        payee = {
+            "type": "regional_granary_stock", "id": region.name,
+            "currency": "food_units",
+            "balance_before": float(granary_before),
+            "balance_after": float(granary_after),
+            "balance_scope": "granary_stock",
+        }
+        counterpart_status = "producer_inventory_debits_and_granary_credit_captured"
+    else:
+        payer = {
+            "type": "regional_granary_stock", "id": region.name,
+            "currency": "food_units",
+            "balance_before": float(granary_before),
+            "balance_after": float(granary_after),
+            "balance_scope": "granary_stock",
+        }
+        payee = {
+            "type": "government_food_inventory",
+            "id": str(public_food_account_id or region.name),
+            "currency": "food_units",
+            "balance_before": float(public_food_before),
+            "balance_after": float(public_food_after),
+            "balance_scope": "government_food_inventory",
+        }
+        counterpart_status = "granary_debit_and_public_food_credit_captured"
+    transfer_contract = {
+        "contract_version": "goods_transfer.v1",
+        "operation_id": operation_id,
+        "operation_type": "seasonal_granary_deposit" if direction == "deposit"
+        else "seasonal_granary_release",
+        "good": "food", "unit": "food_units", "amount": int(units),
+        "payer_account": payer, "payee_account": payee,
+        "counterparty_leg_status": counterpart_status,
+    }
+    return emit(
+        region, kind="granary_food_stock_transfer", record_class="transfer",
+        phase="production",
+        subject={"type": "tile/operation", "id": operation_id,
+                 "tile": region.name, "good": "food"},
+        metric_id="goods.granary_stock", unit="food_units",
+        before=float(granary_before), after=float(granary_after),
+        formula_id="production.granary_food_transfer.v1",
+        cause_event_ids=cause_event_ids or None,
+        inputs={"turn": int(turn), "operation_id": operation_id,
+                "direction": direction, "units": int(units),
+                "granary_stock_before": float(granary_before),
+                "granary_stock_after": float(granary_after),
+                "source_inventory_changes": inventory_changes,
+                "public_food_inventory_before": public_food_before,
+                "public_food_inventory_after": public_food_after,
+                "transfer_contract": transfer_contract})
+
+
+def _store_food_in_granary(region, *, turn, requested_units,
+                           producer_outputs, cause_event_ids=None):
+    """Move integer units of this turn's harvest from farms into the granary."""
+    granary_before = float(getattr(region, "granary_stock", 25.0))
+    room = max(0, math.floor(120.0 - granary_before + 1e-9))
+    target = min(max(0, int(requested_units)), room)
+    remaining = target
+    changes = []
+    for agent, produced_units in sorted(
+            producer_outputs, key=lambda row: str(getattr(row[0], "id", ""))):
+        if remaining <= 0:
+            break
+        inventory_before = max(0, int(agent.inv_get(Goods.food, 0)))
+        available = min(max(0, int(produced_units)), inventory_before)
+        take = min(remaining, available)
+        if take <= 0:
+            continue
+        agent.inv_add(Goods.food, -take)
+        inventory_after = int(agent.inv_get(Goods.food, 0))
+        changes.append({"agent_id": agent.id, "units": take,
+                        "inventory_before": inventory_before,
+                        "inventory_after": inventory_after})
+        remaining -= take
+    stored = target - remaining
+    if stored <= 0:
+        return 0
+    region.granary_stock = granary_before + stored
+    _record_granary_food_transfer(
+        region, turn=turn, direction="deposit", units=stored,
+        granary_before=granary_before,
+        granary_after=float(region.granary_stock),
+        source_inventory_changes=changes, cause_event_ids=cause_event_ids)
+    return stored
+
+
+def _release_granary_food(region, *, turn):
+    """Move whole released units into public food inventory, if available."""
+    granary_before = float(getattr(region, "granary_stock", 25.0))
+    government = (getattr(region, "gov", None)
+                  or getattr(getattr(region, "owner_nation", None),
+                             "government", None))
+    if (granary_before <= 2.0 or government is None
+            or not hasattr(government, "food_inventory")):
+        return 0
+    units = min(4, int(granary_before * 0.20), int(granary_before))
+    if units <= 0:
+        return 0
+    public_food_before = float(government.food_inventory)
+    granary_after = granary_before - units
+    receiver = getattr(government, "receive_food", None)
+    if callable(receiver):
+        receiver(units)
+    else:
+        government.food_inventory = public_food_before + units
+    region.granary_stock = granary_after
+    _record_granary_food_transfer(
+        region, turn=turn, direction="release", units=units,
+        granary_before=granary_before, granary_after=granary_after,
+        public_food_before=public_food_before,
+        public_food_account_id=getattr(government, "name", region.name),
+        public_food_after=float(government.food_inventory))
+    return units
+
+
 def produce(region, t):
     """Run production phase for all active producers in region."""
     region._last_turn = t
@@ -530,6 +678,7 @@ def produce(region, t):
             num_agents_per_good[g] = 0
     local_total_production = defaultdict(int)
     receipt_ids = {}
+    food_producer_outputs = []
     for a in region.agents:
         if (a.employer or a.output == Goods.gov or a.is_trader or a.output == Goods.none
                 or a.output not in region.recipes or getattr(a, 'military_unit_id', None)):
@@ -563,6 +712,8 @@ def produce(region, t):
         r = region.recipes[a.output]
         if r.get('import_only', False):
             continue
+        inventory_before = (int(a.inv_get(Goods.food, 0))
+                            if a.output == Goods.food else 0)
         if a.is_corporation:
             produce_corporation(region, a, r, a.output, num_agents_per_good,
                                 local_total_production,
@@ -570,6 +721,11 @@ def produce(region, t):
         else:
             produce_independent(region, a, r, a.output, num_agents_per_good,
                                 local_total_production, receipt_ids.setdefault(a.output, []))
+        if a.output == Goods.food:
+            produced_units = max(0, int(a.inv_get(Goods.food, 0))
+                                 - inventory_before)
+            if produced_units:
+                food_producer_outputs.append((a, produced_units))
 
     if getattr(region, 'scenario_grain_holder_id', None) is not None:
         from scenario_political_economy import hold_after_harvest
@@ -602,14 +758,14 @@ def produce(region, t):
 
     if year_turn in (4, 5, 6, 7) and food_made > 2:
         # Peak harvest accumulation into granary
-        buffer_in = max(1.0, food_made * 0.15)
-        region.granary_stock = min(120.0, region.granary_stock + buffer_in)
+        buffer_in = max(1, int(food_made * 0.15))
+        _store_food_in_granary(
+            region, turn=t, requested_units=buffer_in,
+            producer_outputs=food_producer_outputs,
+            cause_event_ids=receipt_ids.get(Goods.food, []))
     elif year_turn in (9, 0, 1) and region.granary_stock > 2.0:
-        # Winter / early spring lean season: granary releases buffer food into local production
-        buffer_out = min(4.0, region.granary_stock * 0.20)
-        region.granary_stock = max(0.0, region.granary_stock - buffer_out)
-        granary_release_units = int(buffer_out)
-        local_total_production[Goods.food] += granary_release_units
+        # Winter / early spring lean season: release stored food into public aid stock.
+        granary_release_units = _release_granary_food(region, turn=t)
 
     for g in region.goods:
         if g != Goods.gov:
@@ -619,7 +775,7 @@ def produce(region, t):
                  subject={'type': 'tile', 'id': region.name, 'good': g.name},
                  metric_id='goods.production', unit='units_per_turn',
                  after=local_total_production[g],
-                 formula_id='production.sum_receipts.v1',
+                 formula_id='production.sum_receipts.v2',
                  inputs={'producer_count': num_agents_per_good.get(g, 0),
                          'producer_receipts': [
                              {'event_id': ident, 'units': region._run_trace._turn_production_receipts[ident]}

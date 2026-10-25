@@ -121,8 +121,8 @@ class EconomicShockStockFlowAuditTests(unittest.TestCase):
                 {"good": "food", "pool": "granary_food", "quantity": 5},
             ]},
             {"turn": 2, "stocks": [
-                {"good": "food", "pool": "inventory", "quantity": 12},
-                {"good": "food", "pool": "granary_food", "quantity": 5},
+                {"good": "food", "pool": "inventory", "quantity": 11},
+                {"good": "food", "pool": "granary_food", "quantity": 6},
             ]},
         ])
         events = [
@@ -133,6 +133,9 @@ class EconomicShockStockFlowAuditTests(unittest.TestCase):
             {"turn": 2, "kind": "civilian_food_consumption_total",
              "subject": {"good": "food"}, "value_after": 1,
              "inputs": {"eaten_food_units": 1}},
+            {"turn": 2, "kind": "granary_food_stock_transfer",
+             "record_class": "transfer", "subject": {"good": "food"},
+             "inputs": {"direction": "deposit", "units": 1}},
         ]
 
         result = audit_run(run, events)
@@ -144,7 +147,10 @@ class EconomicShockStockFlowAuditTests(unittest.TestCase):
             "civilian_food_consumption_units"], 1.0)
         food_interval = next(row for row in result["intervals"]
                              if row["good"] == "food")
-        self.assertEqual(food_interval["granary_stock_delta"], 0)
+        self.assertEqual(food_interval["granary_stock_delta"], 1)
+        self.assertEqual(result["summary_by_good"]["food"][
+            "internal_turnover"]["granary_food_stock_transfer"][
+                "reported_quantity"], 1)
 
     def test_granary_change_remains_inside_boundary_and_exposes_gap(self):
         run = self._run([

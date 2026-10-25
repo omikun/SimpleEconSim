@@ -7,7 +7,8 @@ import math
 
 
 SUPPORTED = {'bank.opening_plus_transitions.v1', 'treasury.account_chain.v1',
-             'treasury.closed_accounts.v1', 'production.sum_receipts.v1','market.discriminatory_clear.v2',
+             'treasury.closed_accounts.v1', 'production.sum_receipts.v1',
+             'production.sum_receipts.v2', 'market.discriminatory_clear.v2',
              'disease.threshold_crossing_fatalities.v1', 'gini.recorded_sample.v1',
              'construction.consume_reserved_materials.v1'}
 
@@ -37,7 +38,7 @@ def requirements(row):
             result.append((f'accounts[{index}].source_event_id',account.get('source_event_id'),
                            {'value_after':account['closing'],
                             'subject':{'type':'public_account','id':account['account_id']}}))
-    elif formula=='production.sum_receipts.v1':
+    elif formula in {'production.sum_receipts.v1', 'production.sum_receipts.v2'}:
         for index,receipt in enumerate(i['producer_receipts']):
             result.append((f'producer_receipts[{index}].event_id',receipt.get('event_id'),
                            {'value_after':receipt['units']}))

@@ -140,6 +140,8 @@ def audit_run(run, events, *, tolerance=1e-6):
             quantity = None
             if kind == "paid_market_sale":
                 quantity = row.get("value_after")
+            elif kind == "granary_food_stock_transfer":
+                quantity = inputs.get("units")
             elif kind in {"route_shipment_loaded", "route_shipment_departure",
                           "route_shipment_progress", "route_shipment_arrival"}:
                 quantity = inputs.get("quantity")

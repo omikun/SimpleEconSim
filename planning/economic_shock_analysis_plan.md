@@ -15,13 +15,16 @@ selected for mechanism-level comparison, but numerical calibration is not
 supported by the present evidence. A fresh five-seed material-balance audit
 now closes cotton, cloth and wood in 380/380 intervals each. Food closes in
 only 120/380 intervals; every one of its 260 nonzero residuals equals that
-interval's granary-stock change. Code inspection confirms harvest buffering
-increases the granary without withdrawing food from producer inventories,
-while winter release changes only the granary and production log. Food
-outcomes are not reliable until those physical stock legs are fixed. Keep
-this economic-rule repair separate from the measurement changes. Full
-stock-flow closure, default-game population welfare, prospective recovery
-evidence and empirical calibration remain. A fixed turn-7 ordinary-resident
+interval's granary-stock change. Code inspection confirmed harvest buffering
+increased the granary without withdrawing food from producer inventories,
+while winter release changed only the granary and production log. The source
+correction now debits producer inventories for harvest deposits and credits
+government food inventory for lean-season releases; focused granary, replay
+and trace tests pass. The five-seed stock-flow rerun is pending, so food
+closure is not yet established. Keep this economic-rule repair separate from
+the measurement changes. Full stock-flow closure, default-game population
+welfare, prospective recovery evidence and empirical calibration remain. A
+fixed turn-7 ordinary-resident
 cohort has now been measured in five fresh default-game seeds. Across the two
 four-turn interventions, need-met changes are within ±0.16 percentage points,
 calorie intake changes range from −4.3 to +1.8 kcal per observed need-person-
@@ -45,7 +48,7 @@ causal sources are instrumented.
 | 2. Controlled shock experiments | Five paired 20-turn default-game seeds and five paired supply-rivalry seeds complete; fixed default cohort measured | Default seeds 4242–4246 and scenario seeds 812–816 match complete canonical state at turn 7 for both shock pairs. All five scenario treatments preserve and remove their hooks on schedule; all ten scenario experiment-pairs pass market gates in both arms. The 20 scenario arm traces pass deep accounting and bounded structural/formula audits. Fixed cohorts and an enumerated stock census are captured in scenario arms. In default arms the turn-7 roster is matched for all ten pairs; currency-safe median cash/debt changes and recipient-side wage incidence are reported with person-turn coverage. The commit-pinned reruns are in `planning/reports/economic_shock_multiseed_default.md` and its JSON sidecar. |
 | 3. Criteria and interpretation | Default market, bounded formula, public-account and treasury reconciliation gates pass; causal coverage and recovery remain open | Five fresh default seed pairs and five supply-rivalry pairs match at turn 7 and pass market gates. On clean source `270c688`, all 20 default arms pass bounded structural/supported-formula checks with zero reported issues, 1,200/1,200 public-account closes, and 1,200/1,200 attributed treasury turns. Complete causal coverage remains false. Supply-rivalry arms separately pass 800/800 closes and treasury reconciliations. All 400 scenario stock snapshots contain no negative holdings. Recovery remains a short, RNG-divergent diagnostic. |
 | 4. Historical comparison | Analogue and primary-source scoping complete; calibration pending | Lancashire's cotton famine is a documented intermediate-input supply shock relevant to the scenario's cotton-to-cloth chain. Contemporary parliamentary evidence also describes lost export markets, relief and substitution, so it is not a clean single-shock calibration target. Compare mechanisms first; establish common geography, commodity definitions and time units before comparing magnitudes. |
-| 5. Physical stock-flow reconciliation | Cotton, cloth and wood close; food audit isolates a granary accounting defect; default-game closure remains | Fresh 20-arm traces from clean source `fe35594` close cotton, cloth and wood in 380/380 intervals apiece. Food closes in 120/380; all 260 nonzero food residuals exactly equal the interval's granary-stock change, with no missing-snapshot or missing-meal coverage issues. The current harvest rule adds 15% of food output to granary stock without debiting producer inventories; the lean-season release debits the granary but credits no physical food store. Fix and retest this behavior before interpreting food resilience. Report: `planning/reports/economic_shock_stock_flow_supply_rivalry_expanded.md` and JSON sidecar. Full causal coverage remains false. |
+| 5. Physical stock-flow reconciliation | Granary stock legs corrected; clean five-seed re-audit pending; default-game closure remains | Fresh 20-arm traces from clean source `fe35594` close cotton, cloth and wood in 380/380 intervals apiece. Food closes in 120/380; all 260 nonzero food residuals exactly equal the interval's granary-stock change, with no missing-snapshot or missing-meal coverage issues. The source correction now debits producer food inventories for each harvest deposit and credits government food inventory for seasonal releases. Both are represented as internal goods transfers; production totals now exclude granary releases and use a versioned receipt formula. Focused granary, replay and trace tests pass. Rerun seeds 812–816 on the committed correction and verify all audited goods before interpreting food resilience. Existing diagnostic report: `planning/reports/economic_shock_stock_flow_supply_rivalry_expanded.md` and JSON sidecar. Full causal coverage remains false. |
 
 The old `market_price_stabilization_plan.md` describes an earlier price rule.
 Current `region_market.update_price_ref` already demand-gates positive scarcity
