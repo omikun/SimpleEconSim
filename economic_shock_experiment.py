@@ -875,6 +875,9 @@ def _goods_stock_observation(server, turn, *, aggregate_world=False):
         "scope": f"all {world} regions and their current route queues",
         "coverage": {
             "region_count": len(server.tiles),
+            "economic_region_count": sum(
+                1 for tile in server.tiles
+                if not getattr(tile, "wilderness", False)),
             "agents_scanned": scanned_agents,
             "agent_counts_by_category": dict(sorted(agent_categories.items())),
             "distinct_government_stores": len(seen_public),

@@ -34,11 +34,11 @@ INTERNAL_TURNOVER_KINDS = {
 }
 
 
-def _stock_totals(snapshot):
+def _stock_totals(snapshot, audited_goods=AUDITED_GOODS):
     totals = defaultdict(float)
     for row in snapshot.get("stocks", ()):
         good = row.get("good")
-        if good in AUDITED_GOODS:
+        if good in audited_goods:
             quantity = float(row.get("quantity", 0.0))
             if not math.isfinite(quantity):
                 raise ValueError(f"non-finite {good} stock in turn {snapshot.get('turn')}")
@@ -53,27 +53,38 @@ def _granary_food_total(snapshot):
                and row.get("pool") == "granary_food")
 
 
-def audit_run(run, events, *, tolerance=1e-6):
+def audit_run(run, events, *, tolerance=1e-6, audited_goods=None):
     """Return interval balances and internal turnover counts for one arm."""
+    audited_goods = tuple(audited_goods or run.get("audited_goods")
+                          or AUDITED_GOODS)
     snapshots = {}
     granary_stocks = {}
     issues = []
     expected_region_count = 1
-    for snapshot in run.get("scenario_goods_stock_observations", ()):
+    expected_active_regions_by_turn = {}
+    stock_observations = (run.get("scenario_goods_stock_observations")
+                          or run.get("default_goods_stock_observations") or ())
+    for snapshot in stock_observations:
         turn = int(snapshot["turn"])
         if turn in snapshots:
             issues.append({"kind": "duplicate_stock_snapshot", "turn": turn})
-        snapshots[turn] = _stock_totals(snapshot)
+        snapshots[turn] = _stock_totals(snapshot, audited_goods)
         granary_stocks[turn] = _granary_food_total(snapshot)
-        expected_region_count = int(
-            (snapshot.get("coverage") or {}).get("region_count", 1))
+        coverage = snapshot.get("coverage") or {}
+        expected_active_regions_by_turn[turn] = coverage.get(
+            "economic_region_count")
+        expected_region_count = int(coverage.get(
+            "economic_region_count", coverage.get("region_count", 1)))
 
     components = defaultdict(lambda: defaultdict(lambda: {
-        "production": 0.0, "production_input_use": 0.0,
+        "production": 0.0, "production_aggregate": 0.0,
+        "production_aggregate_event_count": 0,
+        "production_input_use": 0.0,
         "household_nonfood_use": 0.0, "civilian_food_use": 0.0,
         "military_food_use": 0.0, "food_inflow": 0.0,
     }))
     food_consumption_aggregate_regions = defaultdict(set)
+    production_aggregate_regions = defaultdict(set)
     turnover = defaultdict(lambda: defaultdict(lambda: {
         "event_count": 0, "reported_quantity": 0.0,
     }))
@@ -87,8 +98,16 @@ def audit_run(run, events, *, tolerance=1e-6):
         inputs = row.get("inputs") or {}
         good = subject.get("good") or inputs.get("good")
 
-        if kind in PRODUCTION_KINDS:
-            if good in AUDITED_GOODS:
+        if kind == "tile_production_total" and good in audited_goods:
+            components[turn][good]["production_aggregate"] += float(
+                row.get("value_after") or 0.0)
+            components[turn][good]["production_aggregate_event_count"] += 1
+            region = subject.get("tile") or subject.get("id")
+            if region is not None:
+                production_aggregate_regions[turn].add(region)
+
+        elif kind in PRODUCTION_KINDS:
+            if good in audited_goods:
                 amount = float(row.get("value_after") or 0.0)
                 components[turn][good]["production"] += amount
             input_amount = float(inputs.get(
@@ -104,14 +123,16 @@ def audit_run(run, events, *, tolerance=1e-6):
                         "input_good": input_good,
                         "input_quantity": input_amount,
                     })
-                elif input_good in AUDITED_GOODS:
+                elif input_good in audited_goods:
                     components[turn][input_good]["production_input_use"] += input_amount
 
-        elif kind in FOOD_INFLOW_KINDS and good == "food":
+        elif kind in FOOD_INFLOW_KINDS and good == "food" \
+                and "food" in audited_goods:
             components[turn][good]["food_inflow"] += float(
                 row.get("value_after") or 0.0)
 
-        elif kind == "civilian_food_consumption_total" and good == "food":
+        elif (kind == "civilian_food_consumption_total" and good == "food"
+              and "food" in audited_goods):
             region = subject.get("tile") or subject.get("id")
             if region in food_consumption_aggregate_regions[turn]:
                 issues.append({"kind": "duplicate_food_consumption_aggregate",
@@ -120,11 +141,13 @@ def audit_run(run, events, *, tolerance=1e-6):
             amount = inputs.get("eaten_food_units", row.get("value_after", 0.0))
             components[turn][good]["civilian_food_use"] += float(amount or 0.0)
 
-        elif kind == "army_ration_consumption" and good == "food":
+        elif (kind == "army_ration_consumption" and good == "food"
+              and "food" in audited_goods):
             amount = inputs.get("food_consumed", 0.0)
             components[turn][good]["military_food_use"] += float(amount or 0.0)
 
-        elif kind == "household_nonfood_consumption" and good in AUDITED_GOODS:
+        elif (kind == "household_nonfood_consumption"
+              and good in audited_goods):
             amount = float(inputs.get("units_consumed", 0.0) or 0.0)
             if amount == 0.0:
                 amount = max(0.0, -float(row.get("delta") or 0.0))
@@ -134,7 +157,7 @@ def audit_run(run, events, *, tolerance=1e-6):
             kind in INTERNAL_TURNOVER_KINDS
             or row.get("record_class") == "transfer"
         )
-        if is_internal_turnover and good in AUDITED_GOODS:
+        if is_internal_turnover and good in audited_goods:
             counter = turnover[good][kind]
             counter["event_count"] += 1
             quantity = None
@@ -148,7 +171,8 @@ def audit_run(run, events, *, tolerance=1e-6):
             if quantity is not None:
                 counter["reported_quantity"] += abs(float(quantity))
             if (kind == "paid_market_sale" and inputs.get("imported")
-                    and not inputs.get("source_region")):
+                    and not inputs.get("source_region")
+                    and not inputs.get("seller_account_tile")):
                 issues.append({
                     "kind": "imported_market_sale_requires_boundary_review",
                     "turn": turn,
@@ -161,11 +185,14 @@ def audit_run(run, events, *, tolerance=1e-6):
     for turn in sorted(snapshots):
         if turn - 1 not in snapshots:
             continue
-        for good in AUDITED_GOODS:
+        for good in audited_goods:
             opening = snapshots[turn - 1].get(good, 0.0)
             closing = snapshots[turn].get(good, 0.0)
             flow = components[turn][good]
-            expected_delta = (flow["production"]
+            production = (flow["production_aggregate"]
+                          if flow["production_aggregate_event_count"]
+                          else flow["production"])
+            expected_delta = (production
                               - flow["production_input_use"]
                               - flow["household_nonfood_use"]
                               + flow["food_inflow"]
@@ -182,7 +209,11 @@ def audit_run(run, events, *, tolerance=1e-6):
                 "opening_stock": round(opening, 9),
                 "closing_stock": round(closing, 9),
                 "stock_delta": round(actual_delta, 9),
-                "production": round(flow["production"], 9),
+                "production": round(production, 9),
+                "production_source": (
+                    "tile_production_total" if
+                    flow["production_aggregate_event_count"] else
+                    "producer_outcomes"),
                 "production_input_use": round(flow["production_input_use"], 9),
                 "household_nonfood_use": round(flow["household_nonfood_use"], 9),
                 "food_inflow": round(flow["food_inflow"], 9),
@@ -197,16 +228,26 @@ def audit_run(run, events, *, tolerance=1e-6):
     for turn in range(2, int(run.get("completed_turns", 0)) + 1):
         if turn not in snapshots or turn - 1 not in snapshots:
             issues.append({"kind": "missing_consecutive_stock_snapshot", "turn": turn})
-        elif len(food_consumption_aggregate_regions[turn]) != expected_region_count:
+        elif "food" in audited_goods:
+            expected = expected_active_regions_by_turn.get(turn)
+            if expected is None:
+                # Older default censuses stored the full map tile count. The
+                # aggregate production totals identify the regions that ran
+                # the active local economy in each turn.
+                expected = (len(production_aggregate_regions[turn])
+                            or expected_region_count)
+            observed = len(food_consumption_aggregate_regions[turn])
+            if observed == expected:
+                continue
             issues.append({
                 "kind": "incomplete_food_consumption_aggregates",
                 "turn": turn,
-                "expected_regions": expected_region_count,
-                "observed_regions": len(food_consumption_aggregate_regions[turn]),
+                "expected_regions": expected,
+                "observed_regions": observed,
             })
 
     summaries = {}
-    for good in AUDITED_GOODS:
+    for good in audited_goods:
         rows = [row for row in intervals if row["good"] == good]
         residuals = [abs(float(row["residual"])) for row in rows]
         summaries[good] = {
@@ -241,7 +282,7 @@ def audit_run(run, events, *, tolerance=1e-6):
         "source_commit": run.get("source_commit"),
         "tracked_worktree_dirty": run.get("tracked_worktree_dirty"),
         "completed_turns": run.get("completed_turns"),
-        "audited_goods": list(AUDITED_GOODS),
+        "audited_goods": list(audited_goods),
         "passed": passed,
         "issues": issues,
         "summary_by_good": summaries,
@@ -249,25 +290,28 @@ def audit_run(run, events, *, tolerance=1e-6):
     }
 
 
-def audit_run_file(path):
+def audit_run_file(path, *, audited_goods=None):
     path = Path(path)
     run = json.loads(path.read_text())
     trace_path = Path(run["trace_path"])
     events = (json.loads(payload) for payload in iter_payloads(trace_path))
-    result = audit_run(run, events)
+    result = audit_run(run, events, audited_goods=audited_goods)
     result["run_json"] = str(path)
     result["trace_path"] = str(trace_path)
     return result
 
 
-def discover_runs(root, seeds):
+def discover_runs(root, seeds, *, scenario="supply_rivalry"):
     root = Path(root)
-    intervention_arms = (
-        "rivalry_cotton_supply_reduction-control",
-        "rivalry_cotton_supply_reduction-treatment",
-        "rivalry_mill_cotton_demand_increase-control",
-        "rivalry_mill_cotton_demand_increase-treatment",
-    )
+    intervention_arms = (tuple(
+        f"{experiment}-{arm}"
+        for experiment in ("wood_supply_reduction", "furniture_demand_increase")
+        for arm in ("control", "treatment")) if scenario == "default" else (
+            "rivalry_cotton_supply_reduction-control",
+            "rivalry_cotton_supply_reduction-treatment",
+            "rivalry_mill_cotton_demand_increase-control",
+            "rivalry_mill_cotton_demand_increase-treatment",
+        ))
     paths = []
     for seed in seeds:
         for arm in intervention_arms:
@@ -279,6 +323,8 @@ def discover_runs(root, seeds):
 
 
 def render_markdown(results):
+    goods = tuple(results[0].get("audited_goods", AUDITED_GOODS))
+    detailed_goods = goods == AUDITED_GOODS
     lines = [
         "# Selected-goods aggregate stock-flow audit",
         "",
@@ -287,62 +333,102 @@ def render_markdown(results):
         "Marketplace, aid, other internal transfers and route events are counted",
         "as turnover, not net flow: both sides and route cargo are inside the",
         "census boundary. This does not prove every possible stock writer is",
-        "instrumented, and does not cover goods beyond cotton, cloth, food and",
-        "wood. Food includes regional granary stocks and one",
+        "instrumented. Food includes public stores, regional granaries and one",
         "per-region civilian meal total each turn; army rations are separate.",
         "",
-        "| Seed | Shock | Arm | Cotton | Cloth | Food | Wood | Issues |",
-        "|---:|---|---|---:|---:|---:|---:|---:|",
     ]
+    if detailed_goods:
+        lines.extend([
+            "| Seed | Shock | Arm | Cotton | Cloth | Food | Wood | Issues |",
+            "|---:|---|---|---:|---:|---:|---:|---:|",
+        ])
+    else:
+        lines.extend([
+            "| Seed | Experiment | Arm | Balanced intervals | Issues |",
+            "|---:|---|---|---:|---:|",
+        ])
     for result in sorted(results, key=lambda row: (
             int(row["seed"]), row["experiment"], row["arm"])):
-        shock = ("cotton supply" if "cotton_supply" in result["experiment"]
-                 else "mill cotton demand")
         for_good = result["summary_by_good"]
-        cells = [f"{for_good[good]['balanced_interval_count']}/"
-                 f"{for_good[good]['interval_count']} (max "
-                 f"{for_good[good]['max_absolute_residual']})"
-                 for good in AUDITED_GOODS]
-        lines.append(
-            f"| {result['seed']} | {shock} | {result['arm']} | "
-            f"{' | '.join(cells)} | "
-            f"{len(result['issues'])} |"
-        )
+        if detailed_goods:
+            if result.get("scenario") == "default":
+                shock = ("wood supply" if "wood_supply" in result["experiment"]
+                         else "furniture demand")
+            else:
+                shock = ("cotton supply" if "cotton_supply" in result["experiment"]
+                         else "mill cotton demand")
+            cells = [f"{for_good[good]['balanced_interval_count']}/"
+                     f"{for_good[good]['interval_count']} (max "
+                     f"{for_good[good]['max_absolute_residual']})"
+                     for good in goods]
+            lines.append(
+                f"| {result['seed']} | {shock} | {result['arm']} | "
+                f"{' | '.join(cells)} | {len(result['issues'])} |"
+            )
+        else:
+            balanced = sum(item["balanced_interval_count"]
+                           for item in for_good.values())
+            intervals = sum(item["interval_count"]
+                            for item in for_good.values())
+            lines.append(
+                f"| {result['seed']} | {result['experiment']} | "
+                f"{result['arm']} | {balanced}/{intervals} | "
+                f"{len(result['issues'])} |"
+            )
     all_intervals = [interval for result in results
                      for interval in result["intervals"]]
     aggregate = {}
-    for good in AUDITED_GOODS:
+    for good in goods:
         rows = [row for row in all_intervals if row["good"] == good]
         aggregate[good] = (
             sum(row["balanced"] for row in rows), len(rows),
             max((abs(row["residual"]) for row in rows), default=0.0))
-    food_rows = [row for row in all_intervals if row["good"] == "food"]
-    food_nonzero = [row for row in food_rows if abs(row["residual"]) > 1e-6]
-    granary_signed_change = sum(row["granary_stock_delta"] for row in food_rows)
-    granary_turnover = sum(
-        result["summary_by_good"]["food"]["internal_turnover"].get(
-            "granary_food_stock_transfer", {}).get("reported_quantity", 0.0)
-        for result in results)
-    granary_transfer_count = sum(
-        result["summary_by_good"]["food"]["internal_turnover"].get(
-            "granary_food_stock_transfer", {}).get("event_count", 0)
-        for result in results)
-    lines.extend([
-        "",
-        (f"Across this sample, cotton closes in {aggregate['cotton'][0]}/"
-         f"{aggregate['cotton'][1]} intervals, cloth in "
-         f"{aggregate['cloth'][0]}/{aggregate['cloth'][1]}, and wood in "
-         f"{aggregate['wood'][0]}/{aggregate['wood'][1]}. Food closes in "
-         f"{aggregate['food'][0]}/{aggregate['food'][1]}; its largest absolute "
-         f"residual is {aggregate['food'][2]:.6g} units."),
-        (f"There are {len(food_nonzero)} nonzero food residuals at the 1e-6 "
-         f"tolerance. Summed interval granary-stock changes are "
-         f"{granary_signed_change:.6g} units; {granary_transfer_count} traced "
-         f"deposit/release transfers report {granary_turnover:.6g} units of "
-         "internal turnover. Harvest deposits debit producer inventories and "
-         "seasonal releases credit government food inventory, so these moves "
-         "remain inside the census boundary."),
-    ])
+    lines.extend([""])
+    if detailed_goods:
+        food_rows = [row for row in all_intervals if row["good"] == "food"]
+        food_nonzero = [row for row in food_rows
+                        if abs(row["residual"]) > 1e-6]
+        granary_signed_change = sum(row["granary_stock_delta"]
+                                    for row in food_rows)
+        granary_turnover = sum(
+            result["summary_by_good"]["food"]["internal_turnover"].get(
+                "granary_food_stock_transfer", {}).get("reported_quantity", 0.0)
+            for result in results)
+        granary_transfer_count = sum(
+            result["summary_by_good"]["food"]["internal_turnover"].get(
+                "granary_food_stock_transfer", {}).get("event_count", 0)
+            for result in results)
+        lines.extend([
+            (f"Across this sample, cotton closes in {aggregate['cotton'][0]}/"
+             f"{aggregate['cotton'][1]} intervals, cloth in "
+             f"{aggregate['cloth'][0]}/{aggregate['cloth'][1]}, and wood in "
+             f"{aggregate['wood'][0]}/{aggregate['wood'][1]}. Food closes in "
+             f"{aggregate['food'][0]}/{aggregate['food'][1]}; its largest absolute "
+             f"residual is {aggregate['food'][2]:.6g} units."),
+            (f"There are {len(food_nonzero)} nonzero food residuals at the 1e-6 "
+             f"tolerance. Summed interval granary-stock changes are "
+             f"{granary_signed_change:.6g} units; {granary_transfer_count} traced "
+             f"deposit/release transfers report {granary_turnover:.6g} units of "
+             "internal turnover. Harvest deposits debit producer inventories and "
+             "seasonal releases credit government food inventory, so these moves "
+             "remain inside the census boundary."),
+        ])
+    else:
+        lines.extend([
+            "| Good | Balanced intervals | Total intervals | Max absolute residual |",
+            "|---|---:|---:|---:|",
+        ])
+        for good in goods:
+            balanced, total, maximum = aggregate[good]
+            lines.append(f"| {good} | {balanced} | {total} | {maximum:.6g} |")
+        lines.extend([
+            "",
+            "This all-physical-goods view is a diagnostic screen. A nonzero "
+            "residual identifies a stock-flow gap; zero residuals can still "
+            "hide offsetting unsupported flows. Fertilizer reserves are "
+            "included in the stock census, but their ordinary seasonal inflow "
+            "and use are not yet source-linked in the trace.",
+        ])
     source_commits = sorted({result.get("source_commit") for result in results})
     lines.extend([
         "",
@@ -361,13 +447,28 @@ def main(argv=None):
     parser.add_argument("--root", type=Path, required=True,
                         help="root containing seed-N paired run JSON files")
     parser.add_argument("--seeds", type=int, nargs="+", required=True)
+    parser.add_argument("--scenario", choices=("supply_rivalry", "default"),
+                        default="supply_rivalry")
+    parser.add_argument("--all-goods", action="store_true",
+                        help="audit all physical Goods plus fertilizer reserves")
     parser.add_argument("--out-json", type=Path, required=True)
     parser.add_argument("--out-md", type=Path, required=True)
     args = parser.parse_args(argv)
-    results = [audit_run_file(path) for path in discover_runs(args.root, args.seeds)]
+    audited_goods = AUDITED_GOODS
+    if args.all_goods:
+        from goods import Goods
+        audited_goods = tuple(
+            [good.name for good in Goods if good not in (Goods.gov, Goods.none)]
+            + ["fertilizer"])
+    results = [audit_run_file(path, audited_goods=audited_goods)
+               for path in discover_runs(args.root, args.seeds,
+                                          scenario=args.scenario)]
     report = {
-        "scenario": "supply_rivalry",
-        "audit": "whole-world selected-goods aggregate stock-flow v2",
+        "scenario": args.scenario,
+        "audit": ("whole-world physical-goods stock-flow diagnostic v1"
+                  if args.all_goods else
+                  "whole-world selected-goods aggregate stock-flow v2"),
+        "audited_goods": list(audited_goods),
         "tolerance": 1e-6,
         "run_count": len(results),
         "passed_run_count": sum(result["passed"] for result in results),

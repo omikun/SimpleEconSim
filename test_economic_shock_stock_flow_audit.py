@@ -199,6 +199,85 @@ class EconomicShockStockFlowAuditTests(unittest.TestCase):
         self.assertEqual(result["summary_by_good"]["food"][
             "civilian_food_consumption_units"], 5.0)
 
+    def test_default_stock_census_can_audit_goods_outside_the_fixed_sample(self):
+        run = self._run([])
+        run.update({
+            "scenario": "default",
+            "experiment": "wood_supply_reduction",
+            "arm": "control",
+            "default_goods_stock_observations": [
+                {"turn": 1, "coverage": {"region_count": 1}, "stocks": [
+                    {"good": "iron", "quantity": 3},
+                    {"good": "food", "quantity": 10},
+                ]},
+                {"turn": 2, "coverage": {"region_count": 1}, "stocks": [
+                    {"good": "iron", "quantity": 5},
+                    {"good": "food", "quantity": 10},
+                ]},
+            ],
+        })
+        events = [
+            {"turn": 2, "kind": "independent_production",
+             "subject": {"good": "iron"}, "value_after": 2},
+            {"turn": 2, "kind": "civilian_food_consumption_total",
+             "subject": {"id": "North", "good": "food"},
+             "inputs": {"eaten_food_units": 0}},
+        ]
+
+        result = audit_run(run, events, audited_goods=("iron", "food"))
+
+        self.assertTrue(result["passed"])
+        self.assertEqual(result["summary_by_good"]["iron"][
+            "balanced_interval_count"], 1)
+        self.assertEqual(result["summary_by_good"]["food"][
+            "balanced_interval_count"], 1)
+        self.assertIn("| iron | 1 | 1 | 0 |",
+                      render_markdown([result]))
+
+    def test_tile_production_totals_override_detail_without_double_counting(self):
+        run = self._run([])
+        run.update({
+            "completed_turns": 2,
+            "default_goods_stock_observations": [
+                {"turn": 1, "coverage": {"region_count": 1}, "stocks": [
+                    {"good": "iron", "quantity": 0}]},
+                {"turn": 2, "coverage": {"region_count": 1}, "stocks": [
+                    {"good": "iron", "quantity": 10}]},
+            ],
+        })
+        result = audit_run(run, [
+            {"turn": 2, "kind": "independent_production",
+             "subject": {"good": "iron"}, "value_after": 4},
+            {"turn": 2, "kind": "tile_production_total",
+             "subject": {"good": "iron"}, "value_after": 10},
+        ], audited_goods=("iron",))
+
+        self.assertTrue(result["passed"])
+        self.assertEqual(result["intervals"][0]["production"], 10)
+        self.assertEqual(result["intervals"][0]["production_source"],
+                         "tile_production_total")
+
+    def test_foreign_trader_sale_within_census_boundary_is_internal_turnover(self):
+        run = self._run([
+            {"turn": 1, "coverage": {"region_count": 1},
+             "stocks": [{"good": "cotton", "quantity": 5}]},
+            {"turn": 2, "coverage": {"region_count": 1},
+             "stocks": [{"good": "cotton", "quantity": 5}]},
+        ])
+        result = audit_run(run, [
+            {"turn": 2, "kind": "civilian_food_consumption_total",
+             "subject": {"id": "North", "good": "food"},
+             "inputs": {"eaten_food_units": 0}},
+            {"turn": 2, "kind": "paid_market_sale", "record_class": "transfer",
+             "subject": {"good": "cotton"}, "value_after": 2,
+             "inputs": {"imported": True, "source_region": None,
+                        "seller_account_tile": "South"}},
+        ])
+
+        self.assertTrue(result["passed"])
+        self.assertEqual(result["summary_by_good"]["cotton"][
+            "internal_turnover"]["paid_market_sale"]["reported_quantity"], 2)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -158,6 +158,7 @@ class EconomicShockInstrumentationTests(unittest.TestCase):
         self.assertEqual(stocks[("__WORLD__", "public", "granary_food", "food")], 4)
         self.assertNotIn(("__WORLD__", "household", "inventory", "gov"), stocks)
         self.assertEqual(census["coverage"]["fertilizer_stores_scanned"], 1)
+        self.assertEqual(census["coverage"]["economic_region_count"], 1)
 
 
 if __name__ == "__main__":
