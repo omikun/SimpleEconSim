@@ -160,6 +160,128 @@ class TreasuryFlowTraceTests(unittest.TestCase):
         self.assertEqual(contract['operation_type'], 'government_market_purchase')
         self.assertEqual(contract['payee_account']['id'], seller.id)
 
+    def test_government_market_sale_is_attributed_as_treasury_receipt(self):
+        from agent import initialize_agent
+        from goods import Goods
+        from region_market import clear_discriminatory
+
+        nation, tile, trace, _clock = self.world()
+        government = tile.gov.agent
+        government.inv_set(Goods.cloth, 5)
+        buyer = Agent(902)
+        initialize_agent(buyer, Goods.wood, 0, 0, 100.0)
+        buyer.inv_set(Goods.cloth, 0)
+        before = nation.treasury()['total']
+        units, _cash, _vwap = clear_discriminatory(
+            tile, Goods.cloth, 5.0, total_asks=2, total_bids=2,
+            imp_pool=[], agents=[government, buyer], t=1,
+            local_orders={
+                'sellers': [{'agent': government, 'quantity': 2,
+                             'limit_price': 4.0}],
+                'buyers': [{'agent': buyer, 'quantity': 2,
+                            'limit_price': 8.0}],
+            })
+
+        after = nation.treasury()['total']
+        flows = [row for row in self.flows(trace)
+                 if row['kind'] == 'government_market_sale_receipt']
+        self.assertEqual(units, 2)
+        self.assertEqual(len(flows), 1)
+        flow = flows[0]
+        self.assertAlmostEqual(after - before, flow['value_after'])
+        self.assertAlmostEqual(flow['value_after'], 12.0)
+        sale = next(row for row in trace.recent
+                    if row.get('kind') == 'paid_market_sale')
+        write = next(row for row in trace.recent
+                     if row.get('kind') == 'public_account_write'
+                     and row.get('delta') == 12.0)
+        self.assertIn(sale['event_id'], flow['cause_event_ids'])
+        self.assertIn(write['event_id'], flow['cause_event_ids'])
+        contract = flow['inputs']['transfer_contract']
+        self.assertEqual(contract['operation_type'],
+                         'government_market_sale_receipt')
+        self.assertEqual(contract['side'], 'payee')
+        self.assertEqual(contract['payer_account']['id'], buyer.id)
+        self.assertEqual(contract['payee_account']['id'], tile.name)
+
+    def test_import_escheat_is_attributed_as_treasury_receipt(self):
+        from agent import initialize_agent
+        from goods import Goods
+        from region_market import clear_discriminatory
+
+        nation, tile, trace, _clock = self.world()
+        dead_seller = Agent(903)
+        initialize_agent(dead_seller, Goods.none, 0, 0, 0.0)
+        dead_seller.is_trader = True
+        dead_seller.alive = False
+        dead_seller.home_currency = tile.home_currency
+        dead_seller.cost_set(Goods.cloth, 4.0)
+        dead_seller.inventory_foreign[Goods.cloth.value] = 2
+        buyer = Agent(904)
+        initialize_agent(buyer, Goods.wood, 0, 0, 100.0)
+        buyer.inv_set(Goods.cloth, 0)
+        before = nation.treasury()['total']
+        units, _cash, _vwap = clear_discriminatory(
+            tile, Goods.cloth, 5.0, total_asks=0, total_bids=2,
+            imp_pool=[[dead_seller, 2, False]], agents=[buyer], t=1,
+            local_orders={
+                'sellers': [],
+                'buyers': [{'agent': buyer, 'quantity': 2,
+                            'limit_price': 8.0}],
+            })
+
+        after = nation.treasury()['total']
+        flows = [row for row in self.flows(trace)
+                 if row['kind'] == 'government_import_escheat_received']
+        self.assertEqual(units, 2)
+        self.assertEqual(len(flows), 1)
+        flow = flows[0]
+        self.assertAlmostEqual(after - before, flow['value_after'])
+        sale = next(row for row in trace.recent
+                    if row.get('kind') == 'paid_market_sale')
+        self.assertAlmostEqual(flow['value_after'],
+                               sale['inputs']['total_paid'])
+        write = next(row for row in trace.recent
+                     if row.get('kind') == 'public_account_write'
+                     and row.get('delta') == flow['value_after'])
+        self.assertIn(sale['event_id'], flow['cause_event_ids'])
+        self.assertIn(write['event_id'], flow['cause_event_ids'])
+        self.assertEqual(flow['inputs']['receipt_reason'],
+                         'proceeds_from_dead_import_seller')
+
+    def test_government_escheat_self_purchase_has_no_net_treasury_flow(self):
+        from agent import initialize_agent
+        from goods import Goods
+        from region_market import clear_discriminatory
+
+        nation, tile, trace, _clock = self.world()
+        government = tile.gov.agent
+        government.cash = 100.0
+        dead_seller = Agent(905)
+        initialize_agent(dead_seller, Goods.none, 0, 0, 0.0)
+        dead_seller.is_trader = True
+        dead_seller.alive = False
+        dead_seller.home_currency = tile.home_currency
+        dead_seller.cost_set(Goods.cloth, 4.0)
+        dead_seller.inventory_foreign[Goods.cloth.value] = 2
+        before = nation.treasury()['total']
+
+        units, _cash, _vwap = clear_discriminatory(
+            tile, Goods.cloth, 5.0, total_asks=0, total_bids=2,
+            imp_pool=[[dead_seller, 2, False]], agents=[government], t=1,
+            local_orders={
+                'sellers': [],
+                'buyers': [{'agent': government, 'quantity': 2,
+                            'limit_price': 8.0}],
+            })
+
+        self.assertEqual(units, 2)
+        self.assertAlmostEqual(nation.treasury()['total'], before)
+        self.assertFalse(any(row['kind'] in {
+            'government_market_purchase',
+            'government_import_escheat_received',
+        } for row in self.flows(trace)))
+
     def test_domestic_bond_coupon_and_maturity_close_bank(self):
         from sovereign_bonds import SovereignBond, SovereignBondMarket
         nation, tile, trace, clock = self.world()

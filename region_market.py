@@ -730,6 +730,8 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
             import_tariff_assessed = 0.0
             import_tariff_rebate = 0.0
             import_tariff_paid = 0.0
+            government_cash_write_ids = []
+            seller_cash_write_ids = []
             _public_write = begin_public_change(None, buyer)
             buyer.cash -= cost
             buyer_cash_write_ids = finish_public_change(
@@ -742,8 +744,10 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
                     if getattr(region, 'gov', None) is not None:
                         _public_write = begin_public_change(None, region.gov.agent)
                         region.gov.agent.cash += cost
-                        finish_public_change(_public_write, 'region_market:clear_discriminatory',
-                                             inputs={'source_writer': 'region_market.py:clear_discriminatory:d06246a667e41f27:1', 'semantic_operation_id': locals().get('operation_id')})
+                        government_cash_write_ids = finish_public_change(
+                            _public_write, 'region_market:clear_discriminatory',
+                            inputs={'source_writer': 'region_market.py:clear_discriminatory:d06246a667e41f27:1',
+                                    'semantic_operation_id': locals().get('operation_id')})
                         region.gov.record_income(t, 'import_escheat', cost)
                     if is_parked:
                         seller.parked_sub(region.name, good, take)
@@ -807,8 +811,10 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
             else:
                 _public_write = begin_public_change(None, seller)
                 seller.cash += cost
-                finish_public_change(_public_write, 'region_market:clear_discriminatory',
-                                     inputs={'source_writer': 'region_market.py:clear_discriminatory:dafda35ea968557f:1', 'semantic_operation_id': locals().get('operation_id')})
+                seller_cash_write_ids = finish_public_change(
+                    _public_write, 'region_market:clear_discriminatory',
+                    inputs={'source_writer': 'region_market.py:clear_discriminatory:dafda35ea968557f:1',
+                            'semantic_operation_id': locals().get('operation_id')})
                 seller.inventory[good.value] -= take
 
             exported_acquisition_qty = 0
@@ -935,7 +941,10 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
                 sale_event_ids.append(sale_id)
                 if import_source_entry is not None:
                     import_source_entry['event_ids'].append(sale_id)
-            if getattr(buyer, 'is_government', False):
+            if (getattr(buyer, 'is_government', False)
+                    and not (is_import and not getattr(seller, 'alive', True)
+                             and getattr(region, 'gov', None) is not None
+                             and region.gov.agent is buyer)):
                 _trace_government_market_purchase(
                     region, buyer, seller, good=good, quantity=take,
                     unit_price=unit_price, amount=cost, turn=t,
@@ -946,6 +955,34 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
                     seller_cash_after=seller.cash,
                     imported=is_import,
                     public_write_event_ids=buyer_cash_write_ids)
+            if (is_import and not getattr(seller, 'alive', True)
+                    and getattr(region, 'gov', None) is not None):
+                _trace_government_market_receipt(
+                    region, recipient=region.gov.agent, payer=buyer,
+                    good=good, quantity=take, amount=cost, turn=t,
+                    sale_event_id=sale_id,
+                    recipient_cash_before=gov_cash_before,
+                    recipient_cash_after=region.gov.agent.cash,
+                    payer_cash_before=buyer_cash_before,
+                    payer_cash_after=buyer.cash,
+                    public_write_event_ids=government_cash_write_ids,
+                    kind='government_import_escheat_received',
+                    operation_type='government_import_escheat_received',
+                    receipt_reason='proceeds_from_dead_import_seller')
+            elif (not is_import and getattr(region, 'gov', None) is not None
+                  and region.gov.agent is seller):
+                _trace_government_market_receipt(
+                    region, recipient=seller, payer=buyer, good=good,
+                    quantity=take, amount=cost, turn=t,
+                    sale_event_id=sale_id,
+                    recipient_cash_before=seller_cash_before,
+                    recipient_cash_after=seller.cash,
+                    payer_cash_before=buyer_cash_before,
+                    payer_cash_after=buyer.cash,
+                    public_write_event_ids=seller_cash_write_ids,
+                    kind='government_market_sale_receipt',
+                    operation_type='government_market_sale_receipt',
+                    receipt_reason='government_sold_local_inventory')
             settled_sales.append({'event_id':sale_id,'quantity':take})
             emit(region, kind='paid_market_unit_price', record_class='observation',
                  subject={'type': 'tile', 'id': region.name, 'good': good.name},
@@ -1384,6 +1421,63 @@ def _trace_government_market_purchase(region, buyer, seller, *, good, quantity,
                 'buyer_cash_before': float(buyer_cash_before),
                 'buyer_cash_after': float(buyer_cash_after),
                 'seller_cash_receipt': seller_receipt})
+
+
+def _trace_government_market_receipt(
+        region, *, recipient, payer, good, quantity, amount, turn,
+        sale_event_id, recipient_cash_before, recipient_cash_after,
+        payer_cash_before, payer_cash_after, public_write_event_ids,
+        kind, operation_type, receipt_reason):
+    """Record a government market receipt and link both account mutations."""
+    government = getattr(region, 'gov', None)
+    if (government is None or getattr(government, 'agent', None) is not recipient
+            or sale_event_id is None):
+        return None
+    receipt = float(recipient_cash_after) - float(recipient_cash_before)
+    if receipt <= 0.0:
+        return None
+
+    from finance_trace import account_ref, emit_treasury_leg, transfer_contract
+
+    owner = getattr(region, 'owner_nation', None)
+    currency = (getattr(owner, 'currency', None)
+                or getattr(region, 'home_currency', None) or 'local_currency')
+    buyer_debit = float(payer_cash_before) - float(payer_cash_after)
+    buyer_cash_captured = math.isclose(
+        buyer_debit, receipt, rel_tol=1e-10, abs_tol=1e-8)
+    operation_id = f'{operation_type}:{sale_event_id}'
+    payer_account = account_ref(
+        'agent', payer.id, currency,
+        balance_before=float(payer_cash_before),
+        balance_after=float(payer_cash_after), balance_scope='cash')
+    payee_account = account_ref(
+        'government_treasury', government.name, currency,
+        nation_id=getattr(owner, 'name', None),
+        subaccount='government_agent.cash',
+        balance_before=float(recipient_cash_before),
+        balance_after=float(recipient_cash_after),
+        balance_scope='government_agent.cash')
+    contract = transfer_contract(
+        operation_id, operation_type, side='payee', amount=receipt,
+        amount_currency=currency, payer_account=payer_account,
+        payee_account=payee_account, local_cash_leg_amount=receipt,
+        local_cash_leg_currency=currency,
+        counterparty_leg_status=(
+            'buyer_cash_balance_captured' if buyer_cash_captured
+            else 'buyer_cash_balance_differs_from_treasury_receipt'),
+        market_sale_event_id=sale_event_id,
+        public_account_write_event_ids=list(public_write_event_ids or ()))
+    return emit_treasury_leg(
+        region, kind=kind,
+        nation_name=getattr(owner, 'name', region.name), currency=currency,
+        signed_amount=receipt, contract=contract, phase='market',
+        subject_type='nation' if owner is not None else 'tile',
+        cause_event_ids=[*list(public_write_event_ids or ()), sale_event_id],
+        inputs={'recipient_id': recipient.id, 'payer_id': payer.id,
+                'good': good.name, 'quantity': int(quantity),
+                'paid': float(amount), 'treasury_receipt': receipt,
+                'turn': int(turn), 'receipt_reason': receipt_reason,
+                'payer_cash_debit': buyer_debit})
 
 
 def _analysis_demand_target(region, good, agent_id, base_target):
