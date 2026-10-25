@@ -11,13 +11,15 @@ from run_trace import RunTrace
 
 
 class TreasuryFlowTraceTests(unittest.TestCase):
-    def world(self):
+    def world(self, *, government_cash=None):
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         trace = RunTrace(Path(directory.name) / 'public.ctr', 'public', recent_limit=10000)
         nation = Nation('Public', 'C', initial_cash=0, register=False)
         tile = Region('District', 0, 0)
         nation.add_tile(tile)
+        if government_cash is not None:
+            tile.gov.agent.cash = float(government_cash)
         clock = {'turn': 1, 'phase': 'finance', 'next': 1}
         tile._run_trace, tile._collective_trace_clock = trace, clock
         trace.bank_book.register_tiles([tile], clock)
@@ -281,6 +283,94 @@ class TreasuryFlowTraceTests(unittest.TestCase):
             'government_market_purchase',
             'government_import_escheat_received',
         } for row in self.flows(trace)))
+
+    def test_company_owner_payment_to_government_is_attributed_as_receipt(self):
+        from agent import initialize_agent
+        from goods import Goods
+        from region_finance import pay_base_salary
+
+        nation, tile, trace, _clock = self.world()
+        government = tile.gov.agent
+        government._bank_ref = tile.bank
+        firm = Agent(906)
+        initialize_agent(firm, Goods.cloth, 0, 0, 100.0)
+        firm.is_corporation = True
+        firm.wage = 9.0
+        before = nation.treasury()['total']
+
+        pay_base_salary(tile, firm, government, payroll=5.0, t=1)
+
+        after = nation.treasury()['total']
+        flows = [row for row in self.flows(trace)
+                 if row['kind'] == 'government_owner_payment_received']
+        self.assertEqual(len(flows), 1)
+        flow = flows[0]
+        self.assertAlmostEqual(after - before, flow['value_after'])
+        self.assertAlmostEqual(flow['value_after'], 9.0)
+        payment = next(row for row in trace.recent
+                       if row.get('kind') == 'owner_payment_settled')
+        write = next(row for row in trace.recent
+                     if row.get('kind') == 'public_account_write'
+                     and row.get('delta') == 9.0)
+        self.assertIn(payment['event_id'], flow['cause_event_ids'])
+        self.assertIn(write['event_id'], flow['cause_event_ids'])
+        contract = flow['inputs']['transfer_contract']
+        self.assertEqual(contract['operation_type'],
+                         'government_owner_payment_receipt')
+        self.assertEqual(contract['payer_account']['id'], firm.id)
+        self.assertEqual(contract['payee_account']['id'], tile.name)
+
+    def test_government_company_equity_investment_is_attributed_as_expense(self):
+        from economy.capitalist_planner import _trace_government_company_equity
+        from goods import Goods
+        from run_trace import emit
+        from treasury_trace import begin_public_change, finish_public_change
+
+        nation, tile, trace, _clock = self.world(government_cash=200.0)
+        government = tile.gov.agent
+        company = Agent(907)
+        company.is_corporation = True
+        company.output = Goods.cloth
+        company.cash = 0.0
+        before = nation.treasury()['total']
+        evaluation_id = emit(
+            tile, kind='elite_capital_allocation_evaluation',
+            record_class='decision', phase='local',
+            subject={'type': 'agent', 'id': government.id},
+            metric_id='ai.elite_economic_decision', unit='candidate',
+            after='INCORPORATE_FIRM')
+        write_context = begin_public_change(None, government)
+        government.cash -= 75.0
+        write_ids = finish_public_change(
+            write_context, 'test:government_company_equity',
+            inputs={'source_writer': 'test_treasury_flow_trace'})
+        company.cash += 75.0
+
+        _trace_government_company_equity(
+            tile, founder=government, company=company, turn=1, amount=75.0,
+            founder_cash_before=200.0, founder_cash_after=125.0,
+            company_cash_before=0.0, company_cash_after=75.0,
+            public_write_event_ids=write_ids,
+            investment_event_id=evaluation_id,
+            investment_kind='company_incorporation')
+
+        after = nation.treasury()['total']
+        flows = [row for row in self.flows(trace)
+                 if row['kind'] == 'government_company_equity_investment']
+        self.assertEqual(len(flows), 1)
+        flow = flows[0]
+        self.assertAlmostEqual(after - before, flow['value_after'])
+        self.assertAlmostEqual(flow['value_after'], -75.0)
+        write = next(row for row in trace.recent
+                     if row.get('kind') == 'public_account_write'
+                     and row.get('delta') == -75.0)
+        self.assertIn(evaluation_id, flow['cause_event_ids'])
+        self.assertIn(write['event_id'], flow['cause_event_ids'])
+        contract = flow['inputs']['transfer_contract']
+        self.assertEqual(contract['operation_type'],
+                         'government_company_equity_investment')
+        self.assertEqual(contract['payer_account']['id'], tile.name)
+        self.assertEqual(contract['payee_account']['id'], company.id)
 
     def test_domestic_bond_coupon_and_maturity_close_bank(self):
         from sovereign_bonds import SovereignBond, SovereignBondMarket

@@ -19,6 +19,67 @@ from goods import Goods
 from economy.transformation_graph import TransformationGraph, CommoditySpec, TransformationOperator
 
 
+def _trace_government_company_equity(
+        region, *, founder, company, turn, amount, founder_cash_before,
+        founder_cash_after, company_cash_before, company_cash_after,
+        public_write_event_ids, investment_event_id, investment_kind):
+    """Record public cash invested into a private company as a treasury outflow."""
+    government = getattr(region, 'gov', None)
+    owner_nation = getattr(region, 'owner_nation', None)
+    public_write_event_ids = list(public_write_event_ids or ())
+    if (government is None or getattr(government, 'agent', None) is not founder
+            or owner_nation is None or not public_write_event_ids):
+        return None
+    founder_debit = float(founder_cash_before) - float(founder_cash_after)
+    company_receipt = float(company_cash_after) - float(company_cash_before)
+    if founder_debit <= 0.0:
+        return None
+
+    from finance_trace import account_ref, emit_treasury_leg, transfer_contract
+
+    currency = (getattr(owner_nation, 'currency', None)
+                or getattr(region, 'home_currency', None) or 'local_currency')
+    payer_account = account_ref(
+        'government_treasury', government.name, currency,
+        nation_id=owner_nation.name, subaccount='government_agent.cash',
+        balance_before=float(founder_cash_before),
+        balance_after=float(founder_cash_after),
+        balance_scope='government_agent.cash')
+    payee_account = account_ref(
+        'agent', company.id, currency,
+        balance_before=float(company_cash_before),
+        balance_after=float(company_cash_after), balance_scope='cash')
+    matches = math.isclose(
+        founder_debit, company_receipt, rel_tol=1e-10, abs_tol=1e-8)
+    operation_id = (
+        f'government-company-equity:{investment_kind}:{turn}:'
+        f'{founder.id}:{company.id}')
+    contract = transfer_contract(
+        operation_id, 'government_company_equity_investment', side='payer',
+        amount=founder_debit, amount_currency=currency,
+        payer_account=payer_account, payee_account=payee_account,
+        local_cash_leg_amount=founder_debit,
+        local_cash_leg_currency=currency,
+        counterparty_leg_status=(
+            'company_cash_balance_captured' if matches
+            else 'company_cash_balance_differs_from_public_debit'),
+        company_equity_event=investment_event_id,
+        investment_kind=investment_kind)
+    causes = [*public_write_event_ids]
+    if investment_event_id is not None:
+        causes.append(investment_event_id)
+    return emit_treasury_leg(
+        region, kind='government_company_equity_investment',
+        nation_name=owner_nation.name, currency=currency,
+        signed_amount=-founder_debit, contract=contract, phase='local',
+        subject_type='nation', cause_event_ids=causes,
+        inputs={'founder_id': founder.id, 'company_id': company.id,
+                'company_sector': getattr(company.output, 'name', str(company.output)),
+                'investment_kind': investment_kind,
+                'amount': float(amount), 'treasury_debit': founder_debit,
+                'company_cash_receipt': company_receipt, 'turn': int(turn)})
+
+
 class EliteCapitalistPlanner:
     """Decision engine for landed nobility, merchants, and capitalists."""
 
@@ -1914,12 +1975,26 @@ class EliteCapitalistPlanner:
                 employee_cap_before = int(company.max_employees)
                 _trace_cash_write = _trace_public_begin(None, agent)
                 agent.cash -= injection
-                _trace_public_finish(_trace_cash_write, 'economy/capitalist_planner:EliteCapitalistPlanner._plan_and_execute_elite',
-                                     inputs={"source_writer": 'economy/capitalist_planner.py:EliteCapitalistPlanner._plan_and_execute_elite:ebcb08d91ea10d4c:1'})
+                founder_cash_write_ids = _trace_public_finish(
+                    _trace_cash_write,
+                    'economy/capitalist_planner:EliteCapitalistPlanner._plan_and_execute_elite',
+                    inputs={"source_writer": 'economy/capitalist_planner.py:EliteCapitalistPlanner._plan_and_execute_elite:ebcb08d91ea10d4c:1'})
                 _trace_cash_write = _trace_public_begin(None, company)
                 company.cash += injection
-                _trace_public_finish(_trace_cash_write, 'economy/capitalist_planner:EliteCapitalistPlanner._plan_and_execute_elite',
-                                     inputs={"source_writer": 'economy/capitalist_planner.py:EliteCapitalistPlanner._plan_and_execute_elite:0d2c439a4043addd:1'})
+                _trace_public_finish(
+                    _trace_cash_write,
+                    'economy/capitalist_planner:EliteCapitalistPlanner._plan_and_execute_elite',
+                    inputs={"source_writer": 'economy/capitalist_planner.py:EliteCapitalistPlanner._plan_and_execute_elite:0d2c439a4043addd:1'})
+                _trace_government_company_equity(
+                    region, founder=agent, company=company, turn=t,
+                    amount=injection,
+                    founder_cash_before=owner_cash_before,
+                    founder_cash_after=agent.cash,
+                    company_cash_before=company_cash_before,
+                    company_cash_after=company.cash,
+                    public_write_event_ids=founder_cash_write_ids,
+                    investment_event_id=investment_event_id,
+                    investment_kind='company_expansion')
                 # Raise offered wage to attract more workers
                 company.wage = round(max(company.wage * 1.10, company.wage + 0.5), 2)
                 company.max_employees = min(50, company.max_employees + 5)
@@ -1950,14 +2025,26 @@ class EliteCapitalistPlanner:
                 agent.company_owned = comp
                 founder_cash_before = float(agent.cash)
                 equity = min(agent.cash * 0.5, agent.cash - 60.0)
+                company_cash_before = float(comp.cash)
                 _trace_cash_write = _trace_public_begin(None, agent)
                 agent.cash -= equity
-                _trace_public_finish(_trace_cash_write, 'economy/capitalist_planner:EliteCapitalistPlanner._plan_and_execute_elite',
-                                     inputs={"source_writer": 'economy/capitalist_planner.py:EliteCapitalistPlanner._plan_and_execute_elite:0da483c477d7a07e:1'})
+                founder_cash_write_ids = _trace_public_finish(
+                    _trace_cash_write,
+                    'economy/capitalist_planner:EliteCapitalistPlanner._plan_and_execute_elite',
+                    inputs={"source_writer": 'economy/capitalist_planner.py:EliteCapitalistPlanner._plan_and_execute_elite:0da483c477d7a07e:1'})
                 _trace_cash_write = _trace_public_begin(None, comp)
                 comp.cash = equity
                 _trace_public_finish(_trace_cash_write, 'economy/capitalist_planner:EliteCapitalistPlanner._plan_and_execute_elite',
                                      inputs={"source_writer": 'economy/capitalist_planner.py:EliteCapitalistPlanner._plan_and_execute_elite:9ff287188158c1ce:1'})
+                _trace_government_company_equity(
+                    region, founder=agent, company=comp, turn=t, amount=equity,
+                    founder_cash_before=founder_cash_before,
+                    founder_cash_after=agent.cash,
+                    company_cash_before=company_cash_before,
+                    company_cash_after=comp.cash,
+                    public_write_event_ids=founder_cash_write_ids,
+                    investment_event_id=investment_event_id,
+                    investment_kind='company_incorporation')
                 # Attractive wage to stimulate profession adoption
                 food_p = float(region.recipes.get(Goods.food, {}).get('price', 1.0))
                 comp.wage = round(max(2.0, food_p * 2.0), 2)

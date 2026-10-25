@@ -461,32 +461,38 @@ def credit_owner_pay(region, owner, amount):
     per-currency audit still counts the money."""
     if amount <= 0:
         return {'tender': 'none', 'currency': None,
-                'balance_before': 0.0, 'balance_after': 0.0}
+                'balance_before': 0.0, 'balance_after': 0.0,
+                'public_write_event_ids': []}
     if getattr(owner, '_bank_ref', None) is region.bank:
         balance_before = float(owner.cash)
         _trace_cash_write = _trace_public_begin(None, owner)
         owner.cash += amount
-        _trace_public_finish(_trace_cash_write, 'region_finance:credit_owner_pay',
-                             inputs={"source_writer": 'region_finance.py:credit_owner_pay:1fa42d3efa7da89c:1'})
+        public_write_event_ids = _trace_public_finish(
+            _trace_cash_write, 'region_finance:credit_owner_pay',
+            inputs={"source_writer": 'region_finance.py:credit_owner_pay:1fa42d3efa7da89c:1'})
         return {'tender': 'cash', 'currency': getattr(region, 'home_currency', None),
                 'balance_before': balance_before,
-                'balance_after': float(owner.cash)}
+                'balance_after': float(owner.cash),
+                'public_write_event_ids': public_write_event_ids}
     else:
         if region.home_currency:
             balance_before = float(_fx.fx_balance(owner, region.home_currency))
             _fx.fx_add(owner, region.home_currency, amount)
             return {'tender': 'wallet', 'currency': region.home_currency,
                     'balance_before': balance_before,
-                    'balance_after': float(_fx.fx_balance(owner, region.home_currency))}
+                    'balance_after': float(_fx.fx_balance(owner, region.home_currency)),
+                    'public_write_event_ids': []}
         else:
             balance_before = float(owner.cash)
             _trace_cash_write = _trace_public_begin(None, owner)
             owner.cash += amount
-            _trace_public_finish(_trace_cash_write, 'region_finance:credit_owner_pay',
-                                 inputs={"source_writer": 'region_finance.py:credit_owner_pay:6be844980406d2e6:1'})
+            public_write_event_ids = _trace_public_finish(
+                _trace_cash_write, 'region_finance:credit_owner_pay',
+                inputs={"source_writer": 'region_finance.py:credit_owner_pay:6be844980406d2e6:1'})
             return {'tender': 'cash', 'currency': None,
                     'balance_before': balance_before,
-                    'balance_after': float(owner.cash)}
+                    'balance_after': float(owner.cash),
+                    'public_write_event_ids': public_write_event_ids}
 
 
 def _record_owner_payment(region, kind, payer, owner, amount, settlement, t=None,
@@ -531,16 +537,87 @@ def _record_owner_payment(region, kind, payer, owner, amount, settlement, t=None
     value_after = (detail['owner_balance_after']
                    if settlement.get('tender') == 'wallet'
                    else payer_cash_after)
-    emit(region, kind='owner_payment_settled', record_class='transfer',
-         phase='finance',
-         subject={'type': 'owner_payment', 'id': transfer_id,
-                  'payer_id': payer.id, 'owner_id': owner.id,
-                  'tile': region.name},
-         metric_id='finance.owner_transfer', unit=currency or 'local_currency',
-         before=value_before, after=value_after,
-         inputs={**detail, 'amount': float(amount),
-                 'payer_cash_before': payer_cash_before,
-                 'payer_cash_after': payer_cash_after})
+    public_write_event_ids = list(settlement.get('public_write_event_ids') or ())
+    payment_event_id = emit(
+        region, kind='owner_payment_settled', record_class='transfer',
+        phase='finance',
+        subject={'type': 'owner_payment', 'id': transfer_id,
+                 'payer_id': payer.id, 'owner_id': owner.id,
+                 'tile': region.name},
+        metric_id='finance.owner_transfer', unit=currency or 'local_currency',
+        before=value_before, after=value_after,
+        inputs={**detail, 'amount': float(amount),
+                'payer_cash_before': payer_cash_before,
+                'payer_cash_after': payer_cash_after},
+        cause_event_ids=public_write_event_ids)
+    _trace_government_owner_payment(
+        region, payer=payer, owner=owner, amount=amount, payment_kind=kind,
+        settlement=settlement, turn=turn,
+        payer_cash_before=payer_cash_before,
+        payer_cash_after=payer_cash_after,
+        payment_event_id=payment_event_id)
+
+
+def _trace_government_owner_payment(
+        region, *, payer, owner, amount, payment_kind, settlement, turn,
+        payer_cash_before, payer_cash_after, payment_event_id):
+    """Record owner cash receipts that increase a counted public account."""
+    government = getattr(region, 'gov', None)
+    owner_nation = getattr(region, 'owner_nation', None)
+    public_write_event_ids = list(settlement.get('public_write_event_ids') or ())
+    if (government is None or getattr(government, 'agent', None) is not owner
+            or owner_nation is None or not public_write_event_ids
+            or settlement.get('tender') != 'cash'):
+        return None
+    # A payment between two accounts already included in the same national
+    # treasury is internal and has no net nation-level flow.
+    public_government_ids = {
+        row.get('government_id') for row in owner_nation.treasury().get('accounts', ())}
+    if getattr(payer, 'is_government', False) and payer.id in public_government_ids:
+        return None
+    receipt = (float(settlement.get('balance_after', 0.0))
+               - float(settlement.get('balance_before', 0.0)))
+    if receipt <= 0.0:
+        return None
+
+    from finance_trace import account_ref, emit_treasury_leg, transfer_contract
+
+    currency = (getattr(owner_nation, 'currency', None)
+                or getattr(region, 'home_currency', None) or 'local_currency')
+    payer_account = account_ref(
+        'agent', payer.id, currency,
+        balance_before=float(payer_cash_before),
+        balance_after=float(payer_cash_after), balance_scope='cash')
+    payee_account = account_ref(
+        'government_treasury', government.name, currency,
+        nation_id=owner_nation.name, subaccount='government_agent.cash',
+        balance_before=float(settlement['balance_before']),
+        balance_after=float(settlement['balance_after']),
+        balance_scope='government_agent.cash')
+    payer_debit = float(payer_cash_before) - float(payer_cash_after)
+    matches = math.isclose(payer_debit, receipt, rel_tol=1e-10, abs_tol=1e-8)
+    operation_id = (
+        f'government-owner-payment:{payment_kind}:{turn}:{payer.id}:{owner.id}')
+    contract = transfer_contract(
+        operation_id, 'government_owner_payment_receipt', side='payee',
+        amount=receipt, amount_currency=currency,
+        payer_account=payer_account, payee_account=payee_account,
+        local_cash_leg_amount=receipt, local_cash_leg_currency=currency,
+        counterparty_leg_status=(
+            'payer_cash_balance_captured' if matches
+            else 'payer_cash_balance_differs_from_public_receipt'),
+        payment_kind=payment_kind,
+        owner_payment_event_id=payment_event_id)
+    return emit_treasury_leg(
+        region, kind='government_owner_payment_received',
+        nation_name=owner_nation.name, currency=currency,
+        signed_amount=receipt, contract=contract, phase='finance',
+        subject_type='nation',
+        cause_event_ids=[*public_write_event_ids, payment_event_id],
+        inputs={'payer_id': payer.id, 'owner_id': owner.id,
+                'payment_kind': payment_kind,
+                'amount': float(amount), 'receipt': receipt,
+                'turn': int(turn), 'payer_cash_debit': payer_debit})
 
 
 def _record_owner_funding(region, owner, firm, amount, tender, currency,
