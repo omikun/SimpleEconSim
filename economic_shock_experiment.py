@@ -14,6 +14,7 @@ Example::
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import os
@@ -581,6 +582,130 @@ def _scenario_household_cohort_observations(server, turn, roster):
             "members": members}
 
 
+def _default_resident_cohort_roster(server, turn):
+    """Freeze every ordinary resident present at the default game's turn 7."""
+    if server.scenario_id is not None:
+        return []
+    accounts = {int(row.get("actor_id")): row
+                for tile in server.tiles
+                for row in getattr(tile, "actor_turn_accounts", ())
+                if row.get("actor_id") is not None
+                and int(row.get("turn", -1)) == int(turn)}
+    roster = []
+    for tile in server.tiles:
+        for actor in getattr(tile, "agents", ()):
+            if (not getattr(actor, "alive", True)
+                    or getattr(actor, "is_corporation", False)
+                    or getattr(actor, "is_government", False)
+                    or getattr(actor, "is_trader", False)
+                    or getattr(actor, "military_unit_id", None)):
+                continue
+            account = accounts.get(int(actor.id), {})
+            roster.append({
+                "actor_id": int(actor.id),
+                "baseline_tile": tile.name,
+                "baseline_cash": round(float(getattr(actor, "cash", 0.0) or 0.0), 4),
+                "baseline_debt": account.get("closing_debt"),
+                "baseline_bank_debt": account.get("closing_bank_debt"),
+            })
+    return sorted(roster, key=lambda row: row["actor_id"])
+
+
+def _default_resident_cohort_observation(server, turn, roster):
+    """Record compact welfare and account aggregates for the fixed roster."""
+    if server.scenario_id is not None or not roster:
+        return None
+    from goods import Goods
+    actors = {int(actor.id): actor
+              for tile in server.tiles
+              for actor in getattr(tile, "agents", ())}
+    accounts = {int(row.get("actor_id")): row
+                for tile in server.tiles
+                for row in getattr(tile, "actor_turn_accounts", ())
+                if row.get("actor_id") is not None
+                and int(row.get("turn", -1)) == int(turn)}
+    alive_count = present_count = need_count = need_met_count = 0
+    need_total = eaten_total = shortfall_total = cash_total = cash_change_total = 0.0
+    food_stock_total = employer_linked_count = 0.0
+    debt_change_total = 0.0
+    debt_change_count = 0
+    account_totals = {field: 0.0 for field in (
+        "cash_change", "wages_cash", "sales_cash", "purchases_cash",
+        "input_consumed_cost", "produced_units")}
+    account_coverage = {field: 0 for field in account_totals}
+
+    for base in roster:
+        actor = actors.get(int(base["actor_id"]))
+        if actor is None:
+            continue
+        present_count += 1
+        if not getattr(actor, "alive", True):
+            continue
+        alive_count += 1
+        cash = float(getattr(actor, "cash", 0.0) or 0.0)
+        cash_total += cash
+        if base.get("baseline_cash") is not None:
+            cash_change_total += cash - float(base["baseline_cash"])
+        food_stock_total += float(actor.inv_get(Goods.food, 0) or 0.0)
+        employer_linked_count += getattr(actor, "employer", None) is not None
+        need = max(0.0, float(getattr(actor, "calorie_need_kcal", 0.0) or 0.0))
+        eaten = max(0.0, float(getattr(actor, "last_calories_eaten", 0.0) or 0.0))
+        if need > 0:
+            need_count += 1
+            need_total += need
+            eaten_total += eaten
+            shortfall_total += max(0.0, need - eaten)
+            need_met_count += eaten + 1e-9 >= need
+
+        account = accounts.get(int(actor.id), {})
+        debt = account.get("closing_debt")
+        bank_debt = account.get("closing_bank_debt")
+        base_debt = base.get("baseline_debt")
+        base_bank_debt = base.get("baseline_bank_debt")
+        if (debt is not None and bank_debt is not None
+                and base_debt is not None and base_bank_debt is not None):
+            debt_change_total += (float(debt) + float(bank_debt)
+                                  - float(base_debt) - float(base_bank_debt))
+            debt_change_count += 1
+        for field in account_totals:
+            value = account.get(field)
+            if value is not None:
+                account_totals[field] += float(value)
+                account_coverage[field] += 1
+
+    baseline_count = len(roster)
+    roster_digest = hashlib.sha256(
+        ",".join(str(row["actor_id"]) for row in roster).encode("ascii")
+    ).hexdigest()
+    return {
+        "turn": int(turn),
+        "baseline_member_count": baseline_count,
+        "roster_sha256": roster_digest,
+        "present_member_count": present_count,
+        "missing_member_count": baseline_count - present_count,
+        "alive_member_count": alive_count,
+        "alive_share_of_baseline": round(alive_count / baseline_count, 6),
+        "need_observed_member_count": need_count,
+        "need_met_member_count": need_met_count,
+        "need_met_share": round(need_met_count / need_count, 6)
+        if need_count else None,
+        "calories_needed_total_kcal": round(need_total, 3),
+        "calories_eaten_total_kcal": round(eaten_total, 3),
+        "calorie_shortfall_total_kcal": round(shortfall_total, 3),
+        "cash_total_living_residents": round(cash_total, 4),
+        "cash_change_total_from_turn7": round(cash_change_total, 4),
+        "food_stock_total_living_residents": round(food_stock_total, 4),
+        "employer_linked_member_count": int(employer_linked_count),
+        "employer_linked_share_of_living": round(
+            employer_linked_count / alive_count, 6) if alive_count else None,
+        "debt_change_total_from_turn7": round(debt_change_total, 4),
+        "debt_change_member_coverage": debt_change_count,
+        "account_flow_totals": {
+            key: round(value, 4) for key, value in account_totals.items()},
+        "account_flow_coverage": account_coverage,
+    }
+
+
 def _scenario_goods_stock_observation(server, turn):
     """Census enumerated physical goods holdings in the supply-rivalry world.
 
@@ -838,6 +963,8 @@ def _run_child(experiment_id, arm, seed, out_path, audit_trace=False):
     scenario_actor_observations = []
     scenario_household_cohort_roster = []
     scenario_household_cohort_observations = []
+    default_resident_cohort_roster = []
+    default_resident_cohort_observations = []
     scenario_goods_stock_observations = []
     hook_observations = []
     target_tile, target_selection = _select_target_tile(server, experiment_id)
@@ -858,6 +985,14 @@ def _run_child(experiment_id, arm, seed, out_path, audit_trace=False):
         time_series.extend(_snapshot_rows(
             server, server.turn, target_tile.name,
             include_all_tiles=scenario_id == "supply_rivalry"))
+        if scenario_id is None:
+            if server.turn == SHOCK_START - 1:
+                default_resident_cohort_roster = (
+                    _default_resident_cohort_roster(server, server.turn))
+            resident_observation = _default_resident_cohort_observation(
+                server, server.turn, default_resident_cohort_roster)
+            if resident_observation is not None:
+                default_resident_cohort_observations.append(resident_observation)
         if scenario_id == "supply_rivalry":
             if server.turn == SHOCK_START - 1:
                 scenario_household_cohort_roster = (
@@ -926,6 +1061,9 @@ def _run_child(experiment_id, arm, seed, out_path, audit_trace=False):
         "scenario_household_cohort_roster": scenario_household_cohort_roster,
         "scenario_household_cohort_observations": (
             scenario_household_cohort_observations),
+        "default_resident_cohort_roster": default_resident_cohort_roster,
+        "default_resident_cohort_observations": (
+            default_resident_cohort_observations),
         "scenario_goods_stock_observations": scenario_goods_stock_observations,
         "scenario_route_events": scenario_routes,
         "scenario_mill_order_events": scenario_mill_orders,
@@ -1182,6 +1320,10 @@ def _quality_payload(run):
             "scenario_household_cohort_roster", []),
         "scenario_household_cohort_observations": run.get(
             "scenario_household_cohort_observations", []),
+        "default_resident_cohort_roster": run.get(
+            "default_resident_cohort_roster", []),
+        "default_resident_cohort_observations": run.get(
+            "default_resident_cohort_observations", []),
         "scenario_goods_stock_observations": run.get(
             "scenario_goods_stock_observations", []),
         "scenario_route_events": run.get("scenario_route_events", []),

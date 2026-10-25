@@ -1,6 +1,6 @@
 import unittest
 
-from economic_shock_multiseed import paired_effect
+from economic_shock_multiseed import paired_effect, resident_cohort_effect
 
 
 class PairedSeedAggregationTests(unittest.TestCase):
@@ -60,6 +60,71 @@ class PairedSeedAggregationTests(unittest.TestCase):
                                start=8, end=9)
         self.assertAlmostEqual(result["effect"], -7.5)
         self.assertEqual(result["observed_turns"], 2)
+
+    def test_fixed_resident_cohort_reports_paired_welfare_rates_and_coverage(self):
+        roster = [{"actor_id": 1}, {"actor_id": 2}]
+
+        def cohort(need_met, eaten, wages, cash_change):
+            observations = []
+            for turn in range(8, 12):
+                observations.append({
+                    "turn": turn,
+                    "baseline_member_count": 2,
+                    "present_member_count": 2,
+                    "alive_member_count": 2,
+                    "need_observed_member_count": 2,
+                    "need_met_member_count": need_met,
+                    "calories_eaten_total_kcal": eaten,
+                    "calorie_shortfall_total_kcal": 200,
+                    "employer_linked_member_count": 1,
+                    "debt_change_total_from_turn7": 0,
+                    "debt_change_member_coverage": 2,
+                    "account_flow_totals": {"wages_cash": wages},
+                    "account_flow_coverage": {"wages_cash": 2},
+                    "cash_change_total_from_turn7": cash_change,
+                })
+            return {"roster": roster, "observations": observations}
+
+        result = resident_cohort_effect({
+            "default_resident_cohort": {
+                "control": cohort(1, 3000, 8, 0),
+                "treatment": cohort(2, 3600, 12, 4),
+            }
+        })
+
+        self.assertTrue(result["available"])
+        self.assertTrue(result["roster_matched"])
+        self.assertAlmostEqual(
+            result["treatment_minus_control"]["need_met_share"], 0.5)
+        self.assertAlmostEqual(
+            result["treatment_minus_control"][
+                "calories_eaten_per_need_person_turn"], 300.0)
+        self.assertAlmostEqual(
+            result["treatment_minus_control"][
+                "wages_cash_per_covered_person_turn"], 2.0)
+        self.assertEqual(result["control"]["present_person_turns"], 8)
+
+    def test_cohort_effects_are_withheld_when_baseline_rosters_differ(self):
+        observations = [{
+            "turn": turn, "baseline_member_count": 1,
+            "present_member_count": 1, "alive_member_count": 1,
+            "need_observed_member_count": 1, "need_met_member_count": 1,
+            "calories_eaten_total_kcal": 100,
+            "calorie_shortfall_total_kcal": 0,
+            "employer_linked_member_count": 1,
+            "account_flow_totals": {}, "account_flow_coverage": {},
+        } for turn in range(8, 12)]
+        result = resident_cohort_effect({
+            "default_resident_cohort": {
+                "control": {"roster": [{"actor_id": 1}],
+                            "observations": observations},
+                "treatment": {"roster": [{"actor_id": 2}],
+                              "observations": observations},
+            }
+        })
+
+        self.assertFalse(result["roster_matched"])
+        self.assertIsNone(result["treatment_minus_control"]["need_met_share"])
 
 
 if __name__ == "__main__":

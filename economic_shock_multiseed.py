@@ -81,6 +81,133 @@ def paired_effect(pair: dict, good: str, key: str, statistic: str,
             "expected_turns": end - start + 1, "statistic": statistic}
 
 
+def _resident_cohort_window_summary(cohort: dict | None) -> dict:
+    if not cohort:
+        return {"available": False, "observed_turns": 0}
+    observations = cohort.get("observations", ())
+    baseline_count = len(cohort.get("roster", ()))
+    rows = [row for row in observations if SHOCK_START <= int(row.get("turn", -1))
+            <= SHOCK_END]
+    if baseline_count <= 0 or not rows:
+        return {"available": False, "baseline_member_count": baseline_count,
+                "observed_turns": len(rows)}
+
+    def mean_alive_share():
+        values = [float(row.get("alive_member_count", 0)) / baseline_count
+                  for row in rows]
+        return statistics.fmean(values) if values else None
+
+    need_observations = sum(int(row.get("need_observed_member_count", 0))
+                            for row in rows)
+    need_met = sum(int(row.get("need_met_member_count", 0)) for row in rows)
+    calories = sum(float(row.get("calories_eaten_total_kcal", 0.0))
+                   for row in rows)
+    shortfall = sum(float(row.get("calorie_shortfall_total_kcal", 0.0))
+                    for row in rows)
+    living_person_turns = sum(int(row.get("alive_member_count", 0)) for row in rows)
+    linked = sum(int(row.get("employer_linked_member_count", 0)) for row in rows)
+    account_totals = {}
+    for field in ("wages_cash", "sales_cash", "purchases_cash",
+                  "input_consumed_cost"):
+        account_totals[field] = sum(float(
+            (row.get("account_flow_totals") or {}).get(field, 0.0) or 0.0)
+            for row in rows)
+    account_coverage = {}
+    for field in account_totals:
+        account_coverage[field] = sum(int(
+            (row.get("account_flow_coverage") or {}).get(field, 0))
+            for row in rows)
+    turn11 = next((row for row in observations
+                   if int(row.get("turn", -1)) == SHOCK_END), None)
+
+    return {
+        "available": True,
+        "baseline_member_count": baseline_count,
+        "observed_turns": len(rows),
+        "expected_turns": SHOCK_END - SHOCK_START + 1,
+        "present_person_turns": sum(int(row.get("present_member_count", 0))
+                                     for row in rows),
+        "expected_person_turns": baseline_count * (SHOCK_END - SHOCK_START + 1),
+        "need_observed_person_turns": need_observations,
+        "mean_alive_share_of_baseline": mean_alive_share(),
+        "need_met_share": need_met / need_observations
+        if need_observations else None,
+        "calories_eaten_per_need_person_turn": calories / need_observations
+        if need_observations else None,
+        "calorie_shortfall_per_need_person_turn": shortfall / need_observations
+        if need_observations else None,
+        "employer_linked_share_of_living_person_turns": linked / living_person_turns
+        if living_person_turns else None,
+        "cash_change_total_per_baseline_member_at_t11": (
+            float(turn11.get("cash_change_total_from_turn7", 0.0)) / baseline_count
+            if turn11 else None),
+        "debt_change_total_per_covered_member_at_t11": (
+            float(turn11.get("debt_change_total_from_turn7", 0.0))
+            / int(turn11.get("debt_change_member_coverage", 0))
+            if turn11 and int(turn11.get("debt_change_member_coverage", 0)) else None),
+        "account_flow_per_covered_person_turn": {
+            field: account_totals[field] / account_coverage[field]
+            if account_coverage[field] else None
+            for field in account_totals
+        },
+        "account_flow_coverage": account_coverage,
+        "turn11_alive_share_of_baseline": (
+            float(turn11.get("alive_member_count", 0)) / baseline_count
+            if turn11 else None),
+        "turn11_present_member_count": (
+            int(turn11.get("present_member_count", 0)) if turn11 else None),
+    }
+
+
+def resident_cohort_effect(pair: dict) -> dict:
+    """Compare the fixed default-game turn-7 cohort without imputing missing people."""
+    cohort = pair.get("default_resident_cohort") or {}
+    control = cohort.get("control")
+    treatment = cohort.get("treatment")
+    if not control or not treatment:
+        return {"available": False, "reason": "cohort_not_recorded"}
+    control_roster = control.get("roster", ())
+    treatment_roster = treatment.get("roster", ())
+    control_ids = [row.get("actor_id") for row in control_roster]
+    treatment_ids = [row.get("actor_id") for row in treatment_roster]
+    matched = control_ids == treatment_ids and bool(control_ids)
+    control_summary = _resident_cohort_window_summary(control)
+    treatment_summary = _resident_cohort_window_summary(treatment)
+    metrics = (
+        "mean_alive_share_of_baseline", "need_met_share",
+        "calories_eaten_per_need_person_turn",
+        "calorie_shortfall_per_need_person_turn",
+        "employer_linked_share_of_living_person_turns",
+        "cash_change_total_per_baseline_member_at_t11",
+        "debt_change_total_per_covered_member_at_t11",
+        "turn11_alive_share_of_baseline",
+    )
+    effects = {}
+    for metric in metrics:
+        left = control_summary.get(metric)
+        right = treatment_summary.get(metric)
+        effects[metric] = (right - left if matched
+                           and isinstance(left, (int, float))
+                           and isinstance(right, (int, float)) else None)
+    for field in ("wages_cash", "sales_cash", "purchases_cash",
+                  "input_consumed_cost"):
+        left = control_summary.get("account_flow_per_covered_person_turn", {}).get(field)
+        right = treatment_summary.get("account_flow_per_covered_person_turn", {}).get(field)
+        effects[f"{field}_per_covered_person_turn"] = (
+            right - left if matched and isinstance(left, (int, float))
+            and isinstance(right, (int, float)) else None)
+    return {
+        "available": control_summary.get("available") is True
+        and treatment_summary.get("available") is True,
+        "roster_matched": matched,
+        "baseline_member_count_control": len(control_roster),
+        "baseline_member_count_treatment": len(treatment_roster),
+        "control": control_summary,
+        "treatment": treatment_summary,
+        "treatment_minus_control": effects,
+    }
+
+
 def _load_seed(root: Path, seed: int) -> dict:
     path = root / f"seed-{seed}" / "paired-results.json"
     if not path.exists():
@@ -100,6 +227,14 @@ def _load_seed(root: Path, seed: int) -> dict:
             raise ValueError(f"paired arms use different targets in {path}")
         pair["target_tile"] = children["control"]["target_tile"]
         pair["comparison"] = _compare_pair(children["control"], children["treatment"])
+        pair["default_resident_cohort"] = {
+            arm: {
+                "roster": children[arm].get("default_resident_cohort_roster", []),
+                "observations": children[arm].get(
+                    "default_resident_cohort_observations", []),
+            }
+            for arm in ("control", "treatment")
+        }
     return result
 
 
@@ -147,6 +282,7 @@ def summarize(root: Path, seeds: list[int]) -> dict:
                         target_tile=pair["target_tile"])
                     for good, key, _label, statistic in config["measures"]
                 },
+                "resident_cohort": resident_cohort_effect(pair),
             }
         measures = {}
         for good, key, label, statistic in config["measures"]:
@@ -179,6 +315,14 @@ def summarize(root: Path, seeds: list[int]) -> dict:
 
 def _fmt(value):
     return "—" if value is None else f"{value:.3f}"
+
+
+def _fmt_percent(value):
+    return "—" if value is None else f"{100 * value:.1f}%"
+
+
+def _fmt_signed(value, digits=2):
+    return "—" if value is None else f"{value:+.{digits}f}"
 
 
 def render_report(summary: dict) -> str:
@@ -241,13 +385,79 @@ def render_report(summary: dict) -> str:
                   "remain comparable. Coverage cells prevent a "
                   "missing record from being silently counted as zero.", ""]
     lines += [
+        "## Fixed default-game resident cohort", "",
+        "Each default-game arm freezes the same eligible resident IDs after "
+        "turn 7 and records compact aggregate observations through turn 20. "
+        "The table covers turns 8–11. Need-met rates use present, living "
+        "roster members with positive measured calorie need; missing people "
+        "are not assigned zero intake. Cash change is cumulative from turn 7 "
+        "per baseline roster member. Wage flow is divided by resident-turns "
+        "with an account record. Differences are treatment minus control; "
+        "need-met differences are percentage points.", "",
+        "| Experiment | Seed | Baseline N C/T | Roster matched | T11 present C/T | "
+        "T11 alive C/T | Need met C/T (Δ pp) | kcal/need-person-turn C/T (Δ) | "
+        "Cash Δ/member C/T (Δ) | Wages/covered-person-turn C/T (Δ) | "
+        "Need coverage C/T |",
+        "|---|---:|---:|:---:|---:|---:|---:|---:|---:|---:|---:|",
+    ]
+    for experiment_id, experiment in summary["experiments"].items():
+        for seed in seeds:
+            cohort = experiment["by_seed"][seed].get("resident_cohort", {})
+            control = cohort.get("control", {})
+            treatment = cohort.get("treatment", {})
+            effects = cohort.get("treatment_minus_control", {})
+            baseline = (f"{cohort.get('baseline_member_count_control', 0)}/"
+                        f"{cohort.get('baseline_member_count_treatment', 0)}")
+            matched = "yes" if cohort.get("roster_matched") else "no"
+
+            def present_share(row):
+                count = row.get("turn11_present_member_count")
+                total = row.get("baseline_member_count")
+                return count / total if count is not None and total else None
+
+            wages = [
+                row.get("account_flow_per_covered_person_turn", {}).get("wages_cash")
+                for row in (control, treatment)
+            ]
+            wages_effect = effects.get("wages_cash_per_covered_person_turn")
+            coverage = [
+                f"{row.get('need_observed_person_turns', 0)}/"
+                f"{row.get('expected_person_turns', 0)}"
+                for row in (control, treatment)
+            ]
+            lines.append("| " + " | ".join([
+                experiment["title"], str(seed), baseline, matched,
+                f"{_fmt_percent(present_share(control))}/"
+                f"{_fmt_percent(present_share(treatment))}",
+                f"{_fmt_percent(control.get('turn11_alive_share_of_baseline'))}/"
+                f"{_fmt_percent(treatment.get('turn11_alive_share_of_baseline'))}",
+                f"{_fmt_percent(control.get('need_met_share'))}/"
+                f"{_fmt_percent(treatment.get('need_met_share'))} "
+                f"({_fmt_signed(100 * effects['need_met_share'], 1) if effects.get('need_met_share') is not None else '—'} pp)",
+                f"{_fmt(control.get('calories_eaten_per_need_person_turn'))}/"
+                f"{_fmt(treatment.get('calories_eaten_per_need_person_turn'))} "
+                f"({_fmt_signed(effects.get('calories_eaten_per_need_person_turn'))})",
+                f"{_fmt(control.get('cash_change_total_per_baseline_member_at_t11'))}/"
+                f"{_fmt(treatment.get('cash_change_total_per_baseline_member_at_t11'))} "
+                f"({_fmt_signed(effects.get('cash_change_total_per_baseline_member_at_t11'))})",
+                f"{_fmt(wages[0])}/{_fmt(wages[1])} ({_fmt_signed(wages_effect)})",
+                f"{coverage[0]}/{coverage[1]}",
+            ]) + " |")
+    lines += [
+        "", "An absent roster member can have migrated or otherwise left the "
+        "observed actor set; absence is not treated as death. Alive coverage "
+        "and presence coverage are shown separately. This is a fixed-cohort "
+        "shock-window comparison, not an estimate of long-run recovery or a "
+        "historically calibrated welfare effect.", "",
+    ]
+    lines += [
         "## Limits", "",
         "Five seeds are a diagnostic sample, not a precise uncertainty estimate. "
         "Deep structural/formula and treasury audits were run on the seed-4242 "
         "traces; the other seed pairs carry the market mechanical gates only. "
-        "Treasury residual attribution, full goods-stock conservation, stable "
-        "household cohorts, a supply-rivalry cross-scenario sample, and primary-"
-        "source calibration remain open in the analysis plan.", "",
+        "Full goods-stock conservation, broader welfare accounting, prospective "
+        "recovery evidence, and primary-source calibration remain open in the "
+        "analysis plan.", "",
         "Reproduce the paired runs with `economic_shock_experiment.py` for each "
         "seed, then summarize their saved JSON without re-decoding traces:", "",
         "```sh",
