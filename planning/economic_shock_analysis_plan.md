@@ -3,8 +3,10 @@
 Date: 2026-10-24. Status: baseline and five-seed default-game paired screens
 complete; initial mechanical/formula audits applied. Treasury-flow writer
 gaps have been traced, instrumented and re-audited across all four seed-4242
-arms. The supply-rivalry shock adapter passes an exploratory seed-812
-integration smoke; the clean-source five-seed scenario screen, full
+arms. The supply-rivalry adapter passes paired turn-7 and intervention-hook
+checks, and a scenario audit exposed a missing treasury receipt from machinery
+repair when the government is the payee. That flow is now instrumented and
+unit-tested; the clean-source re-audit and five-seed scenario screen, full
 stock/welfare accounting, recovery metrics and empirical calibration remain.
 Preserve game rules during diagnosis; put any eventual economic fixes in
 separate changes.
@@ -14,7 +16,7 @@ separate changes.
 | Phase | Status | Evidence / remaining work |
 |---|---|---|
 | 1. Baseline evidence and case studies | Complete for the selected 20-turn trace | Added streaming panel extraction and a baseline report. It identifies the furniture-input and local-food cases below; the trace does not cover every household, balance or in-transit stock. |
-| 2. Controlled shock experiments | Five paired 20-turn default-game seeds complete; supply-rivalry adapter implemented and smoke-tested | Default seeds 4242–4246 match complete canonical state at turn 7 for both shock pairs; original seed-4243 no-op attempts are excluded. The new scenario runner targets the two named cotton growers and Meridian Mill, preserves native stepping, and passed exploratory seed-812 pairing and restoration checks. Clean-source seeds 812–816 remain. |
+| 2. Controlled shock experiments | Five paired 20-turn default-game seeds complete; supply-rivalry adapter and first scenario audit in progress | Default seeds 4242–4246 match complete canonical state at turn 7 for both shock pairs; original seed-4243 no-op attempts are excluded. The scenario runner targets the two named cotton growers and Meridian Mill and passed seed-812 pairing/restoration checks. A shared turn-12 machinery-repair treasury receipt was instrumented after the first deep audit; verify it on a clean rerun, then run scenario seeds 812–816. |
 | 3. Criteria and interpretation | Default-game mechanical and seed-4242 treasury gates pass | All ten valid default seed-pairs pass market gates. In a fresh clean-source audit, each of the four seed-4242 arms passes 60/60 account closes and 60/60 treasury-flow reconciliations; residual totals are below 6.3e-12. Structural/formula checks report zero issues, but full causal coverage and goods-stock conservation are not established. |
 
 The old `market_price_stabilization_plan.md` describes an earlier price rule.
@@ -172,9 +174,16 @@ The observed route shipment left at turn 1 and arrived at turn 2, so this
 window did not exercise a new transport response. Only 80–85 of 200 market
 panel rows had settlement summaries; other rows remain missing, not zero.
 Structural/formula and treasury-flow audits were not run on this exploratory
-working-tree smoke. Rerun clean-source seeds 812–816 before summarizing the
-scenario sample; run a scenario deep audit if the market or named-actor
-outcomes expose an accounting inconsistency.
+working-tree smoke. A subsequent clean-source deep audit found a shared
+turn-12 Meridian treasury residual of +177.306472 in all four arms: a firm
+paid for machinery repair but, because no eligible carpenter existed, the
+government received the payment. The public-account write and actor event were
+present, but the nation treasury-flow list omitted that public receipt.
+`labor_resistance.repair_and_replace_machinery` now records
+`government_machinery_repair_received` linked to the public-account write, and
+a focused regression test verifies that the signed flow equals the actual
+treasury change. Re-run all four seed-812 arms with a deep audit on clean source
+before proceeding to seeds 813–816.
 
 ## Questions and standards
 

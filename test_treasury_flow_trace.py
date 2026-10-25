@@ -84,6 +84,43 @@ class TreasuryFlowTraceTests(unittest.TestCase):
         self.assertEqual(nation.treasury()['total'] - before, flows[0]['after'])
         self.assertTrue(flows[0]['cause_event_ids'])
 
+    def test_machinery_repair_receipt_to_treasury_is_attributed(self):
+        from goods import Goods
+        from labor_resistance import repair_and_replace_machinery
+
+        nation, tile, trace, _clock = self.world()
+        government = tile.gov.agent
+        firm = Agent(900)
+        firm.is_corporation = True
+        firm.output = Goods.cloth
+        firm.cash = 500.0
+        firm.broken_machinery = 1
+        firm.machinery_level = 0
+        firm.employees = []
+        tile.agents = [government, firm]
+        tile.recipes.update({
+            Goods.wood: {'price': 3.0, 'production': 1},
+            Goods.furniture: {'price': 10.0, 'production': 1},
+        })
+        before = nation.treasury()['total']
+
+        evidence = []
+        repair_and_replace_machinery(firm, tile, 1, evidence)
+
+        flows = self.flows(trace)
+        receipt = next(row for row in flows
+                       if row['kind'] == 'government_machinery_repair_received')
+        self.assertAlmostEqual(nation.treasury()['total'] - before,
+                               sum(row['value_after'] for row in flows))
+        self.assertEqual(receipt['inputs']['payer_id'], firm.id)
+        self.assertEqual(len(receipt['cause_event_ids']), 1)
+        self.assertEqual(receipt['cause_event_ids'][0], next(
+            row['event_id'] for row in trace.recent
+            if row['kind'] == 'public_account_write'
+            and row['inputs'].get('operation_kind') ==
+            'labor_resistance:repair_and_replace_machinery'))
+        self.assertEqual(evidence[-1]['reason'], 'repaired')
+
     def test_domestic_bond_coupon_and_maturity_close_bank(self):
         from sovereign_bonds import SovereignBond, SovereignBondMarket
         nation, tile, trace, clock = self.world()

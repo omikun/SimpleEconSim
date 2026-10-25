@@ -159,10 +159,22 @@ def repair_and_replace_machinery(firm, region, t: int,
                         payer_id=firm.id, recipient_id=c.id, amount=split,
                         detail={'firm_id': firm.id, 'repair_cost': needed_cash})
             elif getattr(region, 'gov', None) and getattr(region.gov, 'agent', None):
-                _trace_cash_write = _trace_public_begin(None, region.gov.agent)
+                government = region.gov.agent
+                _trace_cash_write = _trace_public_begin(None, government)
                 region.gov.agent.cash += needed_cash
-                _trace_public_finish(_trace_cash_write, 'labor_resistance:repair_and_replace_machinery',
-                                     inputs={"source_writer": 'labor_resistance.py:repair_and_replace_machinery:2221b8897050a7af:1'})
+                government_write_ids = _trace_public_finish(
+                    _trace_cash_write,
+                    'labor_resistance:repair_and_replace_machinery',
+                    inputs={"source_writer": 'labor_resistance.py:repair_and_replace_machinery:2221b8897050a7af:1'})
+                from finance_trace import emit_public_account_flow
+                emit_public_account_flow(
+                    region, government,
+                    kind='government_machinery_repair_received',
+                    signed_amount=needed_cash,
+                    inputs={'turn': int(t), 'payer_id': firm.id,
+                            'amount': float(needed_cash),
+                            'source_writer': 'labor_resistance.py:repair_and_replace_machinery'},
+                    cause_event_ids=government_write_ids)
                 from economy.actor_accounts import record as record_economic_event
                 record_economic_event(
                     region, 'strike_machinery_repair', turn=t,
