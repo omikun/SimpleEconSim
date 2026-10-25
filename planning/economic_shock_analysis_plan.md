@@ -4,19 +4,22 @@ Date: 2026-10-24. Status: baseline and five-seed default-game paired screens
 complete; five-seed default-game and supply-rivalry paired screens complete.
 Seed 812 also passes clean-source deep audits in all four scenario arms. The
 scenario audit exposed a missing treasury receipt from machinery repair when
-the government is the payee. That flow is now instrumented and unit-tested;
-all five scenario seed pairs pass the market and intervention-integrity gates.
-Full goods-stock conservation, population-wide welfare accounting, recovery
-interpretation beyond the descriptive screen, deep audits of scenario seeds
-813–816 and empirical calibration remain. Preserve game rules during diagnosis;
-put any eventual economic fixes in separate changes.
+the government is the payee. Extending deep audits to seed 814 exposed a second
+missing flow: government cash spent on an ordinary market purchase. Both writers
+are now instrumented and covered by focused tests; seed 814 needs a clean-source
+rerun to confirm closure. All five scenario seed pairs pass the market and
+intervention-integrity gates. Full goods-stock conservation, population-wide
+welfare accounting, recovery interpretation beyond the descriptive screen,
+completion of the remaining scenario audits and empirical calibration remain.
+Preserve game rules during diagnosis; put any eventual economic fixes in
+separate changes.
 
 ## Implementation progress
 
 | Phase | Status | Evidence / remaining work |
 |---|---|---|
 | 1. Baseline evidence and case studies | Complete for the selected 20-turn trace | Added streaming panel extraction and a baseline report. It identifies the furniture-input and local-food cases below; the trace does not cover every household, balance or in-transit stock. |
-| 2. Controlled shock experiments | Five paired 20-turn default-game seeds and five paired supply-rivalry seeds complete | Default seeds 4242–4246 and scenario seeds 812–816 match complete canonical state at turn 7 for both shock pairs. All five scenario treatments preserve and remove their hooks on schedule; all ten scenario experiment-pairs pass market gates in both arms. Deep structural/formula and treasury audits currently cover all four arms of scenario seed 812; deepen seeds 813–816 if those traces are retained as validation evidence. |
+| 2. Controlled shock experiments | Five paired 20-turn default-game seeds and five paired supply-rivalry seeds complete | Default seeds 4242–4246 and scenario seeds 812–816 match complete canonical state at turn 7 for both shock pairs. All five scenario treatments preserve and remove their hooks on schedule; all ten scenario experiment-pairs pass market gates in both arms. Deep structural/formula and treasury audits cover seed 812 and are underway for 813–816; seed 814 exposed an ordinary government market purchase missing from the treasury-flow list. |
 | 3. Criteria and interpretation | Mechanical gates pass; recovery screen is descriptive | Default and scenario paired market gates pass. The four clean-source seed-812 scenario arms pass 40/40 account closes and 40/40 treasury-flow reconciliations; absolute residual totals are below 1.3e-12. Bounded structural/formula checks report zero issues, but complete causal coverage and goods-stock conservation are not established. A post-hoc recovery rule is applied to the five scenario seeds with explicit tolerance and coverage; post-shock paths are not draw-aligned. |
 
 The old `market_price_stabilization_plan.md` describes an earlier price rule.
@@ -208,10 +211,19 @@ The paired runs for seeds 812–816 and the aggregation code are recorded in
 sidecar. Every seed matches complete turn-7 state for both experiments; the
 scenario hook passes for all ten treatments, and both arms pass the market
 settlement-bound gate in all ten experiment-pairs. Seed 812 was deeply audited;
-seeds 813–816 were run with market and hook gates only. Seed 812 was generated
-from clean simulation source `3d2105a`; seeds 813–816 from clean source
-`9c57c29`. The intervening commit corrected report handling of null
-unshocked-target metadata and did not change simulation mechanics.
+seeds 813, 815 and 816 also pass the deep audit. The extended seed-814 audit
+found a turn-20 treasury residual in all four arms despite all 40 public
+accounts closing: Cotton Fields' government buyer paid Meridian Mill 46.3125
+crowns for four cloth units in the controls and demand pair, and 56.9059 in the
+supply treatment. The public cash debit and settled sale were recorded, but no
+nation-level expenditure linked them. `region_market.clear_discriminatory`
+now emits `government_market_purchase` with the exact signed payment and links
+it to the public-account write and market sale; a regression test checks the
+cash delta and both cause links. Rerun seed 814 on this committed fix before
+claiming the treasury gate across all five seeds. Seed 812 was generated from
+clean simulation source `3d2105a`; seeds 813–816 from clean source `e069200`.
+The intervening commit corrected report handling of null unshocked-target
+metadata and did not change simulation mechanics.
 
 - **Physical cotton supply:** Cotton Fields cotton output fell in every seed
   (−3 to −9 units over turns 8–11; mean −5.6); offered supply fell in every

@@ -37,6 +37,20 @@ seed-812 machine-readable results and paired report are in
 and `economic_shock_supply_rivalry_seed812.md`, respectively. The audited
 simulation source is commit `3d2105acfd9ddfcceb6559614750cc655f5a1331`.
 
+Deep audits of the other four paired seeds found one new gap in seed 814. Each
+arm still closed all 40 public accounts, but only 39/40 treasury turns were
+fully attributed. At turn 20 the Cotton Fields government bought four units of
+cloth from Meridian Mill in the ordinary local auction. The trace contained a
+government cash-account write and a settled sale, but no nation expenditure:
+the residual was `-46.3124698646` in supply control, demand control and demand
+treatment, and `-56.9059067482` in supply treatment. `region_market.py` now
+emits a negative `government_market_purchase` leg linked to both the account
+write and settled sale. A focused regression test checks its signed amount and
+causal links. A clean-source seed-814 rerun is still required to verify this
+second source fix; the other extended deep audits (seeds 813, 815 and 816) pass
+all 40/40 account closes and treasury turns in every arm with zero bounded
+structural/formula issues. Full causal coverage remains false.
+
 ## Diagnosed source legs
 
 The original US T4 control residual of -231.007765 matched the cash outflow
@@ -64,8 +78,8 @@ run data are in `economic_shock_screen_seed4242.md` and ignored
 
 ## Remaining audit work
 
-- Extend source-flow coverage beyond the audited default-game and seed-812
-  supply-rivalry arms, especially for new scenarios and intervention writers.
+- Confirm the seed-814 government market-purchase fix on clean traces, then
+  extend source-flow coverage to new scenarios and intervention writers.
 - Reconcile physical goods across household, producer, trader, public and
   in-transit stocks; treasury closure does not establish goods conservation.
 - Keep `complete_causal_coverage` marked false until unsupported mutation and

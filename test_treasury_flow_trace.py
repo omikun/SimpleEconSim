@@ -121,6 +121,45 @@ class TreasuryFlowTraceTests(unittest.TestCase):
             'labor_resistance:repair_and_replace_machinery'))
         self.assertEqual(evidence[-1]['reason'], 'repaired')
 
+    def test_government_market_purchase_is_attributed_as_treasury_expense(self):
+        from agent import initialize_agent
+        from goods import Goods
+        from region_market import clear_discriminatory
+
+        nation, tile, trace, _clock = self.world()
+        government = tile.gov.agent
+        seller = Agent(901)
+        initialize_agent(seller, Goods.cloth, 0, 0, 4.0)
+        seller.cash = 10.0
+        seller.inv_set(Goods.cloth, 5)
+        before = nation.treasury()['total']
+        units, _cash, _vwap = clear_discriminatory(
+            tile, Goods.cloth, 5.0, total_asks=2, total_bids=2,
+            imp_pool=[], agents=[government, seller], t=1,
+            local_orders={
+                'sellers': [{'agent': seller, 'quantity': 2, 'limit_price': 4.0}],
+                'buyers': [{'agent': government, 'quantity': 2, 'limit_price': 8.0}],
+            })
+
+        after = nation.treasury()['total']
+        flows = [row for row in self.flows(trace)
+                 if row['kind'] == 'government_market_purchase']
+        self.assertEqual(units, 2)
+        self.assertEqual(len(flows), 1)
+        flow = flows[0]
+        self.assertAlmostEqual(after - before, flow['value_after'])
+        self.assertAlmostEqual(flow['value_after'], -12.0)
+        sale = next(row for row in trace.recent
+                    if row.get('kind') == 'paid_market_sale')
+        write = next(row for row in trace.recent
+                     if row.get('kind') == 'public_account_write'
+                     and row.get('delta') == -12.0)
+        self.assertIn(sale['event_id'], flow['cause_event_ids'])
+        self.assertIn(write['event_id'], flow['cause_event_ids'])
+        contract = flow['inputs']['transfer_contract']
+        self.assertEqual(contract['operation_type'], 'government_market_purchase')
+        self.assertEqual(contract['payee_account']['id'], seller.id)
+
     def test_domestic_bond_coupon_and_maturity_close_bank(self):
         from sovereign_bonds import SovereignBond, SovereignBondMarket
         nation, tile, trace, clock = self.world()
