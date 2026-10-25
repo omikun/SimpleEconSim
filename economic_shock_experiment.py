@@ -1174,6 +1174,7 @@ def _quality_line(label, run):
 def _quality_payload(run):
     return {
         "source_commit": run.get("source_commit"),
+        "tracked_worktree_dirty": run.get("tracked_worktree_dirty"),
         "market_mechanical_gates": run.get("market_mechanical_gates"),
         "trace_quality_gates": run.get("trace_quality_gates"),
         "scenario_actor_observations": run.get("scenario_actor_observations", []),

@@ -99,6 +99,17 @@ class CharityFoodTraceTests(unittest.TestCase):
         self.assertEqual(trace.rows, [])
         self.assertEqual(_state(charity, people)[0], 0)
 
+    def test_fractional_stock_is_carried_forward_without_overdraw(self):
+        charity, region, people, trace = _fixture(traced=True, stock=0.5)
+
+        charity.distribute_food(8, people, regions=(region,))
+
+        self.assertEqual(charity.food_inventory, 0.5)
+        self.assertEqual([person.inv_get(Goods.food, 0) for person in people],
+                         [0, 0, 0])
+        self.assertEqual(charity.log['food_distributed'], 0)
+        self.assertEqual(trace.rows, [])
+
 
 if __name__ == '__main__':
     unittest.main()

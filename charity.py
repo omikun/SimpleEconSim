@@ -368,7 +368,9 @@ class Charity:
         young_recipient_ids = []
 
         for selection_index, recipient in enumerate(selected + young):
-            if self.food_inventory <= 0:
+            # One aid transfer is one whole food unit. Fractional stock from
+            # market purchases carries forward until it can fund that unit.
+            if self.food_inventory < 1:
                 break
             stock_before = self.food_inventory
             recipient_food_before = recipient.inv_get(Goods.food, 0)

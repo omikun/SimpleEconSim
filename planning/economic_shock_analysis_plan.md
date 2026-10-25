@@ -1,25 +1,22 @@
 # Economic response to supply and demand shocks
 
 Date: 2026-10-24. Status: baseline and five-seed default-game paired screens
-complete; five-seed default-game and supply-rivalry paired screens complete.
-Seed 812 also passes clean-source deep audits in all four scenario arms. The
-scenario audit exposed a missing treasury receipt from machinery repair when
-the government is the payee. Extending deep audits to seed 814 exposed a second
-missing flow: government cash spent on an ordinary market purchase. Both writers
-are now instrumented and covered by focused tests. All five scenario seed pairs
-have been rerun from clean source commit `569b723`; all 20 arm traces pass the
-deep accounting and bounded structural/formula gates. Full goods-stock
-conservation, population-wide welfare accounting, stronger causal recovery
-evidence and empirical calibration remain. Preserve game rules during
-diagnosis; put any eventual economic fixes in separate changes.
+complete; five-seed supply-rivalry experiments, cohort measurements, and an
+enumerated physical-holdings census are complete on source commit `38d7a44`.
+The five-seed money-flow audit still passes in all 20 arms. The holdings census
+found a fractional charity-food overdraw in one post-shock arm; a regression
+reproduces it and the one-unit distribution guard is fixed locally. Clean reruns
+after that fix are pending. Full stock-flow conservation, default-game
+population welfare, prospective recovery evidence, and empirical calibration
+remain. Keep economic-rule fixes separate from measurement changes.
 
 ## Implementation progress
 
 | Phase | Status | Evidence / remaining work |
 |---|---|---|
 | 1. Baseline evidence and case studies | Complete for the selected 20-turn trace | Added streaming panel extraction and a baseline report. It identifies the furniture-input and local-food cases below; the trace does not cover every household, balance or in-transit stock. |
-| 2. Controlled shock experiments | Five paired 20-turn default-game seeds and five paired supply-rivalry seeds complete | Default seeds 4242–4246 and scenario seeds 812–816 match complete canonical state at turn 7 for both shock pairs. All five scenario treatments preserve and remove their hooks on schedule; all ten scenario experiment-pairs pass market gates in both arms. All 20 scenario arm traces pass the clean-source deep accounting and bounded structural/formula audits. |
-| 3. Criteria and interpretation | Mechanical gates pass; recovery screen is descriptive | All five scenario seeds pass 160/160 account closes and 160/160 treasury-flow reconciliations per seed (800/800 overall); maximum absolute residual total in any arm is below 1.8e-12. Bounded structural/formula checks report zero issues, but complete causal coverage and goods-stock conservation are not established. A post-hoc recovery rule is applied to the five scenario seeds with explicit tolerance and coverage; post-shock paths are not draw-aligned. |
+| 2. Controlled shock experiments | Five paired 20-turn default-game seeds and five paired supply-rivalry seeds complete | Default seeds 4242–4246 and scenario seeds 812–816 match complete canonical state at turn 7 for both shock pairs. All five scenario treatments preserve and remove their hooks on schedule; all ten scenario experiment-pairs pass market gates in both arms. The 20 scenario arm traces pass deep accounting and bounded structural/formula audits. A fixed turn-7 resident cohort and enumerated stock census are now captured in every scenario arm. |
+| 3. Criteria and interpretation | Accounting gates pass; one stock-floor defect fixed pending clean reruns; recovery remains descriptive | Before the charity fix, all five scenario seeds passed 160/160 account closes and 160/160 treasury-flow reconciliations per seed (800/800 overall); maximum absolute residual was 1.73e-12. Bounded structural/formula checks reported zero issues, but complete causal coverage and stock-flow conservation are not established. The post-hoc recovery screen has explicit tolerance and coverage; post-shock paths are not draw-aligned. The new holdings census found and the focused regression reproduced a charity food inventory crossing below zero when 0.5 unit funded a one-unit aid transfer. The distribution guard now waits for one full unit; scenario and unaffected-control reruns remain. |
 
 The old `market_price_stabilization_plan.md` describes an earlier price rule.
 Current `region_market.update_price_ref` already demand-gates positive scarcity
@@ -254,6 +251,23 @@ conservation remains a separate open measurement.
   differences occurred in two of five supply seeds during the shock window;
   the other three showed no departure or arrival difference. This is sparse
   scenario-specific evidence about trade response.
+- **Resident cohort and held stock:** A fresh paired run on clean source commit
+  `38d7a44` followed all 34 living non-company, non-government, non-trader
+  residents present at T7 in each seed through T20. During the supply shock,
+  the treatment produced no change in measured survival, employer linkage,
+  calorie-need adequacy, or shortfall share; mean intake effects ranged from
+  −14.71 to +3.68 kcal per resident-turn, and mean cash-change effects from
+  −0.43 to +0.03 currency units per resident. The census scanned 44 agents,
+  both route queues, two government food stores and two charity food stores per
+  turn, and retained all good types and inventory pools in the JSON. It is a
+  complete census of these enumerated supply-rivalry stores at each sampled
+  turn, not a flow-conservation proof. In seed 812's cotton-supply treatment,
+  the Rival Port charity held −0.5 food at turns 17–20 (four negative-stock
+  observations); no other arm had a negative holding. The distribution
+  routine previously subtracted one whole unit from any positive balance. A
+  focused regression failed at 0.5 stock, and the rule now preserves that
+  fractional remainder until a whole unit is available. Fresh paired and
+  unaffected-control reruns are required before replacing the pre-fix report.
 - **Recovery diagnostic:** A descriptive, post-hoc screen asks whether the
   selected market measure returns within `max(1 unit, 5% of control)` for
   quantities or within 5% for paid prices for three consecutive observed turns
@@ -565,20 +579,26 @@ sidecar. The seed-812 per-arm report and treasury findings are in
 `planning/reports/economic_shock_supply_rivalry_seed812.md` and
 `planning/reports/treasury_flow_attribution_followup.md`. Continue with:
 
-1. Add explicit physical-stock accounting across household, producer, trader,
-   public and in-transit holdings. The current reports compare named actor
-   stocks at turns 7 and 11, market producer stocks, and cotton route lots; they
-   do not establish stock conservation for the whole scenario or default game.
-2. Expand from the four named supply-chain actors to a fixed turn-7 household
-   cohort and report survival, food need/intake, cash, debt/credit, employment,
-   wages, sales and input costs. Do not label sales less selected costs as full
-   profit; add a reconciled profit measure only when all relevant accounting
-   legs are observed.
-3. Run the explicit recovery rule prospectively with predeclared tolerances and
+1. Rerun all five supply-rivalry seed pairs and the default seed-4242 paired
+   screen from the charity stock-floor fix. Verify that negative public food
+   balances are gone, shock hooks and turn-7 matches still pass, and all
+   treasury/market gates remain clean. Replace the pre-fix multi-seed report
+   with those post-fix results.
+2. Extend the physical inventory census to a stock-flow reconciliation across
+   production, processing, consumption, market settlement, aid, transfers,
+   public stores and routes. The current census establishes enumerated holdings
+   only in the two-region supply-rivalry scenario; it does not prove stock
+   conservation there or in the default game.
+3. Carry the fixed resident-cohort measures into a default-game cohort and
+   widen the welfare accounting beyond survival, calorie need/intake, cash,
+   debt, employer linkage, wages, sales and recorded input costs. Do not label
+   sales less selected costs as full profit; add a reconciled profit measure
+   only when all relevant accounting legs are observed.
+4. Run the explicit recovery rule prospectively with predeclared tolerances and
    sufficient post-shock windows. Current five-seed classifications are
    post-hoc path diagnostics, and post-shock RNG divergence prevents a causal
    recovery claim.
-4. Select primary historical evidence for an explicit setting and compare
+5. Select primary historical evidence for an explicit setting and compare
    response magnitudes, delay, inventories and consumption before claiming
    empirical realism. Extend to 50/100-turn runs only where the current
    turn-20 screen cannot resolve persistence or recovery.
