@@ -104,9 +104,12 @@ def audit_run(run, events, *, tolerance=1e-6):
         if is_internal_turnover and good in AUDITED_GOODS:
             counter = turnover[good][kind]
             counter["event_count"] += 1
-            quantity = inputs.get("quantity")
-            if quantity is None:
+            quantity = None
+            if kind == "paid_market_sale":
                 quantity = row.get("value_after")
+            elif kind in {"route_shipment_loaded", "route_shipment_departure",
+                          "route_shipment_progress", "route_shipment_arrival"}:
+                quantity = inputs.get("quantity")
             if quantity is not None:
                 counter["reported_quantity"] += abs(float(quantity))
             if (kind == "paid_market_sale" and inputs.get("imported")
@@ -173,6 +176,7 @@ def audit_run(run, events, *, tolerance=1e-6):
     return {
         "scenario": run.get("scenario"),
         "seed": run.get("seed"),
+        "experiment": run.get("experiment"),
         "arm": run.get("arm"),
         "source_commit": run.get("source_commit"),
         "tracked_worktree_dirty": run.get("tracked_worktree_dirty"),
@@ -229,12 +233,13 @@ def render_markdown(results):
         "| Seed | Shock | Arm | Cotton balanced | Cotton max residual | Cloth balanced | Cloth max residual | Issues |",
         "|---:|---|---|---:|---:|---:|---:|---:|",
     ]
-    for result in sorted(results, key=lambda row: (int(row["seed"]), row["arm"])):
-        shock = ("cotton supply" if "cotton_supply" in result["arm"]
+    for result in sorted(results, key=lambda row: (
+            int(row["seed"]), row["experiment"], row["arm"])):
+        shock = ("cotton supply" if "cotton_supply" in result["experiment"]
                  else "mill cotton demand")
         for_good = result["summary_by_good"]
         lines.append(
-            f"| {result['seed']} | {shock} | {result['arm'].rsplit('-', 1)[-1]} | "
+            f"| {result['seed']} | {shock} | {result['arm']} | "
             f"{for_good['cotton']['balanced_interval_count']}/"
             f"{for_good['cotton']['interval_count']} | "
             f"{for_good['cotton']['max_absolute_residual']} | "

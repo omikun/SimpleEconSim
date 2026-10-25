@@ -1,6 +1,6 @@
 import unittest
 
-from economic_shock_stock_flow_audit import audit_run
+from economic_shock_stock_flow_audit import audit_run, render_markdown
 
 
 class EconomicShockStockFlowAuditTests(unittest.TestCase):
@@ -8,6 +8,7 @@ class EconomicShockStockFlowAuditTests(unittest.TestCase):
         return {
             "scenario": "supply_rivalry",
             "seed": 17,
+            "experiment": "rivalry_cotton_supply_reduction",
             "arm": "cotton-control",
             "completed_turns": completed_turns,
             "scenario_goods_stock_observations": snapshots,
@@ -42,6 +43,9 @@ class EconomicShockStockFlowAuditTests(unittest.TestCase):
             {"turn": 2, "kind": "feudal_tribute_transfer",
              "record_class": "transfer", "subject": {"good": "cotton"},
              "value_after": 1},
+            {"turn": 2, "kind": "market_seller_receipt_posted",
+             "record_class": "transfer", "subject": {"good": "cotton"},
+             "value_after": 50},
         ]
 
         result = audit_run(run, events)
@@ -57,6 +61,8 @@ class EconomicShockStockFlowAuditTests(unittest.TestCase):
         self.assertEqual(turnover["paid_market_sale"]["reported_quantity"], 99)
         self.assertEqual(turnover["route_shipment_loaded"]["reported_quantity"], 2)
         self.assertEqual(turnover["feudal_tribute_transfer"]["event_count"], 1)
+        self.assertEqual(turnover["market_seller_receipt_posted"][
+            "reported_quantity"], 0)
 
     def test_missing_input_good_is_an_explicit_coverage_failure(self):
         run = self._run([
@@ -88,6 +94,18 @@ class EconomicShockStockFlowAuditTests(unittest.TestCase):
                       result["issues"])
         self.assertIn({"kind": "missing_consecutive_stock_snapshot", "turn": 3},
                       result["issues"])
+
+    def test_report_uses_experiment_and_arm_as_distinct_columns(self):
+        run = self._run([
+            {"turn": 1, "stocks": []},
+            {"turn": 2, "stocks": []},
+        ])
+        result = audit_run(run, [])
+
+        report = render_markdown([result])
+
+        self.assertIn("| 17 | cotton supply | cotton-control |", report)
+        self.assertNotIn("| 17 | mill cotton demand |", report)
 
 
 if __name__ == "__main__":
