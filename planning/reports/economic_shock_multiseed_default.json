@@ -5,8 +5,8 @@
         "4242": {
           "market_gates_pass": true,
           "market_rows": [
-            720,
-            720
+            1200,
+            1200
           ],
           "measures": {
             "food:food_intake.shortfall_units": {
@@ -53,14 +53,78 @@
             }
           },
           "pre_shock_states_match": true,
+          "resident_cohort": {
+            "available": true,
+            "baseline_member_count_control": 1356,
+            "baseline_member_count_treatment": 1356,
+            "control": {
+              "available": true,
+              "baseline_member_count": 1356,
+              "calorie_shortfall_per_need_person_turn": 71.34955752212389,
+              "calories_eaten_per_need_person_turn": 2225.018436578171,
+              "cash_change_percent_from_turn7_at_t11": -8.049189,
+              "cash_change_percent_member_coverage_at_t11": 1349,
+              "cash_wage_recipient_share_of_living_person_turns": 0.016224188790560472,
+              "debt_change_as_baseline_cash_share_at_t11": 0.0,
+              "debt_change_cash_share_member_coverage_at_t11": 1349,
+              "employer_linked_share_of_living_person_turns": 0.022308259587020648,
+              "expected_person_turns": 5424,
+              "expected_turns": 4,
+              "living_person_turns": 5424,
+              "mean_alive_share_of_baseline": 1.0,
+              "need_met_share": 0.9441371681415929,
+              "need_observed_person_turns": 5424,
+              "observed_turns": 4,
+              "present_person_turns": 5424,
+              "scrip_wage_recipient_share_of_living_person_turns": 0.0,
+              "turn11_alive_share_of_baseline": 1.0,
+              "turn11_present_member_count": 1356
+            },
+            "roster_matched": true,
+            "treatment": {
+              "available": true,
+              "baseline_member_count": 1356,
+              "calorie_shortfall_per_need_person_turn": 73.56194690265487,
+              "calories_eaten_per_need_person_turn": 2225.387168141593,
+              "cash_change_percent_from_turn7_at_t11": -7.742491,
+              "cash_change_percent_member_coverage_at_t11": 1349,
+              "cash_wage_recipient_share_of_living_person_turns": 0.014933628318584071,
+              "debt_change_as_baseline_cash_share_at_t11": 0.0,
+              "debt_change_cash_share_member_coverage_at_t11": 1349,
+              "employer_linked_share_of_living_person_turns": 0.02064896755162242,
+              "expected_person_turns": 5424,
+              "expected_turns": 4,
+              "living_person_turns": 5424,
+              "mean_alive_share_of_baseline": 1.0,
+              "need_met_share": 0.9432153392330384,
+              "need_observed_person_turns": 5424,
+              "observed_turns": 4,
+              "present_person_turns": 5424,
+              "scrip_wage_recipient_share_of_living_person_turns": 0.0,
+              "turn11_alive_share_of_baseline": 1.0,
+              "turn11_present_member_count": 1356
+            },
+            "treatment_minus_control": {
+              "calorie_shortfall_per_need_person_turn": 2.212389380530979,
+              "calories_eaten_per_need_person_turn": 0.36873156342198854,
+              "cash_change_percent_from_turn7_at_t11": 0.3066979999999999,
+              "cash_wage_recipient_share_of_living_person_turns": -0.0012905604719764003,
+              "debt_change_as_baseline_cash_share_at_t11": 0.0,
+              "employer_linked_share_of_living_person_turns": -0.0016592920353982292,
+              "mean_alive_share_of_baseline": 0.0,
+              "need_met_share": -0.0009218289085545228,
+              "scrip_wage_recipient_share_of_living_person_turns": 0.0,
+              "turn11_alive_share_of_baseline": 0.0
+            }
+          },
           "target_currency": "CNY",
           "target_tile": "c50"
         },
         "4243": {
           "market_gates_pass": true,
           "market_rows": [
-            720,
-            720
+            1200,
+            1200
           ],
           "measures": {
             "food:food_intake.shortfall_units": {
@@ -107,14 +171,78 @@
             }
           },
           "pre_shock_states_match": true,
+          "resident_cohort": {
+            "available": true,
+            "baseline_member_count_control": 1314,
+            "baseline_member_count_treatment": 1314,
+            "control": {
+              "available": true,
+              "baseline_member_count": 1314,
+              "calorie_shortfall_per_need_person_turn": 332.63518659558264,
+              "calories_eaten_per_need_person_turn": 1949.3526275704494,
+              "cash_change_percent_from_turn7_at_t11": -16.645596,
+              "cash_change_percent_member_coverage_at_t11": 1262,
+              "cash_wage_recipient_share_of_living_person_turns": 0.03560548362528561,
+              "debt_change_as_baseline_cash_share_at_t11": 0.0,
+              "debt_change_cash_share_member_coverage_at_t11": 1262,
+              "employer_linked_share_of_living_person_turns": 0.06587966488956588,
+              "expected_person_turns": 5256,
+              "expected_turns": 4,
+              "living_person_turns": 5252,
+              "mean_alive_share_of_baseline": 0.9992389649923896,
+              "need_met_share": 0.8143564356435643,
+              "need_observed_person_turns": 5252,
+              "observed_turns": 4,
+              "present_person_turns": 5252,
+              "scrip_wage_recipient_share_of_living_person_turns": 0.0,
+              "turn11_alive_share_of_baseline": 0.9984779299847792,
+              "turn11_present_member_count": 1312
+            },
+            "roster_matched": true,
+            "treatment": {
+              "available": true,
+              "baseline_member_count": 1314,
+              "calorie_shortfall_per_need_person_turn": 331.0797943248905,
+              "calories_eaten_per_need_person_turn": 1950.4856217863264,
+              "cash_change_percent_from_turn7_at_t11": -15.689359,
+              "cash_change_percent_member_coverage_at_t11": 1263,
+              "cash_wage_recipient_share_of_living_person_turns": 0.03637402399542944,
+              "debt_change_as_baseline_cash_share_at_t11": 0.0,
+              "debt_change_cash_share_member_coverage_at_t11": 1263,
+              "employer_linked_share_of_living_person_turns": 0.06532089125880784,
+              "expected_person_turns": 5256,
+              "expected_turns": 4,
+              "living_person_turns": 5251,
+              "mean_alive_share_of_baseline": 0.999048706240487,
+              "need_met_share": 0.8152732812797563,
+              "need_observed_person_turns": 5251,
+              "observed_turns": 4,
+              "present_person_turns": 5251,
+              "scrip_wage_recipient_share_of_living_person_turns": 0.0,
+              "turn11_alive_share_of_baseline": 0.9984779299847792,
+              "turn11_present_member_count": 1312
+            },
+            "treatment_minus_control": {
+              "calorie_shortfall_per_need_person_turn": -1.5553922706921526,
+              "calories_eaten_per_need_person_turn": 1.1329942158770336,
+              "cash_change_percent_from_turn7_at_t11": 0.9562370000000016,
+              "cash_wage_recipient_share_of_living_person_turns": 0.0007685403701438304,
+              "debt_change_as_baseline_cash_share_at_t11": 0.0,
+              "employer_linked_share_of_living_person_turns": -0.0005587736307580415,
+              "mean_alive_share_of_baseline": -0.00019025875190259445,
+              "need_met_share": 0.0009168456361919874,
+              "scrip_wage_recipient_share_of_living_person_turns": 0.0,
+              "turn11_alive_share_of_baseline": 0.0
+            }
+          },
           "target_currency": "CNY",
           "target_tile": "c74"
         },
         "4244": {
           "market_gates_pass": true,
           "market_rows": [
-            720,
-            720
+            1200,
+            1200
           ],
           "measures": {
             "food:food_intake.shortfall_units": {
@@ -161,14 +289,78 @@
             }
           },
           "pre_shock_states_match": true,
+          "resident_cohort": {
+            "available": true,
+            "baseline_member_count_control": 1497,
+            "baseline_member_count_treatment": 1497,
+            "control": {
+              "available": true,
+              "baseline_member_count": 1497,
+              "calorie_shortfall_per_need_person_turn": 75.65130260521042,
+              "calories_eaten_per_need_person_turn": 2248.9144956579826,
+              "cash_change_percent_from_turn7_at_t11": -7.309274,
+              "cash_change_percent_member_coverage_at_t11": 1491,
+              "cash_wage_recipient_share_of_living_person_turns": 0.006680026720106881,
+              "debt_change_as_baseline_cash_share_at_t11": 0.0,
+              "debt_change_cash_share_member_coverage_at_t11": 1491,
+              "employer_linked_share_of_living_person_turns": 0.017201068804275216,
+              "expected_person_turns": 5988,
+              "expected_turns": 4,
+              "living_person_turns": 5988,
+              "mean_alive_share_of_baseline": 1.0,
+              "need_met_share": 0.9408817635270541,
+              "need_observed_person_turns": 5988,
+              "observed_turns": 4,
+              "present_person_turns": 5988,
+              "scrip_wage_recipient_share_of_living_person_turns": 0.0,
+              "turn11_alive_share_of_baseline": 1.0,
+              "turn11_present_member_count": 1497
+            },
+            "roster_matched": true,
+            "treatment": {
+              "available": true,
+              "baseline_member_count": 1497,
+              "calorie_shortfall_per_need_person_turn": 75.31730126920507,
+              "calories_eaten_per_need_person_turn": 2249.498997995992,
+              "cash_change_percent_from_turn7_at_t11": -7.388404,
+              "cash_change_percent_member_coverage_at_t11": 1491,
+              "cash_wage_recipient_share_of_living_person_turns": 0.006680026720106881,
+              "debt_change_as_baseline_cash_share_at_t11": 0.0,
+              "debt_change_cash_share_member_coverage_at_t11": 1491,
+              "employer_linked_share_of_living_person_turns": 0.017201068804275216,
+              "expected_person_turns": 5988,
+              "expected_turns": 4,
+              "living_person_turns": 5988,
+              "mean_alive_share_of_baseline": 1.0,
+              "need_met_share": 0.9412157648630595,
+              "need_observed_person_turns": 5988,
+              "observed_turns": 4,
+              "present_person_turns": 5988,
+              "scrip_wage_recipient_share_of_living_person_turns": 0.0,
+              "turn11_alive_share_of_baseline": 1.0,
+              "turn11_present_member_count": 1497
+            },
+            "treatment_minus_control": {
+              "calorie_shortfall_per_need_person_turn": -0.3340013360053433,
+              "calories_eaten_per_need_person_turn": 0.5845023380093153,
+              "cash_change_percent_from_turn7_at_t11": -0.07913000000000014,
+              "cash_wage_recipient_share_of_living_person_turns": 0.0,
+              "debt_change_as_baseline_cash_share_at_t11": 0.0,
+              "employer_linked_share_of_living_person_turns": 0.0,
+              "mean_alive_share_of_baseline": 0.0,
+              "need_met_share": 0.00033400133600536286,
+              "scrip_wage_recipient_share_of_living_person_turns": 0.0,
+              "turn11_alive_share_of_baseline": 0.0
+            }
+          },
           "target_currency": "USD",
           "target_tile": "c74"
         },
         "4245": {
           "market_gates_pass": true,
           "market_rows": [
-            720,
-            720
+            1200,
+            1200
           ],
           "measures": {
             "food:food_intake.shortfall_units": {
@@ -215,14 +407,78 @@
             }
           },
           "pre_shock_states_match": true,
+          "resident_cohort": {
+            "available": true,
+            "baseline_member_count_control": 1315,
+            "baseline_member_count_treatment": 1315,
+            "control": {
+              "available": true,
+              "baseline_member_count": 1315,
+              "calorie_shortfall_per_need_person_turn": 386.4458404721112,
+              "calories_eaten_per_need_person_turn": 1922.2349133828288,
+              "cash_change_percent_from_turn7_at_t11": -14.093386,
+              "cash_change_percent_member_coverage_at_t11": 1286,
+              "cash_wage_recipient_share_of_living_person_turns": 0.010850942318675044,
+              "debt_change_as_baseline_cash_share_at_t11": 0.0,
+              "debt_change_cash_share_member_coverage_at_t11": 1286,
+              "employer_linked_share_of_living_person_turns": 0.028935846183133447,
+              "expected_person_turns": 5260,
+              "expected_turns": 4,
+              "living_person_turns": 5253,
+              "mean_alive_share_of_baseline": 0.9986692015209125,
+              "need_met_share": 0.8003045878545593,
+              "need_observed_person_turns": 5253,
+              "observed_turns": 4,
+              "present_person_turns": 5253,
+              "scrip_wage_recipient_share_of_living_person_turns": 0.0,
+              "turn11_alive_share_of_baseline": 0.996958174904943,
+              "turn11_present_member_count": 1311
+            },
+            "roster_matched": true,
+            "treatment": {
+              "available": true,
+              "baseline_member_count": 1315,
+              "calorie_shortfall_per_need_person_turn": 386.5753945617038,
+              "calories_eaten_per_need_person_turn": 1917.9501806427077,
+              "cash_change_percent_from_turn7_at_t11": -15.353235,
+              "cash_change_percent_member_coverage_at_t11": 1289,
+              "cash_wage_recipient_share_of_living_person_turns": 0.010648412245674083,
+              "debt_change_as_baseline_cash_share_at_t11": 0.0,
+              "debt_change_cash_share_member_coverage_at_t11": 1289,
+              "employer_linked_share_of_living_person_turns": 0.02852253280091272,
+              "expected_person_turns": 5260,
+              "expected_turns": 4,
+              "living_person_turns": 5259,
+              "mean_alive_share_of_baseline": 0.999809885931559,
+              "need_met_share": 0.7997718197375927,
+              "need_observed_person_turns": 5259,
+              "observed_turns": 4,
+              "present_person_turns": 5259,
+              "scrip_wage_recipient_share_of_living_person_turns": 0.0,
+              "turn11_alive_share_of_baseline": 0.9992395437262357,
+              "turn11_present_member_count": 1314
+            },
+            "treatment_minus_control": {
+              "calorie_shortfall_per_need_person_turn": 0.1295540895926024,
+              "calories_eaten_per_need_person_turn": -4.2847327401211714,
+              "cash_change_percent_from_turn7_at_t11": -1.259848999999999,
+              "cash_wage_recipient_share_of_living_person_turns": -0.00020253007300096056,
+              "debt_change_as_baseline_cash_share_at_t11": 0.0,
+              "employer_linked_share_of_living_person_turns": -0.0004133133822207258,
+              "mean_alive_share_of_baseline": 0.0011406844106464087,
+              "need_met_share": -0.0005327681169665643,
+              "scrip_wage_recipient_share_of_living_person_turns": 0.0,
+              "turn11_alive_share_of_baseline": 0.0022813688212927064
+            }
+          },
           "target_currency": "JPY",
           "target_tile": "c78"
         },
         "4246": {
           "market_gates_pass": true,
           "market_rows": [
-            720,
-            720
+            1200,
+            1200
           ],
           "measures": {
             "food:food_intake.shortfall_units": {
@@ -269,6 +525,70 @@
             }
           },
           "pre_shock_states_match": true,
+          "resident_cohort": {
+            "available": true,
+            "baseline_member_count_control": 1495,
+            "baseline_member_count_treatment": 1495,
+            "control": {
+              "available": true,
+              "baseline_member_count": 1495,
+              "calorie_shortfall_per_need_person_turn": 176.45091152366618,
+              "calories_eaten_per_need_person_turn": 2140.408094999164,
+              "cash_change_percent_from_turn7_at_t11": -9.34033,
+              "cash_change_percent_member_coverage_at_t11": 1463,
+              "cash_wage_recipient_share_of_living_person_turns": 0.021575514300050176,
+              "debt_change_as_baseline_cash_share_at_t11": 0.0,
+              "debt_change_cash_share_member_coverage_at_t11": 1463,
+              "employer_linked_share_of_living_person_turns": 0.03278140157216926,
+              "expected_person_turns": 5980,
+              "expected_turns": 4,
+              "living_person_turns": 5979,
+              "mean_alive_share_of_baseline": 0.9998327759197324,
+              "need_met_share": 0.8921224284997491,
+              "need_observed_person_turns": 5979,
+              "observed_turns": 4,
+              "present_person_turns": 5979,
+              "scrip_wage_recipient_share_of_living_person_turns": 0.0,
+              "turn11_alive_share_of_baseline": 0.9993311036789297,
+              "turn11_present_member_count": 1494
+            },
+            "roster_matched": true,
+            "treatment": {
+              "available": true,
+              "baseline_member_count": 1495,
+              "calorie_shortfall_per_need_person_turn": 176.3967882234861,
+              "calories_eaten_per_need_person_turn": 2140.180662428906,
+              "cash_change_percent_from_turn7_at_t11": -9.25777,
+              "cash_change_percent_member_coverage_at_t11": 1463,
+              "cash_wage_recipient_share_of_living_person_turns": 0.0234192037470726,
+              "debt_change_as_baseline_cash_share_at_t11": 0.0,
+              "debt_change_cash_share_member_coverage_at_t11": 1463,
+              "employer_linked_share_of_living_person_turns": 0.03479424556707929,
+              "expected_person_turns": 5980,
+              "expected_turns": 4,
+              "living_person_turns": 5978,
+              "mean_alive_share_of_baseline": 0.9996655518394648,
+              "need_met_share": 0.890598862495818,
+              "need_observed_person_turns": 5978,
+              "observed_turns": 4,
+              "present_person_turns": 5978,
+              "scrip_wage_recipient_share_of_living_person_turns": 0.0,
+              "turn11_alive_share_of_baseline": 0.9993311036789297,
+              "turn11_present_member_count": 1494
+            },
+            "treatment_minus_control": {
+              "calorie_shortfall_per_need_person_turn": -0.05412330018006628,
+              "calories_eaten_per_need_person_turn": -0.2274325702578608,
+              "cash_change_percent_from_turn7_at_t11": 0.08255999999999908,
+              "cash_wage_recipient_share_of_living_person_turns": 0.001843689447022425,
+              "debt_change_as_baseline_cash_share_at_t11": 0.0,
+              "employer_linked_share_of_living_person_turns": 0.0020128439949100296,
+              "mean_alive_share_of_baseline": -0.00016722408026759172,
+              "need_met_share": -0.0015235660039311094,
+              "scrip_wage_recipient_share_of_living_person_turns": 0.0,
+              "turn11_alive_share_of_baseline": 0.0
+            }
+          },
           "target_currency": "JPY",
           "target_tile": "c71"
         }
@@ -578,8 +898,8 @@
         "4242": {
           "market_gates_pass": true,
           "market_rows": [
-            720,
-            720
+            1200,
+            1200
           ],
           "measures": {
             "food:food_intake.shortfall_units": {
@@ -638,14 +958,78 @@
             }
           },
           "pre_shock_states_match": true,
+          "resident_cohort": {
+            "available": true,
+            "baseline_member_count_control": 1356,
+            "baseline_member_count_treatment": 1356,
+            "control": {
+              "available": true,
+              "baseline_member_count": 1356,
+              "calorie_shortfall_per_need_person_turn": 71.34955752212389,
+              "calories_eaten_per_need_person_turn": 2225.018436578171,
+              "cash_change_percent_from_turn7_at_t11": -8.049189,
+              "cash_change_percent_member_coverage_at_t11": 1349,
+              "cash_wage_recipient_share_of_living_person_turns": 0.016224188790560472,
+              "debt_change_as_baseline_cash_share_at_t11": 0.0,
+              "debt_change_cash_share_member_coverage_at_t11": 1349,
+              "employer_linked_share_of_living_person_turns": 0.022308259587020648,
+              "expected_person_turns": 5424,
+              "expected_turns": 4,
+              "living_person_turns": 5424,
+              "mean_alive_share_of_baseline": 1.0,
+              "need_met_share": 0.9441371681415929,
+              "need_observed_person_turns": 5424,
+              "observed_turns": 4,
+              "present_person_turns": 5424,
+              "scrip_wage_recipient_share_of_living_person_turns": 0.0,
+              "turn11_alive_share_of_baseline": 1.0,
+              "turn11_present_member_count": 1356
+            },
+            "roster_matched": true,
+            "treatment": {
+              "available": true,
+              "baseline_member_count": 1356,
+              "calorie_shortfall_per_need_person_turn": 70.2433628318584,
+              "calories_eaten_per_need_person_turn": 2226.7699115044247,
+              "cash_change_percent_from_turn7_at_t11": -7.972703,
+              "cash_change_percent_member_coverage_at_t11": 1349,
+              "cash_wage_recipient_share_of_living_person_turns": 0.016592920353982302,
+              "debt_change_as_baseline_cash_share_at_t11": 0.0,
+              "debt_change_cash_share_member_coverage_at_t11": 1349,
+              "employer_linked_share_of_living_person_turns": 0.02267699115044248,
+              "expected_person_turns": 5424,
+              "expected_turns": 4,
+              "living_person_turns": 5424,
+              "mean_alive_share_of_baseline": 1.0,
+              "need_met_share": 0.9448746312684366,
+              "need_observed_person_turns": 5424,
+              "observed_turns": 4,
+              "present_person_turns": 5424,
+              "scrip_wage_recipient_share_of_living_person_turns": 0.0,
+              "turn11_alive_share_of_baseline": 1.0,
+              "turn11_present_member_count": 1356
+            },
+            "treatment_minus_control": {
+              "calorie_shortfall_per_need_person_turn": -1.1061946902654824,
+              "calories_eaten_per_need_person_turn": 1.7514749262536498,
+              "cash_change_percent_from_turn7_at_t11": 0.07648600000000005,
+              "cash_wage_recipient_share_of_living_person_turns": 0.00036873156342183064,
+              "debt_change_as_baseline_cash_share_at_t11": 0.0,
+              "employer_linked_share_of_living_person_turns": 0.00036873156342183064,
+              "mean_alive_share_of_baseline": 0.0,
+              "need_met_share": 0.0007374631268437515,
+              "scrip_wage_recipient_share_of_living_person_turns": 0.0,
+              "turn11_alive_share_of_baseline": 0.0
+            }
+          },
           "target_currency": "CNY",
           "target_tile": "c50"
         },
         "4243": {
           "market_gates_pass": true,
           "market_rows": [
-            720,
-            720
+            1200,
+            1200
           ],
           "measures": {
             "food:food_intake.shortfall_units": {
@@ -704,14 +1088,78 @@
             }
           },
           "pre_shock_states_match": true,
+          "resident_cohort": {
+            "available": true,
+            "baseline_member_count_control": 1314,
+            "baseline_member_count_treatment": 1314,
+            "control": {
+              "available": true,
+              "baseline_member_count": 1314,
+              "calorie_shortfall_per_need_person_turn": 332.63518659558264,
+              "calories_eaten_per_need_person_turn": 1949.3526275704494,
+              "cash_change_percent_from_turn7_at_t11": -16.645596,
+              "cash_change_percent_member_coverage_at_t11": 1262,
+              "cash_wage_recipient_share_of_living_person_turns": 0.03560548362528561,
+              "debt_change_as_baseline_cash_share_at_t11": 0.0,
+              "debt_change_cash_share_member_coverage_at_t11": 1262,
+              "employer_linked_share_of_living_person_turns": 0.06587966488956588,
+              "expected_person_turns": 5256,
+              "expected_turns": 4,
+              "living_person_turns": 5252,
+              "mean_alive_share_of_baseline": 0.9992389649923896,
+              "need_met_share": 0.8143564356435643,
+              "need_observed_person_turns": 5252,
+              "observed_turns": 4,
+              "present_person_turns": 5252,
+              "scrip_wage_recipient_share_of_living_person_turns": 0.0,
+              "turn11_alive_share_of_baseline": 0.9984779299847792,
+              "turn11_present_member_count": 1312
+            },
+            "roster_matched": true,
+            "treatment": {
+              "available": true,
+              "baseline_member_count": 1314,
+              "calorie_shortfall_per_need_person_turn": 332.69853361264524,
+              "calories_eaten_per_need_person_turn": 1951.1521614930489,
+              "cash_change_percent_from_turn7_at_t11": -13.932897,
+              "cash_change_percent_member_coverage_at_t11": 1262,
+              "cash_wage_recipient_share_of_living_person_turns": 0.036564463911635876,
+              "debt_change_as_baseline_cash_share_at_t11": 0.0,
+              "debt_change_cash_share_member_coverage_at_t11": 1262,
+              "employer_linked_share_of_living_person_turns": 0.06703485050466577,
+              "expected_person_turns": 5256,
+              "expected_turns": 4,
+              "living_person_turns": 5251,
+              "mean_alive_share_of_baseline": 0.999048706240487,
+              "need_met_share": 0.8141306417825176,
+              "need_observed_person_turns": 5251,
+              "observed_turns": 4,
+              "present_person_turns": 5251,
+              "scrip_wage_recipient_share_of_living_person_turns": 0.0,
+              "turn11_alive_share_of_baseline": 0.9984779299847792,
+              "turn11_present_member_count": 1312
+            },
+            "treatment_minus_control": {
+              "calorie_shortfall_per_need_person_turn": 0.06334701706259693,
+              "calories_eaten_per_need_person_turn": 1.799533922599494,
+              "cash_change_percent_from_turn7_at_t11": 2.7126990000000006,
+              "cash_wage_recipient_share_of_living_person_turns": 0.000958980286350268,
+              "debt_change_as_baseline_cash_share_at_t11": 0.0,
+              "employer_linked_share_of_living_person_turns": 0.0011551856150998907,
+              "mean_alive_share_of_baseline": -0.00019025875190259445,
+              "need_met_share": -0.00022579386104670807,
+              "scrip_wage_recipient_share_of_living_person_turns": 0.0,
+              "turn11_alive_share_of_baseline": 0.0
+            }
+          },
           "target_currency": "JPY",
           "target_tile": "c59"
         },
         "4244": {
           "market_gates_pass": true,
           "market_rows": [
-            720,
-            720
+            1200,
+            1200
           ],
           "measures": {
             "food:food_intake.shortfall_units": {
@@ -770,14 +1218,78 @@
             }
           },
           "pre_shock_states_match": true,
+          "resident_cohort": {
+            "available": true,
+            "baseline_member_count_control": 1497,
+            "baseline_member_count_treatment": 1497,
+            "control": {
+              "available": true,
+              "baseline_member_count": 1497,
+              "calorie_shortfall_per_need_person_turn": 75.65130260521042,
+              "calories_eaten_per_need_person_turn": 2248.9144956579826,
+              "cash_change_percent_from_turn7_at_t11": -7.309274,
+              "cash_change_percent_member_coverage_at_t11": 1491,
+              "cash_wage_recipient_share_of_living_person_turns": 0.006680026720106881,
+              "debt_change_as_baseline_cash_share_at_t11": 0.0,
+              "debt_change_cash_share_member_coverage_at_t11": 1491,
+              "employer_linked_share_of_living_person_turns": 0.017201068804275216,
+              "expected_person_turns": 5988,
+              "expected_turns": 4,
+              "living_person_turns": 5988,
+              "mean_alive_share_of_baseline": 1.0,
+              "need_met_share": 0.9408817635270541,
+              "need_observed_person_turns": 5988,
+              "observed_turns": 4,
+              "present_person_turns": 5988,
+              "scrip_wage_recipient_share_of_living_person_turns": 0.0,
+              "turn11_alive_share_of_baseline": 1.0,
+              "turn11_present_member_count": 1497
+            },
+            "roster_matched": true,
+            "treatment": {
+              "available": true,
+              "baseline_member_count": 1497,
+              "calorie_shortfall_per_need_person_turn": 75.65130260521042,
+              "calories_eaten_per_need_person_turn": 2249.5824983299935,
+              "cash_change_percent_from_turn7_at_t11": -7.072077,
+              "cash_change_percent_member_coverage_at_t11": 1491,
+              "cash_wage_recipient_share_of_living_person_turns": 0.006680026720106881,
+              "debt_change_as_baseline_cash_share_at_t11": 0.0,
+              "debt_change_cash_share_member_coverage_at_t11": 1491,
+              "employer_linked_share_of_living_person_turns": 0.017201068804275216,
+              "expected_person_turns": 5988,
+              "expected_turns": 4,
+              "living_person_turns": 5988,
+              "mean_alive_share_of_baseline": 1.0,
+              "need_met_share": 0.9408817635270541,
+              "need_observed_person_turns": 5988,
+              "observed_turns": 4,
+              "present_person_turns": 5988,
+              "scrip_wage_recipient_share_of_living_person_turns": 0.0,
+              "turn11_alive_share_of_baseline": 1.0,
+              "turn11_present_member_count": 1497
+            },
+            "treatment_minus_control": {
+              "calorie_shortfall_per_need_person_turn": 0.0,
+              "calories_eaten_per_need_person_turn": 0.6680026720109709,
+              "cash_change_percent_from_turn7_at_t11": 0.2371970000000001,
+              "cash_wage_recipient_share_of_living_person_turns": 0.0,
+              "debt_change_as_baseline_cash_share_at_t11": 0.0,
+              "employer_linked_share_of_living_person_turns": 0.0,
+              "mean_alive_share_of_baseline": 0.0,
+              "need_met_share": 0.0,
+              "scrip_wage_recipient_share_of_living_person_turns": 0.0,
+              "turn11_alive_share_of_baseline": 0.0
+            }
+          },
           "target_currency": "JPY",
           "target_tile": "c76"
         },
         "4245": {
           "market_gates_pass": true,
           "market_rows": [
-            720,
-            720
+            1200,
+            1200
           ],
           "measures": {
             "food:food_intake.shortfall_units": {
@@ -836,14 +1348,78 @@
             }
           },
           "pre_shock_states_match": true,
+          "resident_cohort": {
+            "available": true,
+            "baseline_member_count_control": 1315,
+            "baseline_member_count_treatment": 1315,
+            "control": {
+              "available": true,
+              "baseline_member_count": 1315,
+              "calorie_shortfall_per_need_person_turn": 386.4458404721112,
+              "calories_eaten_per_need_person_turn": 1922.2349133828288,
+              "cash_change_percent_from_turn7_at_t11": -14.093386,
+              "cash_change_percent_member_coverage_at_t11": 1286,
+              "cash_wage_recipient_share_of_living_person_turns": 0.010850942318675044,
+              "debt_change_as_baseline_cash_share_at_t11": 0.0,
+              "debt_change_cash_share_member_coverage_at_t11": 1286,
+              "employer_linked_share_of_living_person_turns": 0.028935846183133447,
+              "expected_person_turns": 5260,
+              "expected_turns": 4,
+              "living_person_turns": 5253,
+              "mean_alive_share_of_baseline": 0.9986692015209125,
+              "need_met_share": 0.8003045878545593,
+              "need_observed_person_turns": 5253,
+              "observed_turns": 4,
+              "present_person_turns": 5253,
+              "scrip_wage_recipient_share_of_living_person_turns": 0.0,
+              "turn11_alive_share_of_baseline": 0.996958174904943,
+              "turn11_present_member_count": 1311
+            },
+            "roster_matched": true,
+            "treatment": {
+              "available": true,
+              "baseline_member_count": 1315,
+              "calorie_shortfall_per_need_person_turn": 386.4458404721112,
+              "calories_eaten_per_need_person_turn": 1922.2349133828288,
+              "cash_change_percent_from_turn7_at_t11": -14.093386,
+              "cash_change_percent_member_coverage_at_t11": 1286,
+              "cash_wage_recipient_share_of_living_person_turns": 0.010850942318675044,
+              "debt_change_as_baseline_cash_share_at_t11": 0.0,
+              "debt_change_cash_share_member_coverage_at_t11": 1286,
+              "employer_linked_share_of_living_person_turns": 0.028935846183133447,
+              "expected_person_turns": 5260,
+              "expected_turns": 4,
+              "living_person_turns": 5253,
+              "mean_alive_share_of_baseline": 0.9986692015209125,
+              "need_met_share": 0.8003045878545593,
+              "need_observed_person_turns": 5253,
+              "observed_turns": 4,
+              "present_person_turns": 5253,
+              "scrip_wage_recipient_share_of_living_person_turns": 0.0,
+              "turn11_alive_share_of_baseline": 0.996958174904943,
+              "turn11_present_member_count": 1311
+            },
+            "treatment_minus_control": {
+              "calorie_shortfall_per_need_person_turn": 0.0,
+              "calories_eaten_per_need_person_turn": 0.0,
+              "cash_change_percent_from_turn7_at_t11": 0.0,
+              "cash_wage_recipient_share_of_living_person_turns": 0.0,
+              "debt_change_as_baseline_cash_share_at_t11": 0.0,
+              "employer_linked_share_of_living_person_turns": 0.0,
+              "mean_alive_share_of_baseline": 0.0,
+              "need_met_share": 0.0,
+              "scrip_wage_recipient_share_of_living_person_turns": 0.0,
+              "turn11_alive_share_of_baseline": 0.0
+            }
+          },
           "target_currency": "USD",
           "target_tile": "c56"
         },
         "4246": {
           "market_gates_pass": true,
           "market_rows": [
-            720,
-            720
+            1200,
+            1200
           ],
           "measures": {
             "food:food_intake.shortfall_units": {
@@ -902,6 +1478,70 @@
             }
           },
           "pre_shock_states_match": true,
+          "resident_cohort": {
+            "available": true,
+            "baseline_member_count_control": 1495,
+            "baseline_member_count_treatment": 1495,
+            "control": {
+              "available": true,
+              "baseline_member_count": 1495,
+              "calorie_shortfall_per_need_person_turn": 176.45091152366618,
+              "calories_eaten_per_need_person_turn": 2140.408094999164,
+              "cash_change_percent_from_turn7_at_t11": -9.34033,
+              "cash_change_percent_member_coverage_at_t11": 1463,
+              "cash_wage_recipient_share_of_living_person_turns": 0.021575514300050176,
+              "debt_change_as_baseline_cash_share_at_t11": 0.0,
+              "debt_change_cash_share_member_coverage_at_t11": 1463,
+              "employer_linked_share_of_living_person_turns": 0.03278140157216926,
+              "expected_person_turns": 5980,
+              "expected_turns": 4,
+              "living_person_turns": 5979,
+              "mean_alive_share_of_baseline": 0.9998327759197324,
+              "need_met_share": 0.8921224284997491,
+              "need_observed_person_turns": 5979,
+              "observed_turns": 4,
+              "present_person_turns": 5979,
+              "scrip_wage_recipient_share_of_living_person_turns": 0.0,
+              "turn11_alive_share_of_baseline": 0.9993311036789297,
+              "turn11_present_member_count": 1494
+            },
+            "roster_matched": true,
+            "treatment": {
+              "available": true,
+              "baseline_member_count": 1495,
+              "calorie_shortfall_per_need_person_turn": 176.36728549924737,
+              "calories_eaten_per_need_person_turn": 2140.4917210235826,
+              "cash_change_percent_from_turn7_at_t11": -9.311595,
+              "cash_change_percent_member_coverage_at_t11": 1463,
+              "cash_wage_recipient_share_of_living_person_turns": 0.021910018397725373,
+              "debt_change_as_baseline_cash_share_at_t11": 0.0,
+              "debt_change_cash_share_member_coverage_at_t11": 1463,
+              "employer_linked_share_of_living_person_turns": 0.03278140157216926,
+              "expected_person_turns": 5980,
+              "expected_turns": 4,
+              "living_person_turns": 5979,
+              "mean_alive_share_of_baseline": 0.9998327759197324,
+              "need_met_share": 0.8921224284997491,
+              "need_observed_person_turns": 5979,
+              "observed_turns": 4,
+              "present_person_turns": 5979,
+              "scrip_wage_recipient_share_of_living_person_turns": 0.0,
+              "turn11_alive_share_of_baseline": 0.9993311036789297,
+              "turn11_present_member_count": 1494
+            },
+            "treatment_minus_control": {
+              "calorie_shortfall_per_need_person_turn": -0.0836260244188054,
+              "calories_eaten_per_need_person_turn": 0.08362602441866329,
+              "cash_change_percent_from_turn7_at_t11": 0.02873499999999929,
+              "cash_wage_recipient_share_of_living_person_turns": 0.00033450409767519715,
+              "debt_change_as_baseline_cash_share_at_t11": 0.0,
+              "employer_linked_share_of_living_person_turns": 0.0,
+              "mean_alive_share_of_baseline": 0.0,
+              "need_met_share": 0.0,
+              "scrip_wage_recipient_share_of_living_person_turns": 0.0,
+              "turn11_alive_share_of_baseline": 0.0
+            }
+          },
           "target_currency": "USD",
           "target_tile": "c78"
         }
@@ -1291,6 +1931,7 @@
       "turn7_match_count": 5
     }
   },
+  "root": "tmp/economic-shocks/default-resident-cohort",
   "seeds": [
     4242,
     4243,
@@ -1301,93 +1942,167 @@
   "source_provenance_by_seed": {
     "4242": [
       {
-        "source_commit": "b4da81d64dd7a72f73f7b8fd9e4b9f591a5b4149",
-        "tracked_worktree_dirty": false
+        "source_commit": "cc4275f9149135c01953444d2fa836cbdcb3627a",
+        "tracked_worktree_dirty": true
       },
       {
-        "source_commit": "b4da81d64dd7a72f73f7b8fd9e4b9f591a5b4149",
-        "tracked_worktree_dirty": false
+        "source_commit": "cc4275f9149135c01953444d2fa836cbdcb3627a",
+        "tracked_worktree_dirty": true
       },
       {
-        "source_commit": "b4da81d64dd7a72f73f7b8fd9e4b9f591a5b4149",
-        "tracked_worktree_dirty": false
+        "source_commit": "cc4275f9149135c01953444d2fa836cbdcb3627a",
+        "tracked_worktree_dirty": true
       },
       {
-        "source_commit": "b4da81d64dd7a72f73f7b8fd9e4b9f591a5b4149",
-        "tracked_worktree_dirty": false
+        "source_commit": "cc4275f9149135c01953444d2fa836cbdcb3627a",
+        "tracked_worktree_dirty": true
       }
     ],
     "4243": [
       {
-        "source_commit": "21d3c6bc39567eb9b7834d0d62cc3b859fa910a4",
-        "tracked_worktree_dirty": false
+        "source_commit": "cc4275f9149135c01953444d2fa836cbdcb3627a",
+        "tracked_worktree_dirty": true
       },
       {
-        "source_commit": "21d3c6bc39567eb9b7834d0d62cc3b859fa910a4",
-        "tracked_worktree_dirty": false
+        "source_commit": "cc4275f9149135c01953444d2fa836cbdcb3627a",
+        "tracked_worktree_dirty": true
       },
       {
-        "source_commit": "18c88875446fcc541f2ba4461e8948aef2c1376a",
-        "tracked_worktree_dirty": false
+        "source_commit": "cc4275f9149135c01953444d2fa836cbdcb3627a",
+        "tracked_worktree_dirty": true
       },
       {
-        "source_commit": "18c88875446fcc541f2ba4461e8948aef2c1376a",
-        "tracked_worktree_dirty": false
+        "source_commit": "cc4275f9149135c01953444d2fa836cbdcb3627a",
+        "tracked_worktree_dirty": true
       }
     ],
     "4244": [
       {
-        "source_commit": "21d3c6bc39567eb9b7834d0d62cc3b859fa910a4",
-        "tracked_worktree_dirty": false
+        "source_commit": "cc4275f9149135c01953444d2fa836cbdcb3627a",
+        "tracked_worktree_dirty": true
       },
       {
-        "source_commit": "21d3c6bc39567eb9b7834d0d62cc3b859fa910a4",
-        "tracked_worktree_dirty": false
+        "source_commit": "cc4275f9149135c01953444d2fa836cbdcb3627a",
+        "tracked_worktree_dirty": true
       },
       {
-        "source_commit": "21d3c6bc39567eb9b7834d0d62cc3b859fa910a4",
-        "tracked_worktree_dirty": false
+        "source_commit": "cc4275f9149135c01953444d2fa836cbdcb3627a",
+        "tracked_worktree_dirty": true
       },
       {
-        "source_commit": "21d3c6bc39567eb9b7834d0d62cc3b859fa910a4",
-        "tracked_worktree_dirty": false
+        "source_commit": "cc4275f9149135c01953444d2fa836cbdcb3627a",
+        "tracked_worktree_dirty": true
       }
     ],
     "4245": [
       {
-        "source_commit": "21d3c6bc39567eb9b7834d0d62cc3b859fa910a4",
-        "tracked_worktree_dirty": false
+        "source_commit": "cc4275f9149135c01953444d2fa836cbdcb3627a",
+        "tracked_worktree_dirty": true
       },
       {
-        "source_commit": "21d3c6bc39567eb9b7834d0d62cc3b859fa910a4",
-        "tracked_worktree_dirty": false
+        "source_commit": "cc4275f9149135c01953444d2fa836cbdcb3627a",
+        "tracked_worktree_dirty": true
       },
       {
-        "source_commit": "21d3c6bc39567eb9b7834d0d62cc3b859fa910a4",
-        "tracked_worktree_dirty": false
+        "source_commit": "cc4275f9149135c01953444d2fa836cbdcb3627a",
+        "tracked_worktree_dirty": true
       },
       {
-        "source_commit": "21d3c6bc39567eb9b7834d0d62cc3b859fa910a4",
-        "tracked_worktree_dirty": false
+        "source_commit": "cc4275f9149135c01953444d2fa836cbdcb3627a",
+        "tracked_worktree_dirty": true
       }
     ],
     "4246": [
       {
-        "source_commit": "21d3c6bc39567eb9b7834d0d62cc3b859fa910a4",
-        "tracked_worktree_dirty": false
+        "source_commit": "cc4275f9149135c01953444d2fa836cbdcb3627a",
+        "tracked_worktree_dirty": true
       },
       {
-        "source_commit": "21d3c6bc39567eb9b7834d0d62cc3b859fa910a4",
-        "tracked_worktree_dirty": false
+        "source_commit": "cc4275f9149135c01953444d2fa836cbdcb3627a",
+        "tracked_worktree_dirty": true
       },
       {
-        "source_commit": "21d3c6bc39567eb9b7834d0d62cc3b859fa910a4",
-        "tracked_worktree_dirty": false
+        "source_commit": "cc4275f9149135c01953444d2fa836cbdcb3627a",
+        "tracked_worktree_dirty": true
       },
       {
-        "source_commit": "21d3c6bc39567eb9b7834d0d62cc3b859fa910a4",
-        "tracked_worktree_dirty": false
+        "source_commit": "cc4275f9149135c01953444d2fa836cbdcb3627a",
+        "tracked_worktree_dirty": true
       }
     ]
+  },
+  "trace_audit_by_seed": {
+    "4242": {
+      "account_closes_total": 240,
+      "account_closes_verified": 240,
+      "arm_count": 4,
+      "audit_issue_count_total": 0,
+      "audited_arm_count": 4,
+      "complete_causal_coverage_arms": 0,
+      "fully_attributed_arms": 4,
+      "structural_formula_pass_arms": 4,
+      "treasury_attributed_turns": 240,
+      "treasury_turns": 240
+    },
+    "4243": {
+      "account_closes_total": 240,
+      "account_closes_verified": 240,
+      "arm_count": 4,
+      "audit_issue_count_total": 0,
+      "audited_arm_count": 4,
+      "complete_causal_coverage_arms": 0,
+      "fully_attributed_arms": 0,
+      "structural_formula_pass_arms": 4,
+      "treasury_attributed_turns": 206,
+      "treasury_turns": 240
+    },
+    "4244": {
+      "account_closes_total": 240,
+      "account_closes_verified": 240,
+      "arm_count": 4,
+      "audit_issue_count_total": 0,
+      "audited_arm_count": 4,
+      "complete_causal_coverage_arms": 0,
+      "fully_attributed_arms": 0,
+      "structural_formula_pass_arms": 4,
+      "treasury_attributed_turns": 220,
+      "treasury_turns": 240
+    },
+    "4245": {
+      "account_closes_total": 240,
+      "account_closes_verified": 240,
+      "arm_count": 4,
+      "audit_issue_count_total": 0,
+      "audited_arm_count": 4,
+      "complete_causal_coverage_arms": 0,
+      "fully_attributed_arms": 0,
+      "structural_formula_pass_arms": 4,
+      "treasury_attributed_turns": 179,
+      "treasury_turns": 240
+    },
+    "4246": {
+      "account_closes_total": 240,
+      "account_closes_verified": 240,
+      "arm_count": 4,
+      "audit_issue_count_total": 0,
+      "audited_arm_count": 4,
+      "complete_causal_coverage_arms": 0,
+      "fully_attributed_arms": 0,
+      "structural_formula_pass_arms": 4,
+      "treasury_attributed_turns": 219,
+      "treasury_turns": 240
+    }
+  },
+  "trace_audit_rollup": {
+    "account_closes_total": 1200,
+    "account_closes_verified": 1200,
+    "arm_count": 20,
+    "audit_issue_count_total": 0,
+    "audited_arm_count": 20,
+    "complete_causal_coverage_arms": 0,
+    "fully_attributed_arms": 4,
+    "structural_formula_pass_arms": 20,
+    "treasury_attributed_turns": 1064,
+    "treasury_turns": 1200
   }
 }

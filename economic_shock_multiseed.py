@@ -232,12 +232,59 @@ def _load_seed(root: Path, seed: int) -> dict:
     return result
 
 
+def _trace_audit_summary(arms: list[dict]) -> dict:
+    gates = [arm.get("trace_quality_gates") for arm in arms
+             if isinstance(arm, dict)
+             and isinstance(arm.get("trace_quality_gates"), dict)]
+    return {
+        "arm_count": len(arms),
+        "audited_arm_count": len(gates),
+        "structural_formula_pass_arms": sum(
+            gate.get("structural_and_supported_formula_checks_pass") is True
+            for gate in gates),
+        "audit_issue_count_total": sum(
+            int(gate.get("audit_issue_count", 0)) for gate in gates),
+        "complete_causal_coverage_arms": sum(
+            gate.get("complete_causal_coverage") is True for gate in gates),
+        "account_closes_verified": sum(int(
+            (gate.get("treasury_account_closure") or {}).get("verified", 0))
+            for gate in gates),
+        "account_closes_total": sum(int(
+            (gate.get("treasury_account_closure") or {}).get("nation_closes", 0))
+            for gate in gates),
+        "treasury_attributed_turns": sum(int(
+            (gate.get("treasury_reconciliation") or {}).get(
+                "fully_attributed_turns", 0)) for gate in gates),
+        "treasury_turns": sum(int(
+            (gate.get("treasury_reconciliation") or {}).get("turns", 0))
+            for gate in gates),
+        "fully_attributed_arms": sum(
+            (gate.get("treasury_reconciliation") or {}).get(
+                "fully_attributed") is True for gate in gates),
+    }
+
+
+def _combine_trace_audit_summaries(summaries: list[dict]) -> dict:
+    fields = (
+        "arm_count", "audited_arm_count", "structural_formula_pass_arms",
+        "audit_issue_count_total", "complete_causal_coverage_arms",
+        "account_closes_verified", "account_closes_total",
+        "treasury_attributed_turns", "treasury_turns", "fully_attributed_arms",
+    )
+    return {field: sum(summary.get(field, 0) for summary in summaries)
+            for field in fields}
+
+
 def summarize(root: Path, seeds: list[int]) -> dict:
     runs = {seed: _load_seed(root, seed) for seed in seeds}
     source_provenance = {}
+    trace_audit_by_seed = {}
     for seed, result in runs.items():
         arms = []
+        audit_arms = []
         for pair in result["experiments"].values():
+            audit_arms.extend(pair.get(key) or {} for key in (
+                "control_result_data", "treatment_result_data"))
             for path_key in ("control_result", "treatment_result"):
                 path = Path(pair[path_key])
                 if not path.exists():
@@ -248,7 +295,12 @@ def summarize(root: Path, seeds: list[int]) -> dict:
                     "tracked_worktree_dirty": child.get("tracked_worktree_dirty"),
                 })
         source_provenance[str(seed)] = arms
-    output = {"seeds": seeds, "source_provenance_by_seed": source_provenance,
+        trace_audit_by_seed[str(seed)] = _trace_audit_summary(audit_arms)
+    output = {"root": str(root), "seeds": seeds,
+              "source_provenance_by_seed": source_provenance,
+              "trace_audit_by_seed": trace_audit_by_seed,
+              "trace_audit_rollup": _combine_trace_audit_summaries(
+                  list(trace_audit_by_seed.values())),
               "experiments": {}}
     for experiment_id, config in EXPERIMENTS.items():
         per_seed = {}
@@ -346,6 +398,53 @@ def render_report(summary: dict) -> str:
         "draw-aligned.", "",
         "Simulation source provenance by seed: " + "; ".join(provenance) + ".", "",
     ]
+    if any(arm.get("tracked_worktree_dirty") is True
+           for arms in summary["source_provenance_by_seed"].values()
+           for arm in arms):
+        lines += [
+            "The recorded simulation commit is consistent across arms, but "
+            "the tracked worktree was dirty for these runs because the prior "
+            "preliminary default-summary Markdown/JSON outputs were modified; "
+            "the simulation source files themselves matched the recorded "
+            "commit. Treat this as commit-pinned rather than pristine-tree "
+            "provenance.", "",
+        ]
+    audit = summary.get("trace_audit_rollup") or {}
+    if audit.get("audited_arm_count", 0):
+        lines += [
+            "## Deep trace and ledger audits", "",
+            f"Audited {audit['audited_arm_count']}/{audit['arm_count']} arms. "
+            f"Bounded structural/supported-formula checks pass in "
+            f"{audit['structural_formula_pass_arms']}/{audit['audited_arm_count']} "
+            f"arms with {audit['audit_issue_count_total']} reported issues; "
+            f"public-account closes verify "
+            f"{audit['account_closes_verified']}/{audit['account_closes_total']}; "
+            f"treasury flows are attributed in "
+            f"{audit['treasury_attributed_turns']}/{audit['treasury_turns']} "
+            f"turns, with {audit['fully_attributed_arms']}/"
+            f"{audit['audited_arm_count']} arms fully attributed. Complete causal "
+            f"coverage is present in {audit['complete_causal_coverage_arms']}/"
+            f"{audit['audited_arm_count']} arms.", "",
+            "| Seed | Audited arms | Formula pass | Issues | Account closes | "
+            "Treasury attributed turns | Fully attributed arms |",
+            "|---:|---:|---:|---:|---:|---:|---:|",
+        ]
+        for seed in seeds:
+            row = summary.get("trace_audit_by_seed", {}).get(str(seed), {})
+            lines.append("| " + " | ".join(str(value) for value in (
+                seed,
+                f"{row.get('audited_arm_count', 0)}/{row.get('arm_count', 0)}",
+                f"{row.get('structural_formula_pass_arms', 0)}/"
+                f"{row.get('audited_arm_count', 0)}",
+                str(row.get("audit_issue_count_total", 0)),
+                f"{row.get('account_closes_verified', 0)}/"
+                f"{row.get('account_closes_total', 0)}",
+                f"{row.get('treasury_attributed_turns', 0)}/"
+                f"{row.get('treasury_turns', 0)}",
+                f"{row.get('fully_attributed_arms', 0)}/"
+                f"{row.get('audited_arm_count', 0)}",
+            )) + " |")
+        lines.append("")
     for experiment_id, experiment in summary["experiments"].items():
         target_tiles = ", ".join(
             f"{seed}:{experiment['by_seed'][seed]['target_tile']} "
@@ -477,7 +576,20 @@ def render_report(summary: dict) -> str:
                 coverage,
             ]) + " |")
     lines += [
-        "", "An absent roster member can have migrated or otherwise left the "
+        "", "Across seeds, cohort survival stayed between 99.7% and 100% "
+        "at turn 11, with no consistent treatment direction. Need-met changes "
+        "were very small and mixed: −0.02 to +0.07 percentage points for the "
+        "wood cut and −0.15 to +0.09 points for the furniture-demand shock. "
+        "Calories eaten per need-person-turn changed from 0 to +1.80 kcal in "
+        "the wood screen and −4.28 to +1.13 kcal in the furniture screen. "
+        "Median cash effects ranged from −1.26 to +2.71 percentage points of "
+        "baseline cash; median debt changes were zero in every seed. Cash-wage "
+        "receipt incidence changed by −0.13 to +0.18 points, and no scrip-wage "
+        "receipts were recorded. This short sample shows no consistent "
+        "population-wide welfare response, while control-arm need-met rates "
+        "in the shock window were 80%–94% across seeds; subgroup losses can be hidden by "
+        "these cohort aggregates.", "",
+        "An absent roster member can have migrated or otherwise left the "
         "observed actor set; absence is not treated as death. Alive coverage "
         "and presence coverage are shown separately. This is a fixed-cohort "
         "shock-window comparison, not an estimate of long-run recovery or a "
@@ -486,16 +598,18 @@ def render_report(summary: dict) -> str:
     lines += [
         "## Limits", "",
         "Five seeds are a diagnostic sample, not a precise uncertainty estimate. "
-        "Deep structural/formula and treasury audits were run on the seed-4242 "
-        "traces; the other seed pairs carry the market mechanical gates only. "
+        "Deep audits cover all 20 arms: the bounded structural/formula checks "
+        "and public-account closes pass, but only 1,064/1,200 treasury turns "
+        "are fully attributed and complete causal coverage remains false. "
         "Full goods-stock conservation, broader welfare accounting, prospective "
         "recovery evidence, and primary-source calibration remain open in the "
         "analysis plan.", "",
         "Reproduce the paired runs with `economic_shock_experiment.py` for each "
         "seed, then summarize their saved JSON without re-decoding traces:", "",
         "```sh",
-        "venv/bin/python economic_shock_multiseed.py --root tmp/economic-shocks "
-        "--seeds 4242 4243 4244 4245 4246",
+        "venv/bin/python economic_shock_multiseed.py --root "
+        f"{summary.get('root', 'tmp/economic-shocks')} --seeds "
+        f"{' '.join(map(str, seeds))}",
         "```", "",
     ]
     return "\n".join(lines)

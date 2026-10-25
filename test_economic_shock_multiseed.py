@@ -1,9 +1,48 @@
 import unittest
 
-from economic_shock_multiseed import paired_effect, resident_cohort_effect
+from economic_shock_multiseed import (
+    _combine_trace_audit_summaries,
+    _trace_audit_summary,
+    paired_effect,
+    resident_cohort_effect,
+)
 
 
 class PairedSeedAggregationTests(unittest.TestCase):
+    def test_trace_audit_rollup_keeps_account_and_treasury_gates_distinct(self):
+        arms = [
+            {"trace_quality_gates": {
+                "structural_and_supported_formula_checks_pass": True,
+                "complete_causal_coverage": False,
+                "audit_issue_count": 0,
+                "treasury_account_closure": {
+                    "verified": 60, "nation_closes": 60},
+                "treasury_reconciliation": {
+                    "fully_attributed": True,
+                    "fully_attributed_turns": 60, "turns": 60},
+            }},
+            {"trace_quality_gates": {
+                "structural_and_supported_formula_checks_pass": True,
+                "complete_causal_coverage": False,
+                "audit_issue_count": 0,
+                "treasury_account_closure": {
+                    "verified": 60, "nation_closes": 60},
+                "treasury_reconciliation": {
+                    "fully_attributed": False,
+                    "fully_attributed_turns": 45, "turns": 60},
+            }},
+            {},
+        ]
+
+        result = _trace_audit_summary(arms)
+        combined = _combine_trace_audit_summaries([result])
+
+        self.assertEqual(result["audited_arm_count"], 2)
+        self.assertEqual(result["account_closes_verified"], 120)
+        self.assertEqual(result["treasury_attributed_turns"], 105)
+        self.assertEqual(result["fully_attributed_arms"], 1)
+        self.assertEqual(combined["complete_causal_coverage_arms"], 0)
+
     def test_missing_turns_are_coverage_gaps_not_zero_deltas(self):
         pair = {"comparison": {"market_response": [
             {"turn": 8, "tile": "c50", "good": "wood",
