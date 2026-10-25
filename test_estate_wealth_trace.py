@@ -64,7 +64,12 @@ def _fixture(*, traced=True, frozen=False, heirs=True, deposits=10.0):
         region._collective_trace_clock = {
             'turn': 7, 'phase': 'demographics', 'next': 1}
     government_agent = _agent(90, cash=2.0, output=Goods.gov)
+    government_agent.is_government = True
     charity_agent = _agent(91, cash=1.0)
+    nation = SimpleNamespace(name='Probate Nation', currency='GBP')
+    nation.treasury = lambda: {'accounts': [
+        {'government_id': government_agent.id, 'tier': 'provincial'}]}
+    region.owner_nation = nation
     government = Government(government_agent)
     charity = Charity(charity_agent)
     bank = Bank(gov=SimpleNamespace(agent=government_agent))
@@ -144,6 +149,16 @@ class EstateWealthTraceTests(unittest.TestCase):
                          {'government_probate', 'charity'})
         self.assertAlmostEqual(sum(row['inputs']['transfer_contract']['amount']
                                    for row in deposit_rows), 10.0)
+        treasury_flows = [row for row in trace.rows
+                          if row.get('metric_id') == 'finance.treasury_flow']
+        cash_flow = next(row for row in treasury_flows
+                         if row.get('kind') ==
+                         'government_estate_cash_receipt')
+        deposit_flow = next(row for row in treasury_flows
+                            if row.get('kind') ==
+                            'government_estate_deposit_receipt')
+        self.assertAlmostEqual(cash_flow['after'], 2.7)
+        self.assertAlmostEqual(deposit_flow['after'], 3.0)
         deposit_closeout = next(row for row in trace.rows
                                 if row.get('kind') == 'estate_decedent_deposit_closed')
         self.assertEqual(set(deposit_closeout['cause_event_ids']),

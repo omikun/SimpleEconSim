@@ -43,6 +43,46 @@ def _payments(trace, benefit_kind):
 
 
 class PublicBenefitTraceTests(unittest.TestCase):
+    def test_cash_benefits_record_treasury_flow_on_the_active_region(self):
+        for benefit in ('baby_bonus', 'ubi', 'parental_leave', 'welfare'):
+            with self.subTest(benefit=benefit):
+                government, region, trace = _fixture(cash=100.0, traced=True)
+                government.regions = []
+                recipient = Agent(0)
+                if benefit == 'baby_bonus':
+                    government.baby_bonus_enabled = True
+                    government.baby_bonus_amount = 10.0
+                    government.provide_baby_bonus(
+                        1, recipient, Agent(0), region=region)
+                    event_kind, amount = 'baby_bonus_paid', -10.0
+                elif benefit == 'ubi':
+                    government.ubi_enabled = True
+                    government.ubi_amount_per_turn = 7.0
+                    government._add_citizen(recipient)
+                    government.distribute_ubi(1, [recipient], region=region)
+                    event_kind, amount = 'ubi_distributed', -7.0
+                elif benefit == 'parental_leave':
+                    government.parental_leave_enabled = True
+                    recipient._parental_leave_turns_remaining = 1
+                    government.process_parental_leave(
+                        1, [recipient], region=region)
+                    event_kind, amount = 'parental_leave_paid', -3.0
+                else:
+                    recipient.hungry_steps = 1
+                    government.distribute_welfare(
+                        1, [recipient], region=region)
+                    event_kind, amount = 'welfare_distributed', -100.0
+
+                flows = [row for row in trace.rows
+                         if row.get('metric_id') == 'finance.treasury_flow'
+                         and row.get('kind') == event_kind]
+                self.assertEqual(len(flows), 1)
+                self.assertEqual(flows[0]['after'], amount)
+                self.assertEqual(flows[0]['subject'],
+                                 {'type': 'nation', 'id': 'Benefit Nation'})
+                self.assertEqual(
+                    flows[0]['inputs']['transfer_contract']['side'], 'payer')
+
     def test_empty_or_negative_treasury_cannot_mint_ubi_or_erase_debt(self):
         for cash in (0., -3.):
             for traced in (False, True):

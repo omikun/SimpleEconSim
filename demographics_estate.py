@@ -942,10 +942,12 @@ def handle_wealth_inheritance(ctx, t, agent, living_descendants):
             recipient_cash_before = float(getattr(descendent, 'cash', 0.0))
             recipient_wallet_before = (fx.fx_balance(descendent, decedent_currency)
                                        if decedent_currency else 0.0)
+            public_cash_write_ids = []
             if getattr(descendent, '_bank_ref', None) is ctx.bank and ctx.bank is not None:
                 public_change = begin_public_change(region, descendent)
                 descendent.cash += inherited_cash
-                finish_public_change(public_change, 'estate_public_cash_receipt')
+                public_cash_write_ids = finish_public_change(
+                    public_change, 'estate_public_cash_receipt')
                 settlement = 'cash'
             elif decedent_currency:
                 wallet_before = fx.fx_balance(descendent, decedent_currency)
@@ -955,8 +957,18 @@ def handle_wealth_inheritance(ctx, t, agent, living_descendants):
             else:
                 public_change = begin_public_change(region, descendent)
                 descendent.cash += inherited_cash
-                finish_public_change(public_change, 'estate_public_cash_receipt')
+                public_cash_write_ids = finish_public_change(
+                    public_change, 'estate_public_cash_receipt')
                 settlement = 'cash'
+            if (inherited_cash > 0 and settlement == 'cash'
+                    and getattr(descendent, 'is_government', False)):
+                from finance_trace import emit_public_account_flow
+                emit_public_account_flow(
+                    region, descendent, kind='government_estate_cash_receipt',
+                    signed_amount=inherited_cash,
+                    inputs={'operation_id': f'{operation_root}:cash:heir:{descendent.id}',
+                            'decedent_id': agent.id},
+                    cause_event_ids=public_cash_write_ids or None)
             recipient_cash_after = float(getattr(descendent, 'cash', 0.0))
             recipient_wallet_after = (fx.fx_balance(descendent, decedent_currency)
                                       if decedent_currency else 0.0)
@@ -1136,10 +1148,21 @@ def handle_wealth_inheritance(ctx, t, agent, living_descendants):
             gov_cash_before = float(getattr(government.agent, 'cash', 0.0))
             public_change = begin_public_change(region, government.agent)
             government.agent.cash += gov_share
-            finish_public_change(public_change, 'estate_public_cash_receipt')
+            gov_cash_write_ids = finish_public_change(
+                public_change, 'estate_public_cash_receipt')
             gov_cash_after = float(getattr(government.agent, 'cash', 0.0))
             cash_event = None
             if gov_share > 0:
+                from finance_trace import emit_public_account_flow
+                operation_id = f'{operation_root}:cash:government-probate'
+                emit_public_account_flow(
+                    region, government.agent,
+                    kind='government_estate_cash_receipt',
+                    signed_amount=gov_share,
+                    inputs={'operation_id': operation_id,
+                            'decedent_id': agent.id,
+                            'destination': 'government_probate'},
+                    cause_event_ids=gov_cash_write_ids or None)
                 government.record_income(t, 'inheritance', gov_share)
                 if region is not None:
                     from economy.actor_accounts import record as record_economic_event
@@ -1189,9 +1212,20 @@ def handle_wealth_inheritance(ctx, t, agent, living_descendants):
                 gov_cash_before = float(getattr(government.agent, 'cash', 0.0))
                 public_change = begin_public_change(region, government.agent)
                 government.agent.cash += charity_share
-                finish_public_change(public_change, 'estate_public_cash_receipt')
+                gov_cash_write_ids = finish_public_change(
+                    public_change, 'estate_public_cash_receipt')
                 gov_cash_after = float(getattr(government.agent, 'cash', 0.0))
                 government.record_income(t, 'inheritance', charity_share)
+                from finance_trace import emit_public_account_flow
+                operation_id = f'{operation_root}:cash:government-charity-share'
+                emit_public_account_flow(
+                    region, government.agent,
+                    kind='government_estate_cash_receipt',
+                    signed_amount=charity_share,
+                    inputs={'operation_id': operation_id,
+                            'decedent_id': agent.id,
+                            'destination': 'government_charity_share_fallback'},
+                    cause_event_ids=gov_cash_write_ids or None)
                 cash_event = None
                 if region is not None:
                     from economy.actor_accounts import record as record_economic_event
@@ -1273,7 +1307,17 @@ def handle_wealth_inheritance(ctx, t, agent, living_descendants):
                 public_change = begin_public_change(region, government.agent, bank=ctx.bank, cash=False, deposit=True)
                 ctx.bank.deposits[government.agent] = \
                     ctx.bank.deposits.get(government.agent, 0) + deposit_gov
-                finish_public_change(public_change, 'estate_probate_deposit_receipt')
+                deposit_write_ids = finish_public_change(
+                    public_change, 'estate_probate_deposit_receipt')
+                from finance_trace import emit_public_account_flow
+                emit_public_account_flow(
+                    region, government.agent,
+                    kind='government_estate_deposit_receipt',
+                    signed_amount=deposit_gov,
+                    inputs={'operation_id':
+                            f'{operation_root}:deposit:government-probate',
+                            'decedent_id': agent.id},
+                    cause_event_ids=deposit_write_ids or None)
                 recipient_after = float(ctx.bank.deposits[government.agent])
                 deposit_allocations.append({
                     'recipient': government.agent, 'amount': deposit_gov,
@@ -1294,7 +1338,17 @@ def handle_wealth_inheritance(ctx, t, agent, living_descendants):
                 public_change = begin_public_change(region, government.agent, bank=ctx.bank, cash=False, deposit=True)
                 ctx.bank.deposits[government.agent] = \
                     ctx.bank.deposits.get(government.agent, 0) + deposit_charity
-                finish_public_change(public_change, 'estate_fallback_deposit_receipt')
+                deposit_write_ids = finish_public_change(
+                    public_change, 'estate_fallback_deposit_receipt')
+                from finance_trace import emit_public_account_flow
+                emit_public_account_flow(
+                    region, government.agent,
+                    kind='government_estate_deposit_receipt',
+                    signed_amount=deposit_charity,
+                    inputs={'operation_id':
+                            f'{operation_root}:deposit:government-charity-share',
+                            'decedent_id': agent.id},
+                    cause_event_ids=deposit_write_ids or None)
                 recipient_after = float(ctx.bank.deposits[government.agent])
                 deposit_allocations.append({
                     'recipient': government.agent, 'amount': deposit_charity,

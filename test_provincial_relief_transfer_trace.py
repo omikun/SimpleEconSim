@@ -115,6 +115,15 @@ class ProvincialReliefTransferTraceTests(unittest.TestCase):
                       next(row for row in rows
                            if row.get('kind') == 'provincial_food_dispatch')
                       ['cause_event_ids'])
+        treasury_flow = next(row for row in rows
+                             if row.get('metric_id') == 'finance.treasury_flow'
+                             and row.get('kind') ==
+                             'government_provincial_food_haulage_payment')
+        self.assertAlmostEqual(treasury_flow['after'],
+                               -shipment['haulage_wages'])
+        self.assertEqual(treasury_flow['subject'],
+                         {'type': 'nation', 'id': 'Relief Nation'})
+        self.assertIn(haulage['event_id'], treasury_flow['cause_event_ids'])
 
         deliver_province_food(province, 2)
         arrival_rows = [row for row in fixture.trace.rows

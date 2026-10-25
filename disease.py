@@ -375,6 +375,13 @@ def step_medical_care(region, t: int, rand_gen=None) -> dict:
                         public_change, 'medical_provider_receipt',
                         inputs={'operation_id': operation_id, 'patient_id': a.id, 'disease': dis}))
                     emit_public_account_flow(
+                        region, gov_agent,
+                        kind='medical_public_provider_payment',
+                        signed_amount=-cost_per_cure,
+                        inputs={'operation_id': operation_id,
+                                'patient_id': a.id, 'disease': dis},
+                        cause_event_ids=account_event_ids or None)
+                    emit_public_account_flow(
                         region, provider, kind='medical_public_provider_receipt',
                         signed_amount=cost_per_cure,
                         inputs={'operation_id': operation_id, 'patient_id': a.id, 'disease': dis},
@@ -454,6 +461,12 @@ def step_medical_care(region, t: int, rand_gen=None) -> dict:
                     account_event_ids.extend(finish_public_change(
                         public_change, 'medical_provider_receipt',
                         inputs={'operation_id': operation_id, 'patient_id': a.id, 'disease': dis}))
+                    emit_public_account_flow(
+                        region, a, kind='government_medical_patient_payment',
+                        signed_amount=-cost_per_cure,
+                        inputs={'operation_id': operation_id,
+                                'patient_id': a.id, 'disease': dis},
+                        cause_event_ids=account_event_ids or None)
                     emit_public_account_flow(
                         region, provider, kind='medical_public_provider_receipt',
                         signed_amount=cost_per_cure,

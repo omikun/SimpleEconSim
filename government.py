@@ -309,6 +309,7 @@ class Government:
         finish_public_change(public_change, 'government_provide_baby_bonus_cash')
         treasury_event_id = _trace_public_transfer(
             self, 'baby_bonus_paid', self.baby_bonus_amount, [parent.id],
+            trace_region=region,
             newborn_id=str(newborn.id),
             amount_per_recipient=self.baby_bonus_amount, turn=t)
         _record_public_cash_transfer(
@@ -398,6 +399,7 @@ class Government:
                           and self._is_citizen(agent)]
             treasury_event_id = _trace_public_transfer(
                 self, 'ubi_distributed', total, recipients,
+                trace_region=region,
                 scheduled_per_person=self.ubi_amount_per_turn,
                 scaled_for_shortfall=scaled_for_shortfall, turn=t)
             for agent in agents:
@@ -579,6 +581,7 @@ class Government:
         if total > 0:
             treasury_event_id = _trace_public_transfer(
                 self, 'parental_leave_paid', total, recipients,
+                trace_region=region,
                 amount_per_turn=self.parental_leave_amount_per_turn, turn=t)
             for agent, pay in payments:
                 _record_public_cash_transfer(
@@ -1184,7 +1187,7 @@ class Government:
         finish_public_change(public_change, 'government_distribute_welfare_cash')
         treasury_event_id = _trace_public_transfer(
             self, 'welfare_distributed', total_distributed,
-            [agent.id for agent in starving_agents],
+            [agent.id for agent in starving_agents], trace_region=region,
             minimum_reserve=min_reserve,
             eligible_starving=len(starving_agents), turn=t)
         for agent in starving_agents:

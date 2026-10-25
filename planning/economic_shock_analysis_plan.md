@@ -1,9 +1,10 @@
 # Economic response to supply and demand shocks
 
-Date: 2026-10-24. Status: baseline, five-seed default-game paired screens and
-initial mechanical/formula audits complete. Cross-scenario robustness,
-treasury residual attribution, full stock/welfare accounting and empirical
-calibration remain.
+Date: 2026-10-24. Status: baseline and five-seed default-game paired screens
+complete; initial mechanical/formula audits applied. Treasury-flow writer
+gaps have been traced and instrumented; a fresh single-arm audit now closes.
+The refreshed four-arm audit, cross-scenario robustness, full stock/welfare
+accounting and empirical calibration remain.
 Preserve game rules during diagnosis; put any eventual economic fixes in
 separate changes.
 
@@ -13,7 +14,7 @@ separate changes.
 |---|---|---|
 | 1. Baseline evidence and case studies | Complete for the selected 20-turn trace | Added streaming panel extraction and a baseline report. It identifies the furniture-input and local-food cases below; the trace does not cover every household, balance or in-transit stock. |
 | 2. Controlled shock experiments | Five paired 20-turn default-game seeds complete | Seeds 4242–4246 match complete canonical state at turn 7 for both shock pairs; original seed-4243 no-op attempts are excluded. Active role targets are selected and recorded per seed. The paired report gives per-seed effects and coverage. |
-| 3. Criteria and interpretation | Market gates pass in all ten valid seed-pairs; deeper audits applied to seed 4242 | Market settlement bounds pass throughout the five-seed sample. Supported structural/formula and account-closure checks pass on the four seed-4242 traces; treasury flow attribution remains incomplete. No recovery-time or empirical-realism claim is made. |
+| 3. Criteria and interpretation | Market gates pass in all ten valid seed-pairs; treasury source legs instrumented and one fresh arm audited | Supported structural/formula and account-closure checks pass on the original four seed-4242 traces. A fresh seed-4242 wood control passes 60/60 account closes and 60/60 treasury-flow reconciliations after the source-flow updates. Rerun the other three arms before closing this phase. No recovery-time or empirical-realism claim is made. |
 
 The old `market_price_stabilization_plan.md` describes an earlier price rule.
 Current `region_market.update_price_ref` already demand-gates positive scarcity
@@ -347,7 +348,7 @@ the full experiment; disable them only in explicitly isolated mechanism fixtures
   consumption effects. Nominal price levels and a cap of 50 have no standalone
   empirical meaning. Mark calibration as pending until that comparison exists.
 
-### Applied gates and unresolved accounting finding
+### Applied gates and treasury residual diagnosis
 
 The four seed-4242 traces were checked with `economic_shock_experiment.py`
 market gates and the existing `trace_audit`/`trace_coverage` tools.
@@ -362,22 +363,36 @@ market gates and the existing `trace_audit`/`trace_coverage` tools.
   causal coverage; the audit reports complete causal coverage as false.
 - Nation-account closure passes in all runs: 60 of 60 closes verified, zero
   account-closure gaps.
-- Treasury flow attribution does **not** pass completely. The reconciler
-  fully attributes 46/60 turns in wood control and demand control, 50/60 in
-  wood treatment, and 53/60 in demand treatment. Absolute unattributed
-  residual totals are respectively 719.8684, 719.8684, 660.9925 and 667.0668
-  in the trace's mixed account currencies/units. These sums are gap indicators,
-  not a currency-converted national total. The recurring US T4 residual
-  (about -231.01) appears in both control pairs; treatment paths also create
-  additional country-turn residuals. In the shared control trace, US T4's
-  treasury delta is +212.0367 while recorded known flows total +443.0445,
-  leaving -231.0078. The flow list contains 31 government cash-obligation
-  payment records totaling +442.8677 and +0.1768 of government deposit
-  interest. The audit does not establish why that sum differs from the treasury
-  stock delta. Inspect both payer/payee public-account writes and the treasury
-  aggregation boundary before classifying the gap. Do not claim complete
-  monetary reconciliation until residual sources are identified or explicitly
-  classified as expected flows.
+- The original four seed-4242 traces predate the latest instrumentation fix and
+  do not pass treasury flow attribution: they fully attribute 46/60 turns in
+  wood control and demand control, 50/60 in wood treatment, and 53/60 in demand
+  treatment. Their absolute residual totals are 719.8684, 719.8684, 660.9925
+  and 667.0668 in mixed account currencies/units. These are gap indicators,
+  not a converted national total.
+- The repeated US T4 control residual was exactly identified. The nation
+  treasury moved from 1141.705923 to 1353.742656 (+212.036732); recorded
+  flows summed to +443.044498, leaving -231.007765. The government cash
+  account close shows a `government_distribute_welfare_cash` write from
+  442.867715 to 211.859949, also -231.007765. The 31 positive
+  `government_cash_obligation_payment` receipts and +0.176783 deposit interest
+  were correctly recorded; the outgoing welfare transfer was missing from
+  the nation-flow list. `_trace_public_transfer` had not received the active
+  region and could not find a traced entry in that local government's
+  `regions`. The benefit methods now pass their active region when recording
+  baby-bonus, UBI, parental-leave and welfare summary legs. A regression test
+  exercises all four with an empty `government.regions` list.
+- An intermediate control trace after the welfare fix resolved the US T4
+  residual and showed `welfare_distributed: -231.007765`, but left 13 residual
+  turns. Those turns exposed government-account medical-patient debits, estate
+  cash/probate-deposit receipts and provincial food-haulage spending. These
+  are now emitted as nation-level signed flows at their mutation sites, linked
+  to account-write or transfer evidence. A second fresh seed-4242 wood-control
+  trace passes all 60/60 public-account closes and all 60/60 treasury-flow
+  reconciliations; the absolute residual total is 6.3e-12 (floating-point
+  noise). Structural and supported-formula checks report zero issues, with
+  complete causal coverage still false. Rerun the other three seed-4242 arms
+  with the same audit before replacing the historical paired counts or
+  claiming this gate for all four.
 
 The paired report distinguishes market mechanics from ledger attribution. The
 current mechanical gate does not prove goods conservation across household,
@@ -392,10 +407,9 @@ five-seed default-game summary are complete in
 `planning/reports/economic_shock_screen_seed4242.md`, and
 `planning/reports/economic_shock_multiseed_default.md`. Continue in this order:
 
-1. Diagnose the treasury reconciliation residuals in the control trace, starting
-   with the repeated US T4 residual. Add transfer-source reconciliation or
-   identify and document the legitimately omitted accounting flows; rerun the
-   paired audit before making a complete-accounting claim.
+1. Rerun the other three seed-4242 arms with deep audit after the treasury-flow
+   source updates. Verify 60/60 account closes and treasury-flow reconciliation
+   in every arm; investigate and report any remaining residuals.
 2. Add a scenario-aware intervention adapter and test supply rivalry on seeds
    812–816. Confirm that native scenario stepping does not overwrite the shock;
    compare local production, shipment, arrival, price and welfare response.

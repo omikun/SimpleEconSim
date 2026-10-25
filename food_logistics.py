@@ -359,8 +359,9 @@ def dispatch_province_food(province, turn):
             government_cash_before = float(gov.agent.cash)
             _trace_cash_write = _trace_public_begin(None, gov.agent)
             gov.agent.cash -= cost
-            _trace_public_finish(_trace_cash_write, 'food_logistics:dispatch_province_food',
-                                 inputs={"source_writer": 'food_logistics.py:dispatch_province_food:e195b7a3fe8bb464:1'})
+            government_cash_write_ids = _trace_public_finish(
+                _trace_cash_write, 'food_logistics:dispatch_province_food',
+                inputs={"source_writer": 'food_logistics.py:dispatch_province_food:e195b7a3fe8bb464:1'})
             government_cash_after = float(gov.agent.cash)
             haulers = [a for a in _residents(source) if a.output == Goods.transport]
             if not haulers:
@@ -392,6 +393,21 @@ def dispatch_province_food(province, turn):
                     cause_event_ids=goods_transfer_event_ids)
                 if payment_event_id:
                     haulage_event_ids.append(payment_event_id)
+                from finance_trace import emit_public_account_flow
+                treasury_flow_event_id = emit_public_account_flow(
+                    gov_region, gov.agent,
+                    kind='government_provincial_food_haulage_payment',
+                    signed_amount=-cost,
+                    inputs={'operation_id': f'{shipment_id}:haulage',
+                            'shipment_id': shipment_id,
+                            'source': source.name,
+                            'destination': destination.name,
+                            'food_units': taken},
+                    cause_event_ids=(government_cash_write_ids
+                                     + ([payment_event_id]
+                                        if payment_event_id else [])) or None)
+                if treasury_flow_event_id:
+                    haulage_event_ids.append(treasury_flow_event_id)
                 from economy.actor_accounts import record as record_economic_event
                 shipment_detail = {'shipment_id': shipment_id,
                                    'shipment_source': source.name,
