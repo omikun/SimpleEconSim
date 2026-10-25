@@ -1,22 +1,23 @@
 # Economic response to supply and demand shocks
 
 Date: 2026-10-24. Status: baseline and five-seed default-game paired screens
-complete; supply-rivalry seed-812 paired effects and clean-source deep audits
-complete. The scenario audit exposed a missing treasury receipt from machinery
-repair when the government is the payee. That flow is now instrumented and
-unit-tested; all four scenario arms pass account closure, treasury attribution,
-market settlement bounds, and the bounded structural/formula checks. The
-remaining scenario seeds 813–816, full stock/welfare accounting, recovery
-metrics and empirical calibration remain. Preserve game rules during
-diagnosis; put any eventual economic fixes in separate changes.
+complete; five-seed default-game and supply-rivalry paired screens complete.
+Seed 812 also passes clean-source deep audits in all four scenario arms. The
+scenario audit exposed a missing treasury receipt from machinery repair when
+the government is the payee. That flow is now instrumented and unit-tested;
+all five scenario seed pairs pass the market and intervention-integrity gates.
+Full goods-stock conservation, population-wide welfare accounting, recovery
+interpretation beyond the descriptive screen, deep audits of scenario seeds
+813–816 and empirical calibration remain. Preserve game rules during diagnosis;
+put any eventual economic fixes in separate changes.
 
 ## Implementation progress
 
 | Phase | Status | Evidence / remaining work |
 |---|---|---|
 | 1. Baseline evidence and case studies | Complete for the selected 20-turn trace | Added streaming panel extraction and a baseline report. It identifies the furniture-input and local-food cases below; the trace does not cover every household, balance or in-transit stock. |
-| 2. Controlled shock experiments | Five paired 20-turn default-game seeds and the supply-rivalry seed-812 deep audit complete; scenario seeds 813–816 remain | Default seeds 4242–4246 match complete canonical state at turn 7 for both shock pairs; original seed-4243 no-op attempts are excluded. The scenario runner targets the two named cotton growers and Meridian Mill. Seed 812 matches at turn 7 in both pairs, passes intervention/restoration checks, and passes market, structural/formula and treasury audits in all four arms. |
-| 3. Criteria and interpretation | Default-game and seed-812 scenario mechanical and treasury gates pass | All ten valid default seed-pairs pass market gates. Each of the four clean-source seed-812 arms passes 40/40 account closes and 40/40 treasury-flow reconciliations; absolute residual totals are below 1.3e-12. Structural/formula checks report zero issues, but full causal coverage and goods-stock conservation are not established. |
+| 2. Controlled shock experiments | Five paired 20-turn default-game seeds and five paired supply-rivalry seeds complete | Default seeds 4242–4246 and scenario seeds 812–816 match complete canonical state at turn 7 for both shock pairs. All five scenario treatments preserve and remove their hooks on schedule; all ten scenario experiment-pairs pass market gates in both arms. Deep structural/formula and treasury audits currently cover all four arms of scenario seed 812; deepen seeds 813–816 if those traces are retained as validation evidence. |
+| 3. Criteria and interpretation | Mechanical gates pass; recovery screen is descriptive | Default and scenario paired market gates pass. The four clean-source seed-812 scenario arms pass 40/40 account closes and 40/40 treasury-flow reconciliations; absolute residual totals are below 1.3e-12. Bounded structural/formula checks report zero issues, but complete causal coverage and goods-stock conservation are not established. A post-hoc recovery rule is applied to the five scenario seeds with explicit tolerance and coverage; post-shock paths are not draw-aligned. |
 
 The old `market_price_stabilization_plan.md` describes an earlier price rule.
 Current `region_market.update_price_ref` already demand-gates positive scarcity
@@ -199,6 +200,65 @@ demand without more bids or fills, and the supply cut lowers local output and
 offers; it cannot support a general resilience, welfare, or historical
 realism claim. Run scenario seeds 813–816 before summarizing cross-seed
 variation. Post-shock differences are not random-draw aligned after turn 7.
+
+### Five-seed supply-rivalry screen and recovery check
+
+The paired runs for seeds 812–816 and the aggregation code are recorded in
+`planning/reports/economic_shock_multiseed_supply_rivalry.md` and its JSON
+sidecar. Every seed matches complete turn-7 state for both experiments; the
+scenario hook passes for all ten treatments, and both arms pass the market
+settlement-bound gate in all ten experiment-pairs. Seed 812 was deeply audited;
+seeds 813–816 were run with market and hook gates only. Seed 812 was generated
+from clean simulation source `3d2105a`; seeds 813–816 from clean source
+`9c57c29`. The intervening commit corrected report handling of null
+unshocked-target metadata and did not change simulation mechanics.
+
+- **Physical cotton supply:** Cotton Fields cotton output fell in every seed
+  (−3 to −9 units over turns 8–11; mean −5.6); offered supply fell in every
+  seed (−4 to −9; mean −6.2). Observed sales fell by 3–9 units; coverage is
+  three or four of four shock turns per seed. Submitted bids increased by 2–8
+  units (mean +4). Reference prices increased by 0.01%–0.54% (mean +0.23%).
+  Paid cotton VWAP increased by 0.54%–4.20% (mean +2.09%) over observed paired
+  settlements, with three or four of four turns covered per seed. This is a
+  repeatable local supply-pressure response in the selected scenario, not a
+  population-welfare or economy-wide resilience result.
+- **Mill input-target demand:** The desired target rose by 3–6 units across
+  three observed order rows in every seed. The treatment's unshocked target is
+  retained per row. Total submitted bids, Cotton Fields fills, production,
+  offers and observed cotton prices did not differ in the demand experiment.
+  Here the preference/stock-target shock reached the intended order logic but
+  did not become extra funded bids or market fills in this five-seed screen.
+- **Actors and trade:** The fixed named cohort includes two cotton growers,
+  Meridian Mill and Vesper Mill. Turn-7-to-11 cash, food/cotton/cloth stocks,
+  debt and bank debt are compared alongside four-turn food intake, output,
+  sales cash, input costs and wages. Named growers generally have lower cash
+  changes and lower cotton sales under the supply treatment; grower food-intake
+  differences range from 0 to −2 units per actor over the four-turn window,
+  while food-stock changes vary by seed and actor. These actor snapshots omit other
+  households and do not calculate complete profit or welfare. Cotton shipment
+  differences occurred in two of five supply seeds during the shock window;
+  the other three showed no departure or arrival difference. This is sparse
+  scenario-specific evidence about trade response.
+- **Recovery diagnostic:** A descriptive, post-hoc screen asks whether the
+  selected market measure returns within `max(1 unit, 5% of control)` for
+  quantities or within 5% for paid prices for three consecutive observed turns
+  after restoration. Production and offers return within band in some seeds
+  but remain outside it through turn 20 in others. Cotton sales and paid-VWAP
+  recovery are unestablished in seed 812 because post-shock settlement coverage
+  is sparse; the remaining seeds mix observed recovery, non-recovery through
+  the 20-turn window, and no detectable shock-window departure at this
+  tolerance. See the per-seed statuses and denominators in the report. This
+  screen was applied after the paired runs and is not a regression criterion;
+  divergent post-shock random draws also prevent causal interpretation of
+  later arm gaps.
+
+The cross-seed evidence supports a local physical-supply response and shows
+that the demand-target change is absorbed before it changes realized bids or
+fills. It does not establish general shock robustness. The high missing
+settlement coverage for some market-good pairs, sparse routing differences,
+scenario-only named actors, and lack of complete goods-stock accounting limit
+the conclusion. `economic_shock_scenario_multiseed.py` reproduces the summary
+from saved paired JSON without decoding the traces again.
 
 ## Questions and standards
 
