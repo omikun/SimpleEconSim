@@ -140,6 +140,7 @@ class EconomicShockInstrumentationTests(unittest.TestCase):
 
     def test_default_world_census_aggregates_every_physical_goods_pool(self):
         household = _actor(1, household=True, iron=2, tea=3, gov=99)
+        household.emergency_food_units = 3
         tile = _tile("North", [household], granary_stock=4)
         tile.fertilizer_stock = 7.5
         server = SimpleNamespace(scenario_id=None, tiles=[tile])
@@ -153,6 +154,8 @@ class EconomicShockInstrumentationTests(unittest.TestCase):
                          "all default regions and their current route queues")
         self.assertEqual(stocks[("__WORLD__", "household", "inventory", "iron")], 2)
         self.assertEqual(stocks[("__WORLD__", "household", "inventory", "tea")], 3)
+        self.assertEqual(stocks[("__WORLD__", "household",
+                                 "emergency_food_queue", "food")], 3)
         self.assertEqual(stocks[("__WORLD__", "environment", "fertilizer_stock",
                                  "fertilizer")], 7.5)
         self.assertEqual(stocks[("__WORLD__", "public", "granary_food", "food")], 4)

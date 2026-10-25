@@ -99,6 +99,17 @@ unsupported flows. The food residuals have not yet been attributed to
 specific stock writers, losses, transfers or excluded reserve pools; they
 must remain open rather than be explained by a behavioral hypothesis.
 
+The clean-source seed-4242 diagnostic narrows, but does not resolve, that food
+gap. In the matched turn-3 control interval, the whole-world food stock rises
+by 1,585 units against 3,895 traced production plus 3,374 foraged units minus
+5,524 civilian meals (expected +1,745; residual −160); the granary stock does
+not change. The same turn-3 residual is present across the seed-4242 paired
+arms. Code review found that the holdings census omitted the explicit
+`Agent.emergency_food_units` queue. The census now includes that pool as an
+audit-only observation; this is a coverage correction, not yet evidence that
+the queue caused the measured gap. Re-run clean traces and attribute the
+remaining food discrepancy before changing food rules.
+
 The machine-readable interval details and source paths are in
 `planning/reports/economic_shock_stock_flow_default_all_goods.json`. A matching
 four-good view is in `planning/reports/economic_shock_stock_flow_default_selected.md`

@@ -733,9 +733,10 @@ def _goods_stock_observation(server, turn, *, aggregate_world=False):
 
     This is a point-in-time holdings census, not a stock-flow conservation
     proof. All ordinary agents, trader pools, public food and granary stores,
-    fertilizer reserves and route queues are included; category and object
-    counts make the scope explicit. ``aggregate_world`` retains pool/good
-    totals without per-tile detail for larger default-game runs.
+    emergency meal queues, fertilizer reserves and route queues are included;
+    category and object counts make the scope explicit. ``aggregate_world``
+    retains pool/good totals without per-tile detail for larger default-game
+    runs.
     """
     from goods import Goods
     from region_logistics import all_routes
@@ -797,6 +798,9 @@ def _goods_stock_observation(server, turn, *, aggregate_world=False):
             add_array(tile.name, category, "inventory",
                       getattr(actor, "inventory", None),
                       holder_id=getattr(actor, "id", None))
+            add(tile.name, category, "emergency_food_queue", Goods.food,
+                getattr(actor, "emergency_food_units", 0),
+                holder_id=getattr(actor, "id", None))
             if category == "trader":
                 add_array(tile.name, category, "export_inventory",
                           getattr(actor, "inventory_export", None),
