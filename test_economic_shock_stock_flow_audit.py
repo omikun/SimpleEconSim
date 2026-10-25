@@ -231,6 +231,8 @@ class EconomicShockStockFlowAuditTests(unittest.TestCase):
             "balanced_interval_count"], 1)
         self.assertEqual(result["summary_by_good"]["food"][
             "balanced_interval_count"], 1)
+        self.assertIn("# Selected-goods aggregate stock-flow audit",
+                      render_markdown([result]))
         self.assertIn("| iron | 1 | 1 | 0 |",
                       render_markdown([result]))
 
@@ -257,6 +259,29 @@ class EconomicShockStockFlowAuditTests(unittest.TestCase):
         self.assertEqual(result["intervals"][0]["production_source"],
                          "tile_production_total")
 
+    def test_late_corvee_output_is_added_to_the_ordinary_tile_total(self):
+        run = self._run([])
+        run.update({
+            "completed_turns": 2,
+            "default_goods_stock_observations": [
+                {"turn": 1, "stocks": [{"good": "cotton", "quantity": 0}]},
+                {"turn": 2, "stocks": [{"good": "cotton", "quantity": 15}]},
+            ],
+        })
+        result = audit_run(run, [
+            {"turn": 2, "kind": "tile_production_total",
+             "subject": {"good": "cotton"}, "value_after": 0},
+            {"turn": 2, "kind": "elite_operator_execution",
+             "inputs": {"operator_id": "corvee_cotton_plantation",
+                        "execution_result": {"success": True, "yield": 15}}},
+        ], audited_goods=("cotton",))
+
+        self.assertTrue(result["passed"])
+        self.assertEqual(result["intervals"][0]["production"], 15)
+        self.assertEqual(result["intervals"][0]["operator_production"], 15)
+        self.assertEqual(result["intervals"][0]["production_source"],
+                         "tile_production_total+elite_operator_execution")
+
     def test_foreign_trader_sale_within_census_boundary_is_internal_turnover(self):
         run = self._run([
             {"turn": 1, "coverage": {"region_count": 1},
@@ -277,6 +302,21 @@ class EconomicShockStockFlowAuditTests(unittest.TestCase):
         self.assertTrue(result["passed"])
         self.assertEqual(result["summary_by_good"]["cotton"][
             "internal_turnover"]["paid_market_sale"]["reported_quantity"], 2)
+
+    def test_all_physical_goods_report_labels_and_orders_the_balance_summary(self):
+        goods = (
+            "food", "wood", "furniture", "transport", "wool", "cloth",
+            "nitrates", "cotton", "iron_ore", "iron", "coal", "tobacco",
+            "sugar", "tea", "fine_textiles", "porcelain", "rum",
+            "foreign_luxuries", "fertilizer",
+        )
+        result = audit_run(self._run([]), [], audited_goods=goods)
+
+        report = render_markdown([result])
+
+        self.assertIn("# All-physical-goods aggregate stock-flow audit", report)
+        self.assertLess(report.index("| fertilizer |"),
+                        report.index("Complete stock-flow closure:"))
 
 
 if __name__ == "__main__":

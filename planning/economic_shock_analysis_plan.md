@@ -26,10 +26,14 @@ showed the auditor must use each tile's aggregate production total and compare
 meal totals with the 12 active economic regions rather than all 80 map cells;
 an apparent imported-cotton boundary issue was a local trader sale with
 unlinked legacy source provenance. Those measurement rules are corrected and
-tested; the all-goods audit is pending. Default-game population welfare,
-prospective recovery evidence and empirical calibration remain. A fixed
-turn-7 ordinary-resident
-cohort has now been measured in five fresh default-game seeds. Across the two
+tested. The completed 19-good plus fertilizer audit finds that late cotton and
+sugar corvée output was recorded in elite-operator results after the regular
+tile production total; counting those already-traced yields closes both goods
+in all 380/380 intervals. Overall closure remains incomplete: none of the 20
+arms balances every audited good, despite zero structural/coverage issues.
+Subgroup welfare interpretation, prospective recovery evidence and empirical
+calibration remain. A fixed turn-7 ordinary-resident cohort has now been
+measured in five fresh default-game seeds. Across the two
 four-turn interventions, need-met changes are within ±0.16 percentage points,
 calorie intake changes range from −4.3 to +1.8 kcal per observed need-person-
 turn, and median cash changes relative to each person's baseline cash range
@@ -52,7 +56,42 @@ causal sources are instrumented.
 | 2. Controlled shock experiments | Five paired 20-turn default-game seeds and five paired supply-rivalry seeds complete; fixed default cohort measured | Default seeds 4242–4246 and scenario seeds 812–816 match complete canonical state at turn 7 for both shock pairs. All five scenario treatments preserve and remove their hooks on schedule; all ten scenario experiment-pairs pass market gates in both arms. The 20 scenario arm traces pass deep accounting and bounded structural/formula audits. Fixed cohorts and an enumerated stock census are captured in scenario arms. In default arms the turn-7 roster is matched for all ten pairs; currency-safe median cash/debt changes and recipient-side wage incidence are reported with person-turn coverage. The commit-pinned reruns are in `planning/reports/economic_shock_multiseed_default.md` and its JSON sidecar. |
 | 3. Criteria and interpretation | Default market, bounded formula, public-account and treasury reconciliation gates pass; causal coverage and recovery remain open | Five fresh default seed pairs and five supply-rivalry pairs match at turn 7 and pass market gates. On clean source `270c688`, all 20 default arms pass bounded structural/supported-formula checks with zero reported issues, 1,200/1,200 public-account closes, and 1,200/1,200 attributed treasury turns. Complete causal coverage remains false. Supply-rivalry arms separately pass 800/800 closes and treasury reconciliations. All 400 scenario stock snapshots contain no negative holdings. Recovery remains a short, RNG-divergent diagnostic. |
 | 4. Historical comparison | Analogue and primary-source scoping complete; calibration pending | Lancashire's cotton famine is a documented intermediate-input supply shock relevant to the scenario's cotton-to-cloth chain. Contemporary parliamentary evidence also describes lost export markets, relief and substitution, so it is not a clean single-shock calibration target. Compare mechanisms first; establish common geography, commodity definitions and time units before comparing magnitudes. |
-| 5. Physical stock-flow reconciliation | Four goods close in supply-rivalry; five-seed default census complete; default all-goods balance analysis pending | The initial `fe35594` audit closed cotton, cloth and wood in 380/380 intervals but food in only 120/380; all 260 residuals matched granary-stock changes. The correction committed as `8320f31` debits producer inventories for harvest deposits, credits government food inventory for seasonal releases, records both internal transfer legs, and excludes releases from production totals under versioned formula `production.sum_receipts.v2`. Fresh seeds 812–816 on clean source `8320f31` close cotton, cloth, food and wood in all 380/380 intervals apiece across 20 arms, with zero reported issues. The detailed report is `planning/reports/economic_shock_stock_flow_supply_rivalry_fixed.md` and its JSON sidecar. Generic default stock captures cover all physical goods, trader/public/route pools and fertilizer reserves for five matched seed pairs on clean source `258a9b7`. Initial audit review found aggregate `tile_production_total` rows must be authoritative, active economic regions must define food-summary coverage, and foreign trader sales with an in-world seller account are internal turnover. The auditor now handles these cases; the all-goods default balance report remains to be generated and reviewed. Complete causal coverage remains false. |
+| 5. Physical stock-flow reconciliation | Supply-rivalry four-good closure complete; default all-goods diagnosis complete; default closure remains open | The corrected supply-rivalry runs on `8320f31` close cotton, cloth, food and wood in 380/380 intervals each. Default all-goods traces on `258a9b7` show 380/380 closure for cotton and sugar once recorded late corvée yields are included, but full-run closure is 0/20 arms. Food closes 146/380 intervals (maximum residual 1,144), wood 354/380 (4), furniture 329/380 (4), cloth 278/380 (8), and fertilizer 80/380 (27). The 19-good-plus-fertilizer report is `planning/reports/economic_shock_stock_flow_default_all_goods.md` with its JSON sidecar. Corvée output is a measurement-rule correction based on existing `elite_operator_execution` evidence, not a simulation change. Remaining food, minor-goods, and fertilizer residuals need source-level diagnosis; complete causal coverage remains false. |
+
+### Default all-physical-goods stock-flow diagnosis
+
+The five paired default seeds (4242–4246) contain 20 runs and 361 T2–T20
+good-intervals per run: 19 ordinary physical goods plus the environmental
+fertilizer reserve. The audit uses whole-world closing stock, including agent,
+trader, public, granary and in-transit pools, with production, recipe-input use,
+food inflows and consumption. All 20 runs have zero structural or coverage
+issues, but **0/20 close all monitored goods**. A clean event-coverage result
+does not mean material balances close.
+
+The raw `cotton` and `sugar` residuals came from plantation yields produced by
+`corvee_cotton_plantation` and `corvee_sugar_plantation` after
+`tile_production_total` had been emitted. Their `elite_operator_execution`
+records already carried the exact yields. The auditor now adds 10,170 cotton
+and 14,556 sugar units across the 20 runs, without double-counting the regular
+tile totals; both goods then balance in 380/380 intervals. This improves the
+audit's interpretation of existing trace evidence without changing simulation
+behavior or rerunning the game.
+
+Food remains the largest accounting gap: 146/380 intervals balance, with a
+maximum absolute residual of 1,144 units. Wood balances 354/380 intervals
+(maximum 4), furniture 329/380 (4), and cloth 278/380 (8). Fertilizer balances
+80/380 (27); the census includes its environmental reserve, while ordinary
+maritime/synthetic inflow and crop-use changes are not yet source-linked as a
+stock circuit. Other goods balance in every interval, which can still hide
+offsetting unsupported flows. The food residuals have not yet been attributed
+to specific stock writers, losses, transfers or excluded reserve pools; they
+must remain open rather than be explained by a behavioral hypothesis.
+
+The machine-readable interval details and source paths are in
+`planning/reports/economic_shock_stock_flow_default_all_goods.json`. A matching
+four-good view is in `planning/reports/economic_shock_stock_flow_default_selected.md`
+and its JSON sidecar. This is a bounded stock-flow diagnostic, not a claim of
+complete causal coverage or general equilibrium realism.
 
 The old `market_price_stabilization_plan.md` describes an earlier price rule.
 Current `region_market.update_price_ref` already demand-gates positive scarcity
@@ -673,11 +712,12 @@ coverage, stock-flow conservation or historical calibration.
 
 Continue with:
 
-1. Extend the verified supply-rivalry stock balance to the five-seed default
-   game, all relevant goods, external trade and remaining non-agent pools. Add
-   explicit public-store and route transitions where aggregate closure cannot
-   distinguish opposing gaps. The four-good scenario closure does not prove
-   complete stock conservation.
+1. Close the default-game material balances before treating welfare or
+   resilience outcomes as fully reconciled. Start with food stock writers and
+   reserve queues, then fertilizer inflow/use and the smaller wood, furniture
+   and cloth residuals. Trace external trade and non-agent pools where a
+   residual cannot be distinguished from offsetting flows. The new all-goods
+   census and auditor are in place; the measured circuit still fails.
 2. The fixed turn-7 default resident cohort is measured in five seeds. The
    short-window results show little and mixed need/intake, survival, cash and
    wage-incidence effects; they do not establish persistence. Add distributional
@@ -696,6 +736,15 @@ Continue with:
    series over parliamentary estimates; use relief and labor outcomes as
    separate indicators. Extend to 50/100-turn runs only where the current
    turn-20 screen cannot resolve persistence or recovery.
+5. Broaden the controlled shock matrix after stock accounting is adequate.
+   The current five-seed evidence covers a local wood-output cut and a
+   furniture inventory-target increase in the default game, plus cotton supply
+   and mill input-target shocks in supply-rivalry. It does not yet test
+   symmetric positive/negative 25% and 50% shocks, persistent shocks, income or
+   credit disruption, route interruption, or compounded stress. Add those as
+   separately identified interventions with the plan's same-state, measured
+   market, household and recovery criteria; do not generalize the current
+   screens to economy-wide resilience.
 
 ## Historical analogue selected: Lancashire cotton famine
 

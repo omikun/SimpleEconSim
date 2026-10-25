@@ -26,6 +26,13 @@ from trace_codec import iter_payloads
 AUDITED_GOODS = ("cotton", "cloth", "food", "wood")
 PRODUCTION_KINDS = {"firm_production", "independent_production"}
 FOOD_INFLOW_KINDS = {"foraged_food_receipt"}
+TRANSFORMATION_OUTPUTS = {
+    # These operators add stock outside the regular region production pass.
+    # Their execution result records the physical yield, but the ordinary
+    # tile_production_total is emitted before the elite planning phase.
+    "corvee_cotton_plantation": "cotton",
+    "corvee_sugar_plantation": "sugar",
+}
 INTERNAL_TURNOVER_KINDS = {
     "paid_market_sale", "government_food_purchase", "charity_food_purchase",
     "government_food_aid", "charity_food_aid", "household_food_transfer",
@@ -79,6 +86,7 @@ def audit_run(run, events, *, tolerance=1e-6, audited_goods=None):
     components = defaultdict(lambda: defaultdict(lambda: {
         "production": 0.0, "production_aggregate": 0.0,
         "production_aggregate_event_count": 0,
+        "operator_production": 0.0,
         "production_input_use": 0.0,
         "household_nonfood_use": 0.0, "civilian_food_use": 0.0,
         "military_food_use": 0.0, "food_inflow": 0.0,
@@ -105,6 +113,17 @@ def audit_run(run, events, *, tolerance=1e-6, audited_goods=None):
             region = subject.get("tile") or subject.get("id")
             if region is not None:
                 production_aggregate_regions[turn].add(region)
+
+        elif kind == "elite_operator_execution":
+            operator_id = inputs.get("operator_id")
+            output_good = TRANSFORMATION_OUTPUTS.get(operator_id)
+            execution = inputs.get("execution_result") or {}
+            if output_good in audited_goods and execution.get("success"):
+                quantity = execution.get("yield")
+                if quantity is None:
+                    quantity = execution.get("yield_received", 0.0)
+                components[turn][output_good]["operator_production"] += float(
+                    quantity or 0.0)
 
         elif kind in PRODUCTION_KINDS:
             if good in audited_goods:
@@ -189,9 +208,11 @@ def audit_run(run, events, *, tolerance=1e-6, audited_goods=None):
             opening = snapshots[turn - 1].get(good, 0.0)
             closing = snapshots[turn].get(good, 0.0)
             flow = components[turn][good]
-            production = (flow["production_aggregate"]
-                          if flow["production_aggregate_event_count"]
-                          else flow["production"])
+            ordinary_production = (flow["production_aggregate"]
+                                   if flow["production_aggregate_event_count"]
+                                   else flow["production"])
+            operator_production = flow["operator_production"]
+            production = ordinary_production + operator_production
             expected_delta = (production
                               - flow["production_input_use"]
                               - flow["household_nonfood_use"]
@@ -211,9 +232,11 @@ def audit_run(run, events, *, tolerance=1e-6, audited_goods=None):
                 "stock_delta": round(actual_delta, 9),
                 "production": round(production, 9),
                 "production_source": (
-                    "tile_production_total" if
-                    flow["production_aggregate_event_count"] else
-                    "producer_outcomes"),
+                    ("tile_production_total" if
+                     flow["production_aggregate_event_count"] else
+                     "producer_outcomes") +
+                    ("+elite_operator_execution" if operator_production else "")),
+                "operator_production": round(operator_production, 9),
                 "production_input_use": round(flow["production_input_use"], 9),
                 "household_nonfood_use": round(flow["household_nonfood_use"], 9),
                 "food_inflow": round(flow["food_inflow"], 9),
@@ -256,6 +279,8 @@ def audit_run(run, events, *, tolerance=1e-6, audited_goods=None):
             "max_absolute_residual": max(residuals, default=None),
             "absolute_residual_total": round(sum(residuals), 9),
             "production_units": round(sum(row["production"] for row in rows), 9),
+            "operator_production_units": round(sum(
+                row["operator_production"] for row in rows), 9),
             "production_input_units": round(sum(
                 row["production_input_use"] for row in rows), 9),
             "household_nonfood_consumption_units": round(sum(
@@ -325,8 +350,10 @@ def discover_runs(root, seeds, *, scenario="supply_rivalry"):
 def render_markdown(results):
     goods = tuple(results[0].get("audited_goods", AUDITED_GOODS))
     detailed_goods = goods == AUDITED_GOODS
+    title = ("Selected-goods" if detailed_goods or len(goods) < 10
+             else "All-physical-goods")
     lines = [
-        "# Selected-goods aggregate stock-flow audit",
+        f"# {title} aggregate stock-flow audit",
         "",
         "This bounded audit compares consecutive whole-world stock censuses with",
         "traced production, recipe input use, food inflows and consumption.",
@@ -377,6 +404,8 @@ def render_markdown(results):
             )
     all_intervals = [interval for result in results
                      for interval in result["intervals"]]
+    closed_runs = sum(bool(result.get("passed")) for result in results)
+    structural_issues = sum(len(result.get("issues", ())) for result in results)
     aggregate = {}
     for good in goods:
         rows = [row for row in all_intervals if row["good"] == good]
@@ -421,6 +450,29 @@ def render_markdown(results):
         for good in goods:
             balanced, total, maximum = aggregate[good]
             lines.append(f"| {good} | {balanced} | {total} | {maximum:.6g} |")
+        lines.extend([
+            "",
+            f"Complete stock-flow closure: {closed_runs}/{len(results)} runs. "
+            f"Structural or coverage issues: {structural_issues}. A run can "
+            "have no structural issues and still fail because one or more "
+            "good-stock intervals do not balance.",
+        ])
+        if "cotton" in goods and "sugar" in goods:
+            cotton_output = sum(
+                result["summary_by_good"]["cotton"].get(
+                    "operator_production_units", 0.0) for result in results)
+            sugar_output = sum(
+                result["summary_by_good"]["sugar"].get(
+                    "operator_production_units", 0.0) for result in results)
+            lines.extend([
+                "",
+                ("The audit includes late corvée output from recorded elite "
+                 "operator executions: "
+                 f"{cotton_output:.6g} cotton and {sugar_output:.6g} sugar "
+                 "units across the sample. These outputs occur after the "
+                 "ordinary tile production total and otherwise appear as "
+                 "unexplained stock increases."),
+            ])
         lines.extend([
             "",
             "This all-physical-goods view is a diagnostic screen. A nonzero "
