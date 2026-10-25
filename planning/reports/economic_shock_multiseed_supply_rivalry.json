@@ -1,4 +1,386 @@
 {
+  "deep_audit_summary": {
+    "account_closes_expected": 800,
+    "account_closes_verified": 800,
+    "arms": [
+      {
+        "absolute_residual_total": 1.2649742364700955e-12,
+        "account_closes_expected": 40,
+        "account_closes_verified": 40,
+        "arm": "control",
+        "audit_issue_count": 0,
+        "audited": true,
+        "complete_causal_coverage": false,
+        "experiment": "rivalry_cotton_supply_reduction",
+        "market_gate_passed": true,
+        "seed": 812,
+        "structural_formula_passed": true,
+        "treasury_turns_attributed": 40,
+        "treasury_turns_expected": 40
+      },
+      {
+        "absolute_residual_total": 9.968553760231202e-13,
+        "account_closes_expected": 40,
+        "account_closes_verified": 40,
+        "arm": "treatment",
+        "audit_issue_count": 0,
+        "audited": true,
+        "complete_causal_coverage": false,
+        "experiment": "rivalry_cotton_supply_reduction",
+        "market_gate_passed": true,
+        "seed": 812,
+        "structural_formula_passed": true,
+        "treasury_turns_attributed": 40,
+        "treasury_turns_expected": 40
+      },
+      {
+        "absolute_residual_total": 1.2649742364700955e-12,
+        "account_closes_expected": 40,
+        "account_closes_verified": 40,
+        "arm": "control",
+        "audit_issue_count": 0,
+        "audited": true,
+        "complete_causal_coverage": false,
+        "experiment": "rivalry_mill_cotton_demand_increase",
+        "market_gate_passed": true,
+        "seed": 812,
+        "structural_formula_passed": true,
+        "treasury_turns_attributed": 40,
+        "treasury_turns_expected": 40
+      },
+      {
+        "absolute_residual_total": 1.2649742364700955e-12,
+        "account_closes_expected": 40,
+        "account_closes_verified": 40,
+        "arm": "treatment",
+        "audit_issue_count": 0,
+        "audited": true,
+        "complete_causal_coverage": false,
+        "experiment": "rivalry_mill_cotton_demand_increase",
+        "market_gate_passed": true,
+        "seed": 812,
+        "structural_formula_passed": true,
+        "treasury_turns_attributed": 40,
+        "treasury_turns_expected": 40
+      },
+      {
+        "absolute_residual_total": 1.2257833637008275e-12,
+        "account_closes_expected": 40,
+        "account_closes_verified": 40,
+        "arm": "control",
+        "audit_issue_count": 0,
+        "audited": true,
+        "complete_causal_coverage": false,
+        "experiment": "rivalry_cotton_supply_reduction",
+        "market_gate_passed": true,
+        "seed": 813,
+        "structural_formula_passed": true,
+        "treasury_turns_attributed": 40,
+        "treasury_turns_expected": 40
+      },
+      {
+        "absolute_residual_total": 1.0989820165008268e-12,
+        "account_closes_expected": 40,
+        "account_closes_verified": 40,
+        "arm": "treatment",
+        "audit_issue_count": 0,
+        "audited": true,
+        "complete_causal_coverage": false,
+        "experiment": "rivalry_cotton_supply_reduction",
+        "market_gate_passed": true,
+        "seed": 813,
+        "structural_formula_passed": true,
+        "treasury_turns_attributed": 40,
+        "treasury_turns_expected": 40
+      },
+      {
+        "absolute_residual_total": 1.2257833637008275e-12,
+        "account_closes_expected": 40,
+        "account_closes_verified": 40,
+        "arm": "control",
+        "audit_issue_count": 0,
+        "audited": true,
+        "complete_causal_coverage": false,
+        "experiment": "rivalry_mill_cotton_demand_increase",
+        "market_gate_passed": true,
+        "seed": 813,
+        "structural_formula_passed": true,
+        "treasury_turns_attributed": 40,
+        "treasury_turns_expected": 40
+      },
+      {
+        "absolute_residual_total": 1.2257833637008275e-12,
+        "account_closes_expected": 40,
+        "account_closes_verified": 40,
+        "arm": "treatment",
+        "audit_issue_count": 0,
+        "audited": true,
+        "complete_causal_coverage": false,
+        "experiment": "rivalry_mill_cotton_demand_increase",
+        "market_gate_passed": true,
+        "seed": 813,
+        "structural_formula_passed": true,
+        "treasury_turns_attributed": 40,
+        "treasury_turns_expected": 40
+      },
+      {
+        "absolute_residual_total": 1.727631926407014e-12,
+        "account_closes_expected": 40,
+        "account_closes_verified": 40,
+        "arm": "control",
+        "audit_issue_count": 0,
+        "audited": true,
+        "complete_causal_coverage": false,
+        "experiment": "rivalry_cotton_supply_reduction",
+        "market_gate_passed": true,
+        "seed": 814,
+        "structural_formula_passed": true,
+        "treasury_turns_attributed": 40,
+        "treasury_turns_expected": 40
+      },
+      {
+        "absolute_residual_total": 1.2628370571476921e-12,
+        "account_closes_expected": 40,
+        "account_closes_verified": 40,
+        "arm": "treatment",
+        "audit_issue_count": 0,
+        "audited": true,
+        "complete_causal_coverage": false,
+        "experiment": "rivalry_cotton_supply_reduction",
+        "market_gate_passed": true,
+        "seed": 814,
+        "structural_formula_passed": true,
+        "treasury_turns_attributed": 40,
+        "treasury_turns_expected": 40
+      },
+      {
+        "absolute_residual_total": 1.727631926407014e-12,
+        "account_closes_expected": 40,
+        "account_closes_verified": 40,
+        "arm": "control",
+        "audit_issue_count": 0,
+        "audited": true,
+        "complete_causal_coverage": false,
+        "experiment": "rivalry_mill_cotton_demand_increase",
+        "market_gate_passed": true,
+        "seed": 814,
+        "structural_formula_passed": true,
+        "treasury_turns_attributed": 40,
+        "treasury_turns_expected": 40
+      },
+      {
+        "absolute_residual_total": 1.727631926407014e-12,
+        "account_closes_expected": 40,
+        "account_closes_verified": 40,
+        "arm": "treatment",
+        "audit_issue_count": 0,
+        "audited": true,
+        "complete_causal_coverage": false,
+        "experiment": "rivalry_mill_cotton_demand_increase",
+        "market_gate_passed": true,
+        "seed": 814,
+        "structural_formula_passed": true,
+        "treasury_turns_attributed": 40,
+        "treasury_turns_expected": 40
+      },
+      {
+        "absolute_residual_total": 1.0670908601184692e-12,
+        "account_closes_expected": 40,
+        "account_closes_verified": 40,
+        "arm": "control",
+        "audit_issue_count": 0,
+        "audited": true,
+        "complete_causal_coverage": false,
+        "experiment": "rivalry_cotton_supply_reduction",
+        "market_gate_passed": true,
+        "seed": 815,
+        "structural_formula_passed": true,
+        "treasury_turns_attributed": 40,
+        "treasury_turns_expected": 40
+      },
+      {
+        "absolute_residual_total": 9.63590318647789e-13,
+        "account_closes_expected": 40,
+        "account_closes_verified": 40,
+        "arm": "treatment",
+        "audit_issue_count": 0,
+        "audited": true,
+        "complete_causal_coverage": false,
+        "experiment": "rivalry_cotton_supply_reduction",
+        "market_gate_passed": true,
+        "seed": 815,
+        "structural_formula_passed": true,
+        "treasury_turns_attributed": 40,
+        "treasury_turns_expected": 40
+      },
+      {
+        "absolute_residual_total": 1.0670908601184692e-12,
+        "account_closes_expected": 40,
+        "account_closes_verified": 40,
+        "arm": "control",
+        "audit_issue_count": 0,
+        "audited": true,
+        "complete_causal_coverage": false,
+        "experiment": "rivalry_mill_cotton_demand_increase",
+        "market_gate_passed": true,
+        "seed": 815,
+        "structural_formula_passed": true,
+        "treasury_turns_attributed": 40,
+        "treasury_turns_expected": 40
+      },
+      {
+        "absolute_residual_total": 1.0670908601184692e-12,
+        "account_closes_expected": 40,
+        "account_closes_verified": 40,
+        "arm": "treatment",
+        "audit_issue_count": 0,
+        "audited": true,
+        "complete_causal_coverage": false,
+        "experiment": "rivalry_mill_cotton_demand_increase",
+        "market_gate_passed": true,
+        "seed": 815,
+        "structural_formula_passed": true,
+        "treasury_turns_attributed": 40,
+        "treasury_turns_expected": 40
+      },
+      {
+        "absolute_residual_total": 1.416478045968006e-12,
+        "account_closes_expected": 40,
+        "account_closes_verified": 40,
+        "arm": "control",
+        "audit_issue_count": 0,
+        "audited": true,
+        "complete_causal_coverage": false,
+        "experiment": "rivalry_cotton_supply_reduction",
+        "market_gate_passed": true,
+        "seed": 816,
+        "structural_formula_passed": true,
+        "treasury_turns_attributed": 40,
+        "treasury_turns_expected": 40
+      },
+      {
+        "absolute_residual_total": 1.5002166176003584e-12,
+        "account_closes_expected": 40,
+        "account_closes_verified": 40,
+        "arm": "treatment",
+        "audit_issue_count": 0,
+        "audited": true,
+        "complete_causal_coverage": false,
+        "experiment": "rivalry_cotton_supply_reduction",
+        "market_gate_passed": true,
+        "seed": 816,
+        "structural_formula_passed": true,
+        "treasury_turns_attributed": 40,
+        "treasury_turns_expected": 40
+      },
+      {
+        "absolute_residual_total": 1.416478045968006e-12,
+        "account_closes_expected": 40,
+        "account_closes_verified": 40,
+        "arm": "control",
+        "audit_issue_count": 0,
+        "audited": true,
+        "complete_causal_coverage": false,
+        "experiment": "rivalry_mill_cotton_demand_increase",
+        "market_gate_passed": true,
+        "seed": 816,
+        "structural_formula_passed": true,
+        "treasury_turns_attributed": 40,
+        "treasury_turns_expected": 40
+      },
+      {
+        "absolute_residual_total": 1.416478045968006e-12,
+        "account_closes_expected": 40,
+        "account_closes_verified": 40,
+        "arm": "treatment",
+        "audit_issue_count": 0,
+        "audited": true,
+        "complete_causal_coverage": false,
+        "experiment": "rivalry_mill_cotton_demand_increase",
+        "market_gate_passed": true,
+        "seed": 816,
+        "structural_formula_passed": true,
+        "treasury_turns_attributed": 40,
+        "treasury_turns_expected": 40
+      }
+    ],
+    "arms_deep_audited": 20,
+    "arms_expected": 20,
+    "audit_issue_count": 0,
+    "by_seed": {
+      "812": {
+        "account_closes_expected": 160,
+        "account_closes_verified": 160,
+        "arms_deep_audited": 4,
+        "arms_expected": 4,
+        "audit_issue_count": 0,
+        "complete_causal_coverage_arms": 0,
+        "market_gates_passed": 4,
+        "maximum_absolute_residual_total": 1.2649742364700955e-12,
+        "structural_formula_passed": 4,
+        "treasury_turns_attributed": 160,
+        "treasury_turns_expected": 160
+      },
+      "813": {
+        "account_closes_expected": 160,
+        "account_closes_verified": 160,
+        "arms_deep_audited": 4,
+        "arms_expected": 4,
+        "audit_issue_count": 0,
+        "complete_causal_coverage_arms": 0,
+        "market_gates_passed": 4,
+        "maximum_absolute_residual_total": 1.2257833637008275e-12,
+        "structural_formula_passed": 4,
+        "treasury_turns_attributed": 160,
+        "treasury_turns_expected": 160
+      },
+      "814": {
+        "account_closes_expected": 160,
+        "account_closes_verified": 160,
+        "arms_deep_audited": 4,
+        "arms_expected": 4,
+        "audit_issue_count": 0,
+        "complete_causal_coverage_arms": 0,
+        "market_gates_passed": 4,
+        "maximum_absolute_residual_total": 1.727631926407014e-12,
+        "structural_formula_passed": 4,
+        "treasury_turns_attributed": 160,
+        "treasury_turns_expected": 160
+      },
+      "815": {
+        "account_closes_expected": 160,
+        "account_closes_verified": 160,
+        "arms_deep_audited": 4,
+        "arms_expected": 4,
+        "audit_issue_count": 0,
+        "complete_causal_coverage_arms": 0,
+        "market_gates_passed": 4,
+        "maximum_absolute_residual_total": 1.0670908601184692e-12,
+        "structural_formula_passed": 4,
+        "treasury_turns_attributed": 160,
+        "treasury_turns_expected": 160
+      },
+      "816": {
+        "account_closes_expected": 160,
+        "account_closes_verified": 160,
+        "arms_deep_audited": 4,
+        "arms_expected": 4,
+        "audit_issue_count": 0,
+        "complete_causal_coverage_arms": 0,
+        "market_gates_passed": 4,
+        "maximum_absolute_residual_total": 1.5002166176003584e-12,
+        "structural_formula_passed": 4,
+        "treasury_turns_attributed": 160,
+        "treasury_turns_expected": 160
+      }
+    },
+    "complete_causal_coverage_arms": 0,
+    "market_gates_passed": 20,
+    "maximum_absolute_residual_total": 1.727631926407014e-12,
+    "structural_formula_passed": 20,
+    "treasury_turns_attributed": 800,
+    "treasury_turns_expected": 800
+  },
   "experiments": {
     "rivalry_cotton_supply_reduction": {
       "by_seed": {
@@ -1203,8 +1585,60 @@
           },
           "target_tile": "Cotton Fields",
           "trace_audits": [
-            null,
-            null
+            {
+              "audit_issue_count": 0,
+              "complete_causal_coverage": false,
+              "counts": {
+                "checkpoints_verified": 20,
+                "formula_not_supported_by_replay": 617,
+                "formula_verified": 18485,
+                "rows": 36818,
+                "source_contract_not_supported": 17927,
+                "source_contract_verified": 10263
+              },
+              "structural_and_supported_formula_checks_pass": true,
+              "treasury_account_closure": {
+                "all_verified": true,
+                "gaps": 0,
+                "membership_changes": 0,
+                "nation_closes": 40,
+                "verified": 40
+              },
+              "treasury_reconciliation": {
+                "fully_attributed": true,
+                "fully_attributed_turns": 40,
+                "turns": 40,
+                "unattributed_absolute_total": 1.2257833637008275e-12,
+                "unattributed_turns": 0
+              }
+            },
+            {
+              "audit_issue_count": 0,
+              "complete_causal_coverage": false,
+              "counts": {
+                "checkpoints_verified": 20,
+                "formula_not_supported_by_replay": 616,
+                "formula_verified": 18506,
+                "rows": 36996,
+                "source_contract_not_supported": 17952,
+                "source_contract_verified": 10274
+              },
+              "structural_and_supported_formula_checks_pass": true,
+              "treasury_account_closure": {
+                "all_verified": true,
+                "gaps": 0,
+                "membership_changes": 0,
+                "nation_closes": 40,
+                "verified": 40
+              },
+              "treasury_reconciliation": {
+                "fully_attributed": true,
+                "fully_attributed_turns": 40,
+                "turns": 40,
+                "unattributed_absolute_total": 1.0989820165008268e-12,
+                "unattributed_turns": 0
+              }
+            }
           ],
           "treatment_hook_passed": true
         },
@@ -1771,8 +2205,60 @@
           },
           "target_tile": "Cotton Fields",
           "trace_audits": [
-            null,
-            null
+            {
+              "audit_issue_count": 0,
+              "complete_causal_coverage": false,
+              "counts": {
+                "checkpoints_verified": 20,
+                "formula_not_supported_by_replay": 625,
+                "formula_verified": 18659,
+                "rows": 37215,
+                "source_contract_not_supported": 18114,
+                "source_contract_verified": 10271
+              },
+              "structural_and_supported_formula_checks_pass": true,
+              "treasury_account_closure": {
+                "all_verified": true,
+                "gaps": 0,
+                "membership_changes": 0,
+                "nation_closes": 40,
+                "verified": 40
+              },
+              "treasury_reconciliation": {
+                "fully_attributed": true,
+                "fully_attributed_turns": 40,
+                "turns": 40,
+                "unattributed_absolute_total": 1.727631926407014e-12,
+                "unattributed_turns": 0
+              }
+            },
+            {
+              "audit_issue_count": 0,
+              "complete_causal_coverage": false,
+              "counts": {
+                "checkpoints_verified": 20,
+                "formula_not_supported_by_replay": 619,
+                "formula_verified": 18636,
+                "rows": 37105,
+                "source_contract_not_supported": 18085,
+                "source_contract_verified": 10267
+              },
+              "structural_and_supported_formula_checks_pass": true,
+              "treasury_account_closure": {
+                "all_verified": true,
+                "gaps": 0,
+                "membership_changes": 0,
+                "nation_closes": 40,
+                "verified": 40
+              },
+              "treasury_reconciliation": {
+                "fully_attributed": true,
+                "fully_attributed_turns": 40,
+                "turns": 40,
+                "unattributed_absolute_total": 1.2628370571476921e-12,
+                "unattributed_turns": 0
+              }
+            }
           ],
           "treatment_hook_passed": true
         },
@@ -2339,8 +2825,60 @@
           },
           "target_tile": "Cotton Fields",
           "trace_audits": [
-            null,
-            null
+            {
+              "audit_issue_count": 0,
+              "complete_causal_coverage": false,
+              "counts": {
+                "checkpoints_verified": 20,
+                "formula_not_supported_by_replay": 620,
+                "formula_verified": 18546,
+                "rows": 36886,
+                "source_contract_not_supported": 17988,
+                "source_contract_verified": 10305
+              },
+              "structural_and_supported_formula_checks_pass": true,
+              "treasury_account_closure": {
+                "all_verified": true,
+                "gaps": 0,
+                "membership_changes": 0,
+                "nation_closes": 40,
+                "verified": 40
+              },
+              "treasury_reconciliation": {
+                "fully_attributed": true,
+                "fully_attributed_turns": 40,
+                "turns": 40,
+                "unattributed_absolute_total": 1.0670908601184692e-12,
+                "unattributed_turns": 0
+              }
+            },
+            {
+              "audit_issue_count": 0,
+              "complete_causal_coverage": false,
+              "counts": {
+                "checkpoints_verified": 20,
+                "formula_not_supported_by_replay": 625,
+                "formula_verified": 18579,
+                "rows": 36977,
+                "source_contract_not_supported": 18027,
+                "source_contract_verified": 10320
+              },
+              "structural_and_supported_formula_checks_pass": true,
+              "treasury_account_closure": {
+                "all_verified": true,
+                "gaps": 0,
+                "membership_changes": 0,
+                "nation_closes": 40,
+                "verified": 40
+              },
+              "treasury_reconciliation": {
+                "fully_attributed": true,
+                "fully_attributed_turns": 40,
+                "turns": 40,
+                "unattributed_absolute_total": 9.63590318647789e-13,
+                "unattributed_turns": 0
+              }
+            }
           ],
           "treatment_hook_passed": true
         },
@@ -2907,8 +3445,60 @@
           },
           "target_tile": "Cotton Fields",
           "trace_audits": [
-            null,
-            null
+            {
+              "audit_issue_count": 0,
+              "complete_causal_coverage": false,
+              "counts": {
+                "checkpoints_verified": 20,
+                "formula_not_supported_by_replay": 595,
+                "formula_verified": 18550,
+                "rows": 36697,
+                "source_contract_not_supported": 17978,
+                "source_contract_verified": 10271
+              },
+              "structural_and_supported_formula_checks_pass": true,
+              "treasury_account_closure": {
+                "all_verified": true,
+                "gaps": 0,
+                "membership_changes": 0,
+                "nation_closes": 40,
+                "verified": 40
+              },
+              "treasury_reconciliation": {
+                "fully_attributed": true,
+                "fully_attributed_turns": 40,
+                "turns": 40,
+                "unattributed_absolute_total": 1.416478045968006e-12,
+                "unattributed_turns": 0
+              }
+            },
+            {
+              "audit_issue_count": 0,
+              "complete_causal_coverage": false,
+              "counts": {
+                "checkpoints_verified": 20,
+                "formula_not_supported_by_replay": 582,
+                "formula_verified": 18429,
+                "rows": 36555,
+                "source_contract_not_supported": 17849,
+                "source_contract_verified": 10253
+              },
+              "structural_and_supported_formula_checks_pass": true,
+              "treasury_account_closure": {
+                "all_verified": true,
+                "gaps": 0,
+                "membership_changes": 0,
+                "nation_closes": 40,
+                "verified": 40
+              },
+              "treasury_reconciliation": {
+                "fully_attributed": true,
+                "fully_attributed_turns": 40,
+                "turns": 40,
+                "unattributed_absolute_total": 1.5002166176003584e-12,
+                "unattributed_turns": 0
+              }
+            }
           ],
           "treatment_hook_passed": true
         }
@@ -4725,8 +5315,60 @@
           },
           "target_tile": "Cotton Fields",
           "trace_audits": [
-            null,
-            null
+            {
+              "audit_issue_count": 0,
+              "complete_causal_coverage": false,
+              "counts": {
+                "checkpoints_verified": 20,
+                "formula_not_supported_by_replay": 617,
+                "formula_verified": 18485,
+                "rows": 36818,
+                "source_contract_not_supported": 17927,
+                "source_contract_verified": 10263
+              },
+              "structural_and_supported_formula_checks_pass": true,
+              "treasury_account_closure": {
+                "all_verified": true,
+                "gaps": 0,
+                "membership_changes": 0,
+                "nation_closes": 40,
+                "verified": 40
+              },
+              "treasury_reconciliation": {
+                "fully_attributed": true,
+                "fully_attributed_turns": 40,
+                "turns": 40,
+                "unattributed_absolute_total": 1.2257833637008275e-12,
+                "unattributed_turns": 0
+              }
+            },
+            {
+              "audit_issue_count": 0,
+              "complete_causal_coverage": false,
+              "counts": {
+                "checkpoints_verified": 20,
+                "formula_not_supported_by_replay": 619,
+                "formula_verified": 18485,
+                "rows": 36820,
+                "source_contract_not_supported": 17929,
+                "source_contract_verified": 10263
+              },
+              "structural_and_supported_formula_checks_pass": true,
+              "treasury_account_closure": {
+                "all_verified": true,
+                "gaps": 0,
+                "membership_changes": 0,
+                "nation_closes": 40,
+                "verified": 40
+              },
+              "treasury_reconciliation": {
+                "fully_attributed": true,
+                "fully_attributed_turns": 40,
+                "turns": 40,
+                "unattributed_absolute_total": 1.2257833637008275e-12,
+                "unattributed_turns": 0
+              }
+            }
           ],
           "treatment_hook_passed": true
         },
@@ -5280,8 +5922,60 @@
           },
           "target_tile": "Cotton Fields",
           "trace_audits": [
-            null,
-            null
+            {
+              "audit_issue_count": 0,
+              "complete_causal_coverage": false,
+              "counts": {
+                "checkpoints_verified": 20,
+                "formula_not_supported_by_replay": 625,
+                "formula_verified": 18659,
+                "rows": 37215,
+                "source_contract_not_supported": 18114,
+                "source_contract_verified": 10271
+              },
+              "structural_and_supported_formula_checks_pass": true,
+              "treasury_account_closure": {
+                "all_verified": true,
+                "gaps": 0,
+                "membership_changes": 0,
+                "nation_closes": 40,
+                "verified": 40
+              },
+              "treasury_reconciliation": {
+                "fully_attributed": true,
+                "fully_attributed_turns": 40,
+                "turns": 40,
+                "unattributed_absolute_total": 1.727631926407014e-12,
+                "unattributed_turns": 0
+              }
+            },
+            {
+              "audit_issue_count": 0,
+              "complete_causal_coverage": false,
+              "counts": {
+                "checkpoints_verified": 20,
+                "formula_not_supported_by_replay": 627,
+                "formula_verified": 18659,
+                "rows": 37217,
+                "source_contract_not_supported": 18116,
+                "source_contract_verified": 10271
+              },
+              "structural_and_supported_formula_checks_pass": true,
+              "treasury_account_closure": {
+                "all_verified": true,
+                "gaps": 0,
+                "membership_changes": 0,
+                "nation_closes": 40,
+                "verified": 40
+              },
+              "treasury_reconciliation": {
+                "fully_attributed": true,
+                "fully_attributed_turns": 40,
+                "turns": 40,
+                "unattributed_absolute_total": 1.727631926407014e-12,
+                "unattributed_turns": 0
+              }
+            }
           ],
           "treatment_hook_passed": true
         },
@@ -5835,8 +6529,60 @@
           },
           "target_tile": "Cotton Fields",
           "trace_audits": [
-            null,
-            null
+            {
+              "audit_issue_count": 0,
+              "complete_causal_coverage": false,
+              "counts": {
+                "checkpoints_verified": 20,
+                "formula_not_supported_by_replay": 620,
+                "formula_verified": 18546,
+                "rows": 36886,
+                "source_contract_not_supported": 17988,
+                "source_contract_verified": 10305
+              },
+              "structural_and_supported_formula_checks_pass": true,
+              "treasury_account_closure": {
+                "all_verified": true,
+                "gaps": 0,
+                "membership_changes": 0,
+                "nation_closes": 40,
+                "verified": 40
+              },
+              "treasury_reconciliation": {
+                "fully_attributed": true,
+                "fully_attributed_turns": 40,
+                "turns": 40,
+                "unattributed_absolute_total": 1.0670908601184692e-12,
+                "unattributed_turns": 0
+              }
+            },
+            {
+              "audit_issue_count": 0,
+              "complete_causal_coverage": false,
+              "counts": {
+                "checkpoints_verified": 20,
+                "formula_not_supported_by_replay": 622,
+                "formula_verified": 18546,
+                "rows": 36888,
+                "source_contract_not_supported": 17990,
+                "source_contract_verified": 10305
+              },
+              "structural_and_supported_formula_checks_pass": true,
+              "treasury_account_closure": {
+                "all_verified": true,
+                "gaps": 0,
+                "membership_changes": 0,
+                "nation_closes": 40,
+                "verified": 40
+              },
+              "treasury_reconciliation": {
+                "fully_attributed": true,
+                "fully_attributed_turns": 40,
+                "turns": 40,
+                "unattributed_absolute_total": 1.0670908601184692e-12,
+                "unattributed_turns": 0
+              }
+            }
           ],
           "treatment_hook_passed": true
         },
@@ -6390,8 +7136,60 @@
           },
           "target_tile": "Cotton Fields",
           "trace_audits": [
-            null,
-            null
+            {
+              "audit_issue_count": 0,
+              "complete_causal_coverage": false,
+              "counts": {
+                "checkpoints_verified": 20,
+                "formula_not_supported_by_replay": 595,
+                "formula_verified": 18550,
+                "rows": 36697,
+                "source_contract_not_supported": 17978,
+                "source_contract_verified": 10271
+              },
+              "structural_and_supported_formula_checks_pass": true,
+              "treasury_account_closure": {
+                "all_verified": true,
+                "gaps": 0,
+                "membership_changes": 0,
+                "nation_closes": 40,
+                "verified": 40
+              },
+              "treasury_reconciliation": {
+                "fully_attributed": true,
+                "fully_attributed_turns": 40,
+                "turns": 40,
+                "unattributed_absolute_total": 1.416478045968006e-12,
+                "unattributed_turns": 0
+              }
+            },
+            {
+              "audit_issue_count": 0,
+              "complete_causal_coverage": false,
+              "counts": {
+                "checkpoints_verified": 20,
+                "formula_not_supported_by_replay": 597,
+                "formula_verified": 18550,
+                "rows": 36699,
+                "source_contract_not_supported": 17980,
+                "source_contract_verified": 10271
+              },
+              "structural_and_supported_formula_checks_pass": true,
+              "treasury_account_closure": {
+                "all_verified": true,
+                "gaps": 0,
+                "membership_changes": 0,
+                "nation_closes": 40,
+                "verified": 40
+              },
+              "treasury_reconciliation": {
+                "fully_attributed": true,
+                "fully_attributed_turns": 40,
+                "turns": 40,
+                "unattributed_absolute_total": 1.416478045968006e-12,
+                "unattributed_turns": 0
+              }
+            }
           ],
           "treatment_hook_passed": true
         }
@@ -7045,91 +7843,91 @@
   "source_provenance_by_seed": {
     "812": [
       {
-        "source_commit": "3d2105acfd9ddfcceb6559614750cc655f5a1331",
+        "source_commit": "569b723ca954c20869f89d4d70097994446a054a",
         "tracked_worktree_dirty": null
       },
       {
-        "source_commit": "3d2105acfd9ddfcceb6559614750cc655f5a1331",
+        "source_commit": "569b723ca954c20869f89d4d70097994446a054a",
         "tracked_worktree_dirty": null
       },
       {
-        "source_commit": "3d2105acfd9ddfcceb6559614750cc655f5a1331",
+        "source_commit": "569b723ca954c20869f89d4d70097994446a054a",
         "tracked_worktree_dirty": null
       },
       {
-        "source_commit": "3d2105acfd9ddfcceb6559614750cc655f5a1331",
+        "source_commit": "569b723ca954c20869f89d4d70097994446a054a",
         "tracked_worktree_dirty": null
       }
     ],
     "813": [
       {
-        "source_commit": "9c57c295d6a7a86834c533cf04a858f776fee061",
+        "source_commit": "569b723ca954c20869f89d4d70097994446a054a",
         "tracked_worktree_dirty": null
       },
       {
-        "source_commit": "9c57c295d6a7a86834c533cf04a858f776fee061",
+        "source_commit": "569b723ca954c20869f89d4d70097994446a054a",
         "tracked_worktree_dirty": null
       },
       {
-        "source_commit": "9c57c295d6a7a86834c533cf04a858f776fee061",
+        "source_commit": "569b723ca954c20869f89d4d70097994446a054a",
         "tracked_worktree_dirty": null
       },
       {
-        "source_commit": "9c57c295d6a7a86834c533cf04a858f776fee061",
+        "source_commit": "569b723ca954c20869f89d4d70097994446a054a",
         "tracked_worktree_dirty": null
       }
     ],
     "814": [
       {
-        "source_commit": "9c57c295d6a7a86834c533cf04a858f776fee061",
+        "source_commit": "569b723ca954c20869f89d4d70097994446a054a",
         "tracked_worktree_dirty": null
       },
       {
-        "source_commit": "9c57c295d6a7a86834c533cf04a858f776fee061",
+        "source_commit": "569b723ca954c20869f89d4d70097994446a054a",
         "tracked_worktree_dirty": null
       },
       {
-        "source_commit": "9c57c295d6a7a86834c533cf04a858f776fee061",
+        "source_commit": "569b723ca954c20869f89d4d70097994446a054a",
         "tracked_worktree_dirty": null
       },
       {
-        "source_commit": "9c57c295d6a7a86834c533cf04a858f776fee061",
+        "source_commit": "569b723ca954c20869f89d4d70097994446a054a",
         "tracked_worktree_dirty": null
       }
     ],
     "815": [
       {
-        "source_commit": "9c57c295d6a7a86834c533cf04a858f776fee061",
+        "source_commit": "569b723ca954c20869f89d4d70097994446a054a",
         "tracked_worktree_dirty": null
       },
       {
-        "source_commit": "9c57c295d6a7a86834c533cf04a858f776fee061",
+        "source_commit": "569b723ca954c20869f89d4d70097994446a054a",
         "tracked_worktree_dirty": null
       },
       {
-        "source_commit": "9c57c295d6a7a86834c533cf04a858f776fee061",
+        "source_commit": "569b723ca954c20869f89d4d70097994446a054a",
         "tracked_worktree_dirty": null
       },
       {
-        "source_commit": "9c57c295d6a7a86834c533cf04a858f776fee061",
+        "source_commit": "569b723ca954c20869f89d4d70097994446a054a",
         "tracked_worktree_dirty": null
       }
     ],
     "816": [
       {
-        "source_commit": "9c57c295d6a7a86834c533cf04a858f776fee061",
+        "source_commit": "569b723ca954c20869f89d4d70097994446a054a",
         "tracked_worktree_dirty": null
       },
       {
-        "source_commit": "9c57c295d6a7a86834c533cf04a858f776fee061",
+        "source_commit": "569b723ca954c20869f89d4d70097994446a054a",
         "tracked_worktree_dirty": null
       },
       {
-        "source_commit": "9c57c295d6a7a86834c533cf04a858f776fee061",
+        "source_commit": "569b723ca954c20869f89d4d70097994446a054a",
         "tracked_worktree_dirty": null
       },
       {
-        "source_commit": "9c57c295d6a7a86834c533cf04a858f776fee061",
+        "source_commit": "569b723ca954c20869f89d4d70097994446a054a",
         "tracked_worktree_dirty": null
       }
     ]

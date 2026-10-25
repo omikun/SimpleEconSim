@@ -1,6 +1,7 @@
 import unittest
 
 from economic_shock_scenario_multiseed import (
+    _deep_audit_summary,
     market_window_effect,
     mill_order_summary,
     recovery_assessment,
@@ -16,6 +17,33 @@ def _market_row(turn, *, control=10, treatment=10, key="units_sold"):
 
 
 class ScenarioMultiSeedTests(unittest.TestCase):
+    def test_deep_audit_summary_keeps_unrun_traces_out_of_pass_counts(self):
+        quality = {
+            "structural_and_supported_formula_checks_pass": True,
+            "audit_issue_count": 0,
+            "complete_causal_coverage": False,
+            "treasury_account_closure": {"verified": 40, "nation_closes": 40},
+            "treasury_reconciliation": {
+                "fully_attributed_turns": 40, "turns": 40,
+                "unattributed_absolute_total": 1e-12,
+            },
+        }
+        results = {812: {"experiments": {"pair": {
+            "control_result_data": {
+                "trace_quality_gates": quality,
+                "market_mechanical_gates": {"passed": True},
+            },
+            "treatment_result_data": {
+                "market_mechanical_gates": {"passed": True},
+            },
+        }}}}
+        summary = _deep_audit_summary(results)
+        self.assertEqual(summary["arms_expected"], 2)
+        self.assertEqual(summary["arms_deep_audited"], 1)
+        self.assertEqual(summary["account_closes_verified"], 40)
+        self.assertEqual(summary["treasury_turns_attributed"], 40)
+        self.assertEqual(summary["complete_causal_coverage_arms"], 0)
+
     def test_market_effect_keeps_missing_turns_out_of_sum(self):
         pair = {"comparison": {"market_response": [
             _market_row(8, control=10, treatment=8),

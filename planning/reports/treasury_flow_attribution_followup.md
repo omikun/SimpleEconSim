@@ -35,7 +35,7 @@ structural/supported-formula audit reports zero issues in every arm. The
 seed-812 machine-readable results and paired report are in
 `tmp/economic-shocks/supply-rivalry/seed-812/paired-results.json` (ignored)
 and `economic_shock_supply_rivalry_seed812.md`, respectively. The audited
-simulation source is commit `3d2105acfd9ddfcceb6559614750cc655f5a1331`.
+simulation source is commit `569b723ca954c20869f89d4d70097994446a054a`.
 
 Deep audits of the other four paired seeds found one new gap in seed 814. Each
 arm still closed all 40 public accounts, but only 39/40 treasury turns were
@@ -46,10 +46,24 @@ the residual was `-46.3124698646` in supply control, demand control and demand
 treatment, and `-56.9059067482` in supply treatment. `region_market.py` now
 emits a negative `government_market_purchase` leg linked to both the account
 write and settled sale. A focused regression test checks its signed amount and
-causal links. A clean-source seed-814 rerun is still required to verify this
-second source fix; the other extended deep audits (seeds 813, 815 and 816) pass
-all 40/40 account closes and treasury turns in every arm with zero bounded
-structural/formula issues. Full causal coverage remains false.
+causal links. A fresh seed-814 run on the fix commit passes the same 40/40 gates
+in all four arms. The complete seed-812–816 sample was then rerun from clean
+source commit `569b723ca954c20869f89d4d70097994446a054a` with deep audits:
+
+| Seed | Deep-audited arm traces | Public-account closes | Treasury turns | Maximum arm residual |
+|---:|---:|---:|---:|---:|
+| 812 | 4/4 | 160/160 | 160/160 | 1.264974e-12 |
+| 813 | 4/4 | 160/160 | 160/160 | 1.225783e-12 |
+| 814 | 4/4 | 160/160 | 160/160 | 1.727632e-12 |
+| 815 | 4/4 | 160/160 | 160/160 | 1.067091e-12 |
+| 816 | 4/4 | 160/160 | 160/160 | 1.500217e-12 |
+
+Across the 20 control/treatment arm traces, all 800/800 account closes and
+800/800 treasury-flow turns reconcile. Every bounded structural/formula audit
+reports zero issues, and every market settlement-bound gate passes. Residuals
+are floating-point noise. `complete_causal_coverage` remains false; this
+sampled source closure does not prove complete money-writer coverage or goods
+stock conservation.
 
 ## Diagnosed source legs
 
@@ -78,8 +92,8 @@ run data are in `economic_shock_screen_seed4242.md` and ignored
 
 ## Remaining audit work
 
-- Confirm the seed-814 government market-purchase fix on clean traces, then
-  extend source-flow coverage to new scenarios and intervention writers.
+- Extend source-flow coverage to new scenarios and intervention writers; the
+  current 20-arm scenario sample is now reconciled.
 - Reconcile physical goods across household, producer, trader, public and
   in-transit stocks; treasury closure does not establish goods conservation.
 - Keep `complete_causal_coverage` marked false until unsupported mutation and

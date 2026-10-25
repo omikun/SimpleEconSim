@@ -317,6 +317,86 @@ def _source_provenance(result: dict) -> list[dict]:
     return arms
 
 
+def _deep_audit_summary(results: dict[int, dict]) -> dict:
+    by_seed = {}
+    arms = []
+    for seed, result in results.items():
+        seed_arms = []
+        for experiment_id, experiment in result["experiments"].items():
+            for arm_name in ("control_result_data", "treatment_result_data"):
+                arm = experiment.get(arm_name, {})
+                trace = arm.get("trace_quality_gates")
+                market = arm.get("market_mechanical_gates") or {}
+                closures = (trace or {}).get("treasury_account_closure") or {}
+                treasury = (trace or {}).get("treasury_reconciliation") or {}
+                row = {
+                    "seed": seed, "experiment": experiment_id,
+                    "arm": arm_name.removesuffix("_result_data"),
+                    "audited": isinstance(trace, dict),
+                    "market_gate_passed": market.get("passed") is True,
+                    "structural_formula_passed": (trace or {}).get(
+                        "structural_and_supported_formula_checks_pass") is True,
+                    "audit_issue_count": (trace or {}).get("audit_issue_count"),
+                    "account_closes_verified": closures.get("verified", 0),
+                    "account_closes_expected": closures.get("nation_closes", 0),
+                    "treasury_turns_attributed": treasury.get(
+                        "fully_attributed_turns", 0),
+                    "treasury_turns_expected": treasury.get("turns", 0),
+                    "absolute_residual_total": treasury.get(
+                        "unattributed_absolute_total"),
+                    "complete_causal_coverage": (trace or {}).get(
+                        "complete_causal_coverage") is True,
+                }
+                seed_arms.append(row)
+                arms.append(row)
+        residuals = [row["absolute_residual_total"] for row in seed_arms
+                     if _is_number(row["absolute_residual_total"])]
+        by_seed[str(seed)] = {
+            "arms_expected": len(seed_arms),
+            "arms_deep_audited": sum(row["audited"] for row in seed_arms),
+            "market_gates_passed": sum(row["market_gate_passed"]
+                                        for row in seed_arms),
+            "structural_formula_passed": sum(
+                row["structural_formula_passed"] for row in seed_arms),
+            "audit_issue_count": sum(row["audit_issue_count"] or 0
+                                      for row in seed_arms),
+            "account_closes_verified": sum(
+                row["account_closes_verified"] for row in seed_arms),
+            "account_closes_expected": sum(
+                row["account_closes_expected"] for row in seed_arms),
+            "treasury_turns_attributed": sum(
+                row["treasury_turns_attributed"] for row in seed_arms),
+            "treasury_turns_expected": sum(
+                row["treasury_turns_expected"] for row in seed_arms),
+            "maximum_absolute_residual_total": max(residuals) if residuals else None,
+            "complete_causal_coverage_arms": sum(
+                row["complete_causal_coverage"] for row in seed_arms),
+        }
+    return {
+        "arms": arms,
+        "arms_expected": len(arms),
+        "arms_deep_audited": sum(row["audited"] for row in arms),
+        "market_gates_passed": sum(row["market_gate_passed"] for row in arms),
+        "structural_formula_passed": sum(
+            row["structural_formula_passed"] for row in arms),
+        "audit_issue_count": sum(row["audit_issue_count"] or 0 for row in arms),
+        "account_closes_verified": sum(
+            row["account_closes_verified"] for row in arms),
+        "account_closes_expected": sum(
+            row["account_closes_expected"] for row in arms),
+        "treasury_turns_attributed": sum(
+            row["treasury_turns_attributed"] for row in arms),
+        "treasury_turns_expected": sum(
+            row["treasury_turns_expected"] for row in arms),
+        "maximum_absolute_residual_total": max((
+            row["absolute_residual_total"] for row in arms
+            if _is_number(row["absolute_residual_total"])), default=None),
+        "complete_causal_coverage_arms": sum(
+            row["complete_causal_coverage"] for row in arms),
+        "by_seed": by_seed,
+    }
+
+
 def summarize(root: Path, seeds: list[int]) -> dict:
     results = {seed: _load_seed(root, seed) for seed in seeds}
     output = {"scenario": SCENARIO, "seeds": seeds,
@@ -412,11 +492,16 @@ def summarize(root: Path, seeds: list[int]) -> dict:
                 for item in by_seed.values()),
             "market_measures": aggregate_markets,
         }
+    output["deep_audit_summary"] = _deep_audit_summary(results)
     return output
 
 
 def _fmt(value, places=2):
     return "—" if value is None else f"{value:.{places}f}"
+
+
+def _fmt_residual(value):
+    return "—" if value is None else f"{value:.2e}"
 
 
 def _market_report_row(label: str, measure: dict, seeds: list[int]) -> list[str]:
@@ -459,6 +544,36 @@ def render_report(summary: dict) -> str:
         "or empirical calibration.", "",
         "Simulation provenance by seed: " + "; ".join(provenance) + ".", "",
     ]
+    audits = summary.get("deep_audit_summary", {})
+    lines += ["## Deep trace audits", "",
+              f"Deep audits cover {audits.get('arms_deep_audited', 0)}/"
+              f"{audits.get('arms_expected', 0)} arm traces. The audited arms "
+              f"pass {audits.get('account_closes_verified', 0)}/"
+              f"{audits.get('account_closes_expected', 0)} public-account closes "
+              f"and attribute {audits.get('treasury_turns_attributed', 0)}/"
+              f"{audits.get('treasury_turns_expected', 0)} treasury turns. "
+              f"Bounded structural/formula issues: "
+              f"{audits.get('audit_issue_count', '—')}; maximum absolute residual "
+              f"total within any arm: "
+              f"{_fmt_residual(audits.get('maximum_absolute_residual_total'))}. "
+              f"Complete causal coverage is reported in "
+              f"{audits.get('complete_causal_coverage_arms', 0)}/"
+              f"{audits.get('arms_deep_audited', 0)} audited arms.", "",
+              "| Seed | Deep-audited arms | Account closes | Treasury turns | "
+              "Largest arm residual | Formula issues |", "|---:|---:|---:|---:|---:|---:|"]
+    for seed in seeds:
+        audit = audits.get("by_seed", {}).get(str(seed), {})
+        lines.append("| " + " | ".join(map(str, [
+            seed,
+            f"{audit.get('arms_deep_audited', 0)}/{audit.get('arms_expected', 0)}",
+            f"{audit.get('account_closes_verified', 0)}/"
+            f"{audit.get('account_closes_expected', 0)}",
+            f"{audit.get('treasury_turns_attributed', 0)}/"
+            f"{audit.get('treasury_turns_expected', 0)}",
+            _fmt_residual(audit.get("maximum_absolute_residual_total")),
+            audit.get("audit_issue_count", 0),
+        ])) + " |")
+    lines.append("")
     for experiment_id, experiment in summary["experiments"].items():
         lines += [f"## {experiment['title']}", "",
                   f"Turn-7 complete-state match: {experiment['turn7_match_count']}/{len(seeds)}; "
@@ -587,15 +702,13 @@ def render_report(summary: dict) -> str:
         "All seed pairs share complete canonical state at turn 7, and all "
         "treatment hooks pass through the shock and restore before turn 12. "
         "Both arms pass the market settlement-bound checks in every seed pair. "
-        "The clean-source seed-812 deep audit additionally passes all 40/40 "
-        "account closes and 40/40 treasury-attributed turns in each of its four "
-        "arms, with zero bounded structural/formula issues; the remaining seeds "
-        "were not deep-audited. See "
+        "The table above reports the deep-accounting and structural checks for "
+        "each retained arm trace. See "
         "`economic_shock_supply_rivalry_seed812.md` and the treasury follow-up "
         "for residuals and limitations.", "",
         "The five-seed sample describes local mechanism response in this fixed "
         "scenario. It does not establish general supply-chain resilience, "
-        "population welfare, goods-stock conservation, recovery, or historical "
+        "population welfare, goods-stock conservation, causal recovery, or historical "
         "realism. Complete causal coverage remains false. No route event in a "
         "shock window means that seed did not exercise a new shipping response; "
         "it does not establish that trade is generally unresponsive. Stable "

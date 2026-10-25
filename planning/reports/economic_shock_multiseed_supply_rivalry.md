@@ -2,7 +2,19 @@
 
 Matched 20-turn runs at seeds 812, 813, 814, 815, 816. The two interventions are analyzed separately; turns 8–11 are the shock window and later differences are not draw-aligned after RNG paths diverge. Per-seed ranges are descriptive, not confidence intervals or empirical calibration.
 
-Simulation provenance by seed: 812: `3d2105acfd9ddfcceb6559614750cc655f5a1331` (4 arms; dirty 0); 813: `9c57c295d6a7a86834c533cf04a858f776fee061` (4 arms; dirty 0); 814: `9c57c295d6a7a86834c533cf04a858f776fee061` (4 arms; dirty 0); 815: `9c57c295d6a7a86834c533cf04a858f776fee061` (4 arms; dirty 0); 816: `9c57c295d6a7a86834c533cf04a858f776fee061` (4 arms; dirty 0).
+Simulation provenance by seed: 812: `569b723ca954c20869f89d4d70097994446a054a` (4 arms; dirty 0); 813: `569b723ca954c20869f89d4d70097994446a054a` (4 arms; dirty 0); 814: `569b723ca954c20869f89d4d70097994446a054a` (4 arms; dirty 0); 815: `569b723ca954c20869f89d4d70097994446a054a` (4 arms; dirty 0); 816: `569b723ca954c20869f89d4d70097994446a054a` (4 arms; dirty 0).
+
+## Deep trace audits
+
+Deep audits cover 20/20 arm traces. The audited arms pass 800/800 public-account closes and attribute 800/800 treasury turns. Bounded structural/formula issues: 0; maximum absolute residual total within any arm: 1.73e-12. Complete causal coverage is reported in 0/20 audited arms.
+
+| Seed | Deep-audited arms | Account closes | Treasury turns | Largest arm residual | Formula issues |
+|---:|---:|---:|---:|---:|---:|
+| 812 | 4/4 | 160/160 | 160/160 | 1.26e-12 | 0 |
+| 813 | 4/4 | 160/160 | 160/160 | 1.23e-12 | 0 |
+| 814 | 4/4 | 160/160 | 160/160 | 1.73e-12 | 0 |
+| 815 | 4/4 | 160/160 | 160/160 | 1.07e-12 | 0 |
+| 816 | 4/4 | 160/160 | 160/160 | 1.50e-12 | 0 |
 
 ## Temporary cotton supply reduction
 
@@ -197,9 +209,9 @@ A result of no detectable shock-window response means the metric never moved out
 
 ## Audit scope and interpretation
 
-All seed pairs share complete canonical state at turn 7, and all treatment hooks pass through the shock and restore before turn 12. Both arms pass the market settlement-bound checks in every seed pair. The clean-source seed-812 deep audit additionally passes all 40/40 account closes and 40/40 treasury-attributed turns in each of its four arms, with zero bounded structural/formula issues; the remaining seeds were not deep-audited. See `economic_shock_supply_rivalry_seed812.md` and the treasury follow-up for residuals and limitations.
+All seed pairs share complete canonical state at turn 7, and all treatment hooks pass through the shock and restore before turn 12. Both arms pass the market settlement-bound checks in every seed pair. The table above reports the deep-accounting and structural checks for each retained arm trace. See `economic_shock_supply_rivalry_seed812.md` and the treasury follow-up for residuals and limitations.
 
-The five-seed sample describes local mechanism response in this fixed scenario. It does not establish general supply-chain resilience, population welfare, goods-stock conservation, recovery, or historical realism. Complete causal coverage remains false. No route event in a shock window means that seed did not exercise a new shipping response; it does not establish that trade is generally unresponsive. Stable named-actor snapshots improve cohort comparability but omit households outside the scenario instrumentation.
+The five-seed sample describes local mechanism response in this fixed scenario. It does not establish general supply-chain resilience, population welfare, goods-stock conservation, causal recovery, or historical realism. Complete causal coverage remains false. No route event in a shock window means that seed did not exercise a new shipping response; it does not establish that trade is generally unresponsive. Stable named-actor snapshots improve cohort comparability but omit households outside the scenario instrumentation.
 
 Reproduce each clean-source pair with `economic_shock_experiment.py --scenario supply_rivalry`, then summarize the saved JSON without re-decoding traces:
 
