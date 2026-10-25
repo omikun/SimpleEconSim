@@ -177,6 +177,104 @@ class EconomicShockStockFlowAuditTests(unittest.TestCase):
         self.assertEqual(food_interval["granary_stock_delta"], 2)
         self.assertEqual(food_interval["residual"], 4)
 
+    def test_legacy_food_census_uses_dispatch_and_arrival_to_reconstruct_cargo(self):
+        run = self._run([
+            {"turn": 1, "coverage": {"region_count": 1},
+             "stocks": [{"good": "food", "quantity": 10}]},
+            {"turn": 2, "coverage": {"region_count": 1},
+             "stocks": [{"good": "food", "quantity": 2}]},
+            {"turn": 3, "coverage": {"region_count": 1},
+             "stocks": [{"good": "food", "quantity": 10}]},
+        ], completed_turns=3)
+        events = [
+            {"turn": 2, "kind": "provincial_food_dispatch",
+             "record_class": "transfer", "subject": {"good": "food"},
+             "inputs": {"units": 8}},
+            {"turn": 2, "kind": "civilian_food_consumption_total",
+             "subject": {"id": "North", "good": "food"},
+             "inputs": {"eaten_food_units": 0}},
+            {"turn": 3, "kind": "provincial_food_arrival",
+             "record_class": "transfer", "subject": {"good": "food"},
+             "inputs": {"units": 8}},
+            {"turn": 3, "kind": "civilian_food_consumption_total",
+             "subject": {"id": "North", "good": "food"},
+             "inputs": {"eaten_food_units": 0}},
+        ]
+
+        result = audit_run(run, events, audited_goods=("food",))
+
+        self.assertTrue(result["passed"])
+        dispatch_interval, arrival_interval = result["intervals"]
+        self.assertEqual(dispatch_interval["census_stock_delta"], -8)
+        self.assertEqual(dispatch_interval["provincial_food_cargo_change"], 8)
+        self.assertFalse(
+            dispatch_interval["provincial_food_cargo_census_included"])
+        self.assertEqual(dispatch_interval["provincial_food_cargo_adjustment"], 8)
+        self.assertEqual(dispatch_interval["residual"], 0)
+        self.assertEqual(arrival_interval["census_stock_delta"], 8)
+        self.assertEqual(arrival_interval["provincial_food_cargo_change"], -8)
+        self.assertEqual(arrival_interval["provincial_food_cargo_adjustment"], -8)
+        self.assertEqual(arrival_interval["residual"], 0)
+        self.assertIn("reconstruct the in-transit cargo change",
+                      render_markdown([result]))
+
+    def test_food_census_with_provincial_cargo_does_not_double_count_events(self):
+        run = self._run([
+            {"turn": 1, "coverage": {
+                "region_count": 1, "provincial_food_shipments_scanned": 0},
+             "stocks": [{"good": "food", "quantity": 10}]},
+            {"turn": 2, "coverage": {
+                "region_count": 1, "provincial_food_shipments_scanned": 1},
+             "stocks": [
+                 {"good": "food", "pool": "inventory", "quantity": 2},
+                 {"good": "food", "pool": "provincial_food_shipment",
+                  "quantity": 8},
+             ]},
+        ])
+        events = [
+            {"turn": 2, "kind": "provincial_food_dispatch",
+             "record_class": "transfer", "subject": {"good": "food"},
+             "inputs": {"units": 8}},
+            {"turn": 2, "kind": "civilian_food_consumption_total",
+             "subject": {"id": "North", "good": "food"},
+             "inputs": {"eaten_food_units": 0}},
+        ]
+
+        result = audit_run(run, events, audited_goods=("food",))
+
+        self.assertTrue(result["passed"])
+        interval = result["intervals"][0]
+        self.assertEqual(interval["census_stock_delta"], 0)
+        self.assertEqual(interval["provincial_food_cargo_change"], 8)
+        self.assertTrue(interval["provincial_food_cargo_census_included"])
+        self.assertEqual(interval["provincial_food_cargo_adjustment"], 0)
+        self.assertEqual(interval["residual"], 0)
+
+    def test_food_census_boundary_change_is_reported_as_unresolved(self):
+        run = self._run([
+            {"turn": 1, "coverage": {"region_count": 1},
+             "stocks": [{"good": "food", "quantity": 10}]},
+            {"turn": 2, "coverage": {
+                "region_count": 1, "provincial_food_shipments_scanned": 0},
+             "stocks": [{"good": "food", "quantity": 10}]},
+        ])
+        events = [{
+            "turn": 2, "kind": "civilian_food_consumption_total",
+            "subject": {"id": "North", "good": "food"},
+            "inputs": {"eaten_food_units": 0},
+        }]
+
+        result = audit_run(run, events, audited_goods=("food",))
+
+        self.assertFalse(result["passed"])
+        interval = result["intervals"][0]
+        self.assertTrue(
+            interval["provincial_food_cargo_census_boundary_changed"])
+        self.assertEqual(interval["provincial_food_cargo_adjustment"], 0)
+        self.assertIn(
+            "provincial_food_cargo_census_boundary_changed",
+            [issue["kind"] for issue in result["issues"]])
+
     def test_food_aggregates_are_required_once_per_region(self):
         run = self._run([
             {"turn": 1, "coverage": {"region_count": 2},

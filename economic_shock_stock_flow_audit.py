@@ -7,6 +7,9 @@ household-transfer, and route events are summarized as internal turnover; they
 do not change whole-world stocks when both counterparties and route cargo are
 inside the census boundary.
 
+For legacy stock censuses that predate the provincial food-shipment pool, the
+auditor reconstructs the in-transit change from dispatch and arrival events.
+
 This is a bounded aggregate material-balance check, not a proof that every
 possible goods writer or stock pool is instrumented. Food and wood are
 included as diagnostic circuits; missing flows remain explicit audit failures.
@@ -69,6 +72,7 @@ def audit_run(run, events, *, tolerance=1e-6, audited_goods=None):
     issues = []
     expected_region_count = 1
     expected_active_regions_by_turn = {}
+    provincial_food_cargo_census_by_turn = {}
     stock_observations = (run.get("scenario_goods_stock_observations")
                           or run.get("default_goods_stock_observations") or ())
     for snapshot in stock_observations:
@@ -78,6 +82,8 @@ def audit_run(run, events, *, tolerance=1e-6, audited_goods=None):
         snapshots[turn] = _stock_totals(snapshot, audited_goods)
         granary_stocks[turn] = _granary_food_total(snapshot)
         coverage = snapshot.get("coverage") or {}
+        provincial_food_cargo_census_by_turn[turn] = (
+            "provincial_food_shipments_scanned" in coverage)
         expected_active_regions_by_turn[turn] = coverage.get(
             "economic_region_count")
         expected_region_count = int(coverage.get(
@@ -91,6 +97,8 @@ def audit_run(run, events, *, tolerance=1e-6, audited_goods=None):
         "household_nonfood_use": 0.0, "civilian_food_use": 0.0,
         "military_food_use": 0.0, "food_inflow": 0.0,
         "fertilizer_stock_change": 0.0,
+        "provincial_food_dispatch": 0.0,
+        "provincial_food_arrival": 0.0,
     }))
     food_consumption_aggregate_regions = defaultdict(set)
     production_aggregate_regions = defaultdict(set)
@@ -150,6 +158,13 @@ def audit_run(run, events, *, tolerance=1e-6, audited_goods=None):
                 and "food" in audited_goods:
             components[turn][good]["food_inflow"] += float(
                 row.get("value_after") or 0.0)
+
+        elif (kind in {"provincial_food_dispatch", "provincial_food_arrival"}
+              and good == "food" and "food" in audited_goods):
+            amount = float(inputs.get("units", row.get("value_after", 0.0)) or 0.0)
+            components[turn][good][
+                "provincial_food_dispatch" if kind.endswith("dispatch")
+                else "provincial_food_arrival"] += amount
 
         elif (row.get("metric_id") == "ecology.fertilizer_stock"
               and "fertilizer" in audited_goods):
@@ -241,7 +256,33 @@ def audit_run(run, events, *, tolerance=1e-6, audited_goods=None):
                               - flow["military_food_use"]
                               + fertilizer_stock_change)
             actual_delta = closing - opening
-            residual = actual_delta - expected_delta
+            provincial_food_cargo_change = (
+                flow["provincial_food_dispatch"]
+                - flow["provincial_food_arrival"]
+                if good == "food" else 0.0)
+            cargo_in_opening_census = (
+                provincial_food_cargo_census_by_turn.get(turn - 1, False))
+            cargo_in_closing_census = (
+                provincial_food_cargo_census_by_turn.get(turn, False))
+            provincial_cargo_in_census = (
+                good == "food" and cargo_in_opening_census
+                and cargo_in_closing_census)
+            cargo_boundary_changed = (
+                good == "food"
+                and cargo_in_opening_census != cargo_in_closing_census)
+            if cargo_boundary_changed:
+                issues.append({
+                    "kind": "provincial_food_cargo_census_boundary_changed",
+                    "turn": turn,
+                    "opening_census_includes_cargo": cargo_in_opening_census,
+                    "closing_census_includes_cargo": cargo_in_closing_census,
+                })
+            provincial_cargo_adjustment = (
+                provincial_food_cargo_change
+                if good == "food" and not cargo_in_opening_census
+                and not cargo_in_closing_census else 0.0)
+            adjusted_actual_delta = actual_delta + provincial_cargo_adjustment
+            residual = adjusted_actual_delta - expected_delta
             granary_delta = (granary_stocks.get(turn, 0.0)
                              - granary_stocks.get(turn - 1, 0.0)
                              if good == "food" else 0.0)
@@ -250,7 +291,16 @@ def audit_run(run, events, *, tolerance=1e-6, audited_goods=None):
                 "good": good,
                 "opening_stock": round(opening, 9),
                 "closing_stock": round(closing, 9),
-                "stock_delta": round(actual_delta, 9),
+                "stock_delta": round(adjusted_actual_delta, 9),
+                "census_stock_delta": round(actual_delta, 9),
+                "provincial_food_cargo_change": round(
+                    provincial_food_cargo_change, 9),
+                "provincial_food_cargo_census_included": (
+                    provincial_cargo_in_census),
+                "provincial_food_cargo_census_boundary_changed": (
+                    cargo_boundary_changed),
+                "provincial_food_cargo_adjustment": round(
+                    provincial_cargo_adjustment, 9),
                 "production": round(production, 9),
                 "production_source": (
                     ("tile_production_total" if
@@ -313,6 +363,14 @@ def audit_run(run, events, *, tolerance=1e-6, audited_goods=None):
                 row["military_food_use"] for row in rows), 9),
             "fertilizer_stock_change_units": round(sum(
                 row["fertilizer_stock_change"] for row in rows), 9),
+            "provincial_food_dispatch_units": round(sum(
+                components[turn][good]["provincial_food_dispatch"]
+                for turn in components), 9) if good == "food" else 0.0,
+            "provincial_food_arrival_units": round(sum(
+                components[turn][good]["provincial_food_arrival"]
+                for turn in components), 9) if good == "food" else 0.0,
+            "provincial_food_cargo_adjustment_units": round(sum(
+                row["provincial_food_cargo_adjustment"] for row in rows), 9),
             "foraged_food_units": round(sum(
                 row["food_inflow"] for row in rows), 9),
             "granary_stock_change_units": round(sum(
@@ -530,7 +588,7 @@ def render_markdown(results):
         "Each run excludes turn 1 because no pre-turn-1 stock census exists.",
         "Per-turn details and trace paths are in the JSON sidecar.",
         "",
-        "The residual is closing stock minus prior closing stock and traced net flow. Food includes foraging, civilian meals and army rations; regional granaries are inside the stock boundary, so transfers into or out of them are internal. Zero aggregate residuals support the measured circuit but may hide offsetting unsupported flows; keep complete causal coverage false.",
+        "The residual is closing stock minus prior closing stock and traced net flow. Legacy censuses that predate provincial shipment holdings reconstruct the in-transit cargo change from dispatch and arrival events; censuses that include the cargo pool use it directly. Food includes foraging, civilian meals and army rations; regional granaries are inside the stock boundary, so transfers into or out of them are internal. Zero aggregate residuals support the measured circuit but may hide offsetting unsupported flows; keep complete causal coverage false.",
         "",
     ])
     return "\n".join(lines)
@@ -559,9 +617,9 @@ def main(argv=None):
                                           scenario=args.scenario)]
     report = {
         "scenario": args.scenario,
-        "audit": ("whole-world physical-goods stock-flow diagnostic v1"
+        "audit": ("whole-world physical-goods stock-flow diagnostic v2"
                   if args.all_goods else
-                  "whole-world selected-goods aggregate stock-flow v2"),
+                  "whole-world selected-goods aggregate stock-flow v3"),
         "audited_goods": list(audited_goods),
         "tolerance": 1e-6,
         "run_count": len(results),
