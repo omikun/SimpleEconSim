@@ -306,6 +306,36 @@ def render_markdown(results):
             f"{' | '.join(cells)} | "
             f"{len(result['issues'])} |"
         )
+    all_intervals = [interval for result in results
+                     for interval in result["intervals"]]
+    aggregate = {}
+    for good in AUDITED_GOODS:
+        rows = [row for row in all_intervals if row["good"] == good]
+        aggregate[good] = (
+            sum(row["balanced"] for row in rows), len(rows),
+            max((abs(row["residual"]) for row in rows), default=0.0))
+    food_rows = [row for row in all_intervals if row["good"] == "food"]
+    food_nonzero = [row for row in food_rows if abs(row["residual"]) > 1e-6]
+    residuals_matching_granary = sum(
+        abs(row["residual"] - row["granary_stock_delta"]) <= 1e-6
+        for row in food_nonzero)
+    granary_signed_change = sum(row["granary_stock_delta"] for row in food_rows)
+    lines.extend([
+        "",
+        (f"Across this sample, cotton closes in {aggregate['cotton'][0]}/"
+         f"{aggregate['cotton'][1]} intervals, cloth in "
+         f"{aggregate['cloth'][0]}/{aggregate['cloth'][1]}, and wood in "
+         f"{aggregate['wood'][0]}/{aggregate['wood'][1]}. Food closes in "
+         f"{aggregate['food'][0]}/{aggregate['food'][1]}; its largest absolute "
+         f"residual is {aggregate['food'][2]:.6g} units."),
+        (f"Of {len(food_nonzero)} nonzero food residuals, "
+         f"{residuals_matching_granary} equal the same interval's granary-stock "
+         f"change at the 1e-6 tolerance. The signed granary change across the "
+         f"audited intervals is {granary_signed_change:.6g} units. This points "
+         "to the granary update as the measured gap; it does not count as a "
+         "conservation pass because the model does not record the matching "
+         "physical stock leg."),
+    ])
     source_commits = sorted({result.get("source_commit") for result in results})
     lines.extend([
         "",
