@@ -80,9 +80,32 @@ def terrain_bonus(region, good, t: int | None = None, producer=None):
             if getattr(region, 'fertilizer_rationing', False):
                 needed *= 0.5
             if stock >= needed:
+                fertilizer_stock_before = float(stock)
                 region.fertilizer_stock -= needed
+                fertilizer_stock_after = float(region.fertilizer_stock)
                 region.fertilizer_consumed_last_turn = needed
                 region.is_nitrate_depleted = False
+                from run_trace import emit
+                current_turn = (t if t is not None else
+                                getattr(region, '_last_turn', None))
+                emit(
+                    region, kind='fertilizer_stock_use',
+                    record_class='outcome', phase='production',
+                    subject={'type': 'tile', 'id': region.name,
+                             'good': 'fertilizer'},
+                    metric_id='ecology.fertilizer_stock',
+                    unit='fertilizer_units', before=fertilizer_stock_before,
+                    after=fertilizer_stock_after,
+                    formula_id='ecology.fertilizer_crop_use.v1',
+                    inputs={'turn': (int(current_turn)
+                                     if current_turn is not None else None),
+                            'actual_use': fertilizer_stock_before -
+                                          fertilizer_stock_after,
+                            'requested_use': float(needed),
+                            'food_farm_corporation_count': farm_corps,
+                            'fertilizer_rationing': bool(getattr(
+                                region, 'fertilizer_rationing', False)),
+                            'source': 'food_crop_yield_multiplier'})
                 mult *= 1.75
             else:
                 region.fertilizer_consumed_last_turn = 0.0

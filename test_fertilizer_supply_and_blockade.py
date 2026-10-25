@@ -16,6 +16,18 @@ from imperialism import get_imperialism_manager
 from demographics_career import learned_switch_choice
 
 
+class MemoryTrace:
+    def __init__(self):
+        self.rows = []
+
+    def emit(self, clock, **row):
+        event_id = f"fertilizer:{clock['next']}"
+        clock["next"] += 1
+        self.rows.append({"event_id": event_id,
+                          "turn": clock.get("turn", 0), **row})
+        return event_id
+
+
 class DummyCtx:
     def __init__(self, source_region):
         self.source_region = source_region
@@ -29,6 +41,13 @@ class TestFertilizerSupplyAndBlockade(unittest.TestCase):
         self.tile = Region("Pampa", 1)
         self.tile.owner_nation = self.nation
         self.nation.tiles = [self.tile]
+
+    def _attach_trace(self, turn):
+        trace = MemoryTrace()
+        self.tile._run_trace = trace
+        self.tile._collective_trace_clock = {
+            "turn": turn, "phase": "test", "next": 1}
+        return trace
 
     def test_tech_catalog_mineral_nitrates(self):
         self.assertIn('mineral_nitrates', TECH_CATALOG)
@@ -67,6 +86,19 @@ class TestFertilizerSupplyAndBlockade(unittest.TestCase):
         self.assertAlmostEqual(self.tile.fertilizer_consumed_last_turn, 1.0)
         self.assertFalse(self.tile.is_nitrate_depleted)
 
+    def test_fertilizer_crop_use_records_exact_stock_mutation(self):
+        self.tile.soil_fertility = 1.0
+        self.tile.use_fertilizer = True
+        self.tile.fertilizer_stock = 10.0
+        trace = self._attach_trace(7)
+
+        _prod.terrain_bonus(self.tile, Goods.food, t=7)
+
+        event = next(row for row in trace.rows
+                     if row["kind"] == "fertilizer_stock_use")
+        self.assertEqual((event["before"], event["after"]), (10.0, 9.0))
+        self.assertEqual(event["inputs"]["actual_use"], 1.0)
+
     def test_turnip_winter_harvest_shock_on_depleted_soil(self):
         self.tile.soil_fertility = 0.50  # Depleted soil from monoculture
         self.tile.use_fertilizer = True
@@ -82,12 +114,17 @@ class TestFertilizerSupplyAndBlockade(unittest.TestCase):
         imp_mgr = get_imperialism_manager()
         self.tile.is_coast = True
         self.tile.fertilizer_stock = 10.0
+        trace = self._attach_trace(1)
 
         # Coastal tile with mineral nitrates tech receives +3.0 tons/turn
         self.nation.unlocked_techs = {'mineral_nitrates'}
         step_tile_externalities(self.tile, 1)
         self.assertAlmostEqual(self.tile.fertilizer_stock, 13.0)
         self.assertAlmostEqual(self.tile.fertilizer_inflow_last_turn, 3.0)
+        event = next(row for row in trace.rows
+                     if row["kind"] == "fertilizer_stock_inflow")
+        self.assertEqual((event["before"], event["after"]), (10.0, 13.0))
+        self.assertEqual(event["inputs"]["actual_inflow"], 3.0)
 
         # Now impose naval blockade
         enforcer = Nation("Britannia")

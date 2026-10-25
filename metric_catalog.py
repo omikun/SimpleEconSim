@@ -308,7 +308,7 @@ METRICS = {
     'finance.owner_transfer': ('tile/firm/owner', 'currency', 'region_finance._record_owner_payment and _record_owner_funding'),
     'finance.election_campaign': ('tile/election_campaign/treasury/candidate', 'currency', 'election.campaign_finance and labor_politics.capitalist_electoral_backlash; paired source and recipient balances'),
     'ecology.soil_fertility': ('tile/nation', 'ratio', 'externalities.step_tile_externalities; equal-tile Nation chart mean in trace_snapshots.nation_chart_aggregation_rows'),
-    'ecology.fertilizer_stock': ('tile', 'fertilizer_units', 'worldview_policies._execute_national_guano_subsidy; physical stock before and after subsidized delivery'),
+    'ecology.fertilizer_stock': ('tile', 'fertilizer_units', 'externalities.step_tile_externalities and region_production.terrain_bonus; physical stock before and after ordinary maritime/synthetic inflow, crop use, and subsidized guano delivery'),
     'ecology.nitrate_depletion': ('tile', 'depleted', 'worldview_policies._execute_national_guano_subsidy; recovery from depleted nitrate stock'),
     'goods.guano_delivery': ('tile', 'fertilizer_units', 'worldview_policies._execute_national_guano_subsidy; actual fertilizer stock increase after storage caps'),
     'ecology.nutrition_density': ('tile/nation', 'ratio', 'externalities.step_tile_externalities; equal-tile Nation chart mean in trace_snapshots.nation_chart_aggregation_rows'),

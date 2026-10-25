@@ -282,6 +282,25 @@ class EconomicShockStockFlowAuditTests(unittest.TestCase):
         self.assertEqual(result["intervals"][0]["production_source"],
                          "tile_production_total+elite_operator_execution")
 
+    def test_fertilizer_stock_changes_are_included_in_the_material_balance(self):
+        run = self._run([
+            {"turn": 1, "stocks": [{"good": "fertilizer", "quantity": 10}]},
+            {"turn": 2, "stocks": [{"good": "fertilizer", "quantity": 13}]},
+        ])
+        result = audit_run(run, [
+            {"turn": 2, "kind": "fertilizer_stock_inflow",
+             "metric_id": "ecology.fertilizer_stock",
+             "value_before": 10, "value_after": 15},
+            {"turn": 2, "kind": "fertilizer_stock_use",
+             "metric_id": "ecology.fertilizer_stock",
+             "value_before": 15, "value_after": 13},
+        ], audited_goods=("fertilizer",))
+
+        self.assertTrue(result["passed"])
+        interval = result["intervals"][0]
+        self.assertEqual(interval["fertilizer_stock_change"], 3)
+        self.assertEqual(interval["residual"], 0)
+
     def test_foreign_trader_sale_within_census_boundary_is_internal_turnover(self):
         run = self._run([
             {"turn": 1, "coverage": {"region_count": 1},

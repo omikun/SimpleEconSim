@@ -90,6 +90,7 @@ def audit_run(run, events, *, tolerance=1e-6, audited_goods=None):
         "production_input_use": 0.0,
         "household_nonfood_use": 0.0, "civilian_food_use": 0.0,
         "military_food_use": 0.0, "food_inflow": 0.0,
+        "fertilizer_stock_change": 0.0,
     }))
     food_consumption_aggregate_regions = defaultdict(set)
     production_aggregate_regions = defaultdict(set)
@@ -149,6 +150,22 @@ def audit_run(run, events, *, tolerance=1e-6, audited_goods=None):
                 and "food" in audited_goods:
             components[turn][good]["food_inflow"] += float(
                 row.get("value_after") or 0.0)
+
+        elif (row.get("metric_id") == "ecology.fertilizer_stock"
+              and "fertilizer" in audited_goods):
+            before = row.get("value_before")
+            after = row.get("value_after")
+            if before is None or after is None:
+                issues.append({
+                    "kind": "fertilizer_stock_change_requires_before_after",
+                    "turn": turn,
+                    "event_id": row.get("event_id"),
+                    "before": before,
+                    "after": after,
+                })
+            else:
+                components[turn]["fertilizer"][
+                    "fertilizer_stock_change"] += float(after) - float(before)
 
         elif (kind == "civilian_food_consumption_total" and good == "food"
               and "food" in audited_goods):
@@ -213,12 +230,16 @@ def audit_run(run, events, *, tolerance=1e-6, audited_goods=None):
                                    else flow["production"])
             operator_production = flow["operator_production"]
             production = ordinary_production + operator_production
+            fertilizer_stock_change = (
+                flow["fertilizer_stock_change"]
+                if good == "fertilizer" else 0.0)
             expected_delta = (production
                               - flow["production_input_use"]
                               - flow["household_nonfood_use"]
                               + flow["food_inflow"]
                               - flow["civilian_food_use"]
-                              - flow["military_food_use"])
+                              - flow["military_food_use"]
+                              + fertilizer_stock_change)
             actual_delta = closing - opening
             residual = actual_delta - expected_delta
             granary_delta = (granary_stocks.get(turn, 0.0)
@@ -242,6 +263,7 @@ def audit_run(run, events, *, tolerance=1e-6, audited_goods=None):
                 "food_inflow": round(flow["food_inflow"], 9),
                 "civilian_food_use": round(flow["civilian_food_use"], 9),
                 "military_food_use": round(flow["military_food_use"], 9),
+                "fertilizer_stock_change": round(fertilizer_stock_change, 9),
                 "granary_stock_delta": round(granary_delta, 9),
                 "instrumented_net_flow": round(expected_delta, 9),
                 "residual": round(residual, 9),
@@ -289,6 +311,8 @@ def audit_run(run, events, *, tolerance=1e-6, audited_goods=None):
                 row["civilian_food_use"] for row in rows), 9),
             "military_food_consumption_units": round(sum(
                 row["military_food_use"] for row in rows), 9),
+            "fertilizer_stock_change_units": round(sum(
+                row["fertilizer_stock_change"] for row in rows), 9),
             "foraged_food_units": round(sum(
                 row["food_inflow"] for row in rows), 9),
             "granary_stock_change_units": round(sum(

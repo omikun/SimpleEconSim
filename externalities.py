@@ -133,8 +133,32 @@ def step_tile_externalities(region, t: int) -> dict:
         if industrial_count > 0:
             fert_inflow += 4.0  # Domestic synthesis immune to naval blockade
 
-    region.fertilizer_stock = max(0.0, min(60.0, getattr(region, 'fertilizer_stock', 12.0) + fert_inflow))
+    fertilizer_stock_before = float(region.fertilizer_stock)
+    region.fertilizer_stock = max(
+        0.0, min(60.0, fertilizer_stock_before + fert_inflow))
+    fertilizer_stock_after = float(region.fertilizer_stock)
     region.fertilizer_inflow_last_turn = fert_inflow
+    actual_fertilizer_inflow = fertilizer_stock_after - fertilizer_stock_before
+    if actual_fertilizer_inflow != 0.0:
+        from run_trace import emit
+        emit(
+            region, kind='fertilizer_stock_inflow',
+            record_class='outcome', phase='ecology',
+            subject={'type': 'tile', 'id': region.name,
+                     'good': 'fertilizer'},
+            metric_id='ecology.fertilizer_stock',
+            unit='fertilizer_units', before=fertilizer_stock_before,
+            after=fertilizer_stock_after,
+            formula_id='ecology.fertilizer_inflow_with_cap.v1',
+            inputs={'turn': int(t), 'requested_inflow': float(fert_inflow),
+                    'actual_inflow': actual_fertilizer_inflow,
+                    'coastal_access': bool(is_coastal),
+                    'maritime_blockade': bool(is_blockaded),
+                    'mineral_nitrates_unlocked': bool(
+                        'mineral_nitrates' in unlocked_techs or not unlocked_techs),
+                    'synthetic_fertilizers_unlocked': bool(
+                        'synthetic_fertilizers' in unlocked_techs),
+                    'stock_cap': 60.0})
 
     # -------------------------------------------------------------------------
     # 1. Agricultural Intensity & Metabolic Soil Depletion
