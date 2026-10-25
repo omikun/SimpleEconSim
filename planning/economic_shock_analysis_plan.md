@@ -2,10 +2,10 @@
 
 Date: 2026-10-24. Status: baseline and five-seed default-game paired screens
 complete; initial mechanical/formula audits applied. Treasury-flow writer
-gaps have been traced and instrumented. The first refreshed four-arm audit
-found one additional tax-payer flow gap, now fixed; the post-fix audit is
-pending. Cross-scenario robustness, full stock/welfare accounting and
-empirical calibration remain.
+gaps have been traced, instrumented and re-audited across all four seed-4242
+arms. The paired default-game screens are diagnostic; supply-rivalry shock
+coverage, full stock/welfare accounting, recovery metrics and empirical
+calibration remain.
 Preserve game rules during diagnosis; put any eventual economic fixes in
 separate changes.
 
@@ -15,7 +15,7 @@ separate changes.
 |---|---|---|
 | 1. Baseline evidence and case studies | Complete for the selected 20-turn trace | Added streaming panel extraction and a baseline report. It identifies the furniture-input and local-food cases below; the trace does not cover every household, balance or in-transit stock. |
 | 2. Controlled shock experiments | Five paired 20-turn default-game seeds complete | Seeds 4242–4246 match complete canonical state at turn 7 for both shock pairs; original seed-4243 no-op attempts are excluded. Active role targets are selected and recorded per seed. The paired report gives per-seed effects and coverage. |
-| 3. Criteria and interpretation | Market gates pass in all ten valid seed-pairs; treasury source legs instrumented, final audit pending | The first refreshed four-arm seed-4242 audit passed treasury reconciliation in three arms; the fourth exposed a public-taxpayer debit that is now instrumented. Rerun all four arms before closing this phase. No recovery-time or empirical-realism claim is made. |
+| 3. Criteria and interpretation | Default-game mechanical and seed-4242 treasury gates pass | All ten valid default seed-pairs pass market gates. In a fresh clean-source audit, each of the four seed-4242 arms passes 60/60 account closes and 60/60 treasury-flow reconciliations; residual totals are below 6.3e-12. Structural/formula checks report zero issues, but full causal coverage and goods-stock conservation are not established. |
 
 The old `market_price_stabilization_plan.md` describes an earlier price rule.
 Current `region_market.update_price_ref` already demand-gates positive scarcity
@@ -364,6 +364,12 @@ market gates and the existing `trace_audit`/`trace_coverage` tools.
   causal coverage; the audit reports complete causal coverage as false.
 - Nation-account closure passes in all runs: 60 of 60 closes verified, zero
   account-closure gaps.
+- The refreshed clean-source four-arm audit passes treasury attribution in
+  every arm: 60/60 turns fully attributed for wood control, wood treatment,
+  furniture-demand control and furniture-demand treatment. Absolute residual
+  totals are 6.291148e-12, 5.419623e-12, 6.291148e-12 and 5.728681e-12,
+  respectively; these are floating-point noise. The gates establish closure
+  for the instrumented sources in these runs, not universal causal coverage.
 - The original four seed-4242 traces predate the latest instrumentation fix and
   do not pass treasury flow attribution: they fully attribute 46/60 turns in
   wood control and demand control, 50/60 in wood treatment, and 53/60 in demand
@@ -404,8 +410,11 @@ market gates and the existing `trace_audit`/`trace_coverage` tools.
   `government_income_tax_payment` flow for actual tax paid from a counted
   government account and links the flow to that account's cash-write evidence.
   A regression test verifies that the payer leg offsets the tax receipt in
-  nation-level treasury change. Run the four-arm deep audit again after this
-  correction; until then the paired treasury gate remains open.
+  nation-level treasury change. A fresh four-arm deep audit on clean source
+  commit `b4da81d` then passed all 60 turns in all four arms; exact gates and
+  residuals are summarized in
+  `planning/reports/treasury_flow_attribution_followup.md` and the refreshed
+  `planning/reports/economic_shock_screen_seed4242.md`.
 
 The paired report distinguishes market mechanics from ledger attribution. The
 current mechanical gate does not prove goods conservation across household,
@@ -414,24 +423,23 @@ accounting follow-up.
 
 ## Deliverables and next action
 
-The compact baseline report, the seed-4242 case studies, and the corrected
-five-seed default-game summary are complete in
+The compact baseline report, the refreshed seed-4242 case studies, and the
+corrected five-seed default-game summary are complete in
 `planning/reports/economic_shock_baseline.md`,
 `planning/reports/economic_shock_screen_seed4242.md`, and
 `planning/reports/economic_shock_multiseed_default.md`. Continue in this order:
 
-1. Rerun all four seed-4242 arms with deep audit after the public-taxpayer flow
-   correction. Verify 60/60 account closes and treasury-flow reconciliation in
-   every arm; investigate and report any remaining residuals.
-2. Add a scenario-aware intervention adapter and test supply rivalry on seeds
+1. Add a scenario-aware intervention adapter and test supply rivalry on seeds
    812–816. Confirm that native scenario stepping does not overwrite the shock;
-   compare local production, shipment, arrival, price and welfare response.
-3. Add stable-cohort household outcomes, wages/profit/credit and separate
+   compare cotton production, offers/fills, route shipments/arrivals, prices and
+   named grower/mill outcomes. Begin with seed 812 and expand to the planned
+   five pairs only after the adapter passes its intervention and pairing gates.
+2. Add stable-cohort household outcomes, wages/profit/credit and separate
    producer, trader, household and in-transit stock measures before concluding
    on welfare or goods conservation.
-4. Define and calculate an explicit, coverage-aware recovery measure for
+3. Define and calculate an explicit, coverage-aware recovery measure for
    future paired runs; post-shock RNG divergence limits causal interpretation.
-5. Select historical primary evidence for the relevant setting before making
+4. Select historical primary evidence for the relevant setting before making
    empirical-realism claims; until then this is a code-behavior study.
 
 Use streaming extraction and compressed traces; full decoded exports are

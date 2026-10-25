@@ -1301,19 +1301,19 @@
   "source_provenance_by_seed": {
     "4242": [
       {
-        "source_commit": "dd850255bea13d107733a859fd13b0a8ac315448",
+        "source_commit": "b4da81d64dd7a72f73f7b8fd9e4b9f591a5b4149",
         "tracked_worktree_dirty": false
       },
       {
-        "source_commit": "dd850255bea13d107733a859fd13b0a8ac315448",
+        "source_commit": "b4da81d64dd7a72f73f7b8fd9e4b9f591a5b4149",
         "tracked_worktree_dirty": false
       },
       {
-        "source_commit": "dd850255bea13d107733a859fd13b0a8ac315448",
+        "source_commit": "b4da81d64dd7a72f73f7b8fd9e4b9f591a5b4149",
         "tracked_worktree_dirty": false
       },
       {
-        "source_commit": "dd850255bea13d107733a859fd13b0a8ac315448",
+        "source_commit": "b4da81d64dd7a72f73f7b8fd9e4b9f591a5b4149",
         "tracked_worktree_dirty": false
       }
     ],

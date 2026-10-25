@@ -4,7 +4,7 @@ Paired 20-turn screens at seeds 4242, 4243, 4244, 4245, 4246; turns 8–11 are t
 
 Each seed uses an independent world initialization. Within each seed, the control and treatment must match at turn 7. Later RNG streams can diverge after the intervention, so recovery-path differences are not draw-aligned.
 
-Simulation source provenance by seed: 4242 `dd850255bea13d107733a859fd13b0a8ac315448` (dirty arms: 0/4); 4243 `18c88875446fcc541f2ba4461e8948aef2c1376a` (dirty arms: 0/2), `21d3c6bc39567eb9b7834d0d62cc3b859fa910a4` (dirty arms: 0/2); 4244 `21d3c6bc39567eb9b7834d0d62cc3b859fa910a4` (dirty arms: 0/4); 4245 `21d3c6bc39567eb9b7834d0d62cc3b859fa910a4` (dirty arms: 0/4); 4246 `21d3c6bc39567eb9b7834d0d62cc3b859fa910a4` (dirty arms: 0/4).
+Simulation source provenance by seed: 4242 `b4da81d64dd7a72f73f7b8fd9e4b9f591a5b4149` (dirty arms: 0/4); 4243 `18c88875446fcc541f2ba4461e8948aef2c1376a` (dirty arms: 0/2), `21d3c6bc39567eb9b7834d0d62cc3b859fa910a4` (dirty arms: 0/2); 4244 `21d3c6bc39567eb9b7834d0d62cc3b859fa910a4` (dirty arms: 0/4); 4245 `21d3c6bc39567eb9b7834d0d62cc3b859fa910a4` (dirty arms: 0/4); 4246 `21d3c6bc39567eb9b7834d0d62cc3b859fa910a4` (dirty arms: 0/4).
 
 ## Temporary local wood supply reduction
 

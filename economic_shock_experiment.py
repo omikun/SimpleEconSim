@@ -710,9 +710,9 @@ def _render_report(result):
                   _quality_line("treatment", treatment), "",
                   "Structural and supported-formula checks cover only audited "
                   "rules; complete causal coverage is not established. Nation "
-                  "account closes pass, but treasury reconciliation retains "
-                  "unattributed turn residuals. See the plan for counts and "
-                  "follow-up work.", ""]
+                  "account closes and treasury attribution are reported above; "
+                  "neither gate establishes complete goods-stock conservation "
+                  "or causal coverage. See the plan for remaining limits.", ""]
         if experiment_id == "wood_supply_reduction":
             lines += [
                 "Read the intervention first against realized wood output, offers "
