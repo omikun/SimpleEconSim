@@ -136,6 +136,8 @@ def Live(t, agents, context: LiveContext):
     random.shuffle(agents)
     employer_cache = build_employer_cache(agents)
     rand.reset()
+    civilian_food_units_eaten = 0
+    civilian_food_meal_count = 0
     for agent in agents:
         if not agent.alive:
             continue
@@ -145,8 +147,11 @@ def Live(t, agents, context: LiveContext):
         number_food_consumed, number_wood_consumed, number_furniture_consumed = consume_goods(
             ctx, agent, number_food_consumed, number_wood_consumed, number_furniture_consumed
         )
-        number_food_consumed += consume_daily_food(
+        eaten_food_units = consume_daily_food(
             agent, region=ctx.source_region, turn=t)
+        number_food_consumed += eaten_food_units
+        civilian_food_units_eaten += eaten_food_units
+        civilian_food_meal_count += 1
         number_food_consumed, number_of_switches = handle_career_switching(
             ctx, t, agent, agents, choices_list, bottleneck_weights, number_of_switches
         )
@@ -158,6 +163,20 @@ def Live(t, agents, context: LiveContext):
             number_dead_starved += 1 if getattr(agent, 'died_of_starvation', False) else 0
         else:
             new_agents.append(agent)
+
+    if ctx.source_region is not None:
+        from run_trace import emit
+        emit(
+            ctx.source_region, kind='civilian_food_consumption_total',
+            record_class='outcome', phase='demographics',
+            subject={'type': 'tile', 'id': ctx.source_region.name,
+                     'good': Goods.food.name},
+            metric_id='goods.civilian_food_consumption', unit='food_units',
+            before=0, after=int(civilian_food_units_eaten),
+            formula_id='demographics.civilian_food_consumption_total.v1',
+            inputs={'turn': int(t),
+                    'meal_records': int(civilian_food_meal_count),
+                    'eaten_food_units': int(civilian_food_units_eaten)})
 
     # 4. Post-life-cycle welfare
     food_price = ctx.food_price

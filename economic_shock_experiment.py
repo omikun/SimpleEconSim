@@ -732,8 +732,9 @@ def _scenario_goods_stock_observation(server, turn):
     """Census enumerated physical goods holdings in the supply-rivalry world.
 
     This is a point-in-time holdings census, not a stock-flow conservation
-    proof. All ordinary agents, trader pools, public food stores, and route
-    queues are included; category and object counts make the scope explicit.
+    proof. All ordinary agents, trader pools, public food and granary stores,
+    and route queues are included; category and object counts make the scope
+    explicit.
     """
     if server.scenario_id != "supply_rivalry":
         return None
@@ -743,6 +744,7 @@ def _scenario_goods_stock_observation(server, turn):
     totals = {}
     seen_public = set()
     seen_charities = set()
+    granary_stores_scanned = 0
     scanned_agents = 0
     agent_categories = {}
     route_count = 0
@@ -833,6 +835,11 @@ def _scenario_goods_stock_observation(server, turn):
                 getattr(charity, "food_inventory", 0),
                 holder_id=getattr(charity, "name", "charity"))
 
+        granary_stores_scanned += 1
+        add(tile.name, "public", "granary_food", Goods.food,
+            getattr(tile, "granary_stock", 0),
+            holder_id=f"{tile.name}:granary")
+
         for route in all_routes(tile):
             if route is None:
                 continue
@@ -863,6 +870,7 @@ def _scenario_goods_stock_observation(server, turn):
             "agent_counts_by_category": dict(sorted(agent_categories.items())),
             "distinct_government_stores": len(seen_public),
             "distinct_charity_stores": len(seen_charities),
+            "granary_stores_scanned": granary_stores_scanned,
             "routes_scanned": route_count,
             "negative_stock_row_count": len(negative_holdings),
         },

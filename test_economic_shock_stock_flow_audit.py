@@ -19,10 +19,14 @@ class EconomicShockStockFlowAuditTests(unittest.TestCase):
             {"turn": 1, "stocks": [
                 {"good": "cotton", "quantity": 10},
                 {"good": "cloth", "quantity": 2},
+                {"good": "food", "quantity": 20},
+                {"good": "wood", "quantity": 3},
             ]},
             {"turn": 2, "stocks": [
                 {"good": "cotton", "quantity": 11},
                 {"good": "cloth", "quantity": 4},
+                {"good": "food", "quantity": 20},
+                {"good": "wood", "quantity": 3},
             ]},
         ])
         events = [
@@ -34,6 +38,9 @@ class EconomicShockStockFlowAuditTests(unittest.TestCase):
             {"turn": 2, "kind": "household_nonfood_consumption",
              "subject": {"good": "cloth"}, "delta": -1,
              "inputs": {"units_consumed": 1}},
+            {"turn": 2, "kind": "civilian_food_consumption_total",
+             "subject": {"good": "food"}, "value_after": 0,
+             "inputs": {"eaten_food_units": 0}},
             {"turn": 2, "kind": "paid_market_sale",
              "subject": {"good": "cotton"}, "value_after": 99,
              "inputs": {"imported": False}},
@@ -78,8 +85,8 @@ class EconomicShockStockFlowAuditTests(unittest.TestCase):
         result = audit_run(run, events)
 
         self.assertFalse(result["passed"])
-        self.assertEqual(result["issues"][0]["kind"],
-                         "missing_production_input_good")
+        self.assertIn("missing_production_input_good",
+                      [issue["kind"] for issue in result["issues"]])
 
     def test_missing_snapshot_interval_is_not_silently_skipped(self):
         run = self._run([
@@ -106,6 +113,63 @@ class EconomicShockStockFlowAuditTests(unittest.TestCase):
 
         self.assertIn("| 17 | cotton supply | cotton-control |", report)
         self.assertNotIn("| 17 | mill cotton demand |", report)
+
+    def test_food_balance_includes_foraging_meals_and_granary_stock(self):
+        run = self._run([
+            {"turn": 1, "stocks": [
+                {"good": "food", "pool": "inventory", "quantity": 10},
+                {"good": "food", "pool": "granary_food", "quantity": 5},
+            ]},
+            {"turn": 2, "stocks": [
+                {"good": "food", "pool": "inventory", "quantity": 12},
+                {"good": "food", "pool": "granary_food", "quantity": 5},
+            ]},
+        ])
+        events = [
+            {"turn": 2, "kind": "independent_production",
+             "subject": {"good": "food"}, "value_after": 1},
+            {"turn": 2, "kind": "foraged_food_receipt",
+             "subject": {"good": "food"}, "value_after": 2},
+            {"turn": 2, "kind": "civilian_food_consumption_total",
+             "subject": {"good": "food"}, "value_after": 1,
+             "inputs": {"eaten_food_units": 1}},
+        ]
+
+        result = audit_run(run, events)
+
+        self.assertTrue(result["passed"])
+        self.assertEqual(result["summary_by_good"]["food"][
+            "foraged_food_units"], 2.0)
+        self.assertEqual(result["summary_by_good"]["food"][
+            "civilian_food_consumption_units"], 1.0)
+        food_interval = next(row for row in result["intervals"]
+                             if row["good"] == "food")
+        self.assertEqual(food_interval["granary_stock_delta"], 0)
+
+    def test_granary_change_remains_inside_boundary_and_exposes_gap(self):
+        run = self._run([
+            {"turn": 1, "stocks": [
+                {"good": "food", "pool": "inventory", "quantity": 10},
+                {"good": "food", "pool": "granary_food", "quantity": 5},
+            ]},
+            {"turn": 2, "stocks": [
+                {"good": "food", "pool": "inventory", "quantity": 12},
+                {"good": "food", "pool": "granary_food", "quantity": 7},
+            ]},
+        ])
+        events = [{
+            "turn": 2, "kind": "civilian_food_consumption_total",
+            "subject": {"good": "food"}, "value_after": 0,
+            "inputs": {"eaten_food_units": 0},
+        }]
+
+        result = audit_run(run, events)
+
+        self.assertFalse(result["passed"])
+        food_interval = next(row for row in result["intervals"]
+                             if row["good"] == "food")
+        self.assertEqual(food_interval["granary_stock_delta"], 2)
+        self.assertEqual(food_interval["residual"], 4)
 
 
 if __name__ == "__main__":

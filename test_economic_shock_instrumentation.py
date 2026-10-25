@@ -33,11 +33,13 @@ def _actor(ident, *, household=False, corporation=False, trader=False,
     )
 
 
-def _tile(name, agents, *, government=None, routes=None, charities=None):
+def _tile(name, agents, *, government=None, routes=None, charities=None,
+          granary_stock=0):
     return SimpleNamespace(
         name=name, agents=agents, gov=government, owner_nation=None,
         routes=routes or {}, route=None, actor_turn_accounts=[],
         economic_events=[], charity=None, charities=charities or [],
+        granary_stock=granary_stock,
     )
 
 
@@ -100,7 +102,7 @@ class EconomicShockInstrumentationTests(unittest.TestCase):
         )
         fields = _tile("Cotton Fields", [household, producer, trader],
                        government=government,
-                       routes={"Rival Port": route})
+                       routes={"Rival Port": route}, granary_stock=24.5)
         port = _tile("Rival Port", [], government=government,
                      charities=[charity, overdrawn_charity])
         server = SimpleNamespace(scenario_id="supply_rivalry",
@@ -124,10 +126,13 @@ class EconomicShockInstrumentationTests(unittest.TestCase):
                                  "cloth")], 3)
         self.assertEqual(stocks[("Cotton Fields", "public", "government_food",
                                  "food")], 10)
+        self.assertEqual(stocks[("Cotton Fields", "public", "granary_food",
+                                 "food")], 24.5)
         self.assertEqual(stocks[("Rival Port", "public", "charity_food",
                                  "food")], 5.5)
         self.assertEqual(census["coverage"]["distinct_government_stores"], 1)
         self.assertEqual(census["coverage"]["distinct_charity_stores"], 2)
+        self.assertEqual(census["coverage"]["granary_stores_scanned"], 2)
         self.assertEqual(census["coverage"]["routes_scanned"], 1)
         self.assertEqual(census["coverage"]["negative_stock_row_count"], 1)
         self.assertEqual(census["negative_stock_rows"][0]["quantity"], -0.5)
