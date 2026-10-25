@@ -80,6 +80,98 @@ def _trace_government_company_equity(
                 'company_cash_receipt': company_receipt, 'turn': int(turn)})
 
 
+def _trace_government_inventory_liquidation(
+        region, *, seller, buyer, good, quantity, amount, turn,
+        seller_cash_before, seller_cash_after, seller_write_event_ids,
+        buyer_cash_before, buyer_cash_after, buyer_write_event_ids,
+        decision_event_id):
+    """Record counted public-account legs in elite direct inventory sales."""
+    owner_nation = getattr(region, 'owner_nation', None)
+    if owner_nation is None or decision_event_id is None:
+        return []
+    from finance_trace import account_ref, emit_treasury_leg, transfer_contract
+
+    currency = (getattr(owner_nation, 'currency', None)
+                or getattr(region, 'home_currency', None) or 'local_currency')
+
+    def account(agent, balance_before, balance_after):
+        if getattr(agent, 'is_government', False):
+            return account_ref(
+                'government_treasury', agent.id, currency,
+                nation_id=owner_nation.name,
+                subaccount='government_agent.cash',
+                balance_before=float(balance_before),
+                balance_after=float(balance_after),
+                balance_scope='government_agent.cash')
+        return account_ref(
+            'agent', agent.id, currency,
+            balance_before=float(balance_before),
+            balance_after=float(balance_after), balance_scope='cash')
+
+    emitted = []
+    seller_receipt = float(seller_cash_after) - float(seller_cash_before)
+    seller_writes = list(seller_write_event_ids or ())
+    if (getattr(seller, 'is_government', False) and seller_writes
+            and seller_receipt > 0.0):
+        buyer_debit = float(buyer_cash_before) - float(buyer_cash_after)
+        matches = math.isclose(
+            buyer_debit, seller_receipt, rel_tol=1e-10, abs_tol=1e-8)
+        operation_id = (
+            f'government-inventory-sale:{turn}:{seller.id}:{buyer.id}:{good.name}')
+        contract = transfer_contract(
+            operation_id, 'government_direct_inventory_sale', side='payee',
+            amount=seller_receipt, amount_currency=currency,
+            payer_account=account(buyer, buyer_cash_before, buyer_cash_after),
+            payee_account=account(seller, seller_cash_before, seller_cash_after),
+            local_cash_leg_amount=seller_receipt,
+            local_cash_leg_currency=currency,
+            counterparty_leg_status=(
+                'buyer_cash_balance_captured' if matches
+                else 'buyer_cash_balance_differs_from_public_receipt'),
+            decision_event_id=decision_event_id)
+        emitted.append(emit_treasury_leg(
+            region, kind='government_direct_inventory_sale_receipt',
+            nation_name=owner_nation.name, currency=currency,
+            signed_amount=seller_receipt, contract=contract, phase='local',
+            subject_type='nation',
+            cause_event_ids=[*seller_writes, decision_event_id],
+            inputs={'seller_id': seller.id, 'buyer_id': buyer.id,
+                    'good': good.name, 'quantity': int(quantity),
+                    'amount': float(amount), 'receipt': seller_receipt,
+                    'turn': int(turn)}))
+
+    buyer_debit = float(buyer_cash_before) - float(buyer_cash_after)
+    buyer_writes = list(buyer_write_event_ids or ())
+    if (getattr(buyer, 'is_government', False) and buyer_writes
+            and buyer_debit > 0.0):
+        matches = math.isclose(
+            buyer_debit, seller_receipt, rel_tol=1e-10, abs_tol=1e-8)
+        operation_id = (
+            f'government-inventory-purchase:{turn}:{buyer.id}:{seller.id}:{good.name}')
+        contract = transfer_contract(
+            operation_id, 'government_direct_inventory_purchase', side='payer',
+            amount=buyer_debit, amount_currency=currency,
+            payer_account=account(buyer, buyer_cash_before, buyer_cash_after),
+            payee_account=account(seller, seller_cash_before, seller_cash_after),
+            local_cash_leg_amount=buyer_debit,
+            local_cash_leg_currency=currency,
+            counterparty_leg_status=(
+                'seller_cash_balance_captured' if matches
+                else 'seller_cash_balance_differs_from_public_debit'),
+            decision_event_id=decision_event_id)
+        emitted.append(emit_treasury_leg(
+            region, kind='government_direct_inventory_purchase',
+            nation_name=owner_nation.name, currency=currency,
+            signed_amount=-buyer_debit, contract=contract, phase='local',
+            subject_type='nation',
+            cause_event_ids=[*buyer_writes, decision_event_id],
+            inputs={'buyer_id': buyer.id, 'seller_id': seller.id,
+                    'good': good.name, 'quantity': int(quantity),
+                    'amount': float(amount), 'debit': buyer_debit,
+                    'turn': int(turn)}))
+    return emitted
+
+
 class EliteCapitalistPlanner:
     """Decision engine for landed nobility, merchants, and capitalists."""
 
@@ -2141,14 +2233,28 @@ class EliteCapitalistPlanner:
                 buyer_inventory_before = float(buyer.inv_get(g, 0))
                 _trace_cash_write = _trace_public_begin(None, buyer)
                 buyer.cash -= trade_cash
-                _trace_public_finish(_trace_cash_write, 'economy/capitalist_planner:EliteCapitalistPlanner._plan_and_execute_elite',
-                                     inputs={"source_writer": 'economy/capitalist_planner.py:EliteCapitalistPlanner._plan_and_execute_elite:8a474dde2fb88dbe:1'})
+                buyer_cash_write_ids = _trace_public_finish(
+                    _trace_cash_write,
+                    'economy/capitalist_planner:EliteCapitalistPlanner._plan_and_execute_elite',
+                    inputs={"source_writer": 'economy/capitalist_planner.py:EliteCapitalistPlanner._plan_and_execute_elite:8a474dde2fb88dbe:1'})
                 _trace_cash_write = _trace_public_begin(None, agent)
                 agent.cash += trade_cash
-                _trace_public_finish(_trace_cash_write, 'economy/capitalist_planner:EliteCapitalistPlanner._plan_and_execute_elite',
-                                     inputs={"source_writer": 'economy/capitalist_planner.py:EliteCapitalistPlanner._plan_and_execute_elite:69cdbbf2dc1793ab:1'})
+                seller_cash_write_ids = _trace_public_finish(
+                    _trace_cash_write,
+                    'economy/capitalist_planner:EliteCapitalistPlanner._plan_and_execute_elite',
+                    inputs={"source_writer": 'economy/capitalist_planner.py:EliteCapitalistPlanner._plan_and_execute_elite:69cdbbf2dc1793ab:1'})
                 agent.inv_add(g, -sale_qty)
                 buyer.inv_add(g, sale_qty)
+                _trace_government_inventory_liquidation(
+                    region, seller=agent, buyer=buyer, good=g,
+                    quantity=sale_qty, amount=trade_cash, turn=t,
+                    seller_cash_before=seller_cash_before,
+                    seller_cash_after=agent.cash,
+                    seller_write_event_ids=seller_cash_write_ids,
+                    buyer_cash_before=buyer_cash_before,
+                    buyer_cash_after=buyer.cash,
+                    buyer_write_event_ids=buyer_cash_write_ids,
+                    decision_event_id=evaluation_event_id)
                 result['action_taken'] = f'LIQUIDATE_{g.name.upper()}'
                 result['details'] = {'good': g.name, 'quantity': sale_qty,
                                      'cash_received': trade_cash,

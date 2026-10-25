@@ -372,6 +372,60 @@ class TreasuryFlowTraceTests(unittest.TestCase):
         self.assertEqual(contract['payer_account']['id'], tile.name)
         self.assertEqual(contract['payee_account']['id'], company.id)
 
+    def test_government_planner_inventory_sale_is_attributed_as_receipt(self):
+        from economy.capitalist_planner import _trace_government_inventory_liquidation
+        from goods import Goods
+        from run_trace import emit
+        from treasury_trace import begin_public_change, finish_public_change
+
+        nation, tile, trace, _clock = self.world(government_cash=100.0)
+        government = tile.gov.agent
+        buyer = Agent(908)
+        buyer.cash = 50.0
+        before = nation.treasury()['total']
+        decision_id = emit(
+            tile, kind='elite_inventory_liquidation_decision',
+            record_class='decision', phase='local',
+            subject={'type': 'agent', 'id': government.id},
+            metric_id='ai.elite_economic_decision', unit='candidate',
+            after='LIQUIDATE_CLOTH')
+        seller_write_context = begin_public_change(None, government)
+        buyer_cash_before = buyer.cash
+        government_cash_before = government.cash
+        buyer.cash -= 18.0
+        government.cash += 18.0
+        seller_write_ids = finish_public_change(
+            seller_write_context, 'test:government_inventory_liquidation',
+            inputs={'source_writer': 'test_treasury_flow_trace'})
+
+        _trace_government_inventory_liquidation(
+            tile, seller=government, buyer=buyer, good=Goods.cloth,
+            quantity=2, amount=18.0, turn=1,
+            seller_cash_before=government_cash_before,
+            seller_cash_after=government.cash,
+            seller_write_event_ids=seller_write_ids,
+            buyer_cash_before=buyer_cash_before,
+            buyer_cash_after=buyer.cash, buyer_write_event_ids=[],
+            decision_event_id=decision_id)
+
+        after = nation.treasury()['total']
+        flows = [row for row in self.flows(trace)
+                 if row['kind'] == 'government_direct_inventory_sale_receipt']
+        self.assertEqual(len(flows), 1)
+        flow = flows[0]
+        self.assertAlmostEqual(after - before, flow['value_after'])
+        self.assertAlmostEqual(flow['value_after'], 18.0)
+        write = next(row for row in trace.recent
+                     if row.get('kind') == 'public_account_write'
+                     and row.get('delta') == 18.0)
+        self.assertIn(decision_id, flow['cause_event_ids'])
+        self.assertIn(write['event_id'], flow['cause_event_ids'])
+        contract = flow['inputs']['transfer_contract']
+        self.assertEqual(contract['operation_type'],
+                         'government_direct_inventory_sale')
+        self.assertEqual(contract['payer_account']['id'], buyer.id)
+        self.assertEqual(contract['payee_account']['id'], government.id)
+
     def test_domestic_bond_coupon_and_maturity_close_bank(self):
         from sovereign_bonds import SovereignBond, SovereignBondMarket
         nation, tile, trace, clock = self.world()
