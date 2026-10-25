@@ -1931,7 +1931,7 @@
       "turn7_match_count": 5
     }
   },
-  "root": "tmp/economic-shocks/default-market-receipt-fix",
+  "root": "tmp/economic-shocks/default-treasury-final",
   "seeds": [
     4242,
     4243,
@@ -1942,91 +1942,91 @@
   "source_provenance_by_seed": {
     "4242": [
       {
-        "source_commit": "f84d47ea5bb407b31df6b6943097974168f28536",
+        "source_commit": "270c68830e3a3268b04974fb72762f2e101ef772",
         "tracked_worktree_dirty": false
       },
       {
-        "source_commit": "f84d47ea5bb407b31df6b6943097974168f28536",
+        "source_commit": "270c68830e3a3268b04974fb72762f2e101ef772",
         "tracked_worktree_dirty": false
       },
       {
-        "source_commit": "f84d47ea5bb407b31df6b6943097974168f28536",
+        "source_commit": "270c68830e3a3268b04974fb72762f2e101ef772",
         "tracked_worktree_dirty": false
       },
       {
-        "source_commit": "f84d47ea5bb407b31df6b6943097974168f28536",
+        "source_commit": "270c68830e3a3268b04974fb72762f2e101ef772",
         "tracked_worktree_dirty": false
       }
     ],
     "4243": [
       {
-        "source_commit": "f84d47ea5bb407b31df6b6943097974168f28536",
+        "source_commit": "270c68830e3a3268b04974fb72762f2e101ef772",
         "tracked_worktree_dirty": false
       },
       {
-        "source_commit": "f84d47ea5bb407b31df6b6943097974168f28536",
+        "source_commit": "270c68830e3a3268b04974fb72762f2e101ef772",
         "tracked_worktree_dirty": false
       },
       {
-        "source_commit": "f84d47ea5bb407b31df6b6943097974168f28536",
+        "source_commit": "270c68830e3a3268b04974fb72762f2e101ef772",
         "tracked_worktree_dirty": false
       },
       {
-        "source_commit": "f84d47ea5bb407b31df6b6943097974168f28536",
+        "source_commit": "270c68830e3a3268b04974fb72762f2e101ef772",
         "tracked_worktree_dirty": false
       }
     ],
     "4244": [
       {
-        "source_commit": "f84d47ea5bb407b31df6b6943097974168f28536",
+        "source_commit": "270c68830e3a3268b04974fb72762f2e101ef772",
         "tracked_worktree_dirty": false
       },
       {
-        "source_commit": "f84d47ea5bb407b31df6b6943097974168f28536",
+        "source_commit": "270c68830e3a3268b04974fb72762f2e101ef772",
         "tracked_worktree_dirty": false
       },
       {
-        "source_commit": "f84d47ea5bb407b31df6b6943097974168f28536",
+        "source_commit": "270c68830e3a3268b04974fb72762f2e101ef772",
         "tracked_worktree_dirty": false
       },
       {
-        "source_commit": "f84d47ea5bb407b31df6b6943097974168f28536",
+        "source_commit": "270c68830e3a3268b04974fb72762f2e101ef772",
         "tracked_worktree_dirty": false
       }
     ],
     "4245": [
       {
-        "source_commit": "f84d47ea5bb407b31df6b6943097974168f28536",
+        "source_commit": "270c68830e3a3268b04974fb72762f2e101ef772",
         "tracked_worktree_dirty": false
       },
       {
-        "source_commit": "f84d47ea5bb407b31df6b6943097974168f28536",
+        "source_commit": "270c68830e3a3268b04974fb72762f2e101ef772",
         "tracked_worktree_dirty": false
       },
       {
-        "source_commit": "f84d47ea5bb407b31df6b6943097974168f28536",
+        "source_commit": "270c68830e3a3268b04974fb72762f2e101ef772",
         "tracked_worktree_dirty": false
       },
       {
-        "source_commit": "f84d47ea5bb407b31df6b6943097974168f28536",
+        "source_commit": "270c68830e3a3268b04974fb72762f2e101ef772",
         "tracked_worktree_dirty": false
       }
     ],
     "4246": [
       {
-        "source_commit": "f84d47ea5bb407b31df6b6943097974168f28536",
+        "source_commit": "270c68830e3a3268b04974fb72762f2e101ef772",
         "tracked_worktree_dirty": false
       },
       {
-        "source_commit": "f84d47ea5bb407b31df6b6943097974168f28536",
+        "source_commit": "270c68830e3a3268b04974fb72762f2e101ef772",
         "tracked_worktree_dirty": false
       },
       {
-        "source_commit": "f84d47ea5bb407b31df6b6943097974168f28536",
+        "source_commit": "270c68830e3a3268b04974fb72762f2e101ef772",
         "tracked_worktree_dirty": false
       },
       {
-        "source_commit": "f84d47ea5bb407b31df6b6943097974168f28536",
+        "source_commit": "270c68830e3a3268b04974fb72762f2e101ef772",
         "tracked_worktree_dirty": false
       }
     ]
@@ -2051,9 +2051,9 @@
       "audit_issue_count_total": 0,
       "audited_arm_count": 4,
       "complete_causal_coverage_arms": 0,
-      "fully_attributed_arms": 0,
+      "fully_attributed_arms": 4,
       "structural_formula_pass_arms": 4,
-      "treasury_attributed_turns": 236,
+      "treasury_attributed_turns": 240,
       "treasury_turns": 240
     },
     "4244": {
@@ -2063,9 +2063,9 @@
       "audit_issue_count_total": 0,
       "audited_arm_count": 4,
       "complete_causal_coverage_arms": 0,
-      "fully_attributed_arms": 0,
+      "fully_attributed_arms": 4,
       "structural_formula_pass_arms": 4,
-      "treasury_attributed_turns": 236,
+      "treasury_attributed_turns": 240,
       "treasury_turns": 240
     },
     "4245": {
@@ -2075,9 +2075,9 @@
       "audit_issue_count_total": 0,
       "audited_arm_count": 4,
       "complete_causal_coverage_arms": 0,
-      "fully_attributed_arms": 0,
+      "fully_attributed_arms": 4,
       "structural_formula_pass_arms": 4,
-      "treasury_attributed_turns": 232,
+      "treasury_attributed_turns": 240,
       "treasury_turns": 240
     },
     "4246": {
@@ -2087,9 +2087,9 @@
       "audit_issue_count_total": 0,
       "audited_arm_count": 4,
       "complete_causal_coverage_arms": 0,
-      "fully_attributed_arms": 0,
+      "fully_attributed_arms": 4,
       "structural_formula_pass_arms": 4,
-      "treasury_attributed_turns": 236,
+      "treasury_attributed_turns": 240,
       "treasury_turns": 240
     }
   },
@@ -2100,9 +2100,9 @@
     "audit_issue_count_total": 0,
     "audited_arm_count": 20,
     "complete_causal_coverage_arms": 0,
-    "fully_attributed_arms": 4,
+    "fully_attributed_arms": 20,
     "structural_formula_pass_arms": 20,
-    "treasury_attributed_turns": 1180,
+    "treasury_attributed_turns": 1200,
     "treasury_turns": 1200
   }
 }

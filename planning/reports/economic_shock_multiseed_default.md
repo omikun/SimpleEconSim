@@ -4,19 +4,19 @@ Paired 20-turn screens at seeds 4242, 4243, 4244, 4245, 4246; turns 8–11 are t
 
 Each seed uses an independent world initialization. Within each seed, the control and treatment must match at turn 7. Later RNG streams can diverge after the intervention, so recovery-path differences are not draw-aligned.
 
-Simulation source provenance by seed: 4242 `f84d47ea5bb407b31df6b6943097974168f28536` (dirty arms: 0/4); 4243 `f84d47ea5bb407b31df6b6943097974168f28536` (dirty arms: 0/4); 4244 `f84d47ea5bb407b31df6b6943097974168f28536` (dirty arms: 0/4); 4245 `f84d47ea5bb407b31df6b6943097974168f28536` (dirty arms: 0/4); 4246 `f84d47ea5bb407b31df6b6943097974168f28536` (dirty arms: 0/4).
+Simulation source provenance by seed: 4242 `270c68830e3a3268b04974fb72762f2e101ef772` (dirty arms: 0/4); 4243 `270c68830e3a3268b04974fb72762f2e101ef772` (dirty arms: 0/4); 4244 `270c68830e3a3268b04974fb72762f2e101ef772` (dirty arms: 0/4); 4245 `270c68830e3a3268b04974fb72762f2e101ef772` (dirty arms: 0/4); 4246 `270c68830e3a3268b04974fb72762f2e101ef772` (dirty arms: 0/4).
 
 ## Deep trace and ledger audits
 
-Audited 20/20 arms. Bounded structural/supported-formula checks pass in 20/20 arms with 0 reported issues; public-account closes verify 1200/1200; treasury flows are attributed in 1180/1200 turns, with 4/20 arms fully attributed. Complete causal coverage is present in 0/20 arms.
+Audited 20/20 arms. Bounded structural/supported-formula checks pass in 20/20 arms with 0 reported issues; public-account closes verify 1200/1200; treasury flows are attributed in 1200/1200 turns, with 20/20 arms fully attributed. Complete causal coverage is present in 0/20 arms.
 
 | Seed | Audited arms | Formula pass | Issues | Account closes | Treasury attributed turns | Fully attributed arms |
 |---:|---:|---:|---:|---:|---:|---:|
 | 4242 | 4/4 | 4/4 | 0 | 240/240 | 240/240 | 4/4 |
-| 4243 | 4/4 | 4/4 | 0 | 240/240 | 236/240 | 0/4 |
-| 4244 | 4/4 | 4/4 | 0 | 240/240 | 236/240 | 0/4 |
-| 4245 | 4/4 | 4/4 | 0 | 240/240 | 232/240 | 0/4 |
-| 4246 | 4/4 | 4/4 | 0 | 240/240 | 236/240 | 0/4 |
+| 4243 | 4/4 | 4/4 | 0 | 240/240 | 240/240 | 4/4 |
+| 4244 | 4/4 | 4/4 | 0 | 240/240 | 240/240 | 4/4 |
+| 4245 | 4/4 | 4/4 | 0 | 240/240 | 240/240 | 4/4 |
+| 4246 | 4/4 | 4/4 | 0 | 240/240 | 240/240 | 4/4 |
 
 ## Temporary local wood supply reduction
 
@@ -77,10 +77,10 @@ An absent roster member can have migrated or otherwise left the observed actor s
 
 ## Limits
 
-Five seeds are a diagnostic sample, not a precise uncertainty estimate. Deep audits cover all 20 arms: the bounded structural/formula checks and public-account closes pass, while treasury attribution covers 1,180/1,200 turns; only 4/20 arms have no treasury gaps. Complete causal coverage remains false in 20/20 audited arms. Full goods-stock conservation, broader welfare accounting, prospective recovery evidence, and primary-source calibration remain open in the analysis plan.
+Five seeds are a diagnostic sample, not a precise uncertainty estimate. Deep audits cover all 20 arms: the bounded structural/formula checks and public-account closes pass, while treasury attribution covers 1,200/1,200 turns; only 20/20 arms have no treasury gaps. Complete causal coverage remains false in 20/20 audited arms. Full goods-stock conservation, broader welfare accounting, prospective recovery evidence, and primary-source calibration remain open in the analysis plan.
 
 Reproduce the paired runs with `economic_shock_experiment.py` for each seed, then summarize their saved JSON without re-decoding traces:
 
 ```sh
-venv/bin/python economic_shock_multiseed.py --root tmp/economic-shocks/default-market-receipt-fix --seeds 4242 4243 4244 4245 4246
+venv/bin/python economic_shock_multiseed.py --root tmp/economic-shocks/default-treasury-final --seeds 4242 4243 4244 4245 4246
 ```

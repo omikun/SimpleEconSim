@@ -25,10 +25,13 @@ turn, and median cash changes relative to each person's baseline cash range
 from −1.26 to +2.71 percentage points. These are small, mixed, short-window
 effects, not a long-run resilience finding. The 20 default arms pass bounded
 structural/formula checks and 1,200/1,200 public-account closes. After adding
-source-linked government market-sale and import-escheat receipts, five fresh
-default-game seeds on clean source `f84d47e` attribute 1,180/1,200 treasury
-turns; only 4/20 arms have no gaps. The remaining 20 turns need source-level
-diagnosis before treating the aggregate monetary ledger as closed.
+source-linked government market-sale, import-escheat, government-company
+equity, owner-payment and planner-inventory-sale flows, five fresh default-game
+seeds on clean source `270c688` attribute all 1,200/1,200 treasury turns. All
+20 arms pass bounded structural/formula checks with zero reported issues and
+1,200/1,200 public-account closes. Complete causal coverage remains false, so
+this closes the measured treasury reconciliation gate rather than proving all
+causal sources are instrumented.
 
 ## Implementation progress
 
@@ -36,7 +39,7 @@ diagnosis before treating the aggregate monetary ledger as closed.
 |---|---|---|
 | 1. Baseline evidence and case studies | Complete for the selected 20-turn trace | Added streaming panel extraction and a baseline report. It identifies the furniture-input and local-food cases below; the trace does not cover every household, balance or in-transit stock. |
 | 2. Controlled shock experiments | Five paired 20-turn default-game seeds and five paired supply-rivalry seeds complete; fixed default cohort measured | Default seeds 4242–4246 and scenario seeds 812–816 match complete canonical state at turn 7 for both shock pairs. All five scenario treatments preserve and remove their hooks on schedule; all ten scenario experiment-pairs pass market gates in both arms. The 20 scenario arm traces pass deep accounting and bounded structural/formula audits. Fixed cohorts and an enumerated stock census are captured in scenario arms. In default arms the turn-7 roster is matched for all ten pairs; currency-safe median cash/debt changes and recipient-side wage incidence are reported with person-turn coverage. The commit-pinned reruns are in `planning/reports/economic_shock_multiseed_default.md` and its JSON sidecar. |
-| 3. Criteria and interpretation | Market, bounded formula and public-account gates pass; 20 default treasury turns still need attribution, and recovery remains open | Five fresh default seed pairs and five supply-rivalry pairs match at turn 7 and pass market gates. On clean source `f84d47e`, all 20 default arms pass bounded structural/supported-formula checks with zero reported issues and 1,200/1,200 public-account closes; treasury attribution covers 1,180/1,200 turns, with all four seed-4242 arms fully reconciled. The other 16 arms each retain one or two gaps. Complete causal coverage remains false. Supply-rivalry arms separately pass 800/800 closes and treasury reconciliations. All 400 scenario stock snapshots contain no negative holdings. Recovery remains a short, RNG-divergent diagnostic. |
+| 3. Criteria and interpretation | Default market, bounded formula, public-account and treasury reconciliation gates pass; causal coverage and recovery remain open | Five fresh default seed pairs and five supply-rivalry pairs match at turn 7 and pass market gates. On clean source `270c688`, all 20 default arms pass bounded structural/supported-formula checks with zero reported issues, 1,200/1,200 public-account closes, and 1,200/1,200 attributed treasury turns. Complete causal coverage remains false. Supply-rivalry arms separately pass 800/800 closes and treasury reconciliations. All 400 scenario stock snapshots contain no negative holdings. Recovery remains a short, RNG-divergent diagnostic. |
 | 4. Historical comparison | Analogue and primary-source scoping complete; calibration pending | Lancashire's cotton famine is a documented intermediate-input supply shock relevant to the scenario's cotton-to-cloth chain. Contemporary parliamentary evidence also describes lost export markets, relief and substitution, so it is not a clean single-shock calibration target. Compare mechanisms first; establish common geography, commodity definitions and time units before comparing magnitudes. |
 | 5. Physical stock-flow reconciliation | Bounded cotton/cloth circuit passes; broader goods and default-game closure remain | Fresh traces from clean source `9915c7f` pass all 20 arms and 760/760 intervals across cotton and cloth, with zero reported issues and zero residual at 1e-6 tolerance. Cotton: 1,292 produced, 722 consumed as mill input, 617 consumed by households. Cloth: 1,304 produced, 1,349 consumed by households. The census includes agent/trader stocks and route cargo; market, transfer and route events are treated as internal turnover. This bounded aggregate closure may conceal offsetting uninstrumented flows; complete causal coverage remains false. See `planning/reports/economic_shock_stock_flow_supply_rivalry.md` and its JSON sidecar. |
 
@@ -602,7 +605,19 @@ supply-rivalry screen, recovery diagnostic and deep-audit rollup are in
 `planning/reports/economic_shock_multiseed_supply_rivalry.md` and its JSON
 sidecar. The seed-812 per-arm report and treasury findings are in
 `planning/reports/economic_shock_supply_rivalry_seed812.md` and
-`planning/reports/treasury_flow_attribution_followup.md`. Continue with:
+`planning/reports/treasury_flow_attribution_followup.md`.
+
+The default-game treasury-attribution follow-up is now closed on clean source
+`270c688`. Source-linked flows cover government market sales and import
+escheat, government-funded company incorporation/expansion, cash owner
+payments received by government, and direct inventory liquidation by the elite
+planner. The five-seed rerun passes 1,200/1,200 treasury turns and public
+account closes with zero bounded audit issues. The refreshed report is
+`planning/reports/economic_shock_multiseed_default.md`, with the full rollup
+in its JSON sidecar. This does not change the limits on complete causal
+coverage, stock-flow conservation or historical calibration.
+
+Continue with:
 
 1. Extend the material balance to food, wood, public food stores, and
    default-game goods, including censused non-agent pools and external trade.
@@ -617,33 +632,11 @@ sidecar. The seed-812 per-arm report and treasury findings are in
    transfers where reliable instrumentation exists. Do not label sales less
    selected costs as full profit; add a reconciled profit measure only when
    all relevant accounting legs are observed.
-3. Diagnose and close the remaining default-game treasury-attribution gaps in
-   seeds 4243–4246. Commit `f84d47e` adds source-linked positive flows for
-   government-as-seller market receipts and dead-import-seller escheat. A
-   clean five-seed rerun raises attribution from 1,064/1,200 to 1,180/1,200
-   turns while preserving 1,200/1,200 public-account closes and zero bounded
-   structural/formula issues. The original seed-4243 wood-control T16 residual
-   of +37.057624 matched three c4 government sales (+7.533763, +23.619089 and
-   +5.904772); those receipts now reconcile.
-
-   The current-source traces still have 20 gaps across seeds 4243–4246. In
-   seed-4243 control arms, T20's −151.222689 residual combines a −154.312689
-   government-account write when the elite planner incorporates a company
-   with a +3.09 `region_finance:credit_owner_pay` receipt. Add a linked treasury
-   investment leg for government-funded company equity and a receipt leg when
-   government is the corporate owner. Other observed cases include a separate
-   seed-4243 wood-treatment T20 residual (+9.508183), a repeated seed-4244 T2
-   residual (+2.25), and seed-4245 residuals at T6 (+1.364549) and T10
-   (+1.683145); inspect their public-account writes and flow links. Seed 4246
-   still has one or two gaps per arm and needs its turn-level cause identified.
-   After each added flow, rerun its exact trace first, then refresh all 20 arms
-   before claiming the treasury ledger is closed. Do not infer treasury-flow
-   attribution from account closure alone.
-4. Run the explicit recovery rule prospectively with predeclared tolerances and
+3. Run the explicit recovery rule prospectively with predeclared tolerances and
    sufficient post-shock windows. Current five-seed classifications are
    post-hoc path diagnostics, and post-shock RNG divergence prevents a causal
    recovery claim.
-5. Compare the cotton-supply intervention with Lancashire's cotton famine
+4. Compare the cotton-supply intervention with Lancashire's cotton famine
    only after aligning the model's regions, cotton grades, units and turn
    duration to historical records. Prefer factory-inspector and import/stock
    series over parliamentary estimates; use relief and labor outcomes as
