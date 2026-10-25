@@ -59,7 +59,7 @@ paired sample; the remaining default all-goods balance is still open.
 | 2. Controlled shock experiments | Five paired 20-turn default-game seeds and five paired supply-rivalry seeds complete; fixed default cohort measured | Default seeds 4242–4246 and scenario seeds 812–816 match complete canonical state at turn 7 for both shock pairs. All five scenario treatments preserve and remove their hooks on schedule; all ten scenario experiment-pairs pass market gates in both arms. The 20 scenario arm traces pass deep accounting and bounded structural/formula audits. Fixed cohorts and an enumerated stock census are captured in scenario arms. In default arms the turn-7 roster is matched for all ten pairs; currency-safe median cash/debt changes and recipient-side wage incidence are reported with person-turn coverage. The commit-pinned reruns are in `planning/reports/economic_shock_multiseed_default.md` and its JSON sidecar. |
 | 3. Criteria and interpretation | Default market, bounded formula, public-account and treasury reconciliation gates pass; causal coverage and recovery remain open | Five fresh default seed pairs and five supply-rivalry pairs match at turn 7 and pass market gates. On clean source `270c688`, all 20 default arms pass bounded structural/supported-formula checks with zero reported issues, 1,200/1,200 public-account closes, and 1,200/1,200 attributed treasury turns. Complete causal coverage remains false. Supply-rivalry arms separately pass 800/800 closes and treasury reconciliations. All 400 scenario stock snapshots contain no negative holdings. Recovery remains a short, RNG-divergent diagnostic. |
 | 4. Historical comparison | Analogue and primary-source scoping complete; calibration pending | Lancashire's cotton famine is a documented intermediate-input supply shock relevant to the scenario's cotton-to-cloth chain. Contemporary parliamentary evidence also describes lost export markets, relief and substitution, so it is not a clean single-shock calibration target. Compare mechanisms first; establish common geography, commodity definitions and time units before comparing magnitudes. |
-| 5. Physical stock-flow reconciliation | Supply-rivalry four-good closure complete; fertilizer closes in scoped clean-source default traces; default all-goods closure remains open | The corrected supply-rivalry runs on `8320f31` close cotton, cloth, food and wood in 380/380 intervals each. Default all-goods traces on `258a9b7` show 380/380 closure for cotton and sugar once recorded late corvée yields are included, but full-run closure is 0/20 arms. Food closes 146/380 intervals (maximum residual 1,144), wood 354/380 (4), furniture 329/380 (4), cloth 278/380 (8), and fertilizer 80/380 (27) in that old trace set. The 19-good-plus-fertilizer report is `planning/reports/economic_shock_stock_flow_default_all_goods.md` with its JSON sidecar. Corvée output is a measurement-rule correction based on existing `elite_operator_execution` evidence, not a simulation change. On clean source `7dc4988`, source-linked fertilizer inflow/use deltas close 95/95 intervals across five default wood-supply-control baseline arms (seeds 4242–4246); a separate seed-4242 sample closes fertilizer in 76/76 intervals across all four paired arms. This confirms fertilizer closure in those measured traces only. Food and smaller goods residuals still need source-level diagnosis, and the other four seeds' treatment arms have not been rerun with the new events. Complete causal coverage remains false. |
+| 5. Physical stock-flow reconciliation | Supply-rivalry four-good closure complete; fertilizer closes in scoped clean-source default traces; provincial cargo census reduces default food residuals; full default closure remains open | The corrected supply-rivalry runs on `8320f31` close cotton, cloth, food and wood in 380/380 intervals each. Default all-goods traces on `258a9b7` show 380/380 closure for cotton and sugar once recorded late corvée yields are included, but full-run closure is 0/20 arms. The old food and fertilizer results (146/380, max 1,144; 80/380, max 27) predate some current-source attribution. The 19-good-plus-fertilizer report is `planning/reports/economic_shock_stock_flow_default_all_goods.md` with its JSON sidecar. Corvée output is a measurement-rule correction based on existing `elite_operator_execution` evidence, not a simulation change. On clean source `7dc4988`, source-linked fertilizer inflow/use deltas close 95/95 intervals across five default wood-supply-control baseline arms (seeds 4242–4246); a separate seed-4242 sample closes fertilizer in 76/76 intervals across all four paired arms. On clean source `ebd660c`, counting provincial food shipment cargo lowers the seed-4242 control's maximum food residual from 472 to 160 and closes turn 16 exactly; full-seed food re-audit is now required. Smaller food, wood, furniture and cloth residuals remain. The other four seeds' treatment arms have not been rerun with the new events. Complete causal coverage remains false. |
 
 ### Default all-physical-goods stock-flow diagnosis
 
@@ -107,19 +107,25 @@ not change. The same turn-3 residual is present across the seed-4242 paired
 arms. Code review found that the holdings census omitted the explicit
 `Agent.emergency_food_units` queue, so the census now includes it. A clean
 seed-4242 control rerun on `769a9ae` found this queue at zero in all 20
-checkpoints; adding it did not change the turn-3 residual. Food still closes
-in only 3/19 intervals in that control, with a maximum absolute residual of
-472 units. The queue is not the cause of this observed gap. Source-linked
-logistics events identify an omitted physical pool for several of the largest
-late residuals: a 472-unit provincial food dispatch at turn 16 exactly matches
-that interval's -472 residual, its turn-17 arrival is traced, and the 197-unit
-dispatch/arrival in turns 17–18 aligns with the large positive residuals. A
-further 373 units are dispatched at turn 20 immediately before the trace ends.
-The census now includes `Province.food_shipments` as in-transit food. A fresh
-control trace is pending to measure the corrected balance; other lifecycle
-inventory changes and trade/storage boundaries remain to be reconciled. Do
-not change food rules on the basis of an unattributed residual. The one-arm report is
-`planning/reports/economic_shock_stock_flow_default_food_queue_followup.md`
+checkpoints; adding it did not change the turn-3 residual. Source-linked
+logistics events then identified an omitted pool for several large late
+residuals: a 472-unit provincial dispatch at turn 16 exactly matches the
+-472 residual, its turn-17 arrival is traced, and the 197-unit dispatch/arrival
+in turns 17–18 aligns with large positive residuals. A further 373 units are
+dispatched at turn 20 immediately before the trace ends.
+
+The census now includes `Province.food_shipments` as in-transit food. A clean
+seed-4242 control rerun on `ebd660c` reproduces the prior pre-shock state
+digest. Food closes in 4/19 intervals and its maximum absolute residual falls
+from 472 to 160. The residual is 0 at turn 16; the prior +266 and +191 spikes
+become -9 and -6 at turns 17 and 18 after net cargo changes are counted, while
+the turn-20 residual changes from -378 to -5. The turn-3 -160 residual remains,
+so lifecycle inventory changes and other trade/storage boundaries still need
+reconciliation. Do not change food rules on the basis of the remaining
+unattributed residual. The queue diagnostic is
+`planning/reports/economic_shock_stock_flow_default_food_queue_followup.md`;
+the corrected cargo report is
+`planning/reports/economic_shock_stock_flow_default_food_provincial_cargo.md`
 with interval and checkpoint details in its JSON sidecar.
 
 The machine-readable interval details and source paths are in
@@ -752,8 +758,9 @@ Continue with:
    five baseline controls and all four seed-4242 paired arms on clean source;
    rerun the other four seeds' treatment arms only if full intervention-wide
    fertilizer coverage is needed. The emergency-food queue was zero throughout
-   the fresh seed-4242 control. Provincial food shipments match several large
-   residuals and are now included in the census; rerun before diagnosing the
+   the fresh seed-4242 control. Provincial food shipments explain most of
+   several large residuals and are now included in the census; apply the same
+   boundary correction to the saved five-seed traces, then diagnose the
    remaining lifecycle and trade/storage flows. Then address the smaller wood,
    furniture and cloth residuals. Trace
    external trade and non-agent pools where a residual cannot be distinguished
