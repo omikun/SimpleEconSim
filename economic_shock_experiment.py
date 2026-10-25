@@ -489,6 +489,241 @@ def _scenario_actor_observations(server, turn):
             "cotton_trade_events": trades}
 
 
+def _scenario_household_cohort_roster(server):
+    """Freeze the turn-7 resident cohort for paired household comparisons."""
+    if server.scenario_id != "supply_rivalry":
+        return []
+    roster = []
+    for tile in server.tiles:
+        for actor in getattr(tile, "agents", ()):
+            if (not getattr(actor, "alive", True)
+                    or getattr(actor, "is_corporation", False)
+                    or getattr(actor, "is_government", False)
+                    or getattr(actor, "is_trader", False)
+                    or getattr(actor, "military_unit_id", None)):
+                continue
+            roster.append({
+                "actor_id": int(actor.id),
+                "name": (getattr(actor, "display_name", None)
+                         or f"Actor {actor.id}"),
+                "baseline_tile": tile.name,
+            })
+    return sorted(roster, key=lambda row: row["actor_id"])
+
+
+def _scenario_household_cohort_observations(server, turn, roster):
+    """Sample a fixed resident cohort without adding later births or entrants."""
+    if server.scenario_id != "supply_rivalry" or not roster:
+        return None
+    from goods import Goods
+
+    actors = {int(actor.id): (tile, actor)
+              for tile in server.tiles
+              for actor in getattr(tile, "agents", ())}
+    accounts = {int(row.get("actor_id")): row
+                for tile in server.tiles
+                for row in getattr(tile, "actor_turn_accounts", ())
+                if row.get("actor_id") is not None
+                and int(row.get("turn", -1)) == int(turn)}
+    wage_income = {}
+    for tile in server.tiles:
+        for event in getattr(tile, "economic_events", ()):
+            if (int(event.get("turn", -1)) == int(turn)
+                    and event.get("kind") == "wage"
+                    and event.get("recipient_id") is not None):
+                ident = int(event["recipient_id"])
+                wage_income[ident] = wage_income.get(ident, 0.0) + float(
+                    event.get("amount", 0.0) or 0.0)
+
+    members = []
+    for base in roster:
+        ident = int(base["actor_id"])
+        found = actors.get(ident)
+        if found is None:
+            members.append({**base, "turn": int(turn), "present": False,
+                            "alive": None})
+            continue
+        tile, actor = found
+        account = accounts.get(ident, {})
+        need = max(0.0, float(getattr(actor, "calorie_need_kcal", 0.0) or 0.0))
+        eaten = max(0.0, float(getattr(actor, "last_calories_eaten", 0.0) or 0.0))
+        employer = getattr(actor, "employer", None)
+        debt = account.get("closing_debt")
+        bank_debt = account.get("closing_bank_debt")
+        total_debt = (float(debt or 0.0) + float(bank_debt or 0.0)
+                      if debt is not None or bank_debt is not None else None)
+        members.append({
+            **base,
+            "turn": int(turn),
+            "present": True,
+            "alive": bool(getattr(actor, "alive", True)),
+            "tile": tile.name,
+            "cash": round(float(getattr(actor, "cash", 0.0) or 0.0), 4),
+            "food_stock": int(actor.inv_get(Goods.food, 0)),
+            "calories_needed": round(need, 2),
+            "calories_eaten": round(eaten, 2),
+            "food_need_met_ratio": round(min(1.0, eaten / need), 6)
+            if need > 0 else None,
+            "food_shortfall": eaten + 1e-9 < need if need > 0 else None,
+            "hungry_steps": round(float(getattr(actor, "hungry_steps", 0.0) or 0.0), 4),
+            "debt": debt,
+            "bank_debt": bank_debt,
+            "total_debt": round(total_debt, 4) if total_debt is not None else None,
+            "employer_id": getattr(employer, "id", None),
+            "employer_linked": employer is not None,
+            "occupation": getattr(getattr(actor, "output", None), "name", None),
+            "wage_income_cash": round(wage_income.get(ident, 0.0), 4),
+            "sales_cash": account.get("sales_cash"),
+            "purchases_cash": account.get("purchases_cash"),
+            "input_consumed_cost": account.get("input_consumed_cost"),
+        })
+    return {"turn": int(turn), "baseline_cohort_size": len(roster),
+            "members": members}
+
+
+def _scenario_goods_stock_observation(server, turn):
+    """Census enumerated physical goods holdings in the supply-rivalry world.
+
+    This is a point-in-time holdings census, not a stock-flow conservation
+    proof. All ordinary agents, trader pools, public food stores, and route
+    queues are included; category and object counts make the scope explicit.
+    """
+    if server.scenario_id != "supply_rivalry":
+        return None
+    from goods import Goods
+    from region_logistics import all_routes
+
+    totals = {}
+    seen_public = set()
+    seen_charities = set()
+    scanned_agents = 0
+    agent_categories = {}
+    route_count = 0
+    negative_holdings = []
+
+    def add(tile_name, category, pool, good, quantity, route=None,
+            holder_id=None):
+        try:
+            amount = float(quantity)
+        except (TypeError, ValueError):
+            return
+        if not math.isfinite(amount) or abs(amount) <= 1e-12:
+            return
+        good_name = getattr(good, "name", str(good))
+        if amount < -1e-9:
+            negative_holdings.append({
+                "tile": str(tile_name), "category": category, "pool": pool,
+                "good": good_name, "quantity": round(amount, 6),
+                "route": route, "holder_id": holder_id,
+            })
+        key = (str(tile_name), category, pool, good_name, route)
+        totals[key] = totals.get(key, 0.0) + amount
+
+    def add_array(tile_name, category, pool, values, *, holder_id=None):
+        if values is None:
+            return
+        for good in Goods:
+            if good == Goods.none:
+                continue
+            index = int(good.value)
+            if index < len(values):
+                add(tile_name, category, pool, good, values[index],
+                    holder_id=holder_id)
+
+    for tile in server.tiles:
+        for actor in getattr(tile, "agents", ()):
+            scanned_agents += 1
+            if getattr(actor, "is_trader", False):
+                category = "trader"
+            elif getattr(actor, "is_government", False):
+                category = "government_agent"
+            elif getattr(actor, "is_corporation", False):
+                category = "producer"
+            else:
+                category = "household"
+            agent_categories[category] = agent_categories.get(category, 0) + 1
+            add_array(tile.name, category, "inventory",
+                      getattr(actor, "inventory", None),
+                      holder_id=getattr(actor, "id", None))
+            if category == "trader":
+                add_array(tile.name, category, "export_inventory",
+                          getattr(actor, "inventory_export", None),
+                          holder_id=getattr(actor, "id", None))
+                add_array(tile.name, category, "foreign_inventory",
+                          getattr(actor, "inventory_foreign", None),
+                          holder_id=getattr(actor, "id", None))
+                for destination, values in (getattr(actor, "parked_foreign", {})
+                                            or {}).items():
+                    add_array(destination, category, "parked_foreign", values,
+                              holder_id=getattr(actor, "id", None))
+                for lot in getattr(actor, "transport_pipeline", ()) or ():
+                    good = lot.get("good") if isinstance(lot, dict) else None
+                    quantity = lot.get("quantity", 0) if isinstance(lot, dict) else 0
+                    add(tile.name, "trader", "legacy_transport_pipeline",
+                        good, quantity, holder_id=getattr(actor, "id", None))
+            for good, quantity in (getattr(actor, "custom_inventory", {}) or {}).items():
+                add(tile.name, category, "custom_inventory", good, quantity,
+                    holder_id=getattr(actor, "id", None))
+
+        government = (getattr(tile, "gov", None)
+                      or getattr(getattr(tile, "owner_nation", None),
+                                 "government", None))
+        if government is not None and id(government) not in seen_public:
+            seen_public.add(id(government))
+            add(tile.name, "public", "government_food", Goods.food,
+                getattr(government, "food_inventory", 0),
+                holder_id=getattr(government, "name", "government"))
+        charities = []
+        charity = getattr(tile, "charity", None)
+        if charity is not None:
+            charities.append(charity)
+        charities.extend(getattr(tile, "charities", ()) or ())
+        for charity in charities:
+            if id(charity) in seen_charities:
+                continue
+            seen_charities.add(id(charity))
+            add(tile.name, "public", "charity_food", Goods.food,
+                getattr(charity, "food_inventory", 0),
+                holder_id=getattr(charity, "name", "charity"))
+
+        for route in all_routes(tile):
+            if route is None:
+                continue
+            route_count += 1
+            for shipment in getattr(route, "pending", ()) or ():
+                if len(shipment) >= 3:
+                    add(tile.name, "in_transit", "route_pending",
+                        shipment[1], shipment[2], route.name,
+                        shipment[4] if len(shipment) > 4 else route.name)
+            for shipment in getattr(route, "in_transit", ()) or ():
+                if len(shipment) >= 3:
+                    add(tile.name, "in_transit", "route_in_transit",
+                        shipment[1], shipment[2], route.name,
+                        shipment[5] if len(shipment) > 5 else route.name)
+
+    rows = [{"tile": key[0], "category": key[1], "pool": key[2],
+             "good": key[3], "quantity": round(value, 6), "route": key[4]}
+            for key, value in sorted(totals.items())]
+    negative_holdings.sort(key=lambda row: (
+        row["tile"], row["category"], row["pool"], row["good"],
+        str(row.get("holder_id"))))
+    return {
+        "turn": int(turn),
+        "scope": "all supply-rivalry regions and their current route queues",
+        "coverage": {
+            "region_count": len(server.tiles),
+            "agents_scanned": scanned_agents,
+            "agent_counts_by_category": dict(sorted(agent_categories.items())),
+            "distinct_government_stores": len(seen_public),
+            "distinct_charity_stores": len(seen_charities),
+            "routes_scanned": route_count,
+            "negative_stock_row_count": len(negative_holdings),
+        },
+        "negative_stock_rows": negative_holdings,
+        "stocks": rows,
+    }
+
+
 def _scenario_route_events(trace_path, scenario_id):
     if scenario_id != "supply_rivalry":
         return []
@@ -601,6 +836,9 @@ def _run_child(experiment_id, arm, seed, out_path, audit_trace=False):
     final_state_digest = None
     time_series = []
     scenario_actor_observations = []
+    scenario_household_cohort_roster = []
+    scenario_household_cohort_observations = []
+    scenario_goods_stock_observations = []
     hook_observations = []
     target_tile, target_selection = _select_target_tile(server, experiment_id)
     for next_turn in range(1, TURN_COUNT + 1):
@@ -621,6 +859,16 @@ def _run_child(experiment_id, arm, seed, out_path, audit_trace=False):
             server, server.turn, target_tile.name,
             include_all_tiles=scenario_id == "supply_rivalry"))
         if scenario_id == "supply_rivalry":
+            if server.turn == SHOCK_START - 1:
+                scenario_household_cohort_roster = (
+                    _scenario_household_cohort_roster(server))
+            cohort_observation = _scenario_household_cohort_observations(
+                server, server.turn, scenario_household_cohort_roster)
+            if cohort_observation is not None:
+                scenario_household_cohort_observations.append(
+                    cohort_observation)
+            scenario_goods_stock_observations.append(
+                _scenario_goods_stock_observation(server, server.turn))
             scenario_actor_observations.append(
                 _scenario_actor_observations(server, server.turn))
             hook_state = _intervention_hook_observation(
@@ -675,6 +923,10 @@ def _run_child(experiment_id, arm, seed, out_path, audit_trace=False):
         "trace_quality_gates": trace_gates,
         "snapshot_time_series": time_series,
         "scenario_actor_observations": scenario_actor_observations,
+        "scenario_household_cohort_roster": scenario_household_cohort_roster,
+        "scenario_household_cohort_observations": (
+            scenario_household_cohort_observations),
+        "scenario_goods_stock_observations": scenario_goods_stock_observations,
         "scenario_route_events": scenario_routes,
         "scenario_mill_order_events": scenario_mill_orders,
         "intervention_hook_observations": hook_observations,
@@ -925,6 +1177,12 @@ def _quality_payload(run):
         "market_mechanical_gates": run.get("market_mechanical_gates"),
         "trace_quality_gates": run.get("trace_quality_gates"),
         "scenario_actor_observations": run.get("scenario_actor_observations", []),
+        "scenario_household_cohort_roster": run.get(
+            "scenario_household_cohort_roster", []),
+        "scenario_household_cohort_observations": run.get(
+            "scenario_household_cohort_observations", []),
+        "scenario_goods_stock_observations": run.get(
+            "scenario_goods_stock_observations", []),
         "scenario_route_events": run.get("scenario_route_events", []),
         "scenario_mill_order_events": run.get("scenario_mill_order_events", []),
         "intervention_hook_observations": run.get(

@@ -2,8 +2,10 @@ import unittest
 
 from economic_shock_scenario_multiseed import (
     _deep_audit_summary,
+    household_cohort_effects,
     market_window_effect,
     mill_order_summary,
+    physical_stock_effects,
     recovery_assessment,
 )
 
@@ -94,6 +96,76 @@ class ScenarioMultiSeedTests(unittest.TestCase):
         self.assertEqual(result["target_uplift_sum"], 2)
         self.assertEqual(result["submitted_bid_units"], 6)
         self.assertEqual(result["override_events"], 1)
+
+    def test_household_effects_compare_a_fixed_turn7_cohort(self):
+        def arm(treatment):
+            observations = []
+            for turn in range(7, 12):
+                cash = 10 + (turn - 7) * (2 if treatment else 1)
+                observations.append({
+                    "turn": turn,
+                    "members": [{
+                        "actor_id": 41, "present": True, "alive": True,
+                        "cash": cash, "food_stock": 3 + (turn - 7),
+                        "total_debt": 2.0, "food_need_met_ratio":
+                        0.75 if treatment else 0.5,
+                        "food_shortfall": not treatment,
+                        "employer_linked": treatment,
+                        "calories_eaten": 1500 if treatment else 1000,
+                        "wage_income_cash": 2 if treatment else 1,
+                        "sales_cash": 3 if treatment else 1,
+                        "purchases_cash": 4 if treatment else 5,
+                    }],
+                })
+            return {
+                "scenario_household_cohort_roster": [{"actor_id": 41}],
+                "scenario_household_cohort_observations": observations,
+            }
+
+        result = household_cohort_effects({
+            "control_result_data": arm(False),
+            "treatment_result_data": arm(True),
+        })
+        metrics = result["metrics"]
+        self.assertEqual(result["paired_baseline_members"], 1)
+        self.assertEqual(metrics["cash"]["effect"], 4)
+        self.assertEqual(metrics["food_need_met_ratio"]["effect"], 0.25)
+        self.assertEqual(metrics["food_shortfall"]["effect"], -1.0)
+        self.assertEqual(metrics["employer_linked"]["effect"], 1.0)
+        self.assertEqual(metrics["wage_income_cash"]["effect"], 1.0)
+
+    def test_physical_stock_effects_keep_census_gaps_missing(self):
+        def arm(quantity, include_t11=True):
+            observations = [{
+                "turn": 7,
+                "coverage": {"agents_scanned": 2},
+                "stocks": [{"category": "household", "pool": "inventory",
+                            "good": "cotton", "quantity": 10}],
+            }]
+            if include_t11:
+                observations.append({
+                    "turn": 11,
+                    "coverage": {"agents_scanned": 2},
+                    "stocks": [{"category": "household", "pool": "inventory",
+                                "good": "cotton", "quantity": quantity}],
+                })
+            return {"scenario_goods_stock_observations": observations}
+
+        result = physical_stock_effects({
+            "control_result_data": arm(8),
+            "treatment_result_data": arm(6),
+        })
+        stock = result["stocks"][0]
+        self.assertEqual(stock["points"]["7"]["treatment_minus_control"], 0)
+        self.assertEqual(stock["points"]["11"]["treatment_minus_control"], -2)
+        self.assertEqual(stock["shock_window_change_effect"], -2)
+
+        missing = physical_stock_effects({
+            "control_result_data": arm(8, include_t11=False),
+            "treatment_result_data": arm(6, include_t11=False),
+        })
+        self.assertIsNone(missing["stocks"][0]["points"]["11"][
+            "treatment_minus_control"])
 
 
 if __name__ == "__main__":

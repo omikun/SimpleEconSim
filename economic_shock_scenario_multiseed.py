@@ -65,6 +65,10 @@ def _is_number(value):
     return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
+def _abs_nonzero(value):
+    return _is_number(value) and abs(float(value)) > 1e-9
+
+
 def market_window_effect(pair: dict, tile: str, good: str, key: str,
                          statistic: str, start: int = SHOCK_START,
                          end: int = SHOCK_END) -> dict:
@@ -277,6 +281,228 @@ def actor_effects(pair: dict, name: str) -> dict:
     }
 
 
+def _household_rows(run: dict, turn: int) -> dict[int, dict]:
+    return {
+        int(member["actor_id"]): member
+        for snapshot in run.get("scenario_household_cohort_observations", [])
+        if int(snapshot.get("turn", -1)) == int(turn)
+        for member in snapshot.get("members", [])
+        if member.get("actor_id") is not None
+    }
+
+
+def _paired_mean_effect(control_values, treatment_values, *, expected,
+                        unit=None):
+    paired = [(float(control_values[key]), float(treatment_values[key]))
+              for key in sorted(control_values.keys() & treatment_values.keys())
+              if _is_number(control_values[key])
+              and _is_number(treatment_values[key])]
+    control_mean = statistics.fmean(row[0] for row in paired) if paired else None
+    treatment_mean = statistics.fmean(row[1] for row in paired) if paired else None
+    return {
+        "effect": treatment_mean - control_mean
+        if paired else None,
+        "control_mean": control_mean,
+        "treatment_mean": treatment_mean,
+        "observed": len(paired),
+        "expected": expected,
+        "unit": unit,
+    }
+
+
+def household_cohort_effects(pair: dict) -> dict:
+    """Compare a fixed turn-7 resident cohort without treating missing as zero."""
+    controls = pair.get("control_result_data", {})
+    treatments = pair.get("treatment_result_data", {})
+    c_roster = {int(row["actor_id"]) for row in
+                controls.get("scenario_household_cohort_roster", [])}
+    t_roster = {int(row["actor_id"]) for row in
+                treatments.get("scenario_household_cohort_roster", [])}
+    cohort_ids = c_roster & t_roster
+    baseline_c = _household_rows(controls, SHOCK_START - 1)
+    baseline_t = _household_rows(treatments, SHOCK_START - 1)
+    end_c = _household_rows(controls, SHOCK_END)
+    end_t = _household_rows(treatments, SHOCK_END)
+    metrics = {}
+
+    for field, label, unit in (
+            ("cash", "Cash", "local_currency"),
+            ("food_stock", "Food stock", "food_units"),
+            ("total_debt", "Total debt", "local_currency")):
+        control_change, treatment_change = {}, {}
+        for ident in cohort_ids:
+            c0, c1 = baseline_c.get(ident), end_c.get(ident)
+            t0, t1 = baseline_t.get(ident), end_t.get(ident)
+            if (c0 and c1 and t0 and t1 and c1.get("present")
+                    and t1.get("present") and all(
+                        _is_number(row.get(field)) for row in (c0, c1, t0, t1))):
+                control_change[ident] = c1[field] - c0[field]
+                treatment_change[ident] = t1[field] - t0[field]
+        effect = _paired_mean_effect(
+            control_change, treatment_change, expected=len(cohort_ids), unit=unit)
+        effect.update({"label": label, "comparison": "mean per-member T7-to-T11 change"})
+        metrics[field] = effect
+
+    shock_rows_c = {turn: _household_rows(controls, turn)
+                    for turn in range(SHOCK_START, SHOCK_END + 1)}
+    shock_rows_t = {turn: _household_rows(treatments, turn)
+                    for turn in range(SHOCK_START, SHOCK_END + 1)}
+    expected_person_turns = len(cohort_ids) * (SHOCK_END - SHOCK_START + 1)
+
+    def member_turn_values(field, *, predicate=None):
+        control_values, treatment_values = {}, {}
+        for turn in range(SHOCK_START, SHOCK_END + 1):
+            c_rows, t_rows = shock_rows_c[turn], shock_rows_t[turn]
+            for ident in cohort_ids:
+                c_row, t_row = c_rows.get(ident), t_rows.get(ident)
+                if (c_row is None or t_row is None or not c_row.get("present")
+                        or not t_row.get("present")):
+                    continue
+                c_value, t_value = c_row.get(field), t_row.get(field)
+                if predicate is not None:
+                    c_value, t_value = predicate(c_row), predicate(t_row)
+                if c_value is None or t_value is None:
+                    continue
+                key = (turn, ident)
+                control_values[key] = c_value
+                treatment_values[key] = t_value
+        return control_values, treatment_values
+
+    for field, label, unit in (
+            ("food_need_met_ratio", "Calorie need met", "share_of_need"),
+            ("employer_linked", "Employer-linked", "share_of_cohort")):
+        c_values, t_values = member_turn_values(
+            field, predicate=(lambda row: float(row.get(field) is True))
+            if field == "employer_linked" else None)
+        effect = _paired_mean_effect(c_values, t_values,
+                                     expected=expected_person_turns, unit=unit)
+        effect.update({"label": label,
+                       "comparison": "mean of observed person-turns, T8-T11"})
+        metrics[field] = effect
+
+    def is_shortfall(row):
+        return (1.0 if row.get("food_shortfall") is True else
+                0.0 if row.get("food_shortfall") is False else None)
+
+    c_shortfall, t_shortfall = member_turn_values("food_shortfall",
+                                                   predicate=is_shortfall)
+    shortfall = _paired_mean_effect(c_shortfall, t_shortfall,
+                                    expected=expected_person_turns,
+                                    unit="share_of_person_turns")
+    shortfall.update({"label": "Food shortfall", "comparison":
+                      "share of observed person-turns, T8-T11"})
+    metrics["food_shortfall"] = shortfall
+
+    for field, label in (("calories_eaten", "Calories eaten"),
+                         ("wage_income_cash", "Wage income"),
+                         ("sales_cash", "Sales cash"),
+                         ("purchases_cash", "Purchase cash"),
+                         ("input_consumed_cost", "Input cost")):
+        c_values, t_values = member_turn_values(field)
+        effect = _paired_mean_effect(c_values, t_values,
+                                     expected=expected_person_turns,
+                                     unit="kcal/person-turn" if field == "calories_eaten"
+                                     else "local_currency/person-turn")
+        effect.update({"label": label,
+                       "comparison": "mean per observed person-turn, T8-T11"})
+        metrics[field] = effect
+
+    c_alive = {ident: float(end_c[ident].get("alive") is True)
+               for ident in cohort_ids if ident in end_c
+               and end_c[ident].get("present")
+               and end_c[ident].get("alive") is not None}
+    t_alive = {ident: float(end_t[ident].get("alive") is True)
+               for ident in cohort_ids if ident in end_t
+               and end_t[ident].get("present")
+               and end_t[ident].get("alive") is not None}
+    survival = _paired_mean_effect(c_alive, t_alive,
+                                   expected=len(cohort_ids), unit="share_of_cohort")
+    survival.update({"label": "Alive at T11",
+                     "comparison": "turn-11 baseline-cohort share"})
+    metrics["alive_t11"] = survival
+
+    return {
+        "baseline_cohort_control": len(c_roster),
+        "baseline_cohort_treatment": len(t_roster),
+        "paired_baseline_members": len(cohort_ids),
+        "shock_person_turns_expected": expected_person_turns,
+        "metrics": metrics,
+    }
+
+
+def _stock_totals_at_turn(run: dict, turn: int) -> tuple[dict, dict | None]:
+    snapshot = next((row for row in run.get("scenario_goods_stock_observations", [])
+                     if int(row.get("turn", -1)) == int(turn)), None)
+    if snapshot is None:
+        return {}, None
+    totals = {}
+    for row in snapshot.get("stocks", []):
+        key = (row.get("category"), row.get("pool"), row.get("good"))
+        totals[key] = totals.get(key, 0.0) + float(row.get("quantity", 0.0))
+    return totals, snapshot.get("coverage")
+
+
+def physical_stock_effects(pair: dict,
+                           turns=(SHOCK_START - 1, SHOCK_END, 20)) -> dict:
+    """Return holdings deltas, retaining census coverage per arm and turn."""
+    controls = pair.get("control_result_data", {})
+    treatments = pair.get("treatment_result_data", {})
+    control_by_turn, treatment_by_turn = {}, {}
+    coverage = {"control": {}, "treatment": {}}
+    for turn in turns:
+        control_by_turn[turn], coverage["control"][str(turn)] = (
+            _stock_totals_at_turn(controls, turn))
+        treatment_by_turn[turn], coverage["treatment"][str(turn)] = (
+            _stock_totals_at_turn(treatments, turn))
+    keys = set().union(*(set(values) for values in
+                         [*control_by_turn.values(), *treatment_by_turn.values()]))
+    rows = []
+    for category, pool, good in sorted(keys):
+        points = {}
+        for turn in turns:
+            c_values, t_values = control_by_turn[turn], treatment_by_turn[turn]
+            if coverage["control"][str(turn)] is None or coverage["treatment"][str(turn)] is None:
+                control = treatment = difference = None
+            else:
+                control = c_values.get((category, pool, good), 0.0)
+                treatment = t_values.get((category, pool, good), 0.0)
+                difference = treatment - control
+            points[str(turn)] = {"control": control, "treatment": treatment,
+                                 "treatment_minus_control": difference}
+        first = points[str(turns[0])]["treatment_minus_control"]
+        shock_end = points[str(SHOCK_END)]["treatment_minus_control"]
+        rows.append({
+            "category": category, "pool": pool, "good": good,
+            "points": points,
+            "shock_window_change_effect": (
+                shock_end - first if first is not None and shock_end is not None
+                else None),
+        })
+    return {"turns": list(turns), "coverage": coverage, "stocks": rows}
+
+
+def _stock_census_quality(pair: dict) -> dict:
+    arms = {}
+    for arm_name, field in (("control", "control_result_data"),
+                            ("treatment", "treatment_result_data")):
+        run = pair.get(field, {})
+        snapshots = run.get("scenario_goods_stock_observations", [])
+        by_turn = {int(row.get("turn", -1)): row for row in snapshots}
+        negative_rows = [
+            {"turn": int(snapshot.get("turn", -1)), **row}
+            for snapshot in snapshots
+            for row in snapshot.get("negative_stock_rows", [])]
+        t7 = by_turn.get(SHOCK_START - 1, {})
+        arms[arm_name] = {
+            "turns_observed": len(snapshots),
+            "turns_expected": 20,
+            "baseline_coverage": t7.get("coverage"),
+            "negative_stock_observation_count": len(negative_rows),
+            "negative_stock_observations": negative_rows,
+        }
+    return arms
+
+
 def _route_summary(run: dict) -> dict:
     rows = run.get("scenario_route_events", [])
     window = [row for row in rows
@@ -424,6 +650,8 @@ def summarize(root: Path, seeds: list[int]) -> dict:
                     pair, tile, good, key, statistic)
                 markets[measure_id]["label"] = label
             actors = {name: actor_effects(pair, name) for name in ACTORS}
+            household_cohort = household_cohort_effects(pair)
+            physical_stocks = physical_stock_effects(pair)
             control_orders = mill_order_summary(control, target_ids)
             treatment_orders = mill_order_summary(treatment, target_ids)
             recovery = {
@@ -457,6 +685,9 @@ def summarize(root: Path, seeds: list[int]) -> dict:
                 "market_gates": gates,
                 "markets": markets,
                 "actors": actors,
+                "household_cohort": household_cohort,
+                "physical_stocks": physical_stocks,
+                "stock_census_quality": _stock_census_quality(pair),
                 "mill_orders": {"control": control_orders,
                                 "treatment": treatment_orders},
                 "recovery": recovery,
@@ -654,6 +885,114 @@ def render_report(summary: dict) -> str:
                   "denominator is four. These are observed transactions, not a "
                   "complete profit calculation. A stock value is unavailable "
                   "when either arm lacks the same actor at turn 7 or 11.", "",
+                  "### Turn-7 household cohort", "",
+                  "The roster freezes all living non-company, non-government, "
+                  "non-trader residents in both scenario regions at turn 7. "
+                  "Effects compare matched baseline members; turn-8–11 flow "
+                  "metrics are per observed person-turn. Employer linkage is a "
+                  "status proxy, and calorie intake is compared with each "
+                  "person's recorded calorie need. This is the complete resident "
+                  "cohort for this small scenario, not a general population "
+                  "welfare index.", "",
+                  "| Seed | Baseline members C/T | Matched | Alive T11 (pp) | "
+                  "Need met (pp) | Food shortfall (pp) | Employer-linked (pp) | "
+                  "Calories (kcal/person-turn) | Cash change/person | "
+                  "Debt change/person | Wages/person-turn | Sales/person-turn | "
+                  "Purchases/person-turn | Input cost/person-turn |",
+                  "|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|"]
+        for seed in seeds:
+            cohort = experiment["by_seed"][str(seed)]["household_cohort"]
+            metrics = cohort["metrics"]
+
+            def cohort_cell(field, *, percentage=False):
+                metric = metrics[field]
+                value = metric.get("effect")
+                if value is None:
+                    rendered = "—"
+                elif percentage:
+                    rendered = f"{100.0 * value:+.2f}"
+                else:
+                    rendered = f"{value:+.2f}"
+                return f"{rendered} ({metric['observed']}/{metric['expected']})"
+
+            cells = [
+                seed,
+                f"{cohort['baseline_cohort_control']}/"
+                f"{cohort['baseline_cohort_treatment']}",
+                cohort["paired_baseline_members"],
+                cohort_cell("alive_t11", percentage=True),
+                cohort_cell("food_need_met_ratio", percentage=True),
+                cohort_cell("food_shortfall", percentage=True),
+                cohort_cell("employer_linked", percentage=True),
+                cohort_cell("calories_eaten"), cohort_cell("cash"),
+                cohort_cell("total_debt"), cohort_cell("wage_income_cash"),
+                cohort_cell("sales_cash"), cohort_cell("purchases_cash"),
+                cohort_cell("input_consumed_cost"),
+            ]
+            lines.append("| " + " | ".join(map(str, cells)) + " |")
+        lines += ["", "Percentage entries are treatment-minus-control percentage "
+                  "point effects. Parentheses show matched members or observed "
+                  "person-turns over expected coverage; missing or migrated-out "
+                  "members are not silently imputed as zero.", "",
+                  "### Physical holdings census", "",
+                  "The census sums every agent's ordinary inventory and the "
+                  "trader export, foreign, parked and legacy-pipeline pools; it "
+                  "also counts distinct government/charity food stores and "
+                  "pending/in-transit route cargo. It is a complete point-in-time "
+                  "census of these enumerated supply-rivalry stores, not a "
+                  "goods-flow conservation proof. The JSON sidecar retains all "
+                  "goods and turns; this table shows food, cotton and cloth at "
+                  "T7, T11 and T20.", "",
+                  "| Seed | T7 agents / routes / public stores | Negative stock observations C/T | "
+                  "Good | Holder / pool | T7 C/T | T11 C/T | T7-to-T11 change effect | "
+                  "T20 C/T |",
+                  "|---:|---|---:|---|---|---:|---:|---:|---:|"]
+        for seed in seeds:
+            seed_data = experiment["by_seed"][str(seed)]
+            stocks = seed_data["physical_stocks"]["stocks"]
+            quality = seed_data["stock_census_quality"]
+            c_quality, t_quality = quality["control"], quality["treatment"]
+            c_coverage = c_quality.get("baseline_coverage") or {}
+            t_coverage = t_quality.get("baseline_coverage") or {}
+            coverage_text = (
+                f"{c_coverage.get('agents_scanned', '—')}/"
+                f"{t_coverage.get('agents_scanned', '—')} agents; "
+                f"{c_coverage.get('routes_scanned', '—')}/"
+                f"{t_coverage.get('routes_scanned', '—')} routes; "
+                f"{c_coverage.get('distinct_government_stores', '—')}+"
+                f"{c_coverage.get('distinct_charity_stores', '—')} public stores")
+            negative_text = (
+                f"{c_quality['negative_stock_observation_count']}/"
+                f"{t_quality['negative_stock_observation_count']}")
+            selected = [row for row in stocks
+                        if row["good"] in {"food", "cotton", "cloth"}
+                        and any(_is_number(point.get("control"))
+                                and (_abs_nonzero(point.get("control"))
+                                     or _abs_nonzero(point.get("treatment")))
+                                for point in row["points"].values())]
+            if not selected:
+                lines.append(f"| {seed} | {coverage_text} | {negative_text} | "
+                             "— | no nonzero holdings in selected goods | — | — | — | — |")
+            for index, row in enumerate(selected):
+                def stock_pair(turn):
+                    point = row["points"].get(str(turn), {})
+                    control, treatment = point.get("control"), point.get("treatment")
+                    if control is None or treatment is None:
+                        return "—"
+                    return f"{control:.1f}/{treatment:.1f}"
+
+                lines.append("| " + " | ".join(map(str, [
+                    seed if index == 0 else "", coverage_text if index == 0 else "",
+                    negative_text if index == 0 else "", row["good"],
+                    f"{row['category']} / {row['pool']}", stock_pair(7),
+                    stock_pair(11),
+                    _fmt(row.get("shock_window_change_effect")),
+                    stock_pair(20),
+                ])) + " |")
+        lines += ["", "Negative-stock counts are negative category/pool/good "
+                  "holdings observed over all 20 turns in each arm. They are "
+                  "preserved as findings for follow-up, not clamped during "
+                  "census or report aggregation.", "",
                   "### Post-shock return to control bands", "",
                   "Descriptive recovery rule: after the shock is removed, a "
                   "measure is within band when quantity differences are no more "
