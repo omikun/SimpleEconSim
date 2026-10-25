@@ -19,6 +19,21 @@ attribution for these traces and the currently instrumented mutation sites.
 They do not prove complete goods-stock conservation or cover every possible
 writer in every scenario.
 
+## Refreshed supply-rivalry audit after charity inventory fix
+
+After the charity distribution guard prevented one-unit transfers from
+fractional balances, the saved seed-812–816 scenario traces were replayed
+again with the corrected whole-unit charity formula. The fresh simulations
+were generated from clean source commit
+`3056a95d62c96a2b50e5eb0030d97f1c94d868b4`; the replay uses the subsequent
+audit fix that floors the fractional balance rather than rounding it up.
+All 20 arm traces pass bounded formula/structural checks, all 800/800
+public-account closes and 800/800 treasury turns reconcile, and the maximum
+absolute residual is 1.727632e-12. The replay reports zero issues. The stock
+census contains zero negative holdings in all 400 arm-turn observations.
+These checks still leave `complete_causal_coverage` false and do not establish
+physical goods-flow conservation.
+
 The follow-up also audited all four arms of the clean-source seed-812
 `supply_rivalry` experiment after tracing and instrumenting the government-paid
 machinery-repair receipt:

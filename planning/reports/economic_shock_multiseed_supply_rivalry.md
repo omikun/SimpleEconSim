@@ -2,7 +2,7 @@
 
 Matched 20-turn runs at seeds 812, 813, 814, 815, 816. The two interventions are analyzed separately; turns 8–11 are the shock window and later differences are not draw-aligned after RNG paths diverge. Per-seed ranges are descriptive, not confidence intervals or empirical calibration.
 
-Simulation provenance by seed: 812: `38d7a4413196ac5c27e17b5746ff9d78c91c7bf0` (4 arms; dirty 0); 813: `38d7a4413196ac5c27e17b5746ff9d78c91c7bf0` (4 arms; dirty 0); 814: `38d7a4413196ac5c27e17b5746ff9d78c91c7bf0` (4 arms; dirty 0); 815: `38d7a4413196ac5c27e17b5746ff9d78c91c7bf0` (4 arms; dirty 0); 816: `38d7a4413196ac5c27e17b5746ff9d78c91c7bf0` (4 arms; dirty 0).
+Simulation provenance by seed: 812: `3056a95d62c96a2b50e5eb0030d97f1c94d868b4` (4 arms; dirty 0); 813: `3056a95d62c96a2b50e5eb0030d97f1c94d868b4` (4 arms; dirty 0); 814: `3056a95d62c96a2b50e5eb0030d97f1c94d868b4` (4 arms; dirty 0); 815: `3056a95d62c96a2b50e5eb0030d97f1c94d868b4` (4 arms; dirty 0); 816: `3056a95d62c96a2b50e5eb0030d97f1c94d868b4` (4 arms; dirty 0).
 
 ## Deep trace audits
 
@@ -104,16 +104,16 @@ The census sums every agent's ordinary inventory and the trader export, foreign,
 
 | Seed | T7 agents / routes / public stores | Negative stock observations C/T | Good | Holder / pool | T7 C/T | T11 C/T | T7-to-T11 change effect | T20 C/T |
 |---:|---|---:|---|---|---:|---:|---:|---:|
-| 812 | 44/44 agents; 2/2 routes; 2+2 public stores | 0/4 | cloth | household / inventory | 3.0/3.0 | 8.0/8.0 | 0.00 | 2.0/2.0 |
+| 812 | 44/44 agents; 2/2 routes; 2+2 public stores | 0/0 | cloth | household / inventory | 3.0/3.0 | 8.0/8.0 | 0.00 | 2.0/2.0 |
 |  |  |  | cotton | household / inventory | 12.0/12.0 | 1.0/0.0 | -1.00 | 0.0/0.0 |
 |  |  |  | food | household / inventory | 210.0/210.0 | 241.0/242.0 | 1.00 | 349.0/367.0 |
 |  |  |  | cloth | producer / inventory | 19.0/19.0 | 8.0/8.0 | 0.00 | 0.0/0.0 |
 |  |  |  | cotton | producer / inventory | 0.0/0.0 | 10.0/8.0 | -2.00 | 0.0/0.0 |
 |  |  |  | food | producer / inventory | 35.0/35.0 | 40.0/40.0 | 0.00 | 36.0/33.0 |
-|  |  |  | food | public / charity_food | 0.0/0.0 | 0.0/0.0 | 0.00 | 0.0/-0.5 |
+|  |  |  | food | public / charity_food | 0.0/0.0 | 0.0/0.0 | 0.00 | 0.0/0.5 |
 |  |  |  | food | public / government_food | 102.0/102.0 | 121.0/121.0 | 0.00 | 110.0/108.5 |
 |  |  |  | cotton | trader / foreign_inventory | 4.0/4.0 | 0.0/0.0 | 0.00 | 0.0/0.0 |
-|  |  |  | food | trader / inventory | 8.0/8.0 | 1.0/0.0 | -1.00 | 1.0/0.0 |
+|  |  |  | food | trader / inventory | 8.0/8.0 | 1.0/0.0 | -1.00 | 1.0/1.0 |
 | 813 | 44/44 agents; 2/2 routes; 2+2 public stores | 0/0 | cloth | household / inventory | 3.0/3.0 | 7.0/7.0 | 0.00 | 6.0/3.0 |
 |  |  |  | cotton | household / inventory | 0.0/0.0 | 3.0/1.0 | -2.00 | 2.0/0.0 |
 |  |  |  | food | household / inventory | 187.0/187.0 | 198.0/202.0 | 4.00 | 355.0/251.0 |
@@ -344,12 +344,14 @@ A result of no detectable shock-window response means the metric never moved out
 
 ## Audit scope and interpretation
 
-All seed pairs share complete canonical state at turn 7, and all treatment hooks pass through the shock and restore before turn 12. Both arms pass the market settlement-bound checks in every seed pair. The table above reports the deep-accounting and structural checks for each retained arm trace. See `economic_shock_supply_rivalry_seed812.md` and the treasury follow-up for residuals and limitations.
+All seed pairs share complete canonical state at turn 7, and all treatment hooks pass through the shock and restore before turn 12. Both arms pass the market settlement-bound checks in every seed pair. The table above reports the deep-accounting and structural checks for each retained arm trace. Across all 20 arms, the saved-trace replay reconciles 800/800 public-account closes and 800/800 treasury turns, with zero bounded formula or structural issues and a maximum residual of 1.73e-12. See `economic_shock_supply_rivalry_seed812.md` and the treasury follow-up for residuals and limitations.
 
-The five-seed sample describes local mechanism response in this fixed scenario. It does not establish general supply-chain resilience, population welfare, goods-stock conservation, causal recovery, or historical realism. Complete causal coverage remains false. No route event in a shock window means that seed did not exercise a new shipping response; it does not establish that trade is generally unresponsive. Stable named-actor snapshots improve cohort comparability but omit households outside the scenario instrumentation.
+The five-seed sample describes local mechanism response in this fixed scenario. It does not establish general supply-chain resilience, population-wide welfare outside these two regions, goods-stock conservation, causal recovery, or historical realism. Complete causal coverage remains false. No route event in a shock window means that seed did not exercise a new shipping response; it does not establish that trade is generally unresponsive. Named-actor snapshots cover only the four focal firms/growers; the separate fixed turn-7 cohort table covers all 34 ordinary resident people in the two-region scenario.
+
+The pre-fix census found a -0.5 food balance at Rival Port charity in seed 812's cotton-supply treatment at turns 17–20. The charity now waits for a full food unit before each one-unit aid transfer. All 400 post-fix arm-turn stock censuses contain zero negative holdings. The default-game seed-4242 paired control also retains matched turn-7 state and passes market settlement, treasury attribution, and bounded formula gates in all four arms (240/240 account closes and treasury turns, with zero formula issues).
 
 Reproduce each clean-source pair with `economic_shock_experiment.py --scenario supply_rivalry`, then summarize the saved JSON without re-decoding traces:
 
 ```sh
-venv/bin/python economic_shock_scenario_multiseed.py --root tmp/economic-shocks/supply-rivalry --seeds 812 813 814 815 816
+venv/bin/python economic_shock_scenario_multiseed.py --root tmp/economic-shocks/supply-rivalry-post-charity-fix --seeds 812 813 814 815 816
 ```

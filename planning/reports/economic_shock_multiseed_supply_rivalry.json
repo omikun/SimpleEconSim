@@ -19,7 +19,7 @@
         "treasury_turns_expected": 40
       },
       {
-        "absolute_residual_total": 9.968553760231202e-13,
+        "absolute_residual_total": 1.1105422137447363e-12,
         "account_closes_expected": 40,
         "account_closes_verified": 40,
         "arm": "treatment",
@@ -1028,14 +1028,14 @@
                 "20": {
                   "agent_counts_by_category": {
                     "government_agent": 2,
-                    "household": 36,
+                    "household": 38,
                     "producer": 2,
                     "trader": 5
                   },
-                  "agents_scanned": 45,
+                  "agents_scanned": 47,
                   "distinct_charity_stores": 2,
                   "distinct_government_stores": 2,
-                  "negative_stock_row_count": 1,
+                  "negative_stock_row_count": 0,
                   "region_count": 2,
                   "routes_scanned": 2
                 },
@@ -1251,8 +1251,8 @@
                   },
                   "20": {
                     "control": 0.0,
-                    "treatment": -0.5,
-                    "treatment_minus_control": -0.5
+                    "treatment": 0.5,
+                    "treatment_minus_control": 0.5
                   },
                   "7": {
                     "control": 0.0,
@@ -1320,8 +1320,8 @@
                   },
                   "20": {
                     "control": 1.0,
-                    "treatment": 0.0,
-                    "treatment_minus_control": -1.0
+                    "treatment": 1.0,
+                    "treatment_minus_control": 0.0
                   },
                   "7": {
                     "control": 8.0,
@@ -1516,49 +1516,8 @@
                 "region_count": 2,
                 "routes_scanned": 2
               },
-              "negative_stock_observation_count": 4,
-              "negative_stock_observations": [
-                {
-                  "category": "public",
-                  "good": "food",
-                  "holder_id": "Rival Port-Charity",
-                  "pool": "charity_food",
-                  "quantity": -0.5,
-                  "route": null,
-                  "tile": "Rival Port",
-                  "turn": 17
-                },
-                {
-                  "category": "public",
-                  "good": "food",
-                  "holder_id": "Rival Port-Charity",
-                  "pool": "charity_food",
-                  "quantity": -0.5,
-                  "route": null,
-                  "tile": "Rival Port",
-                  "turn": 18
-                },
-                {
-                  "category": "public",
-                  "good": "food",
-                  "holder_id": "Rival Port-Charity",
-                  "pool": "charity_food",
-                  "quantity": -0.5,
-                  "route": null,
-                  "tile": "Rival Port",
-                  "turn": 19
-                },
-                {
-                  "category": "public",
-                  "good": "food",
-                  "holder_id": "Rival Port-Charity",
-                  "pool": "charity_food",
-                  "quantity": -0.5,
-                  "route": null,
-                  "tile": "Rival Port",
-                  "turn": 20
-                }
-              ],
+              "negative_stock_observation_count": 0,
+              "negative_stock_observations": [],
               "turns_expected": 20,
               "turns_observed": 20
             }
@@ -1606,11 +1565,11 @@
               "complete_causal_coverage": false,
               "counts": {
                 "checkpoints_verified": 20,
-                "formula_not_supported_by_replay": 610,
-                "formula_verified": 18501,
-                "rows": 36750,
-                "source_contract_not_supported": 17951,
-                "source_contract_verified": 10291
+                "formula_not_supported_by_replay": 609,
+                "formula_verified": 18508,
+                "rows": 36764,
+                "source_contract_not_supported": 17957,
+                "source_contract_verified": 10293
               },
               "structural_and_supported_formula_checks_pass": true,
               "treasury_account_closure": {
@@ -1624,7 +1583,7 @@
                 "fully_attributed": true,
                 "fully_attributed_turns": 40,
                 "turns": 40,
-                "unattributed_absolute_total": 9.968553760231202e-13,
+                "unattributed_absolute_total": 1.1105422137447363e-12,
                 "unattributed_turns": 0
               }
             }
@@ -13127,91 +13086,91 @@
   "source_provenance_by_seed": {
     "812": [
       {
-        "source_commit": "38d7a4413196ac5c27e17b5746ff9d78c91c7bf0",
+        "source_commit": "3056a95d62c96a2b50e5eb0030d97f1c94d868b4",
         "tracked_worktree_dirty": false
       },
       {
-        "source_commit": "38d7a4413196ac5c27e17b5746ff9d78c91c7bf0",
+        "source_commit": "3056a95d62c96a2b50e5eb0030d97f1c94d868b4",
         "tracked_worktree_dirty": false
       },
       {
-        "source_commit": "38d7a4413196ac5c27e17b5746ff9d78c91c7bf0",
+        "source_commit": "3056a95d62c96a2b50e5eb0030d97f1c94d868b4",
         "tracked_worktree_dirty": false
       },
       {
-        "source_commit": "38d7a4413196ac5c27e17b5746ff9d78c91c7bf0",
+        "source_commit": "3056a95d62c96a2b50e5eb0030d97f1c94d868b4",
         "tracked_worktree_dirty": false
       }
     ],
     "813": [
       {
-        "source_commit": "38d7a4413196ac5c27e17b5746ff9d78c91c7bf0",
+        "source_commit": "3056a95d62c96a2b50e5eb0030d97f1c94d868b4",
         "tracked_worktree_dirty": false
       },
       {
-        "source_commit": "38d7a4413196ac5c27e17b5746ff9d78c91c7bf0",
+        "source_commit": "3056a95d62c96a2b50e5eb0030d97f1c94d868b4",
         "tracked_worktree_dirty": false
       },
       {
-        "source_commit": "38d7a4413196ac5c27e17b5746ff9d78c91c7bf0",
+        "source_commit": "3056a95d62c96a2b50e5eb0030d97f1c94d868b4",
         "tracked_worktree_dirty": false
       },
       {
-        "source_commit": "38d7a4413196ac5c27e17b5746ff9d78c91c7bf0",
+        "source_commit": "3056a95d62c96a2b50e5eb0030d97f1c94d868b4",
         "tracked_worktree_dirty": false
       }
     ],
     "814": [
       {
-        "source_commit": "38d7a4413196ac5c27e17b5746ff9d78c91c7bf0",
+        "source_commit": "3056a95d62c96a2b50e5eb0030d97f1c94d868b4",
         "tracked_worktree_dirty": false
       },
       {
-        "source_commit": "38d7a4413196ac5c27e17b5746ff9d78c91c7bf0",
+        "source_commit": "3056a95d62c96a2b50e5eb0030d97f1c94d868b4",
         "tracked_worktree_dirty": false
       },
       {
-        "source_commit": "38d7a4413196ac5c27e17b5746ff9d78c91c7bf0",
+        "source_commit": "3056a95d62c96a2b50e5eb0030d97f1c94d868b4",
         "tracked_worktree_dirty": false
       },
       {
-        "source_commit": "38d7a4413196ac5c27e17b5746ff9d78c91c7bf0",
+        "source_commit": "3056a95d62c96a2b50e5eb0030d97f1c94d868b4",
         "tracked_worktree_dirty": false
       }
     ],
     "815": [
       {
-        "source_commit": "38d7a4413196ac5c27e17b5746ff9d78c91c7bf0",
+        "source_commit": "3056a95d62c96a2b50e5eb0030d97f1c94d868b4",
         "tracked_worktree_dirty": false
       },
       {
-        "source_commit": "38d7a4413196ac5c27e17b5746ff9d78c91c7bf0",
+        "source_commit": "3056a95d62c96a2b50e5eb0030d97f1c94d868b4",
         "tracked_worktree_dirty": false
       },
       {
-        "source_commit": "38d7a4413196ac5c27e17b5746ff9d78c91c7bf0",
+        "source_commit": "3056a95d62c96a2b50e5eb0030d97f1c94d868b4",
         "tracked_worktree_dirty": false
       },
       {
-        "source_commit": "38d7a4413196ac5c27e17b5746ff9d78c91c7bf0",
+        "source_commit": "3056a95d62c96a2b50e5eb0030d97f1c94d868b4",
         "tracked_worktree_dirty": false
       }
     ],
     "816": [
       {
-        "source_commit": "38d7a4413196ac5c27e17b5746ff9d78c91c7bf0",
+        "source_commit": "3056a95d62c96a2b50e5eb0030d97f1c94d868b4",
         "tracked_worktree_dirty": false
       },
       {
-        "source_commit": "38d7a4413196ac5c27e17b5746ff9d78c91c7bf0",
+        "source_commit": "3056a95d62c96a2b50e5eb0030d97f1c94d868b4",
         "tracked_worktree_dirty": false
       },
       {
-        "source_commit": "38d7a4413196ac5c27e17b5746ff9d78c91c7bf0",
+        "source_commit": "3056a95d62c96a2b50e5eb0030d97f1c94d868b4",
         "tracked_worktree_dirty": false
       },
       {
-        "source_commit": "38d7a4413196ac5c27e17b5746ff9d78c91c7bf0",
+        "source_commit": "3056a95d62c96a2b50e5eb0030d97f1c94d868b4",
         "tracked_worktree_dirty": false
       }
     ]
