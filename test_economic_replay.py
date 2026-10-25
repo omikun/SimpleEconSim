@@ -41,11 +41,18 @@ class EconomicReplayTests(unittest.TestCase):
         with self.assertRaises(ValueError):replay_event(row)
 
     def test_fractional_charity_stock_uses_native_whole_unit_issue_gate(self):
-        row={'formula_id':'charity.food_distribution_transfer.v1','value_after':1,
-             'inputs':{'charity_inventory_before':.5,'charity_inventory_after':-.5}}
+        row={'formula_id':'charity.food_distribution_transfer.v1','value_after':0,
+             'inputs':{'charity_inventory_before':.5,'charity_inventory_after':.5}}
         self.assertTrue(replay_event(row)['matches'])
-        total={'formula_id':'charity.food_aid_allocation.v1','value_after':2,
+        row['value_after']=1
+        row['inputs']['charity_inventory_before']=1.5
+        row['inputs']['charity_inventory_after']=.5
+        self.assertTrue(replay_event(row)['matches'])
+        total={'formula_id':'charity.food_aid_allocation.v1','value_after':1,
                'inputs':{'food_inventory_before':1.5,'selected_hungry_ids':['one'],'young_candidates':2}}
+        self.assertTrue(replay_event(total)['matches'])
+        total['value_after']=0
+        total['inputs']['food_inventory_before']=.5
         self.assertTrue(replay_event(total)['matches'])
 
     def test_emergency_foraging_share_is_distinct_from_normal_yield(self):

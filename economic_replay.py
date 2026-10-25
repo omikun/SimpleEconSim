@@ -205,8 +205,8 @@ def replay(row):
     if formula=='ecology.water_emissions_advection.v1':return clamp(before*(1-i['dispersion_fraction'])+i['raw_emission']-i['downstream_advection'],0.0,100.0)
     if formula=='ecology.soil_toxins_biodegradation.v1':return clamp(before*(1-i['biodegradation_fraction'])+i['raw_soil_emission'],0.0,100.0)
     if formula=='government.food_aid_recipient_transfer.v1':return i['recipient_food_before']+i['units']
-    if formula=='charity.food_distribution_transfer.v1':return 1 if i['charity_inventory_before']>0 else 0
-    if formula=='charity.food_aid_allocation.v1':return min(math.ceil(max(0,i['food_inventory_before'])),len(i['selected_hungry_ids'])+i['young_candidates'])
+    if formula=='charity.food_distribution_transfer.v1':return 1 if i['charity_inventory_before']>=1 else 0
+    if formula=='charity.food_aid_allocation.v1':return min(math.floor(max(0,i['food_inventory_before'])),len(i['selected_hungry_ids'])+i['young_candidates'])
     if formula=='gini.retain_previous_value.v1':return i['previous_gini']
     if formula=='gini.recorded_sample.v1':return i['sampled_gini']
     if formula=='gini.wilderness_zero.v1':return 0 if i['wilderness'] else NotImplemented

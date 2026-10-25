@@ -2,13 +2,16 @@
 
 Date: 2026-10-24. Status: baseline and five-seed default-game paired screens
 complete; five-seed supply-rivalry experiments, cohort measurements, and an
-enumerated physical-holdings census are complete on source commit `38d7a44`.
-The five-seed money-flow audit still passes in all 20 arms. The holdings census
-found a fractional charity-food overdraw in one post-shock arm; a regression
-reproduces it and the one-unit distribution guard is fixed locally. Clean reruns
-after that fix are pending. Full stock-flow conservation, default-game
-population welfare, prospective recovery evidence, and empirical calibration
-remain. Keep economic-rule fixes separate from measurement changes.
+enumerated physical-holdings census are complete. The pre-fix census on commit
+`38d7a44` found a fractional charity-food overdraw; the one-unit distribution
+guard is fixed and five-seed runs on commit `3056a95` contain no negative stock
+holdings. The default seed-4242 paired screen also passes its matched-state,
+market, treasury and formula gates. One audit replay rule still rounded the
+fractional charity balance up; it now uses the whole-unit floor and a focused
+trace passes, while the complete saved-trace audit refresh is pending. Full
+stock-flow conservation, default-game population welfare, prospective recovery
+evidence and empirical calibration remain. Keep economic-rule fixes separate
+from measurement changes.
 
 ## Implementation progress
 
@@ -16,7 +19,7 @@ remain. Keep economic-rule fixes separate from measurement changes.
 |---|---|---|
 | 1. Baseline evidence and case studies | Complete for the selected 20-turn trace | Added streaming panel extraction and a baseline report. It identifies the furniture-input and local-food cases below; the trace does not cover every household, balance or in-transit stock. |
 | 2. Controlled shock experiments | Five paired 20-turn default-game seeds and five paired supply-rivalry seeds complete | Default seeds 4242–4246 and scenario seeds 812–816 match complete canonical state at turn 7 for both shock pairs. All five scenario treatments preserve and remove their hooks on schedule; all ten scenario experiment-pairs pass market gates in both arms. The 20 scenario arm traces pass deep accounting and bounded structural/formula audits. A fixed turn-7 resident cohort and enumerated stock census are now captured in every scenario arm. |
-| 3. Criteria and interpretation | Accounting gates pass; one stock-floor defect fixed pending clean reruns; recovery remains descriptive | Before the charity fix, all five scenario seeds passed 160/160 account closes and 160/160 treasury-flow reconciliations per seed (800/800 overall); maximum absolute residual was 1.73e-12. Bounded structural/formula checks reported zero issues, but complete causal coverage and stock-flow conservation are not established. The post-hoc recovery screen has explicit tolerance and coverage; post-shock paths are not draw-aligned. The new holdings census found and the focused regression reproduced a charity food inventory crossing below zero when 0.5 unit funded a one-unit aid transfer. The distribution guard now waits for one full unit; scenario and unaffected-control reruns remain. |
+| 3. Criteria and interpretation | Shock and accounting gates pass; stock-floor fix rerun; full replay audit refreshed next; recovery remains descriptive | The original five-seed scenario sample passed 800/800 account closes and treasury-flow reconciliations with a 1.73e-12 maximum residual. The pre-fix holdings census found a charity food inventory crossing below zero when 0.5 unit funded a one-unit aid transfer. Five fresh scenario seed pairs and default seed 4242 were rerun after the one-unit distribution fix: all scenario hooks, market gates and turn-7 state matches pass; the default pairs also pass matched-state, market, treasury and formula gates. The 400 scenario stock snapshots contain zero negative holdings. The replay formula then showed one mismatch because it used ceil for fractional food; it now uses the whole-unit floor and the affected 36,764-row trace passes. Re-audit all saved scenario traces and refresh the report before declaring that gate complete. Complete causal coverage and stock-flow conservation remain unestablished. |
 
 The old `market_price_stabilization_plan.md` describes an earlier price rule.
 Current `region_market.update_price_ref` already demand-gates positive scarcity
@@ -251,8 +254,8 @@ conservation remains a separate open measurement.
   differences occurred in two of five supply seeds during the shock window;
   the other three showed no departure or arrival difference. This is sparse
   scenario-specific evidence about trade response.
-- **Resident cohort and held stock:** A fresh paired run on clean source commit
-  `38d7a44` followed all 34 living non-company, non-government, non-trader
+- **Resident cohort and held stock:** Paired runs followed all 34 living
+  non-company, non-government, non-trader
   residents present at T7 in each seed through T20. During the supply shock,
   the treatment produced no change in measured survival, employer linkage,
   calorie-need adequacy, or shortfall share; mean intake effects ranged from
@@ -261,13 +264,16 @@ conservation remains a separate open measurement.
   both route queues, two government food stores and two charity food stores per
   turn, and retained all good types and inventory pools in the JSON. It is a
   complete census of these enumerated supply-rivalry stores at each sampled
-  turn, not a flow-conservation proof. In seed 812's cotton-supply treatment,
-  the Rival Port charity held −0.5 food at turns 17–20 (four negative-stock
-  observations); no other arm had a negative holding. The distribution
-  routine previously subtracted one whole unit from any positive balance. A
-  focused regression failed at 0.5 stock, and the rule now preserves that
-  fractional remainder until a whole unit is available. Fresh paired and
-  unaffected-control reruns are required before replacing the pre-fix report.
+  turn, not a flow-conservation proof. The pre-fix seed-812 cotton-supply
+  treatment had Rival Port charity balances of −0.5 food at turns 17–20. The
+  distribution now preserves a fractional remainder until one full unit is
+  available. Fresh seed-812–816 runs on commit `3056a95` show zero negative
+  holdings across all 400 arm-turn censuses, with matched states and market
+  gates still passing. The default seed-4242 paired screen also passes all four
+  arm market gates, all 240/240 account closes and attributed treasury turns,
+  and zero bounded formula issues. Its resident cohort has not yet been added.
+  The new whole-unit replay formula passes the previously affected trace; run
+  the same audit across all saved arms before finalizing the updated report.
 - **Recovery diagnostic:** A descriptive, post-hoc screen asks whether the
   selected market measure returns within `max(1 unit, 5% of control)` for
   quantities or within 5% for paid prices for three consecutive observed turns
@@ -579,11 +585,12 @@ sidecar. The seed-812 per-arm report and treasury findings are in
 `planning/reports/economic_shock_supply_rivalry_seed812.md` and
 `planning/reports/treasury_flow_attribution_followup.md`. Continue with:
 
-1. Rerun all five supply-rivalry seed pairs and the default seed-4242 paired
-   screen from the charity stock-floor fix. Verify that negative public food
-   balances are gone, shock hooks and turn-7 matches still pass, and all
-   treasury/market gates remain clean. Replace the pre-fix multi-seed report
-   with those post-fix results.
+1. Re-audit all 20 saved post-fix scenario traces with the corrected whole-unit
+   charity replay, confirm zero bounded formula mismatches and clean treasury
+   closure, and regenerate the multi-seed report. The five scenario pairs and
+   the default seed-4242 paired control have already been freshly simulated
+   from commit `3056a95`; all paired-state, hook and market gates pass, and no
+   negative stock remains in the census.
 2. Extend the physical inventory census to a stock-flow reconciliation across
    production, processing, consumption, market settlement, aid, transfers,
    public stores and routes. The current census establishes enumerated holdings
