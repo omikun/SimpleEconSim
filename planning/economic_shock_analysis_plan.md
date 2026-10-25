@@ -14,7 +14,10 @@ issues and a maximum residual of 1.73e-12. A historical analogue has been
 selected for mechanism-level comparison, but numerical calibration is not
 supported by the present evidence. Full stock-flow conservation, default-game
 population welfare, prospective recovery evidence and empirical calibration
-remain. Keep economic-rule fixes separate from measurement changes.
+remain. A bounded cotton/cloth material-balance auditor and explicit production
+input legs are now implemented; fresh traces are required before treating its
+results as evidence. Keep economic-rule fixes separate from measurement
+changes.
 
 ## Implementation progress
 
@@ -24,6 +27,7 @@ remain. Keep economic-rule fixes separate from measurement changes.
 | 2. Controlled shock experiments | Five paired 20-turn default-game seeds and five paired supply-rivalry seeds complete | Default seeds 4242–4246 and scenario seeds 812–816 match complete canonical state at turn 7 for both shock pairs. All five scenario treatments preserve and remove their hooks on schedule; all ten scenario experiment-pairs pass market gates in both arms. The 20 scenario arm traces pass deep accounting and bounded structural/formula audits. A fixed turn-7 resident cohort and enumerated stock census are now captured in every scenario arm. |
 | 3. Criteria and interpretation | Shock, accounting and bounded replay gates pass; recovery remains descriptive | Five fresh scenario seed pairs and default seed 4242 were rerun after the one-unit distribution fix: all scenario hooks, market gates and turn-7 state matches pass; default pairs also pass matched-state, market, treasury and formula gates. All 400 scenario stock snapshots contain zero negative holdings. The replay formula now uses the whole-unit floor; all 20 scenario arms pass bounded structural/formula checks, 800/800 account closes and 800/800 treasury reconciliations, with maximum residual 1.73e-12. Complete causal coverage and stock-flow conservation remain unestablished. |
 | 4. Historical comparison | Analogue and primary-source scoping complete; calibration pending | Lancashire's cotton famine is a documented intermediate-input supply shock relevant to the scenario's cotton-to-cloth chain. Contemporary parliamentary evidence also describes lost export markets, relief and substitution, so it is not a clean single-shock calibration target. Compare mechanisms first; establish common geography, commodity definitions and time units before comparing magnitudes. |
+| 5. Physical stock-flow reconciliation | Cotton/cloth auditor instrumented; fresh-trace audit pending | Added explicit input good, quantity and before/after inventory values to firm and independent production events. Added a streaming audit comparing whole-world cotton/cloth stock deltas with production, recipe input use and household non-food consumption; market, transfers, and route events are counted as internal turnover. Unit tests cover balanced flows, missing input metadata and census gaps. A seed-812 exploratory check using the scenario-known cotton input found exact residuals, but it predates the explicit input-good trace field and is not a completed result. |
 
 The old `market_price_stabilization_plan.md` describes an earlier price rule.
 Current `region_market.update_price_ref` already demand-gates positive scarcity
@@ -589,11 +593,11 @@ sidecar. The seed-812 per-arm report and treasury findings are in
 `planning/reports/economic_shock_supply_rivalry_seed812.md` and
 `planning/reports/treasury_flow_attribution_followup.md`. Continue with:
 
-1. Extend the physical inventory census to a stock-flow reconciliation across
-   production, processing, consumption, market settlement, aid, transfers,
-   public stores and routes. The current census establishes enumerated holdings
-   only in the two-region supply-rivalry scenario; it does not prove stock
-   conservation there or in the default game.
+1. Regenerate the five-seed supply-rivalry traces with explicit production
+   input legs and run `economic_shock_stock_flow_audit.py` across all 20 arms.
+   Then extend the material balance to food, wood, public food stores, and
+   default-game goods, including censused non-agent pools and external trade.
+   The current bounded auditor does not prove complete stock conservation.
 2. Carry the fixed resident-cohort measures into a default-game cohort and
    widen the welfare accounting beyond survival, calorie need/intake, cash,
    debt, employer linkage, wages, sales and recorded input costs. Do not label

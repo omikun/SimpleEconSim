@@ -124,6 +124,15 @@ class RunTraceTests(unittest.TestCase):
             self.assertEqual(production['kind'], 'firm_production')
             self.assertEqual(production['cause_event_ids'],
                              [available_ids[firm.id]])
+            cloth_recipe = region.recipes[Goods.cloth]
+            self.assertEqual(production['inputs']['input_good'],
+                             cloth_recipe['input'].name)
+            self.assertEqual(production['inputs']['input_quantity_used'],
+                             production['inputs']['inputs_used'])
+            self.assertEqual(
+                production['inputs']['input_inventory_before']
+                - production['inputs']['input_inventory_after'],
+                production['inputs']['input_quantity_used'])
             surplus = next(row for row in reversed(trace.recent)
                            if row['kind'] == 'firm_surplus_value_calculation')
             self.assertEqual(surplus['turn'], 5)

@@ -225,6 +225,8 @@ def produce_corporation(region, agent, recipe, output, num_agents_per_good,
         inputs_used = 0
         input_price = 0.0
         recorded_basis = None
+        input_inventory_before = (agent.inv_get(recipe['input'], 0)
+                                  if recipe.get('numInput', 0) > 0 else None)
         if recipe.get('numInput', 0) > 0:
             inputs_used = successful_slots * recipe['numInput']
             recorded_basis = max(0.0, float(agent.cost_get(recipe['input'], 0)))
@@ -268,6 +270,13 @@ def produce_corporation(region, agent, recipe, output, num_agents_per_good,
                                 'working_machinery': working_machinery,
                                 'production_per_slot': production_per_slot,
                                 'inputs_used': inputs_used,
+                                'input_good': (recipe['input'].name
+                                               if recipe.get('numInput', 0) > 0 else None),
+                                'input_quantity_used': inputs_used,
+                                'input_inventory_before': input_inventory_before,
+                                'input_inventory_after': (
+                                    agent.inv_get(recipe['input'], 0)
+                                    if recipe.get('numInput', 0) > 0 else None),
                                 'workforce_event_id': workforce_event_id,
                                 'inventory_before': inventory_before,
                                 'inventory_after': agent.inv_get(output, 0)})
@@ -420,6 +429,8 @@ def produce_independent(region, agent, recipe, output, num_agents_per_good,
             made = 1 if rand_val < chance else 0
         if made:
             inputs_cost = 0.0
+            input_inventory_before = (agent.inv_get(recipe['input'], 0)
+                                      if recipe['numInput'] > 0 else None)
             if recipe['numInput'] > 0:
                 agent.inv_add(recipe['input'], -recipe['numInput'])
                 input_price = region.recipes.get(recipe['input'], {}).get('price', 1.0)
@@ -446,6 +457,14 @@ def produce_independent(region, agent, recipe, output, num_agents_per_good,
                                     'terrain_multiplier': terrain_mult,
                                     'tenure_multiplier': tenure_mult,
                                     'inputs_used': recipe['numInput'] if recipe['numInput'] > 0 else 0,
+                                    'input_good': (recipe['input'].name
+                                                   if recipe['numInput'] > 0 else None),
+                                    'input_quantity_used': (recipe['numInput']
+                                                            if recipe['numInput'] > 0 else 0),
+                                    'input_inventory_before': input_inventory_before,
+                                    'input_inventory_after': (
+                                        agent.inv_get(recipe['input'], 0)
+                                        if recipe['numInput'] > 0 else None),
                                     'inventory_before': agent.inv_get(output, 0)})
             if receipt_ids is not None and event_id is not None:
                 receipt_ids.append(event_id)
