@@ -5,7 +5,9 @@ import unittest
 
 from economic_shock_analysis import analyze_trace
 from economic_shock_experiment import (
+    _intervention_hook_observation,
     _market_mechanical_gates,
+    _scenario_observation_summary,
     _select_target_tile,
 )
 from goods import Goods
@@ -91,6 +93,104 @@ class ShockTargetSelectionTests(unittest.TestCase):
 
         tile, _selection = _select_target_tile(Server(), "wood_supply_reduction")
         self.assertEqual(tile.name, "c50")
+
+    def test_supply_rivalry_selects_named_crop_and_domestic_mill_roles(self):
+        class Agent:
+            def __init__(self, ident, output, *, corporation=False, name=None):
+                self.id = ident
+                self.output = output
+                self.alive = True
+                self.is_corporation = corporation
+                self.company_name = name
+
+        class Tile:
+            name = "Cotton Fields"
+            recipes = {
+                Goods.cotton: {"price": 4.0, "production": 3},
+                Goods.cloth: {"price": 13.0, "input": Goods.cotton},
+            }
+            agents = [Agent(6, Goods.cotton), Agent(7, Goods.cotton),
+                      Agent(47, Goods.cloth, corporation=True,
+                            name="Meridian Mill")]
+
+        class Server:
+            tiles = [Tile()]
+            scenario_state = {"grower_ids": [6, 7], "domestic_mill_id": 47}
+
+        supply_tile, supply_selection = _select_target_tile(
+            Server(), "rivalry_cotton_supply_reduction")
+        demand_tile, demand_selection = _select_target_tile(
+            Server(), "rivalry_mill_cotton_demand_increase")
+
+        self.assertEqual(supply_tile.name, "Cotton Fields")
+        self.assertEqual(supply_selection["grower_agent_ids"], [6, 7])
+        self.assertEqual(demand_tile.name, "Cotton Fields")
+        self.assertEqual(demand_selection["target_agent_ids"], [47])
+        self.assertEqual(demand_selection["target_agent_name"], "Meridian Mill")
+        self.assertEqual(demand_selection["base_desired_target_units"], 3)
+
+    def test_scenario_hook_gate_checks_active_and_restored_supply(self):
+        class Tile:
+            recipes = {Goods.cotton: {"production": 1.5}}
+
+        class Server:
+            scenario_id = "supply_rivalry"
+
+        treatment = {"before": 3.0, "after": 1.5}
+        active = _intervention_hook_observation(
+            Server(), {"kind": "physical_supply", "good": "cotton"},
+            Tile(), 10, "treatment", treatment)
+        Tile.recipes[Goods.cotton]["production"] = 3.0
+        restored = _intervention_hook_observation(
+            Server(), {"kind": "physical_supply", "good": "cotton"},
+            Tile(), 12, "treatment", treatment)
+        self.assertTrue(active["passed"])
+        self.assertTrue(restored["passed"])
+
+    def test_scenario_hook_gate_checks_mill_input_override_removal(self):
+        class Tile:
+            _analysis_demand_target_overrides = {
+                Goods.cotton: {47: 1.5}}
+
+        class Server:
+            scenario_id = "supply_rivalry"
+
+        config = {"kind": "input_demand", "good": "cotton", "factor": 1.5}
+        intervention = {"affected_agent_ids": [47]}
+        active = _intervention_hook_observation(
+            Server(), config, Tile(), 9, "treatment", intervention)
+        Tile._analysis_demand_target_overrides = {}
+        restored = _intervention_hook_observation(
+            Server(), config, Tile(), 12, "treatment", intervention)
+        self.assertTrue(active["passed"])
+        self.assertTrue(restored["passed"])
+
+
+class ScenarioObservationSummaryTests(unittest.TestCase):
+    def test_scenario_observation_summary_uses_window_and_named_actor_coverage(self):
+        run = {
+            "scenario_actor_observations": [
+                {"turn": turn,
+                 "actors": [{"role": "grower", "food_intake": 2}],
+                 "cotton_trade_events": [{"quantity": 3}]}
+                for turn in (7, 8, 11, 12)],
+            "scenario_route_events": [
+                {"turn": 8, "kind": "route_shipment_departure", "quantity": 4},
+                {"turn": 11, "kind": "route_shipment_arrival", "quantity": 4},
+                {"turn": 12, "kind": "route_shipment_departure", "quantity": 9}],
+            "scenario_mill_order_events": [
+                {"turn": 8, "submitted_quantity": 5, "desired_target": 5,
+                 "unshocked_desired_target": 3,
+                 "target_override_applied": True}],
+        }
+        summary = _scenario_observation_summary(run)
+        self.assertEqual(summary["cotton_market_fills"], 6)
+        self.assertEqual(summary["route_departures"], 4)
+        self.assertEqual(summary["route_arrivals"], 4)
+        self.assertEqual(summary["mill_submitted_bid_units"], 5)
+        self.assertEqual(summary["mill_override_order_events"], 1)
+        self.assertEqual(summary["grower_food_intake"], 4)
+        self.assertEqual(summary["actor_turns_observed"], 2)
 
 
 class TracePanelCoverageTests(unittest.TestCase):

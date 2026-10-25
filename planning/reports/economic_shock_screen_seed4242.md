@@ -9,26 +9,26 @@ Target tile `c50`. Turn-7 complete canonical states match: **True**. Control tra
 
 Treatment minus control on `c50` at selected turns:
 
-| Turn | Good | Ref. delta | Paid VWAP delta | Bids | Offers | Imports | Supply | Sold | Output | Inventory | Food shortfall | Nonfood consumed |
-|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| 7 | furniture | 0.00 | 0.00 | 0 | 0 | 0 | 0 | 0 | 0 | 0.00 | — | — |
-| 7 | wood | 0.00 | 0.00 | 0 | 0 | 0 | 0 | 0 | 0 | 0.00 | — | 0 |
-| 8 | furniture | 0.00 | 0.00 | 0 | 0 | 0 | 0 | 0 | 0 | 0.00 | — | 0 |
-| 8 | wood | 0.00 | -0.00 | 8 | -10 | 0 | -10 | -10 | -10 | 0.00 | — | -4 |
-| 9 | furniture | 0.00 | 0.00 | 0 | 0 | 0 | 0 | 0 | 0 | 0.00 | — | 0 |
-| 9 | wood | -0.00 | 0.00 | 14 | -16 | 0 | -16 | -16 | -11 | 0.00 | — | -7 |
-| 10 | furniture | 0.00 | 0.00 | 1 | 0 | 0 | 0 | 0 | 0 | 0.00 | — | 0 |
-| 10 | wood | 0.00 | 0.01 | 14 | -16 | 0 | -16 | -16 | -7 | 0.00 | — | 2 |
-| 11 | furniture | 0.00 | 0.00 | -1 | 0 | 0 | 0 | 0 | 0 | 0.00 | — | 0 |
-| 11 | wood | 0.00 | 0.00 | 37 | -18 | 0 | -18 | -18 | -11 | 0.00 | — | -7 |
-| 12 | furniture | 0.00 | — | 1 | — | — | -1 | — | -1 | 0.00 | — | — |
-| 12 | wood | 0.00 | 0.01 | 57 | -16 | 0 | -16 | -16 | -8 | 0.00 | — | -10 |
-| 15 | furniture | 0.00 | — | -14 | — | — | -2 | — | -2 | 0.00 | — | — |
-| 15 | wood | 0.00 | 0.01 | 82 | -23 | 0 | -23 | -23 | -10 | 0.00 | — | -21 |
-| 20 | furniture | 0.00 | — | -14 | — | — | -2 | — | -2 | 0.00 | — | — |
-| 20 | wood | 0.00 | -0.07 | 77 | 26 | 0 | 26 | 26 | 12 | 0.00 | — | -1 |
+| Turn | Tile | Good | Ref. delta | Paid VWAP delta | Bids | Offers | Imports | Supply | Sold | Output | Inventory | Food shortfall | Nonfood consumed |
+|---:|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 7 | c50 | furniture | 0.00 | 0.00 | 0 | 0 | 0 | 0 | 0 | 0 | 0.00 | — | — |
+| 7 | c50 | wood | 0.00 | 0.00 | 0 | 0 | 0 | 0 | 0 | 0 | 0.00 | — | 0 |
+| 8 | c50 | furniture | 0.00 | 0.00 | 0 | 0 | 0 | 0 | 0 | 0 | 0.00 | — | 0 |
+| 8 | c50 | wood | 0.00 | -0.00 | 8 | -10 | 0 | -10 | -10 | -10 | 0.00 | — | -4 |
+| 9 | c50 | furniture | 0.00 | 0.00 | 0 | 0 | 0 | 0 | 0 | 0 | 0.00 | — | 0 |
+| 9 | c50 | wood | -0.00 | 0.00 | 14 | -16 | 0 | -16 | -16 | -11 | 0.00 | — | -7 |
+| 10 | c50 | furniture | 0.00 | 0.00 | 1 | 0 | 0 | 0 | 0 | 0 | 0.00 | — | 0 |
+| 10 | c50 | wood | 0.00 | 0.01 | 14 | -16 | 0 | -16 | -16 | -7 | 0.00 | — | 2 |
+| 11 | c50 | furniture | 0.00 | 0.00 | -1 | 0 | 0 | 0 | 0 | 0 | 0.00 | — | 0 |
+| 11 | c50 | wood | 0.00 | 0.00 | 37 | -18 | 0 | -18 | -18 | -11 | 0.00 | — | -7 |
+| 12 | c50 | furniture | 0.00 | — | 1 | — | — | -1 | — | -1 | 0.00 | — | — |
+| 12 | c50 | wood | 0.00 | 0.01 | 57 | -16 | 0 | -16 | -16 | -8 | 0.00 | — | -10 |
+| 15 | c50 | furniture | 0.00 | — | -14 | — | — | -2 | — | -2 | 0.00 | — | — |
+| 15 | c50 | wood | 0.00 | 0.01 | 82 | -23 | 0 | -23 | -23 | -10 | 0.00 | — | -21 |
+| 20 | c50 | furniture | 0.00 | — | -14 | — | — | -2 | — | -2 | 0.00 | — | — |
+| 20 | c50 | wood | 0.00 | -0.07 | 77 | 26 | 0 | 26 | 26 | 12 | 0.00 | — | -1 |
 
-Shock-window totals on turns 8-11:
+Shock-window totals on turns 8-11 at `c50`:
 
 | c50 measure | Control total | Treatment total | Delta | Paired turns |
 |---|---:|---:|---:|---:|
@@ -58,18 +58,18 @@ Target tile `c50`. Turn-7 complete canonical states match: **True**. Control tra
 
 Treatment minus control on `c50` at selected turns:
 
-| Turn | Good | Ref. delta | Paid VWAP delta | Bids | Offers | Imports | Supply | Sold | Output | Inventory | Food shortfall | Nonfood consumed |
-|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| 7 | furniture | 0.00 | 0.00 | 0 | 0 | 0 | 0 | 0 | 0 | 0.00 | — | — |
-| 8 | furniture | 0.00 | 0.00 | 3 | 0 | 0 | 0 | 0 | 0 | 0.00 | — | -1 |
-| 9 | furniture | 0.00 | -0.24 | 3 | 1 | 0 | 1 | 1 | 0 | 0.00 | — | — |
-| 10 | furniture | 0.00 | -0.17 | 1 | -1 | 0 | -1 | -1 | 0 | 0.00 | — | 6 |
-| 11 | furniture | 0.00 | 0.33 | 1 | 0 | 0 | 0 | 0 | 1 | 0.00 | — | 0 |
-| 12 | furniture | 0.00 | 0.00 | 4 | 0 | 0 | 0 | 0 | 0 | 0.00 | — | 0 |
-| 15 | furniture | 0.00 | 0.00 | 2 | -1 | 0 | -1 | -1 | -1 | 0.00 | — | -1 |
-| 20 | furniture | 0.00 | — | -8 | — | — | -2 | — | -2 | 0.00 | — | — |
+| Turn | Tile | Good | Ref. delta | Paid VWAP delta | Bids | Offers | Imports | Supply | Sold | Output | Inventory | Food shortfall | Nonfood consumed |
+|---:|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 7 | c50 | furniture | 0.00 | 0.00 | 0 | 0 | 0 | 0 | 0 | 0 | 0.00 | — | — |
+| 8 | c50 | furniture | 0.00 | 0.00 | 3 | 0 | 0 | 0 | 0 | 0 | 0.00 | — | -1 |
+| 9 | c50 | furniture | 0.00 | -0.24 | 3 | 1 | 0 | 1 | 1 | 0 | 0.00 | — | — |
+| 10 | c50 | furniture | 0.00 | -0.17 | 1 | -1 | 0 | -1 | -1 | 0 | 0.00 | — | 6 |
+| 11 | c50 | furniture | 0.00 | 0.33 | 1 | 0 | 0 | 0 | 0 | 1 | 0.00 | — | 0 |
+| 12 | c50 | furniture | 0.00 | 0.00 | 4 | 0 | 0 | 0 | 0 | 0 | 0.00 | — | 0 |
+| 15 | c50 | furniture | 0.00 | 0.00 | 2 | -1 | 0 | -1 | -1 | -1 | 0.00 | — | -1 |
+| 20 | c50 | furniture | 0.00 | — | -8 | — | — | -2 | — | -2 | 0.00 | — | — |
 
-Shock-window totals on turns 8-11:
+Shock-window totals on turns 8-11 at `c50`:
 
 | c50 measure | Control total | Treatment total | Delta | Paired turns |
 |---|---:|---:|---:|---:|
@@ -97,7 +97,7 @@ The intervention increases desired furniture stocks for half of eligible residen
 
 ```sh
 venv/bin/python economic_shock_experiment.py --seed 4242 \
-  --out-dir tmp/economic-shocks/seed-4242 --reuse-existing --audit
+  --scenario default --out-dir tmp/economic-shocks/seed-4242 --reuse-existing --audit
 ```
 
 The JSON retains full turn panels, state snapshots, intervention IDs, pre-shock digests, audit gates and trace paths. Compressed traces are generated under `tmp/traces/` and are not checked into Git.

@@ -3,9 +3,9 @@
 Date: 2026-10-24. Status: baseline and five-seed default-game paired screens
 complete; initial mechanical/formula audits applied. Treasury-flow writer
 gaps have been traced, instrumented and re-audited across all four seed-4242
-arms. The paired default-game screens are diagnostic; supply-rivalry shock
-coverage, full stock/welfare accounting, recovery metrics and empirical
-calibration remain.
+arms. The supply-rivalry shock adapter passes an exploratory seed-812
+integration smoke; the clean-source five-seed scenario screen, full
+stock/welfare accounting, recovery metrics and empirical calibration remain.
 Preserve game rules during diagnosis; put any eventual economic fixes in
 separate changes.
 
@@ -14,7 +14,7 @@ separate changes.
 | Phase | Status | Evidence / remaining work |
 |---|---|---|
 | 1. Baseline evidence and case studies | Complete for the selected 20-turn trace | Added streaming panel extraction and a baseline report. It identifies the furniture-input and local-food cases below; the trace does not cover every household, balance or in-transit stock. |
-| 2. Controlled shock experiments | Five paired 20-turn default-game seeds complete | Seeds 4242–4246 match complete canonical state at turn 7 for both shock pairs; original seed-4243 no-op attempts are excluded. Active role targets are selected and recorded per seed. The paired report gives per-seed effects and coverage. |
+| 2. Controlled shock experiments | Five paired 20-turn default-game seeds complete; supply-rivalry adapter implemented and smoke-tested | Default seeds 4242–4246 match complete canonical state at turn 7 for both shock pairs; original seed-4243 no-op attempts are excluded. The new scenario runner targets the two named cotton growers and Meridian Mill, preserves native stepping, and passed exploratory seed-812 pairing and restoration checks. Clean-source seeds 812–816 remain. |
 | 3. Criteria and interpretation | Default-game mechanical and seed-4242 treasury gates pass | All ten valid default seed-pairs pass market gates. In a fresh clean-source audit, each of the four seed-4242 arms passes 60/60 account closes and 60/60 treasury-flow reconciliations; residual totals are below 6.3e-12. Structural/formula checks report zero issues, but full causal coverage and goods-stock conservation are not established. |
 
 The old `market_price_stabilization_plan.md` describes an earlier price rule.
@@ -140,6 +140,41 @@ wood output tightens offers/sales and raises bids/prices; extra furniture
 desired inventory creates bids more reliably than it creates supply or fills
 under the current cash, stock and reference-price constraints. It does not
 establish a general equilibrium response or a welfare improvement/loss.
+
+### Supply-rivalry adapter smoke
+
+`economic_shock_experiment.py --scenario supply_rivalry` now runs through the
+scenario's native `SimServer` stepping path. The paired interventions target
+the two named cotton growers in Cotton Fields (halve cotton recipe output for
+turns 8–11) and Meridian Mill's cotton input inventory target (multiply the
+desired target by 1.5 while funding and fills remain endogenous). The runner
+records both regions' cotton/cloth market panels, named grower and mill
+account/inventory observations, cotton market sales, route departure/arrival
+events and a turn-by-turn check that native scenario stepping preserves then
+removes the shock. It requires identical turn-7 canonical states and fails if
+the scenario overwrites the intervention.
+
+An exploratory seed-812 integration run passed turn-7 matching in both pairs
+and the scenario-hook check in both treatments. The cotton supply treatment
+reduced production by 4 units and offers by 6 during turns 8–11; sales fell by
+4 across the 3/4 paired observed turns, and mean paid VWAP rose by 0.19 on
+those same observed turns. In the mill-demand pair, the desired target was
+higher on each of three observed cotton order rows (sum 11 versus unshocked
+7); the mill's submitted bid total rose by 2 units (28 versus 26), while
+cotton market fills were unchanged at 26. This confirms the override reaches
+an actual buyer, while the extra desired stock did not produce more fills in
+this seed. Named growers' food stocks were unchanged through the shock; their
+end-of-window cash was lower under the supply treatment, which is a single-run
+outcome rather than a welfare estimate.
+
+No cotton route departure or arrival occurred during turns 8–11 in seed 812.
+The observed route shipment left at turn 1 and arrived at turn 2, so this
+window did not exercise a new transport response. Only 80–85 of 200 market
+panel rows had settlement summaries; other rows remain missing, not zero.
+Structural/formula and treasury-flow audits were not run on this exploratory
+working-tree smoke. Rerun clean-source seeds 812–816 before summarizing the
+scenario sample; run a scenario deep audit if the market or named-actor
+outcomes expose an accounting inconsistency.
 
 ## Questions and standards
 
@@ -429,11 +464,11 @@ corrected five-seed default-game summary are complete in
 `planning/reports/economic_shock_screen_seed4242.md`, and
 `planning/reports/economic_shock_multiseed_default.md`. Continue in this order:
 
-1. Add a scenario-aware intervention adapter and test supply rivalry on seeds
-   812–816. Confirm that native scenario stepping does not overwrite the shock;
-   compare cotton production, offers/fills, route shipments/arrivals, prices and
-   named grower/mill outcomes. Begin with seed 812 and expand to the planned
-   five pairs only after the adapter passes its intervention and pairing gates.
+1. Rerun the committed scenario adapter on supply-rivalry seeds 812–816. Confirm
+   the native stepping and turn-7 pair gates, then summarize cotton production,
+   orders/fills, shipment/arrival events, prices and named grower/mill outcomes.
+   Deep-audit at least one scenario pair if cross-border or actor-account
+   outcomes leave a source-flow residual.
 2. Add stable-cohort household outcomes, wages/profit/credit and separate
    producer, trader, household and in-transit stock measures before concluding
    on welfare or goods conservation.

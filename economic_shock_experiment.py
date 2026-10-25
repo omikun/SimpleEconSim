@@ -8,6 +8,8 @@ Example::
     venv/bin/python economic_shock_experiment.py --out-dir tmp/economic-shocks/seed-4242
     venv/bin/python economic_shock_experiment.py --seed 4242 \
         --out-dir tmp/economic-shocks/seed-4242 --reuse-existing --audit
+    venv/bin/python economic_shock_experiment.py --scenario supply_rivalry \
+        --seed 812 --out-dir tmp/economic-shocks/supply-rivalry/seed-812
 """
 from __future__ import annotations
 
@@ -30,7 +32,7 @@ SHOCK_START = 8
 SHOCK_END = 11
 RECOVERY_START = 12
 PREFERRED_TARGET_TILE = "c50"
-CORE_GOODS = ("food", "wood", "furniture")
+CORE_GOODS = ("food", "wood", "furniture", "cotton", "cloth")
 MARKET_FIELDS = (
     "reference_price_after", "transaction_vwap", "demand_ratio",
     "funded_demand_units", "offered_supply_units", "submitted_bids",
@@ -51,6 +53,30 @@ EXPERIMENTS = {
         "good": "furniture",
         "factor": 1.5,
     },
+    "rivalry_cotton_supply_reduction": {
+        "title": "50% temporary cotton recipe-output reduction",
+        "scenario": "supply_rivalry",
+        "target_region": "Cotton Fields",
+        "kind": "physical_supply",
+        "good": "cotton",
+        "factor": 0.5,
+    },
+    "rivalry_mill_cotton_demand_increase": {
+        "title": "50% increase in Meridian Mill's cotton inventory target",
+        "scenario": "supply_rivalry",
+        "target_region": "Cotton Fields",
+        "kind": "input_demand",
+        "good": "cotton",
+        "factor": 1.5,
+    },
+}
+DEFAULT_EXPERIMENTS = (
+    "wood_supply_reduction", "furniture_demand_increase")
+SCENARIO_EXPERIMENTS = {
+    "default": DEFAULT_EXPERIMENTS,
+    "supply_rivalry": (
+        "rivalry_cotton_supply_reduction",
+        "rivalry_mill_cotton_demand_increase"),
 }
 
 SNAPSHOT_METRICS = {
@@ -114,6 +140,9 @@ def _default_target(region, good):
     if good == "furniture":
         return max(1, int(16 / max(1, region.recipes[next(
             item for item in region.recipes if item.name == good)]["price"])))
+    if good == "cotton":
+        return max(1, int(12 / max(1.0, region.recipes[next(
+            item for item in region.recipes if item.name == good)]["price"])))
     raise ValueError(f"no base target formula registered for {good}")
 
 
@@ -134,6 +163,45 @@ def _select_target_tile(server, experiment_id):
     from goods import Goods
 
     config = EXPERIMENTS[experiment_id]
+    if config.get("scenario") == "supply_rivalry":
+        from region_market import input_good
+
+        tile = next((item for item in server.tiles
+                     if item.name == config["target_region"]), None)
+        if tile is None:
+            raise RuntimeError(
+                f"scenario target region {config['target_region']} is missing")
+        state = server.scenario_state
+        if config["kind"] == "physical_supply":
+            growers = [int(ident) for ident in state["grower_ids"]
+                       if any(agent.id == ident and agent.alive
+                              and agent.output == Goods.cotton
+                              for agent in tile.agents)]
+            if not growers or Goods.cotton not in tile.recipes:
+                raise RuntimeError(
+                    "supply_rivalry has no active cotton grower or cotton recipe")
+            return tile, {
+                "selection_rule": "scenario role: named cotton growers in Cotton Fields",
+                "grower_agent_ids": growers,
+                "cotton_grower_count": len(growers),
+                "cotton_recipe_production": float(
+                    tile.recipes[Goods.cotton].get("production", 0)),
+            }
+        if config["kind"] == "input_demand":
+            mill_id = int(state["domestic_mill_id"])
+            mill = next((agent for agent in tile.agents
+                         if agent.id == mill_id and agent.alive), None)
+            if (mill is None or not getattr(mill, "is_corporation", False)
+                    or input_good(tile, mill) != Goods.cotton):
+                raise RuntimeError(
+                    "supply_rivalry domestic mill is not an active cotton-input buyer")
+            return tile, {
+                "selection_rule": "scenario role: Meridian Mill's cotton input demand",
+                "target_agent_ids": [mill_id],
+                "target_agent_name": getattr(mill, "company_name", None),
+                "target_agent_role": "domestic_cotton_input_mill",
+                "base_desired_target_units": _default_target(tile, "cotton"),
+            }
     preferred = next((tile for tile in server.tiles
                       if tile.name == PREFERRED_TARGET_TILE), None)
 
@@ -178,7 +246,7 @@ def _select_target_tile(server, experiment_id):
     return tile, {"selection_rule": rule, **counts(tile)}
 
 
-def _apply_shock(server, experiment_id, tile):
+def _apply_shock(server, experiment_id, tile, target_selection=None):
     from goods import Goods
 
     config = EXPERIMENTS[experiment_id]
@@ -206,33 +274,71 @@ def _apply_shock(server, experiment_id, tile):
                 "before": before, "after": after,
                 "affected_agent_ids": affected}
 
-    cohort = _eligible_demand_cohort(tile)
-    affected = [agent for index, agent in enumerate(cohort) if index % 2 == 0]
-    base_target = _default_target(tile, config["good"])
-    overrides = dict(getattr(tile, "_analysis_demand_target_overrides", {}) or {})
-    overrides[good] = {int(agent.id): config["factor"] for agent in affected}
-    tile._analysis_demand_target_overrides = overrides
+    if config["kind"] == "household_demand":
+        cohort = _eligible_demand_cohort(tile)
+        affected = [agent for index, agent in enumerate(cohort)
+                    if index % 2 == 0]
+        base_target = _default_target(tile, config["good"])
+        overrides = dict(getattr(
+            tile, "_analysis_demand_target_overrides", {}) or {})
+        overrides[good] = {int(agent.id): config["factor"]
+                           for agent in affected}
+        tile._analysis_demand_target_overrides = overrides
+        metric_id = "analysis.household_inventory_target_multiplier"
+        formula_id = "analysis.household_inventory_target_multiplier.v1"
+        event_inputs = {
+            "intervention_target": "household desired inventory target",
+            "base_target_units_at_start": base_target,
+            "treated_target_units_at_start": max(
+                0, int(math.ceil(base_target * config["factor"]))),
+            "eligible_household_count": len(cohort),
+            "affected_agent_ids": [int(agent.id) for agent in affected],
+            "assignment": "every other eligible resident by stable agent ID",
+            "rounding": "ceil(base target multiplied by 1.5)",
+            "direct_transfer_or_money_creation": False,
+        }
+        result_ids = {
+            "eligible_agent_ids": [int(agent.id) for agent in cohort],
+            "affected_agent_ids": [int(agent.id) for agent in affected],
+        }
+    elif config["kind"] == "input_demand":
+        affected = list((target_selection or {}).get("target_agent_ids", ()))
+        if len(affected) != 1:
+            raise RuntimeError("input-demand intervention must target one named mill")
+        base_target = int((target_selection or {}).get(
+            "base_desired_target_units", _default_target(tile, config["good"])))
+        overrides = dict(getattr(
+            tile, "_analysis_demand_target_overrides", {}) or {})
+        good_overrides = dict(overrides.get(good, {}) or {})
+        good_overrides[int(affected[0])] = config["factor"]
+        overrides[good] = good_overrides
+        tile._analysis_demand_target_overrides = overrides
+        metric_id = "analysis.input_inventory_target_multiplier"
+        formula_id = "analysis.input_inventory_target_multiplier.v1"
+        event_inputs = {
+            "intervention_target": "named mill desired cotton input inventory target",
+            "base_target_units_at_start": base_target,
+            "treated_target_units_at_start": max(
+                0, int(math.ceil(base_target * config["factor"]))),
+            "target_agent_ids": [int(ident) for ident in affected],
+            "target_agent_name": (target_selection or {}).get("target_agent_name"),
+            "order_funding_and_fills_remain_endogenous": True,
+            "direct_transfer_or_money_creation": False,
+        }
+        result_ids = {"affected_agent_ids": [int(ident) for ident in affected]}
+    else:
+        raise ValueError(f"unsupported demand shock kind {config['kind']}")
     event_id = _emit_intervention(
         server, tile, kind="economic_shock_applied", turn=SHOCK_START,
-        metric_id="analysis.household_inventory_target_multiplier", unit="ratio",
-        before=1.0, after=config["factor"],
-        formula_id="analysis.household_inventory_target_multiplier.v1",
+        metric_id=metric_id, unit="ratio", before=1.0,
+        after=config["factor"], formula_id=formula_id,
         inputs={"experiment": experiment_id, "good": config["good"],
-                "intervention_target": "household desired inventory target",
-                "base_target_units_at_start": base_target,
-                "treated_target_units_at_start": max(
-                    0, int(math.ceil(base_target * config["factor"]))),
-                "eligible_household_count": len(cohort),
-                "affected_agent_ids": [int(agent.id) for agent in affected],
-                "assignment": "every other eligible resident by stable agent ID",
-                "rounding": "ceil(base target multiplied by 1.5)",
-                "shock_turns_inclusive": [SHOCK_START, SHOCK_END],
-                "direct_transfer_or_money_creation": False})
+                **event_inputs,
+                "shock_turns_inclusive": [SHOCK_START, SHOCK_END]})
     return {"tile": tile, "good": good, "event_id": event_id,
             "before": 1.0, "after": config["factor"],
             "base_target_units_at_start": base_target,
-            "eligible_agent_ids": [int(agent.id) for agent in cohort],
-            "affected_agent_ids": [int(agent.id) for agent in affected]}
+            **result_ids}
 
 
 def _remove_shock(server, experiment_id, applied):
@@ -250,7 +356,7 @@ def _remove_shock(server, experiment_id, applied):
                   "shock_removed_before_turn": RECOVERY_START}
         metric_id = "analysis.recipe_output_multiplier"
         formula_id = "analysis.recipe_output_multiplier.v1"
-    else:
+    elif config["kind"] == "household_demand":
         overrides = dict(getattr(tile, "_analysis_demand_target_overrides", {}) or {})
         overrides.pop(good, None)
         if overrides:
@@ -264,13 +370,36 @@ def _remove_shock(server, experiment_id, applied):
                   "shock_removed_before_turn": RECOVERY_START}
         metric_id = "analysis.household_inventory_target_multiplier"
         formula_id = "analysis.household_inventory_target_multiplier.v1"
+    elif config["kind"] == "input_demand":
+        overrides = dict(getattr(tile, "_analysis_demand_target_overrides", {}) or {})
+        good_overrides = dict(overrides.get(good, {}) or {})
+        for ident in applied.get("affected_agent_ids", ()):
+            good_overrides.pop(int(ident), None)
+        if good_overrides:
+            overrides[good] = good_overrides
+        else:
+            overrides.pop(good, None)
+        if overrides:
+            tile._analysis_demand_target_overrides = overrides
+        else:
+            tile.__dict__.pop("_analysis_demand_target_overrides", None)
+        inputs = {"experiment": experiment_id, "good": config["good"],
+                  "intervention_target": "named mill desired cotton input inventory target",
+                  "affected_agent_ids": applied.get("affected_agent_ids", []),
+                  "base_target_units_at_start": applied.get(
+                      "base_target_units_at_start"),
+                  "shock_removed_before_turn": RECOVERY_START}
+        metric_id = "analysis.input_inventory_target_multiplier"
+        formula_id = "analysis.input_inventory_target_multiplier.v1"
+    else:
+        raise ValueError(f"unsupported shock kind {config['kind']}")
     return _emit_intervention(
         server, tile, kind="economic_shock_removed", turn=RECOVERY_START,
         metric_id=metric_id, unit="ratio", before=config["factor"], after=1.0,
         formula_id=formula_id, inputs=inputs)
 
 
-def _snapshot_rows(server, turn, target_tile):
+def _snapshot_rows(server, turn, target_tile, *, include_all_tiles=False):
     from trace_snapshots import sample
 
     rows = []
@@ -286,7 +415,7 @@ def _snapshot_rows(server, turn, target_tile):
             if subject.get("type") != "tile":
                 continue
         elif metric_id in SNAPSHOT_METRICS:
-            if tile_name != target_tile:
+            if not include_all_tiles and tile_name != target_tile:
                 continue
         else:
             continue
@@ -298,6 +427,157 @@ def _snapshot_rows(server, turn, target_tile):
     return rows
 
 
+def _scenario_actor_observations(server, turn):
+    """Capture named supply-rivalry actors and settled trade by turn."""
+    if server.scenario_id != "supply_rivalry":
+        return None
+    from goods import Goods
+
+    state = server.scenario_state
+    roles = {}
+    for ident in state.get("grower_ids", ()):
+        roles[int(ident)] = ("grower", "Cotton Fields")
+    roles[int(state["domestic_mill_id"])] = ("domestic_mill", "Cotton Fields")
+    roles[int(state["rival_mill_id"])] = ("rival_mill", "Rival Port")
+    actor_rows = []
+    for ident, (role, tile_name) in sorted(roles.items()):
+        tile = server.by_name[tile_name]
+        actor = next((item for item in tile.agents if int(item.id) == ident), None)
+        if actor is None:
+            actor_rows.append({"turn": turn, "actor_id": ident, "role": role,
+                               "tile": tile_name, "present": False})
+            continue
+        account = next((row for row in getattr(tile, "actor_turn_accounts", ())
+                        if int(row.get("actor_id", -1)) == ident
+                        and int(row.get("turn", -1)) == turn), {})
+        actor_rows.append({
+            "turn": turn, "actor_id": ident, "role": role,
+            "name": getattr(actor, "company_name", None)
+                    or getattr(actor, "display_name", None) or f"Actor {ident}",
+            "tile": tile_name, "present": True,
+            "cash": round(float(getattr(actor, "cash", 0.0)), 4),
+            "food_stock": int(actor.inv_get(Goods.food, 0)),
+            "cotton_stock": int(actor.inv_get(Goods.cotton, 0)),
+            "cloth_stock": int(actor.inv_get(Goods.cloth, 0)),
+            "debt": round(float(getattr(actor, "debt", 0.0)), 4),
+            "bank_debt": round(float(account.get("closing_bank_debt", 0.0)), 4),
+            "cash_change": account.get("cash_change"),
+            "crop_value": account.get("crop_value"),
+            "sales_cash": account.get("sales_cash"),
+            "purchases_cash": account.get("purchases_cash"),
+            "wages_cash": account.get("wages_cash"),
+            "input_consumed_cost": account.get("input_consumed_cost"),
+            "produced_units": account.get("produced_units"),
+            "food_intake": account.get("food_intake"),
+        })
+    trades = []
+    for tile in server.tiles:
+        for event in getattr(tile, "market_trade_events", ()):
+            if int(event.get("turn", -1)) != turn or event.get("good") != "cotton":
+                continue
+            trades.append({"turn": turn, "tile": tile.name,
+                           "buyer_id": event.get("buyer_id"),
+                           "seller_id": event.get("seller_id"),
+                           "quantity": event.get("quantity"),
+                           "unit_price": event.get("unit_price"),
+                           "total_paid": event.get("total_paid"),
+                           "imported": event.get("imported"),
+                           "shipment_id": event.get("shipment_id"),
+                           "source_shipment_id": event.get("source_shipment_id"),
+                           "source_region": event.get("source_region")})
+    return {"turn": int(turn), "actors": actor_rows,
+            "cotton_trade_events": trades}
+
+
+def _scenario_route_events(trace_path, scenario_id):
+    if scenario_id != "supply_rivalry":
+        return []
+    from trace_codec import iter_payloads
+
+    events = []
+    for payload in iter_payloads(trace_path):
+        row = json.loads(payload)
+        if row.get("kind") not in ("route_shipment_departure",
+                                     "route_shipment_arrival"):
+            continue
+        inputs = row.get("inputs") or {}
+        if inputs.get("good") != "cotton":
+            continue
+        events.append({
+            "turn": row.get("turn"), "kind": row.get("kind"),
+            "event_id": row.get("event_id"),
+            "shipment_id": (row.get("subject") or {}).get("id"),
+            "quantity": row.get("value_after"),
+            "source_region": inputs.get("source_region"),
+            "destination": inputs.get("destination"),
+            "route": inputs.get("route"),
+            "trader_id": inputs.get("trader_id"),
+        })
+    return events
+
+
+def _scenario_mill_order_events(trace_path, scenario_id, mill_id):
+    if scenario_id != "supply_rivalry":
+        return []
+    from trace_codec import iter_payloads
+
+    events = []
+    for payload in iter_payloads(trace_path):
+        row = json.loads(payload)
+        if (row.get("kind") != "market_buyer_order_submitted"
+                or row.get("turn") is None):
+            continue
+        subject = row.get("subject") or {}
+        inputs = row.get("inputs") or {}
+        if (subject.get("good") != "cotton"
+                or int(subject.get("buyer_id", -1)) != int(mill_id)):
+            continue
+        events.append({
+            "turn": int(row["turn"]), "event_id": row.get("event_id"),
+            "buyer_id": int(mill_id),
+            "submitted_quantity": inputs.get("submitted_quantity",
+                                             row.get("value_after")),
+            "desired_target": inputs.get("current_desired"),
+            "unshocked_desired_target": inputs.get("base_desired_target"),
+            "target_override_applied": bool(
+                inputs.get("analysis_demand_target_override")),
+            "inventory_before_order": inputs.get("inventory_before_order"),
+        })
+    return events
+
+
+def _intervention_hook_observation(server, config, target_tile, turn, arm,
+                                   intervention):
+    """Check a scenario hook leaves the treatment active and then restores it."""
+    if (server.scenario_id != "supply_rivalry" or arm != "treatment"
+            or intervention is None):
+        return None
+    from goods import Goods
+
+    good = getattr(Goods, config["good"])
+    active = SHOCK_START <= turn <= SHOCK_END
+    if config["kind"] == "physical_supply":
+        actual = float(target_tile.recipes[good]["production"])
+        expected = (float(intervention["after"]) if active
+                    else float(intervention["before"]))
+        passed = math.isclose(actual, expected, rel_tol=0.0, abs_tol=1e-12)
+        measured = actual
+        expected_value = expected
+        target = "cotton recipe production"
+    elif config["kind"] == "input_demand":
+        ident = int(intervention["affected_agent_ids"][0])
+        overrides = getattr(target_tile, "_analysis_demand_target_overrides", {}) or {}
+        factor = (overrides.get(good, {}) or {}).get(ident)
+        passed = (factor == config["factor"]) if active else factor is None
+        measured = factor
+        expected_value = config["factor"] if active else None
+        target = f"Meridian Mill {good.name} inventory-target multiplier"
+    else:
+        return None
+    return {"turn": turn, "target": target, "passed": passed,
+            "active": active, "expected": expected_value, "observed": measured}
+
+
 def _run_child(experiment_id, arm, seed, out_path, audit_trace=False):
     import numpy as np
 
@@ -306,8 +586,11 @@ def _run_child(experiment_id, arm, seed, out_path, audit_trace=False):
     from sim_server.sim_server import SimServer
 
     Path("tmp/traces").mkdir(parents=True, exist_ok=True)
+    config = EXPERIMENTS[experiment_id]
+    scenario_id = config.get("scenario")
     server = SimServer(seed=seed, terrain_seed=seed, nation_seed=seed,
-                       topology="voronoi", scenario_id=None,
+                       topology="hex" if scenario_id else "voronoi",
+                       scenario_id=scenario_id,
                        autoplay_nations=False, trace_enabled=True)
     if server.run_trace is None:
         raise RuntimeError("the experiment runner requires an enabled trace")
@@ -317,10 +600,13 @@ def _run_child(experiment_id, arm, seed, out_path, audit_trace=False):
     pre_shock_state_digest = None
     final_state_digest = None
     time_series = []
+    scenario_actor_observations = []
+    hook_observations = []
     target_tile, target_selection = _select_target_tile(server, experiment_id)
     for next_turn in range(1, TURN_COUNT + 1):
         if next_turn == SHOCK_START and arm == "treatment":
-            intervention = _apply_shock(server, experiment_id, target_tile)
+            intervention = _apply_shock(
+                server, experiment_id, target_tile, target_selection)
         elif next_turn == RECOVERY_START and intervention is not None:
             removal_event_id = _remove_shock(server, experiment_id, intervention)
         server.step()
@@ -331,12 +617,25 @@ def _run_child(experiment_id, arm, seed, out_path, audit_trace=False):
             pre_shock_state_digest = _canonical_digest(server)
         if server.turn == TURN_COUNT:
             final_state_digest = _canonical_digest(server)
-        time_series.extend(_snapshot_rows(server, server.turn, target_tile.name))
+        time_series.extend(_snapshot_rows(
+            server, server.turn, target_tile.name,
+            include_all_tiles=scenario_id == "supply_rivalry"))
+        if scenario_id == "supply_rivalry":
+            scenario_actor_observations.append(
+                _scenario_actor_observations(server, server.turn))
+            hook_state = _intervention_hook_observation(
+                server, config, target_tile, server.turn, arm, intervention)
+            if hook_state is not None:
+                hook_observations.append(hook_state)
 
     trace = server.run_trace
     trace_path = Path(trace.path)
     trace.publish()
     trace._compact_writer.close()
+    scenario_routes = _scenario_route_events(trace_path, scenario_id)
+    scenario_mill_orders = _scenario_mill_order_events(
+        trace_path, scenario_id,
+        getattr(server, "scenario_state", {}).get("domestic_mill_id", -1))
     panel = analyze_trace(trace_path)
     filtered_market_panel = [
         row for row in panel["panel"]
@@ -355,7 +654,7 @@ def _run_child(experiment_id, arm, seed, out_path, audit_trace=False):
         "experiment": experiment_id,
         "experiment_config": EXPERIMENTS[experiment_id],
         "arm": arm,
-        "scenario": "default",
+        "scenario": scenario_id or "default",
         "seed": seed,
         "python_hash_seed": os.environ.get("PYTHONHASHSEED"),
         "requested_turns": TURN_COUNT,
@@ -375,6 +674,13 @@ def _run_child(experiment_id, arm, seed, out_path, audit_trace=False):
         "market_mechanical_gates": market_gates,
         "trace_quality_gates": trace_gates,
         "snapshot_time_series": time_series,
+        "scenario_actor_observations": scenario_actor_observations,
+        "scenario_route_events": scenario_routes,
+        "scenario_mill_order_events": scenario_mill_orders,
+        "intervention_hook_observations": hook_observations,
+        "intervention_hook_passed": (
+            all(row["passed"] for row in hook_observations)
+            if hook_observations else None),
         **git,
         "python": platform.python_version(),
         "numpy": np.__version__,
@@ -618,6 +924,12 @@ def _quality_payload(run):
         "source_commit": run.get("source_commit"),
         "market_mechanical_gates": run.get("market_mechanical_gates"),
         "trace_quality_gates": run.get("trace_quality_gates"),
+        "scenario_actor_observations": run.get("scenario_actor_observations", []),
+        "scenario_route_events": run.get("scenario_route_events", []),
+        "scenario_mill_order_events": run.get("scenario_mill_order_events", []),
+        "intervention_hook_observations": run.get(
+            "intervention_hook_observations", []),
+        "intervention_hook_passed": run.get("intervention_hook_passed"),
     }
 
 
@@ -628,6 +940,55 @@ def _display_path(value):
         return path.resolve().relative_to(root).as_posix()
     except ValueError:
         return str(value)
+
+
+def _scenario_observation_summary(run):
+    turns = [item for item in run.get("scenario_actor_observations", [])
+             if SHOCK_START <= int(item.get("turn", -1)) <= SHOCK_END]
+    actors = [actor for item in turns for actor in item.get("actors", [])]
+    trades = [trade for item in turns
+              for trade in item.get("cotton_trade_events", [])]
+    routes = [event for event in run.get("scenario_route_events", [])
+              if SHOCK_START <= int(event.get("turn", -1)) <= SHOCK_END]
+    mill_orders = [event for event in run.get("scenario_mill_order_events", [])
+                   if SHOCK_START <= int(event.get("turn", -1)) <= SHOCK_END]
+    all_routes = run.get("scenario_route_events", [])
+    return {
+        "cotton_market_fills": sum(float(row.get("quantity", 0) or 0)
+                                   for row in trades),
+        "route_departures": sum(float(row.get("quantity", 0) or 0)
+                                 for row in routes
+                                 if row.get("kind") == "route_shipment_departure"),
+        "route_arrivals": sum(float(row.get("quantity", 0) or 0)
+                               for row in routes
+                               if row.get("kind") == "route_shipment_arrival"),
+        "route_departure_events": sum(
+            row.get("kind") == "route_shipment_departure" for row in routes),
+        "route_arrival_events": sum(
+            row.get("kind") == "route_shipment_arrival" for row in routes),
+        "run_route_departure_events": sum(
+            row.get("kind") == "route_shipment_departure" for row in all_routes),
+        "run_route_arrival_events": sum(
+            row.get("kind") == "route_shipment_arrival" for row in all_routes),
+        "grower_food_intake": sum(float(row.get("food_intake", 0) or 0)
+                                   for row in actors if row.get("role") == "grower"),
+        "actor_turns_observed": len(actors),
+        "mill_submitted_bid_units": sum(
+            float(row.get("submitted_quantity", 0) or 0) for row in mill_orders),
+        "mill_order_events": len(mill_orders),
+        "mill_desired_target_sum": sum(
+            float(row.get("desired_target", 0) or 0) for row in mill_orders),
+        "mill_unshocked_target_sum": sum(
+            float(row.get("unshocked_desired_target", 0) or 0)
+            for row in mill_orders),
+        "mill_override_order_events": sum(
+            bool(row.get("target_override_applied")) for row in mill_orders),
+    }
+
+
+def _scenario_actor_rows(run):
+    return [actor for snapshot in run.get("scenario_actor_observations", [])
+            for actor in snapshot.get("actors", [])]
 
 
 def _render_report(result):
@@ -647,26 +1008,40 @@ def _render_report(result):
         "One paired seed per intervention is an exploratory screen, not a "
         "robustness or empirical-calibration claim.", "",
     ]
-    for experiment_id in EXPERIMENTS:
+    for experiment_id in SCENARIO_EXPERIMENTS[result["scenario"]]:
         pair = result["experiments"][experiment_id]
         comparison = pair["comparison"]
         control = pair.get("control_result_data", {})
         treatment = pair.get("treatment_result_data", {})
         focus_good = EXPERIMENTS[experiment_id]["good"]
         target_tile = pair.get("target_tile", PREFERRED_TARGET_TILE)
-        goods = {"wood", "furniture"} if experiment_id == "wood_supply_reduction" else {"furniture"}
+        scenario = result["scenario"]
+        if scenario == "supply_rivalry":
+            goods = {"cotton", "cloth"}
+            market_tiles = {row["tile"] for row in comparison["market_response"]
+                            if row["good"] in goods}
+        else:
+            goods = ({"wood", "furniture"}
+                     if experiment_id == "wood_supply_reduction" else {"furniture"})
+            market_tiles = {target_tile}
         lines += [
             f"## {EXPERIMENTS[experiment_id]['title']}", "",
             f"Target tile `{target_tile}`. Turn-7 complete canonical states match: "
             f"**{comparison['pre_shock_states_match']}**. "
             f"Control trace: `{_display_path(pair['control_trace'])}`; treatment trace: "
             f"`{_display_path(pair['treatment_trace'])}`.", "",
-            f"Treatment minus control on `{target_tile}` at selected turns:", "",
-            "| Turn | Good | Ref. delta | Paid VWAP delta | Bids | Offers | Imports | Supply | Sold | Output | Inventory | Food shortfall | Nonfood consumed |",
-            "|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+            ("Treatment minus control in cotton markets at selected turns:" if scenario
+             == "supply_rivalry" else
+             f"Treatment minus control on `{target_tile}` at selected turns:"), "",
+            ("| Turn | Tile | Good | Ref. delta | Paid VWAP delta | Bids | Offers | Imports | Supply | Sold | Output | Inventory |"
+             if scenario == "supply_rivalry" else
+             "| Turn | Tile | Good | Ref. delta | Paid VWAP delta | Bids | Offers | Imports | Supply | Sold | Output | Inventory | Food shortfall | Nonfood consumed |"),
+            ("|---:|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|"
+             if scenario == "supply_rivalry" else
+             "|---:|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|"),
         ]
         for row in comparison["market_response"]:
-            if (row["tile"] != target_tile or row["good"] not in goods
+            if (row["tile"] not in market_tiles or row["good"] not in goods
                     or row["turn"] not in {7, 8, 9, 10, 11, 12, 15, 20}):
                 continue
             value = row["values"]
@@ -674,20 +1049,25 @@ def _render_report(result):
                     "offered_asks", "import_units", "offered_supply_units",
                     "units_sold", "production_units", "producer_inventory_units",
                     "food_intake.shortfall_units", "nonfood_consumption.units_consumed")
-            cells = [str(row["turn"]), row["good"]] + [
+            if scenario == "supply_rivalry":
+                keys = keys[:9]
+            cells = [str(row["turn"]), row["tile"], row["good"]] + [
                 _format(value[key]["treatment_minus_control"]) for key in keys]
             lines.append("| " + " | ".join(cells) + " |")
-        lines += ["", "Shock-window totals on turns 8-11:", "",
+        lines += ["", f"Shock-window totals on turns 8-11 at `{target_tile}`:", "",
                   f"| {target_tile} measure | Control total | Treatment total | Delta | Paired turns |",
                   "|---|---:|---:|---:|---:|"]
-        for key, label, good in (
+        summary_rows = (
             ("units_sold", "Units sold", focus_good),
             ("submitted_bids", "Submitted bids", focus_good),
             ("offered_supply_units", "Recorded offered supply", focus_good),
             ("production_units", "Production", focus_good),
             ("food_intake.shortfall_units", "Food shortfall units", "food"),
             ("nonfood_consumption.units_consumed", "Nonfood units consumed", focus_good),
-        ):
+        )
+        if scenario == "supply_rivalry":
+            summary_rows = summary_rows[:-1]
+        for key, label, good in summary_rows:
             summary = _window_summary(pair, good, key, SHOCK_START, SHOCK_END,
                                       target_tile)
             lines.append(
@@ -713,7 +1093,79 @@ def _render_report(result):
                   "account closes and treasury attribution are reported above; "
                   "neither gate establishes complete goods-stock conservation "
                   "or causal coverage. See the plan for remaining limits.", ""]
-        if experiment_id == "wood_supply_reduction":
+        if scenario == "supply_rivalry":
+            control_summary = _scenario_observation_summary(control)
+            treatment_summary = _scenario_observation_summary(treatment)
+            lines += [
+                "### Named actors and cotton logistics", "",
+                "| Shock-window observation | Control | Treatment | Treatment minus control |",
+                "|---|---:|---:|---:|",
+            ]
+            for key, label in (
+                    ("cotton_market_fills", "Cotton market fills (units)"),
+                    ("mill_submitted_bid_units", "Meridian Mill submitted bids (units)"),
+                    ("mill_desired_target_sum", "Meridian Mill desired target on observed orders"),
+                    ("mill_unshocked_target_sum", "Unshocked target on observed mill orders"),
+                    ("route_departures", "Cotton route departures (units)"),
+                    ("route_arrivals", "Cotton route arrivals (units)"),
+                    ("grower_food_intake", "Named growers' food intake (units)")):
+                left, right = control_summary[key], treatment_summary[key]
+                lines.append(f"| {label} | {_format(left)} | {_format(right)} | "
+                             f"{_format(right - left)} |")
+            lines += [
+                "",
+                f"Route event coverage: control {control_summary['route_departure_events']} "
+                f"departures and {control_summary['route_arrival_events']} arrivals; "
+                f"treatment {treatment_summary['route_departure_events']} departures "
+                f"and {treatment_summary['route_arrival_events']} arrivals. Mill cotton "
+                f"order events observed: control {control_summary['mill_order_events']} "
+                f"and treatment {treatment_summary['mill_order_events']}; the target "
+                f"override appears on {treatment_summary['mill_override_order_events']} "
+                f"treatment order rows. Across all 20 turns, cotton route events were "
+                f"{control_summary['run_route_departure_events']} departures / "
+                f"{control_summary['run_route_arrival_events']} arrivals in control "
+                f"and {treatment_summary['run_route_departure_events']} / "
+                f"{treatment_summary['run_route_arrival_events']} in treatment. Named-actor "
+                f"turn rows observed during the shock: {control_summary['actor_turns_observed']} "
+                f"control and {treatment_summary['actor_turns_observed']} treatment.", "",
+                "The table below reports the named growers and mills at the end of "
+                "the shock window. Cash and inventories are state observations; they "
+                "are not by themselves a complete welfare or goods-conservation measure.", "",
+                "| Actor | Turn | Control cash | Treatment cash | Delta | Control food | Treatment food | Control cotton | Treatment cotton | Control cloth | Treatment cloth |",
+                "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+            ]
+            control_actors = {(row["actor_id"], row["turn"]): row
+                              for row in _scenario_actor_rows(control)}
+            treatment_actors = {(row["actor_id"], row["turn"]): row
+                                for row in _scenario_actor_rows(treatment)}
+            for actor_id, turn in sorted(set(control_actors) | set(treatment_actors)):
+                if turn not in {7, 11}:
+                    continue
+                left = control_actors.get((actor_id, turn), {})
+                right = treatment_actors.get((actor_id, turn), {})
+                name = right.get("name") or left.get("name") or f"Actor {actor_id}"
+                cash_left, cash_right = left.get("cash"), right.get("cash")
+                cash_delta = (cash_right - cash_left
+                              if isinstance(cash_left, (int, float))
+                              and isinstance(cash_right, (int, float)) else None)
+                cells = [name, str(turn), _format(cash_left), _format(cash_right),
+                         _format(cash_delta), _format(left.get("food_stock")),
+                         _format(right.get("food_stock")),
+                         _format(left.get("cotton_stock")),
+                         _format(right.get("cotton_stock")),
+                         _format(left.get("cloth_stock")),
+                         _format(right.get("cloth_stock"))]
+                lines.append("| " + " | ".join(cells) + " |")
+            hook = pair.get("intervention_hook_passed", {})
+            lines += ["", f"Scenario-hook integrity: control `not applicable`; "
+                      f"treatment `{hook.get('treatment')}`. The treatment hook "
+                      "checks that native scenario stepping preserves the cotton "
+                      "intervention through turn 11 and restores it before turn 12.", "",
+                      "The route events link physical cotton departures to arrivals; "
+                      "market fills are reported separately because arrival does not "
+                      "guarantee sale to the target mill. Post-shock draws can diverge "
+                      "after turn 7, so later arm differences are not draw-aligned.", ""]
+        elif experiment_id == "wood_supply_reduction":
             lines += [
                 "Read the intervention first against realized wood output, offers "
                 "and sales, then against downstream furniture. The posted "
@@ -731,7 +1183,8 @@ def _render_report(result):
     lines += [
         "## Reproduction", "", "```sh",
         f"venv/bin/python economic_shock_experiment.py --seed {result['seed']} \\",
-        f"  --out-dir {_display_path(result['out_dir'])} --reuse-existing --audit",
+        f"  --scenario {result['scenario']} --out-dir "
+        f"{_display_path(result['out_dir'])} --reuse-existing --audit",
         "```", "",
         "The JSON retains full turn panels, state snapshots, intervention IDs, "
         "pre-shock digests, audit gates and trace paths. Compressed traces are "
@@ -740,14 +1193,17 @@ def _render_report(result):
     return "\n".join(lines)
 
 
-def _run_parent(seed, out_dir, *, reuse_existing=False, audit_trace=False):
+def _run_parent(seed, out_dir, *, scenario="default", reuse_existing=False,
+                audit_trace=False):
+    if scenario not in SCENARIO_EXPERIMENTS:
+        raise ValueError(f"unsupported scenario {scenario}")
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     env = os.environ.copy()
     env["PYTHONHASHSEED"] = str(seed)
     child_results = {}
     script = Path(__file__).resolve()
-    for experiment_id in EXPERIMENTS:
+    for experiment_id in SCENARIO_EXPERIMENTS[scenario]:
         child_results[experiment_id] = {}
         for arm in ("control", "treatment"):
             child_path = out_dir / f"{experiment_id}-{arm}.json"
@@ -797,18 +1253,36 @@ def _run_parent(seed, out_dir, *, reuse_existing=False, audit_trace=False):
             raise RuntimeError(
                 f"paired arms selected different target tiles for {experiment_id}: "
                 f"{control['target_tile']} != {treatment['target_tile']}")
+        if control.get("target_tile_selection") != treatment.get("target_tile_selection"):
+            raise RuntimeError(
+                f"paired arms selected different actors for {experiment_id}")
+        comparison = _compare_pair(control, treatment)
+        if not comparison["pre_shock_states_match"]:
+            raise RuntimeError(
+                f"control/treatment starting states diverged before the shock: "
+                f"{experiment_id}, seed {seed}")
+        if (scenario == "supply_rivalry"
+                and treatment.get("intervention_hook_passed") is not True):
+            raise RuntimeError(
+                f"supply-rivalry scenario overwrote or failed to restore the "
+                f"{experiment_id} treatment hook")
         experiments[experiment_id] = {
             "target_tile": control["target_tile"],
+            "target_selection": control.get("target_tile_selection"),
             "control_trace": control["trace_path"],
             "treatment_trace": treatment["trace_path"],
             "control_result": str(out_dir / f"{experiment_id}-control.json"),
             "treatment_result": str(out_dir / f"{experiment_id}-treatment.json"),
-            "comparison": _compare_pair(control, treatment),
+            "comparison": comparison,
             "control_result_data": _quality_payload(control),
             "treatment_result_data": _quality_payload(treatment),
+            "intervention_hook_passed": {
+                "control": control.get("intervention_hook_passed"),
+                "treatment": treatment.get("intervention_hook_passed"),
+            },
         }
     git = _git_info()
-    result = {"scenario": "default", "seed": seed,
+    result = {"scenario": scenario, "seed": seed,
               "out_dir": str(out_dir), "experiments": experiments,
               "analysis_source_commit": git["source_commit"],
               "analysis_worktree_dirty": git["tracked_worktree_dirty"],
@@ -828,7 +1302,9 @@ def _run_parent(seed, out_dir, *, reuse_existing=False, audit_trace=False):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--seed", type=int, default=4242)
+    parser.add_argument("--seed", type=int)
+    parser.add_argument("--scenario", choices=tuple(SCENARIO_EXPERIMENTS),
+                        default="default")
     parser.add_argument("--out-dir", type=Path)
     parser.add_argument("--child", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--experiment", choices=tuple(EXPERIMENTS))
@@ -839,15 +1315,17 @@ def main():
     parser.add_argument("--reuse-existing", action="store_true",
                         help="reanalyze saved child JSON and compact traces without rerunning simulation")
     args = parser.parse_args()
+    seed = (args.seed if args.seed is not None else
+            812 if args.scenario == "supply_rivalry" else 4242)
     if args.child:
         if not args.experiment or not args.arm or not args.out:
             parser.error("child mode requires --experiment, --arm and --out")
-        _run_child(args.experiment, args.arm, args.seed, args.out,
+        _run_child(args.experiment, args.arm, seed, args.out,
                    audit_trace=args.audit)
         return
     if args.out_dir is None:
         parser.error("--out-dir is required")
-    _run_parent(args.seed, args.out_dir,
+    _run_parent(seed, args.out_dir, scenario=args.scenario,
                 reuse_existing=args.reuse_existing,
                 audit_trace=args.audit)
 
