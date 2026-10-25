@@ -599,8 +599,14 @@ def render_report(summary: dict) -> str:
         "## Limits", "",
         "Five seeds are a diagnostic sample, not a precise uncertainty estimate. "
         "Deep audits cover all 20 arms: the bounded structural/formula checks "
-        "and public-account closes pass, but only 1,064/1,200 treasury turns "
-        "are fully attributed and complete causal coverage remains false. "
+        f"and public-account closes pass, while treasury attribution covers "
+        f"{audit.get('treasury_attributed_turns', 0):,}/"
+        f"{audit.get('treasury_turns', 0):,} turns; only "
+        f"{audit.get('fully_attributed_arms', 0)}/"
+        f"{audit.get('audited_arm_count', 0)} arms have no treasury gaps. "
+        f"Complete causal coverage "
+        f"remains false in {audit.get('audited_arm_count', 0) - audit.get('complete_causal_coverage_arms', 0)}/"
+        f"{audit.get('audited_arm_count', 0)} audited arms. "
         "Full goods-stock conservation, broader welfare accounting, prospective "
         "recovery evidence, and primary-source calibration remain open in the "
         "analysis plan.", "",
