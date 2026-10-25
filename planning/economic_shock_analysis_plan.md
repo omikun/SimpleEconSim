@@ -105,10 +105,16 @@ by 1,585 units against 3,895 traced production plus 3,374 foraged units minus
 5,524 civilian meals (expected +1,745; residual −160); the granary stock does
 not change. The same turn-3 residual is present across the seed-4242 paired
 arms. Code review found that the holdings census omitted the explicit
-`Agent.emergency_food_units` queue. The census now includes that pool as an
-audit-only observation; this is a coverage correction, not yet evidence that
-the queue caused the measured gap. Re-run clean traces and attribute the
-remaining food discrepancy before changing food rules.
+`Agent.emergency_food_units` queue, so the census now includes it. A clean
+seed-4242 control rerun on `769a9ae` found this queue at zero in all 20
+checkpoints; adding it did not change the turn-3 residual. Food still closes
+in only 3/19 intervals in that control, with a maximum absolute residual of
+472 units. The queue is not the cause of this observed gap. Continue by
+instrumenting and reconciling other food stock writers, especially life-cycle
+inventory changes and trade/storage boundaries; do not change food rules on
+the basis of an unattributed residual. The one-arm report is
+`planning/reports/economic_shock_stock_flow_default_food_queue_followup.md`
+with interval and checkpoint details in its JSON sidecar.
 
 The machine-readable interval details and source paths are in
 `planning/reports/economic_shock_stock_flow_default_all_goods.json`. A matching
@@ -739,8 +745,10 @@ Continue with:
    or resilience outcomes as fully reconciled. Fertilizer now closes in the
    five baseline controls and all four seed-4242 paired arms on clean source;
    rerun the other four seeds' treatment arms only if full intervention-wide
-   fertilizer coverage is needed. Prioritize food stock writers and reserve
-   queues, then the smaller wood, furniture and cloth residuals. Trace
+   fertilizer coverage is needed. The emergency-food queue was zero throughout
+   the fresh seed-4242 control, so continue the food diagnosis with other
+   lifecycle and trade/storage stock writers. Then address the smaller wood,
+   furniture and cloth residuals. Trace
    external trade and non-agent pools where a residual cannot be distinguished
    from offsetting flows. The all-goods census and auditor are in place; the
    measured circuit still fails overall.
