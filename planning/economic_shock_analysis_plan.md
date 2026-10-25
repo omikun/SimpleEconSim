@@ -109,10 +109,16 @@ arms. Code review found that the holdings census omitted the explicit
 seed-4242 control rerun on `769a9ae` found this queue at zero in all 20
 checkpoints; adding it did not change the turn-3 residual. Food still closes
 in only 3/19 intervals in that control, with a maximum absolute residual of
-472 units. The queue is not the cause of this observed gap. Continue by
-instrumenting and reconciling other food stock writers, especially life-cycle
-inventory changes and trade/storage boundaries; do not change food rules on
-the basis of an unattributed residual. The one-arm report is
+472 units. The queue is not the cause of this observed gap. Source-linked
+logistics events identify an omitted physical pool for several of the largest
+late residuals: a 472-unit provincial food dispatch at turn 16 exactly matches
+that interval's -472 residual, its turn-17 arrival is traced, and the 197-unit
+dispatch/arrival in turns 17–18 aligns with the large positive residuals. A
+further 373 units are dispatched at turn 20 immediately before the trace ends.
+The census now includes `Province.food_shipments` as in-transit food. A fresh
+control trace is pending to measure the corrected balance; other lifecycle
+inventory changes and trade/storage boundaries remain to be reconciled. Do
+not change food rules on the basis of an unattributed residual. The one-arm report is
 `planning/reports/economic_shock_stock_flow_default_food_queue_followup.md`
 with interval and checkpoint details in its JSON sidecar.
 
@@ -746,8 +752,9 @@ Continue with:
    five baseline controls and all four seed-4242 paired arms on clean source;
    rerun the other four seeds' treatment arms only if full intervention-wide
    fertilizer coverage is needed. The emergency-food queue was zero throughout
-   the fresh seed-4242 control, so continue the food diagnosis with other
-   lifecycle and trade/storage stock writers. Then address the smaller wood,
+   the fresh seed-4242 control. Provincial food shipments match several large
+   residuals and are now included in the census; rerun before diagnosing the
+   remaining lifecycle and trade/storage flows. Then address the smaller wood,
    furniture and cloth residuals. Trace
    external trade and non-agent pools where a residual cannot be distinguished
    from offsetting flows. The all-goods census and auditor are in place; the

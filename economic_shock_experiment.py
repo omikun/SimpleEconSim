@@ -733,10 +733,10 @@ def _goods_stock_observation(server, turn, *, aggregate_world=False):
 
     This is a point-in-time holdings census, not a stock-flow conservation
     proof. All ordinary agents, trader pools, public food and granary stores,
-    emergency meal queues, fertilizer reserves and route queues are included;
-    category and object counts make the scope explicit. ``aggregate_world``
-    retains pool/good totals without per-tile detail for larger default-game
-    runs.
+    emergency meal queues, fertilizer reserves, route cargo and provincial
+    food shipments are included; category and object counts make the scope
+    explicit. ``aggregate_world`` retains pool/good totals without per-tile
+    detail for larger default-game runs.
     """
     from goods import Goods
     from region_logistics import all_routes
@@ -750,6 +750,8 @@ def _goods_stock_observation(server, turn, *, aggregate_world=False):
     agent_categories = {}
     route_count = 0
     fertilizer_stores_scanned = 0
+    provincial_food_shipments_scanned = 0
+    provincial_food_units_in_transit = 0.0
     negative_holdings = []
 
     def add(tile_name, category, pool, good, quantity, route=None,
@@ -867,6 +869,26 @@ def _goods_stock_observation(server, turn, *, aggregate_world=False):
             getattr(tile, "fertilizer_stock", 0.0),
             holder_id=f"{tile.name}:fertilizer")
 
+    seen_provinces = set()
+    for nation in getattr(server, "nations", ()):
+        for province in getattr(nation, "provinces", ()):
+            if id(province) in seen_provinces:
+                continue
+            seen_provinces.add(id(province))
+            for index, shipment in enumerate(
+                    getattr(province, "food_shipments", ()) or ()):
+                units = shipment.get("units", 0)
+                shipment_id = str(shipment.get(
+                    "shipment_id", f"{province.name}:pending:{index}"))
+                add(province.name, "in_transit", "provincial_food_shipment",
+                    Goods.food, units, route=shipment_id,
+                    holder_id=shipment_id)
+                try:
+                    provincial_food_units_in_transit += float(units or 0.0)
+                except (TypeError, ValueError):
+                    pass
+                provincial_food_shipments_scanned += 1
+
     rows = [{"tile": key[0], "category": key[1], "pool": key[2],
              "good": key[3], "quantity": round(value, 6), "route": key[4]}
             for key, value in sorted(totals.items())]
@@ -876,7 +898,8 @@ def _goods_stock_observation(server, turn, *, aggregate_world=False):
     return {
         "turn": int(turn),
         "scenario": world,
-        "scope": f"all {world} regions and their current route queues",
+        "scope": (f"all {world} regions and their current route and "
+                  "provincial food shipment queues"),
         "coverage": {
             "region_count": len(server.tiles),
             "economic_region_count": sum(
@@ -889,6 +912,10 @@ def _goods_stock_observation(server, turn, *, aggregate_world=False):
             "granary_stores_scanned": granary_stores_scanned,
             "fertilizer_stores_scanned": fertilizer_stores_scanned,
             "routes_scanned": route_count,
+            "provincial_food_shipments_scanned": (
+                provincial_food_shipments_scanned),
+            "provincial_food_units_in_transit": round(
+                provincial_food_units_in_transit, 6),
             "negative_stock_row_count": len(negative_holdings),
         },
         "negative_stock_rows": negative_holdings,

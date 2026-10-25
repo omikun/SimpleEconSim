@@ -151,7 +151,8 @@ class EconomicShockInstrumentationTests(unittest.TestCase):
 
         self.assertEqual(census["scenario"], "default")
         self.assertEqual(census["scope"],
-                         "all default regions and their current route queues")
+                         "all default regions and their current route and "
+                         "provincial food shipment queues")
         self.assertEqual(stocks[("__WORLD__", "household", "inventory", "iron")], 2)
         self.assertEqual(stocks[("__WORLD__", "household", "inventory", "tea")], 3)
         self.assertEqual(stocks[("__WORLD__", "household",
@@ -162,6 +163,27 @@ class EconomicShockInstrumentationTests(unittest.TestCase):
         self.assertNotIn(("__WORLD__", "household", "inventory", "gov"), stocks)
         self.assertEqual(census["coverage"]["fertilizer_stores_scanned"], 1)
         self.assertEqual(census["coverage"]["economic_region_count"], 1)
+
+    def test_default_world_census_includes_provincial_food_shipment_cargo(self):
+        tile = _tile("North", [], granary_stock=4)
+        province = SimpleNamespace(name="North Province", food_shipments=[{
+            "shipment_id": "North Province:7:1",
+            "source": "North", "destination": "South", "units": 12,
+        }])
+        nation = SimpleNamespace(provinces=[province])
+        server = SimpleNamespace(scenario_id=None, tiles=[tile],
+                                 nations=[nation])
+
+        census = _goods_stock_observation(server, 7, aggregate_world=True)
+        stocks = {(row["tile"], row["category"], row["pool"], row["good"]):
+                  row["quantity"] for row in census["stocks"]}
+
+        self.assertEqual(stocks[("__WORLD__", "in_transit",
+                                 "provincial_food_shipment", "food")], 12)
+        self.assertEqual(
+            census["coverage"]["provincial_food_shipments_scanned"], 1)
+        self.assertEqual(
+            census["coverage"]["provincial_food_units_in_transit"], 12)
 
 
 if __name__ == "__main__":
