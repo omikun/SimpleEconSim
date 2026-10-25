@@ -1,23 +1,22 @@
 # Economic response to supply and demand shocks
 
 Date: 2026-10-24. Status: baseline and five-seed default-game paired screens
-complete; initial mechanical/formula audits applied. Treasury-flow writer
-gaps have been traced, instrumented and re-audited across all four seed-4242
-arms. The supply-rivalry adapter passes paired turn-7 and intervention-hook
-checks, and a scenario audit exposed a missing treasury receipt from machinery
+complete; supply-rivalry seed-812 paired effects and clean-source deep audits
+complete. The scenario audit exposed a missing treasury receipt from machinery
 repair when the government is the payee. That flow is now instrumented and
-unit-tested; the clean-source re-audit and five-seed scenario screen, full
-stock/welfare accounting, recovery metrics and empirical calibration remain.
-Preserve game rules during diagnosis; put any eventual economic fixes in
-separate changes.
+unit-tested; all four scenario arms pass account closure, treasury attribution,
+market settlement bounds, and the bounded structural/formula checks. The
+remaining scenario seeds 813–816, full stock/welfare accounting, recovery
+metrics and empirical calibration remain. Preserve game rules during
+diagnosis; put any eventual economic fixes in separate changes.
 
 ## Implementation progress
 
 | Phase | Status | Evidence / remaining work |
 |---|---|---|
 | 1. Baseline evidence and case studies | Complete for the selected 20-turn trace | Added streaming panel extraction and a baseline report. It identifies the furniture-input and local-food cases below; the trace does not cover every household, balance or in-transit stock. |
-| 2. Controlled shock experiments | Five paired 20-turn default-game seeds complete; supply-rivalry adapter and first scenario audit in progress | Default seeds 4242–4246 match complete canonical state at turn 7 for both shock pairs; original seed-4243 no-op attempts are excluded. The scenario runner targets the two named cotton growers and Meridian Mill and passed seed-812 pairing/restoration checks. A shared turn-12 machinery-repair treasury receipt was instrumented after the first deep audit; verify it on a clean rerun, then run scenario seeds 812–816. |
-| 3. Criteria and interpretation | Default-game mechanical and seed-4242 treasury gates pass | All ten valid default seed-pairs pass market gates. In a fresh clean-source audit, each of the four seed-4242 arms passes 60/60 account closes and 60/60 treasury-flow reconciliations; residual totals are below 6.3e-12. Structural/formula checks report zero issues, but full causal coverage and goods-stock conservation are not established. |
+| 2. Controlled shock experiments | Five paired 20-turn default-game seeds and the supply-rivalry seed-812 deep audit complete; scenario seeds 813–816 remain | Default seeds 4242–4246 match complete canonical state at turn 7 for both shock pairs; original seed-4243 no-op attempts are excluded. The scenario runner targets the two named cotton growers and Meridian Mill. Seed 812 matches at turn 7 in both pairs, passes intervention/restoration checks, and passes market, structural/formula and treasury audits in all four arms. |
+| 3. Criteria and interpretation | Default-game and seed-812 scenario mechanical and treasury gates pass | All ten valid default seed-pairs pass market gates. Each of the four clean-source seed-812 arms passes 40/40 account closes and 40/40 treasury-flow reconciliations; absolute residual totals are below 1.3e-12. Structural/formula checks report zero issues, but full causal coverage and goods-stock conservation are not established. |
 
 The old `market_price_stabilization_plan.md` describes an earlier price rule.
 Current `region_market.update_price_ref` already demand-gates positive scarcity
@@ -143,7 +142,7 @@ desired inventory creates bids more reliably than it creates supply or fills
 under the current cash, stock and reference-price constraints. It does not
 establish a general equilibrium response or a welfare improvement/loss.
 
-### Supply-rivalry adapter smoke
+### Supply-rivalry seed-812 paired screen and audit
 
 `economic_shock_experiment.py --scenario supply_rivalry` now runs through the
 scenario's native `SimServer` stepping path. The paired interventions target
@@ -156,34 +155,50 @@ events and a turn-by-turn check that native scenario stepping preserves then
 removes the shock. It requires identical turn-7 canonical states and fails if
 the scenario overwrites the intervention.
 
-An exploratory seed-812 integration run passed turn-7 matching in both pairs
-and the scenario-hook check in both treatments. The cotton supply treatment
-reduced production by 4 units and offers by 6 during turns 8–11; sales fell by
-4 across the 3/4 paired observed turns, and mean paid VWAP rose by 0.19 on
-those same observed turns. In the mill-demand pair, the desired target was
-higher on each of three observed cotton order rows (sum 11 versus unshocked
-7); the mill's submitted bid total rose by 2 units (28 versus 26), while
-cotton market fills were unchanged at 26. This confirms the override reaches
-an actual buyer, while the extra desired stock did not produce more fills in
-this seed. Named growers' food stocks were unchanged through the shock; their
-end-of-window cash was lower under the supply treatment, which is a single-run
-outcome rather than a welfare estimate.
+The clean-source seed-812 run is recorded in
+`planning/reports/economic_shock_supply_rivalry_seed812.md`. Both paired
+interventions match the complete canonical state at turn 7, and the native
+scenario hook remains active through turn 11 and is removed before turn 12.
+The simulation source is commit `3d2105acfd9ddfcceb6559614750cc655f5a1331`.
+The cotton supply treatment reduced production by 4 units and offered supply
+by 6 during turns 8–11; sales fell by 4 across the 3/4 paired observed turns,
+and mean paid VWAP rose by 0.19 on those same observed turns. In the mill-demand
+pair, the desired target was 11 versus its unshocked target of 7 over the three
+observed mill-order rows; submitted bids remained 26 in both arms, while cotton
+market fills were unchanged at 26. The override changed stated input demand,
+but did not increase funded bids or realized fills in this seed. Named growers'
+food-shortfall totals were unchanged; grower cash, inventory, balance, credit,
+and survivor welfare are not fully measured here.
 
 No cotton route departure or arrival occurred during turns 8–11 in seed 812.
 The observed route shipment left at turn 1 and arrived at turn 2, so this
 window did not exercise a new transport response. Only 80–85 of 200 market
-panel rows had settlement summaries; other rows remain missing, not zero.
-Structural/formula and treasury-flow audits were not run on this exploratory
-working-tree smoke. A subsequent clean-source deep audit found a shared
-turn-12 Meridian treasury residual of +177.306472 in all four arms: a firm
-paid for machinery repair but, because no eligible carpenter existed, the
-government received the payment. The public-account write and actor event were
-present, but the nation treasury-flow list omitted that public receipt.
-`labor_resistance.repair_and_replace_machinery` now records
-`government_machinery_repair_received` linked to the public-account write, and
-a focused regression test verifies that the signed flow equals the actual
-treasury change. Re-run all four seed-812 arms with a deep audit on clean source
-before proceeding to seeds 813–816.
+panel rows had settlement summaries; other rows remain missing, not zero. The
+first deep audit found a shared turn-12 Meridian treasury residual of
++177.306472 in all four arms: a firm paid for machinery repair but, because no
+eligible carpenter existed, the government received the payment. The public-
+account write and actor event were present, but the nation treasury-flow list
+omitted that public receipt. `labor_resistance.repair_and_replace_machinery`
+now records `government_machinery_repair_received` linked to the public-account
+write. The focused regression verifies that its signed flow equals the actual
+treasury change. A clean-source rerun on commit
+`3d2105acfd9ddfcceb6559614750cc655f5a1331` now passes in all four arms:
+
+- All four market settlement-bound gates pass; 80–85 of 200 rows per arm had
+  clearing summaries, with no settlement violations.
+- Each arm closes all 40/40 public-account checkpoints and attributes all
+  40/40 treasury-flow turns. Absolute residual totals range from
+  `9.97e-13` to `1.26e-12`.
+- Bounded structural/supported-formula checks report zero issues. Unsupported
+  formula/source-contract rows remain, and `complete_causal_coverage` remains
+  false. These checks do not establish goods-stock conservation.
+
+The seed-812 screen supports the immediate local mechanisms in this scenario,
+but it is one seed per intervention. The target increase creates more stated
+demand without more bids or fills, and the supply cut lowers local output and
+offers; it cannot support a general resilience, welfare, or historical
+realism claim. Run scenario seeds 813–816 before summarizing cross-seed
+variation. Post-shock differences are not random-draw aligned after turn 7.
 
 ## Questions and standards
 

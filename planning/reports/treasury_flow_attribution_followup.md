@@ -19,6 +19,24 @@ attribution for these traces and the currently instrumented mutation sites.
 They do not prove complete goods-stock conservation or cover every possible
 writer in every scenario.
 
+The follow-up also audited all four arms of the clean-source seed-812
+`supply_rivalry` experiment after tracing and instrumenting the government-paid
+machinery-repair receipt:
+
+| Arm | Public-account closes | Treasury-attributed turns | Absolute residual total |
+|---|---:|---:|---:|
+| Cotton supply control | 40/40 | 40/40 | 1.264974e-12 |
+| Cotton supply treatment | 40/40 | 40/40 | 9.968553e-13 |
+| Mill cotton-demand control | 40/40 | 40/40 | 1.264974e-12 |
+| Mill cotton-demand treatment | 40/40 | 40/40 | 1.264974e-12 |
+
+Each scenario arm also passed the settlement-bound gate. The bounded
+structural/supported-formula audit reports zero issues in every arm. The
+seed-812 machine-readable results and paired report are in
+`tmp/economic-shocks/supply-rivalry/seed-812/paired-results.json` (ignored)
+and `economic_shock_supply_rivalry_seed812.md`, respectively. The audited
+simulation source is commit `3d2105acfd9ddfcceb6559614750cc655f5a1331`.
+
 ## Diagnosed source legs
 
 The original US T4 control residual of -231.007765 matched the cash outflow
@@ -46,8 +64,8 @@ run data are in `economic_shock_screen_seed4242.md` and ignored
 
 ## Remaining audit work
 
-- Extend source-flow coverage beyond the audited default-game arms, especially
-  to the supply-rivalry scenario and any new intervention writers.
+- Extend source-flow coverage beyond the audited default-game and seed-812
+  supply-rivalry arms, especially for new scenarios and intervention writers.
 - Reconcile physical goods across household, producer, trader, public and
   in-transit stocks; treasury closure does not establish goods conservation.
 - Keep `complete_causal_coverage` marked false until unsupported mutation and

@@ -979,7 +979,9 @@ def _scenario_observation_summary(run):
         "mill_desired_target_sum": sum(
             float(row.get("desired_target", 0) or 0) for row in mill_orders),
         "mill_unshocked_target_sum": sum(
-            float(row.get("unshocked_desired_target", 0) or 0)
+            float((row.get("unshocked_desired_target")
+                   if row.get("unshocked_desired_target") is not None
+                   else row.get("desired_target", 0)) or 0)
             for row in mill_orders),
         "mill_override_order_events": sum(
             bool(row.get("target_override_applied")) for row in mill_orders),

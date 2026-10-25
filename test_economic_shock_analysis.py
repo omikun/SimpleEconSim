@@ -181,13 +181,17 @@ class ScenarioObservationSummaryTests(unittest.TestCase):
             "scenario_mill_order_events": [
                 {"turn": 8, "submitted_quantity": 5, "desired_target": 5,
                  "unshocked_desired_target": 3,
-                 "target_override_applied": True}],
+                 "target_override_applied": True},
+                {"turn": 9, "submitted_quantity": 2, "desired_target": 2,
+                 "target_override_applied": False}],
         }
         summary = _scenario_observation_summary(run)
         self.assertEqual(summary["cotton_market_fills"], 6)
         self.assertEqual(summary["route_departures"], 4)
         self.assertEqual(summary["route_arrivals"], 4)
-        self.assertEqual(summary["mill_submitted_bid_units"], 5)
+        self.assertEqual(summary["mill_submitted_bid_units"], 7)
+        self.assertEqual(summary["mill_desired_target_sum"], 7)
+        self.assertEqual(summary["mill_unshocked_target_sum"], 5)
         self.assertEqual(summary["mill_override_order_events"], 1)
         self.assertEqual(summary["grower_food_intake"], 4)
         self.assertEqual(summary["actor_turns_observed"], 2)
