@@ -27,7 +27,7 @@ of those cohort outcomes are pending.
 | Phase | Status | Evidence / remaining work |
 |---|---|---|
 | 1. Baseline evidence and case studies | Complete for the selected 20-turn trace | Added streaming panel extraction and a baseline report. It identifies the furniture-input and local-food cases below; the trace does not cover every household, balance or in-transit stock. |
-| 2. Controlled shock experiments | Five paired 20-turn default-game seeds and five paired supply-rivalry seeds complete; default resident-cohort instrumentation added | Default seeds 4242–4246 and scenario seeds 812–816 match complete canonical state at turn 7 for both shock pairs. All five scenario treatments preserve and remove their hooks on schedule; all ten scenario experiment-pairs pass market gates in both arms. The 20 scenario arm traces pass deep accounting and bounded structural/formula audits. Fixed cohorts and an enumerated stock census are captured in scenario arms. Default-game arms now freeze all eligible resident IDs at turn 7 and record compact welfare/account aggregates through turn 20; fresh five-seed reruns are required before using those outcomes. Focused aggregation and coverage tests pass. |
+| 2. Controlled shock experiments | Five paired 20-turn default-game seeds and five paired supply-rivalry seeds complete; currency-safe resident-cohort instrumentation added | Default seeds 4242–4246 and scenario seeds 812–816 match complete canonical state at turn 7 for both shock pairs. All five scenario treatments preserve and remove their hooks on schedule; all ten scenario experiment-pairs pass market gates in both arms. The 20 scenario arm traces pass deep accounting and bounded structural/formula audits. Fixed cohorts and an enumerated stock census are captured in scenario arms. Default-game arms freeze eligible resident IDs at turn 7 and record compact welfare aggregates through turn 20. Median cash/debt changes are normalized by each person's own baseline cash and only included when the recorded home currency matches; wage incidence comes from recipient-side wage events, not the employer payroll-cost field. Fresh five-seed reruns are required before using those outcomes. Focused tests cover matching, units and currency coverage. |
 | 3. Criteria and interpretation | Shock, accounting and bounded replay gates pass; recovery remains descriptive | Five fresh scenario seed pairs and default seed 4242 were rerun after the one-unit distribution fix: all scenario hooks, market gates and turn-7 state matches pass; default pairs also pass matched-state, market, treasury and formula gates. All 400 scenario stock snapshots contain zero negative holdings. The replay formula now uses the whole-unit floor; all 20 scenario arms pass bounded structural/formula checks, 800/800 account closes and 800/800 treasury reconciliations, with maximum residual 1.73e-12. Complete causal coverage and stock-flow conservation remain unestablished. |
 | 4. Historical comparison | Analogue and primary-source scoping complete; calibration pending | Lancashire's cotton famine is a documented intermediate-input supply shock relevant to the scenario's cotton-to-cloth chain. Contemporary parliamentary evidence also describes lost export markets, relief and substitution, so it is not a clean single-shock calibration target. Compare mechanisms first; establish common geography, commodity definitions and time units before comparing magnitudes. |
 | 5. Physical stock-flow reconciliation | Bounded cotton/cloth circuit passes; broader goods and default-game closure remain | Fresh traces from clean source `9915c7f` pass all 20 arms and 760/760 intervals across cotton and cloth, with zero reported issues and zero residual at 1e-6 tolerance. Cotton: 1,292 produced, 722 consumed as mill input, 617 consumed by households. Cloth: 1,304 produced, 1,349 consumed by households. The census includes agent/trader stocks and route cargo; market, transfer and route events are treated as internal turnover. This bounded aggregate closure may conceal offsetting uninstrumented flows; complete causal coverage remains false. See `planning/reports/economic_shock_stock_flow_supply_rivalry.md` and its JSON sidecar. |
@@ -601,16 +601,18 @@ sidecar. The seed-812 per-arm report and treasury findings are in
    Add explicit checks for public-store and route stock transitions where the
    current aggregate boundary cannot distinguish opposing gaps. The current
    cotton/cloth closure does not prove complete stock conservation.
-2. Run fresh five-seed default-game pairs with the fixed turn-7 resident
-   roster, then interpret survival, calorie need/intake, cash, debt, employer
-   linkage, wages, sales and recorded input costs with explicit person/turn
-   coverage. The current output is compactly aggregated and cannot show
-   within-cohort inequality; add distributional and subgroup summaries before
-   making incidence claims. Continue welfare accounting with public aid,
-   deposits/assets, health and other relevant transfers where reliable
-   instrumentation exists. Do not label sales less selected costs as full
-   profit; add a reconciled profit measure only when all relevant accounting
-   legs are observed.
+2. Rerun the five-seed default-game pairs with the fixed turn-7 resident
+   roster and summarize survival, calorie need/intake, employer linkage,
+   median currency-normalized cash/debt changes and recipient-side wage incidence
+   with explicit person/turn and currency coverage. Do not pool raw cash-flow
+   amounts across local currencies; present future sales, purchases, wages and
+   costs by currency or normalize them at the person level. The aggregate
+   output cannot show within-cohort inequality, so add distributional and
+   subgroup summaries before making incidence claims. Continue welfare
+   accounting with public aid, deposits/assets, health and other relevant
+   transfers where reliable instrumentation exists. Do not label sales less
+   selected costs as full profit; add a reconciled profit measure only when
+   all relevant accounting legs are observed.
 3. Run the explicit recovery rule prospectively with predeclared tolerances and
    sufficient post-shock windows. Current five-seed classifications are
    post-hoc path diagnostics, and post-shock RNG divergence prevents a causal

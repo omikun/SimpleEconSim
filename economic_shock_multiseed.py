@@ -106,17 +106,10 @@ def _resident_cohort_window_summary(cohort: dict | None) -> dict:
                     for row in rows)
     living_person_turns = sum(int(row.get("alive_member_count", 0)) for row in rows)
     linked = sum(int(row.get("employer_linked_member_count", 0)) for row in rows)
-    account_totals = {}
-    for field in ("wages_cash", "sales_cash", "purchases_cash",
-                  "input_consumed_cost"):
-        account_totals[field] = sum(float(
-            (row.get("account_flow_totals") or {}).get(field, 0.0) or 0.0)
-            for row in rows)
-    account_coverage = {}
-    for field in account_totals:
-        account_coverage[field] = sum(int(
-            (row.get("account_flow_coverage") or {}).get(field, 0))
-            for row in rows)
+    cash_wage_recipient_person_turns = sum(int(
+        row.get("cash_wage_recipient_member_count", 0)) for row in rows)
+    scrip_wage_recipient_person_turns = sum(int(
+        row.get("scrip_wage_recipient_member_count", 0)) for row in rows)
     turn11 = next((row for row in observations
                    if int(row.get("turn", -1)) == SHOCK_END), None)
 
@@ -127,6 +120,7 @@ def _resident_cohort_window_summary(cohort: dict | None) -> dict:
         "expected_turns": SHOCK_END - SHOCK_START + 1,
         "present_person_turns": sum(int(row.get("present_member_count", 0))
                                      for row in rows),
+        "living_person_turns": living_person_turns,
         "expected_person_turns": baseline_count * (SHOCK_END - SHOCK_START + 1),
         "need_observed_person_turns": need_observations,
         "mean_alive_share_of_baseline": mean_alive_share(),
@@ -138,19 +132,24 @@ def _resident_cohort_window_summary(cohort: dict | None) -> dict:
         if need_observations else None,
         "employer_linked_share_of_living_person_turns": linked / living_person_turns
         if living_person_turns else None,
-        "cash_change_total_per_baseline_member_at_t11": (
-            float(turn11.get("cash_change_total_from_turn7", 0.0)) / baseline_count
+        "cash_change_percent_from_turn7_at_t11": (
+            turn11.get("median_cash_change_percent_from_turn7")
             if turn11 else None),
-        "debt_change_total_per_covered_member_at_t11": (
-            float(turn11.get("debt_change_total_from_turn7", 0.0))
-            / int(turn11.get("debt_change_member_coverage", 0))
-            if turn11 and int(turn11.get("debt_change_member_coverage", 0)) else None),
-        "account_flow_per_covered_person_turn": {
-            field: account_totals[field] / account_coverage[field]
-            if account_coverage[field] else None
-            for field in account_totals
-        },
-        "account_flow_coverage": account_coverage,
+        "cash_change_percent_member_coverage_at_t11": (
+            int(turn11.get("cash_change_percent_member_coverage", 0))
+            if turn11 else 0),
+        "debt_change_as_baseline_cash_share_at_t11": (
+            turn11.get("median_debt_change_as_baseline_cash_share")
+            if turn11 else None),
+        "debt_change_cash_share_member_coverage_at_t11": (
+            int(turn11.get("debt_change_cash_share_member_coverage", 0))
+            if turn11 else 0),
+        "cash_wage_recipient_share_of_living_person_turns": (
+            cash_wage_recipient_person_turns / living_person_turns
+            if living_person_turns else None),
+        "scrip_wage_recipient_share_of_living_person_turns": (
+            scrip_wage_recipient_person_turns / living_person_turns
+            if living_person_turns else None),
         "turn11_alive_share_of_baseline": (
             float(turn11.get("alive_member_count", 0)) / baseline_count
             if turn11 else None),
@@ -178,8 +177,10 @@ def resident_cohort_effect(pair: dict) -> dict:
         "calories_eaten_per_need_person_turn",
         "calorie_shortfall_per_need_person_turn",
         "employer_linked_share_of_living_person_turns",
-        "cash_change_total_per_baseline_member_at_t11",
-        "debt_change_total_per_covered_member_at_t11",
+        "cash_change_percent_from_turn7_at_t11",
+        "debt_change_as_baseline_cash_share_at_t11",
+        "cash_wage_recipient_share_of_living_person_turns",
+        "scrip_wage_recipient_share_of_living_person_turns",
         "turn11_alive_share_of_baseline",
     )
     effects = {}
@@ -189,13 +190,6 @@ def resident_cohort_effect(pair: dict) -> dict:
         effects[metric] = (right - left if matched
                            and isinstance(left, (int, float))
                            and isinstance(right, (int, float)) else None)
-    for field in ("wages_cash", "sales_cash", "purchases_cash",
-                  "input_consumed_cost"):
-        left = control_summary.get("account_flow_per_covered_person_turn", {}).get(field)
-        right = treatment_summary.get("account_flow_per_covered_person_turn", {}).get(field)
-        effects[f"{field}_per_covered_person_turn"] = (
-            right - left if matched and isinstance(left, (int, float))
-            and isinstance(right, (int, float)) else None)
     return {
         "available": control_summary.get("available") is True
         and treatment_summary.get("available") is True,
@@ -390,15 +384,20 @@ def render_report(summary: dict) -> str:
         "turn 7 and records compact aggregate observations through turn 20. "
         "The table covers turns 8–11. Need-met rates use present, living "
         "roster members with positive measured calorie need; missing people "
-        "are not assigned zero intake. Cash change is cumulative from turn 7 "
-        "per baseline roster member. Wage flow is divided by resident-turns "
-        "with an account record. Differences are treatment minus control; "
-        "need-met differences are percentage points.", "",
+        "are not assigned zero intake. Cash and debt changes are each person's "
+        "change from turn 7 divided by their own positive baseline cash, and "
+        "only residents whose recorded home currency still matches are covered. "
+        "Wage measures count residents with a recorded cash or scrip wage "
+        "receipt per living person-turn; they are incidence rates, not pooled "
+        "amounts. Raw cash amounts are not pooled across local currencies. "
+        "Differences are treatment minus control; rate and balance-ratio "
+        "differences are percentage points.", "",
         "| Experiment | Seed | Baseline N C/T | Roster matched | T11 present C/T | "
         "T11 alive C/T | Need met C/T (Δ pp) | kcal/need-person-turn C/T (Δ) | "
-        "Cash Δ/member C/T (Δ) | Wages/covered-person-turn C/T (Δ) | "
-        "Need coverage C/T |",
-        "|---|---:|---:|:---:|---:|---:|---:|---:|---:|---:|---:|",
+        "Employer-linked C/T (Δ pp) | Median cash Δ/T7 cash C/T (Δ pp; coverage) | "
+        "Median debt Δ/T7 cash C/T (Δ pp; coverage) | Cash-wage recipients C/T (Δ pp) | "
+        "Scrip-wage recipients C/T (Δ pp) | Need/living person-turn coverage C/T |",
+        "|" + "|".join(["---", "---:", "---:", ":---:"] + ["---:"] * 10) + "|",
     ]
     for experiment_id, experiment in summary["experiments"].items():
         for seed in seeds:
@@ -415,16 +414,43 @@ def render_report(summary: dict) -> str:
                 total = row.get("baseline_member_count")
                 return count / total if count is not None and total else None
 
-            wages = [
-                row.get("account_flow_per_covered_person_turn", {}).get("wages_cash")
-                for row in (control, treatment)
-            ]
-            wages_effect = effects.get("wages_cash_per_covered_person_turn")
-            coverage = [
-                f"{row.get('need_observed_person_turns', 0)}/"
-                f"{row.get('expected_person_turns', 0)}"
-                for row in (control, treatment)
-            ]
+            def pair_percent_share(metric):
+                values = [_fmt_percent(row.get(metric))
+                          for row in (control, treatment)]
+                effect = effects.get(metric)
+                delta = f"{_fmt_signed(100 * effect, 1)} pp" \
+                    if effect is not None else "—"
+                return f"{values[0]}/{values[1]} ({delta})"
+
+            def pair_balance_ratio(metric, coverage_metric,
+                                   *, values_are_percent=False):
+                values = [row.get(metric) for row in (control, treatment)]
+                scale = 1.0 if values_are_percent else 100.0
+                display = []
+                for row, value in zip((control, treatment), values):
+                    if value is None:
+                        display.append("—")
+                        continue
+                    coverage_count = row.get(coverage_metric, 0)
+                    baseline_count = row.get("baseline_member_count", 0)
+                    display.append(
+                        f"{_fmt_signed(scale * value, 2)}% "
+                        f"[{coverage_count}/{baseline_count}]")
+                effect = effects.get(metric)
+                delta_scale = 1.0 if values_are_percent else 100.0
+                delta = f"{_fmt_signed(delta_scale * effect, 2)} pp" \
+                    if effect is not None else "—"
+                return f"{display[0]}/{display[1]} ({delta})"
+
+            coverage = (
+                f"need {control.get('need_observed_person_turns', 0)}/"
+                f"{control.get('expected_person_turns', 0)}, live "
+                f"{control.get('living_person_turns', 0)}/"
+                f"{control.get('expected_person_turns', 0)}; "
+                f"need {treatment.get('need_observed_person_turns', 0)}/"
+                f"{treatment.get('expected_person_turns', 0)}, live "
+                f"{treatment.get('living_person_turns', 0)}/"
+                f"{treatment.get('expected_person_turns', 0)}")
             lines.append("| " + " | ".join([
                 experiment["title"], str(seed), baseline, matched,
                 f"{_fmt_percent(present_share(control))}/"
@@ -437,11 +463,18 @@ def render_report(summary: dict) -> str:
                 f"{_fmt(control.get('calories_eaten_per_need_person_turn'))}/"
                 f"{_fmt(treatment.get('calories_eaten_per_need_person_turn'))} "
                 f"({_fmt_signed(effects.get('calories_eaten_per_need_person_turn'))})",
-                f"{_fmt(control.get('cash_change_total_per_baseline_member_at_t11'))}/"
-                f"{_fmt(treatment.get('cash_change_total_per_baseline_member_at_t11'))} "
-                f"({_fmt_signed(effects.get('cash_change_total_per_baseline_member_at_t11'))})",
-                f"{_fmt(wages[0])}/{_fmt(wages[1])} ({_fmt_signed(wages_effect)})",
-                f"{coverage[0]}/{coverage[1]}",
+                pair_percent_share(
+                    "employer_linked_share_of_living_person_turns"),
+                pair_balance_ratio("cash_change_percent_from_turn7_at_t11",
+                                   "cash_change_percent_member_coverage_at_t11",
+                                   values_are_percent=True),
+                pair_balance_ratio("debt_change_as_baseline_cash_share_at_t11",
+                                   "debt_change_cash_share_member_coverage_at_t11"),
+                pair_percent_share(
+                    "cash_wage_recipient_share_of_living_person_turns"),
+                pair_percent_share(
+                    "scrip_wage_recipient_share_of_living_person_turns"),
+                coverage,
             ]) + " |")
     lines += [
         "", "An absent roster member can have migrated or otherwise left the "

@@ -21,6 +21,7 @@ import os
 from pathlib import Path
 import platform
 import random
+import statistics
 import subprocess
 import sys
 import time
@@ -604,6 +605,7 @@ def _default_resident_cohort_roster(server, turn):
             roster.append({
                 "actor_id": int(actor.id),
                 "baseline_tile": tile.name,
+                "baseline_currency": getattr(tile, "home_currency", None),
                 "baseline_cash": round(float(getattr(actor, "cash", 0.0) or 0.0), 4),
                 "baseline_debt": account.get("closing_debt"),
                 "baseline_bank_debt": account.get("closing_bank_debt"),
@@ -615,8 +617,7 @@ def _default_resident_cohort_observation(server, turn, roster):
     """Record compact welfare and account aggregates for the fixed roster."""
     if server.scenario_id is not None or not roster:
         return None
-    from goods import Goods
-    actors = {int(actor.id): actor
+    actors = {int(actor.id): (tile, actor)
               for tile in server.tiles
               for actor in getattr(tile, "agents", ())}
     accounts = {int(row.get("actor_id")): row
@@ -625,34 +626,55 @@ def _default_resident_cohort_observation(server, turn, roster):
                 if row.get("actor_id") is not None
                 and int(row.get("turn", -1)) == int(turn)}
     alive_count = present_count = need_count = need_met_count = 0
-    need_total = eaten_total = shortfall_total = cash_total = cash_change_total = 0.0
-    food_stock_total = employer_linked_count = 0.0
-    debt_change_total = 0.0
-    debt_change_count = 0
-    account_totals = {field: 0.0 for field in (
-        "cash_change", "wages_cash", "sales_cash", "purchases_cash",
-        "input_consumed_cost", "produced_units")}
-    account_coverage = {field: 0 for field in account_totals}
+    eaten_total = shortfall_total = 0.0
+    employer_linked_count = 0
+    alive_resident_ids = set()
+    cash_change_percent_values = []
+    debt_change_cash_share_values = []
+    resident_ids = {int(row["actor_id"]) for row in roster}
+    cash_wage_recipients = set()
+    scrip_wage_recipients = set()
+    for tile in server.tiles:
+        for event in getattr(tile, "economic_events", ()):
+            if int(event.get("turn", -1)) != int(turn):
+                continue
+            recipient_id = event.get("recipient_id")
+            if recipient_id is None or int(recipient_id) not in resident_ids:
+                continue
+            kind = event.get("kind")
+            detail = event.get("detail") or {}
+            if (kind in ("wage", "wage_arrears_paid")
+                    or (kind == "wallet_transfer_in"
+                        and detail.get("payment_kind") == "wage_arrears_paid")):
+                cash_wage_recipients.add(int(recipient_id))
+            elif kind == "scrip_wage":
+                scrip_wage_recipients.add(int(recipient_id))
 
     for base in roster:
-        actor = actors.get(int(base["actor_id"]))
-        if actor is None:
+        found = actors.get(int(base["actor_id"]))
+        if found is None:
             continue
+        tile, actor = found
         present_count += 1
         if not getattr(actor, "alive", True):
             continue
         alive_count += 1
+        alive_resident_ids.add(int(actor.id))
         cash = float(getattr(actor, "cash", 0.0) or 0.0)
-        cash_total += cash
-        if base.get("baseline_cash") is not None:
-            cash_change_total += cash - float(base["baseline_cash"])
-        food_stock_total += float(actor.inv_get(Goods.food, 0) or 0.0)
+        baseline_cash = base.get("baseline_cash")
+        baseline_currency = base.get("baseline_currency")
+        current_currency = getattr(tile, "home_currency", None)
+        same_currency = (baseline_currency is not None
+                         and current_currency == baseline_currency)
+        if (same_currency and baseline_cash is not None
+                and float(baseline_cash) > 0):
+            cash_change_percent_values.append(
+                (cash / float(baseline_cash) - 1.0) * 100.0)
         employer_linked_count += getattr(actor, "employer", None) is not None
         need = max(0.0, float(getattr(actor, "calorie_need_kcal", 0.0) or 0.0))
         eaten = max(0.0, float(getattr(actor, "last_calories_eaten", 0.0) or 0.0))
         if need > 0:
             need_count += 1
-            need_total += need
             eaten_total += eaten
             shortfall_total += max(0.0, need - eaten)
             need_met_count += eaten + 1e-9 >= need
@@ -662,16 +684,13 @@ def _default_resident_cohort_observation(server, turn, roster):
         bank_debt = account.get("closing_bank_debt")
         base_debt = base.get("baseline_debt")
         base_bank_debt = base.get("baseline_bank_debt")
-        if (debt is not None and bank_debt is not None
-                and base_debt is not None and base_bank_debt is not None):
-            debt_change_total += (float(debt) + float(bank_debt)
-                                  - float(base_debt) - float(base_bank_debt))
-            debt_change_count += 1
-        for field in account_totals:
-            value = account.get(field)
-            if value is not None:
-                account_totals[field] += float(value)
-                account_coverage[field] += 1
+        if (same_currency and baseline_cash is not None
+                and float(baseline_cash) > 0 and debt is not None
+                and bank_debt is not None and base_debt is not None
+                and base_bank_debt is not None):
+            debt_change_cash_share_values.append((
+                float(debt) + float(bank_debt)
+                - float(base_debt) - float(base_bank_debt)) / float(baseline_cash))
 
     baseline_count = len(roster)
     roster_digest = hashlib.sha256(
@@ -689,20 +708,23 @@ def _default_resident_cohort_observation(server, turn, roster):
         "need_met_member_count": need_met_count,
         "need_met_share": round(need_met_count / need_count, 6)
         if need_count else None,
-        "calories_needed_total_kcal": round(need_total, 3),
         "calories_eaten_total_kcal": round(eaten_total, 3),
         "calorie_shortfall_total_kcal": round(shortfall_total, 3),
-        "cash_total_living_residents": round(cash_total, 4),
-        "cash_change_total_from_turn7": round(cash_change_total, 4),
-        "food_stock_total_living_residents": round(food_stock_total, 4),
+        "median_cash_change_percent_from_turn7": round(
+            statistics.median(cash_change_percent_values), 6)
+        if cash_change_percent_values else None,
+        "cash_change_percent_member_coverage": len(cash_change_percent_values),
         "employer_linked_member_count": int(employer_linked_count),
         "employer_linked_share_of_living": round(
             employer_linked_count / alive_count, 6) if alive_count else None,
-        "debt_change_total_from_turn7": round(debt_change_total, 4),
-        "debt_change_member_coverage": debt_change_count,
-        "account_flow_totals": {
-            key: round(value, 4) for key, value in account_totals.items()},
-        "account_flow_coverage": account_coverage,
+        "median_debt_change_as_baseline_cash_share": round(
+            statistics.median(debt_change_cash_share_values), 6)
+        if debt_change_cash_share_values else None,
+        "debt_change_cash_share_member_coverage": len(debt_change_cash_share_values),
+        "cash_wage_recipient_member_count": len(
+            cash_wage_recipients & alive_resident_ids),
+        "scrip_wage_recipient_member_count": len(
+            scrip_wage_recipients & alive_resident_ids),
     }
 
 

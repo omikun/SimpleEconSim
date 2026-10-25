@@ -64,7 +64,7 @@ class PairedSeedAggregationTests(unittest.TestCase):
     def test_fixed_resident_cohort_reports_paired_welfare_rates_and_coverage(self):
         roster = [{"actor_id": 1}, {"actor_id": 2}]
 
-        def cohort(need_met, eaten, wages, cash_change):
+        def cohort(need_met, eaten, wage_recipients, cash_change_percent):
             observations = []
             for turn in range(8, 12):
                 observations.append({
@@ -77,18 +77,19 @@ class PairedSeedAggregationTests(unittest.TestCase):
                     "calories_eaten_total_kcal": eaten,
                     "calorie_shortfall_total_kcal": 200,
                     "employer_linked_member_count": 1,
-                    "debt_change_total_from_turn7": 0,
-                    "debt_change_member_coverage": 2,
-                    "account_flow_totals": {"wages_cash": wages},
-                    "account_flow_coverage": {"wages_cash": 2},
-                    "cash_change_total_from_turn7": cash_change,
+                    "median_cash_change_percent_from_turn7": cash_change_percent,
+                    "cash_change_percent_member_coverage": 2,
+                    "median_debt_change_as_baseline_cash_share": 0.0,
+                    "debt_change_cash_share_member_coverage": 2,
+                    "cash_wage_recipient_member_count": wage_recipients,
+                    "scrip_wage_recipient_member_count": 0,
                 })
             return {"roster": roster, "observations": observations}
 
         result = resident_cohort_effect({
             "default_resident_cohort": {
-                "control": cohort(1, 3000, 8, 0),
-                "treatment": cohort(2, 3600, 12, 4),
+                "control": cohort(1, 3000, 1, 0.0),
+                "treatment": cohort(2, 3600, 2, 2.0),
             }
         })
 
@@ -101,7 +102,10 @@ class PairedSeedAggregationTests(unittest.TestCase):
                 "calories_eaten_per_need_person_turn"], 300.0)
         self.assertAlmostEqual(
             result["treatment_minus_control"][
-                "wages_cash_per_covered_person_turn"], 2.0)
+                "cash_wage_recipient_share_of_living_person_turns"], 0.5)
+        self.assertAlmostEqual(
+            result["treatment_minus_control"][
+                "cash_change_percent_from_turn7_at_t11"], 2.0)
         self.assertEqual(result["control"]["present_person_turns"], 8)
 
     def test_cohort_effects_are_withheld_when_baseline_rosters_differ(self):
@@ -112,7 +116,6 @@ class PairedSeedAggregationTests(unittest.TestCase):
             "calories_eaten_total_kcal": 100,
             "calorie_shortfall_total_kcal": 0,
             "employer_linked_member_count": 1,
-            "account_flow_totals": {}, "account_flow_coverage": {},
         } for turn in range(8, 12)]
         result = resident_cohort_effect({
             "default_resident_cohort": {
