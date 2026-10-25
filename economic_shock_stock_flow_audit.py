@@ -58,19 +58,22 @@ def audit_run(run, events, *, tolerance=1e-6):
     snapshots = {}
     granary_stocks = {}
     issues = []
+    expected_region_count = 1
     for snapshot in run.get("scenario_goods_stock_observations", ()):
         turn = int(snapshot["turn"])
         if turn in snapshots:
             issues.append({"kind": "duplicate_stock_snapshot", "turn": turn})
         snapshots[turn] = _stock_totals(snapshot)
         granary_stocks[turn] = _granary_food_total(snapshot)
+        expected_region_count = int(
+            (snapshot.get("coverage") or {}).get("region_count", 1))
 
     components = defaultdict(lambda: defaultdict(lambda: {
         "production": 0.0, "production_input_use": 0.0,
         "household_nonfood_use": 0.0, "civilian_food_use": 0.0,
         "military_food_use": 0.0, "food_inflow": 0.0,
     }))
-    food_consumption_aggregate_turns = set()
+    food_consumption_aggregate_regions = defaultdict(set)
     turnover = defaultdict(lambda: defaultdict(lambda: {
         "event_count": 0, "reported_quantity": 0.0,
     }))
@@ -109,10 +112,11 @@ def audit_run(run, events, *, tolerance=1e-6):
                 row.get("value_after") or 0.0)
 
         elif kind == "civilian_food_consumption_total" and good == "food":
-            if turn in food_consumption_aggregate_turns:
+            region = subject.get("tile") or subject.get("id")
+            if region in food_consumption_aggregate_regions[turn]:
                 issues.append({"kind": "duplicate_food_consumption_aggregate",
-                               "turn": turn})
-            food_consumption_aggregate_turns.add(turn)
+                               "turn": turn, "region": region})
+            food_consumption_aggregate_regions[turn].add(region)
             amount = inputs.get("eaten_food_units", row.get("value_after", 0.0))
             components[turn][good]["civilian_food_use"] += float(amount or 0.0)
 
@@ -191,8 +195,13 @@ def audit_run(run, events, *, tolerance=1e-6):
     for turn in range(2, int(run.get("completed_turns", 0)) + 1):
         if turn not in snapshots or turn - 1 not in snapshots:
             issues.append({"kind": "missing_consecutive_stock_snapshot", "turn": turn})
-        elif turn not in food_consumption_aggregate_turns:
-            issues.append({"kind": "missing_food_consumption_aggregate", "turn": turn})
+        elif len(food_consumption_aggregate_regions[turn]) != expected_region_count:
+            issues.append({
+                "kind": "incomplete_food_consumption_aggregates",
+                "turn": turn,
+                "expected_regions": expected_region_count,
+                "observed_regions": len(food_consumption_aggregate_regions[turn]),
+            })
 
     summaries = {}
     for good in AUDITED_GOODS:

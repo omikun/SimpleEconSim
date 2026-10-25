@@ -171,6 +171,28 @@ class EconomicShockStockFlowAuditTests(unittest.TestCase):
         self.assertEqual(food_interval["granary_stock_delta"], 2)
         self.assertEqual(food_interval["residual"], 4)
 
+    def test_food_aggregates_are_required_once_per_region(self):
+        run = self._run([
+            {"turn": 1, "coverage": {"region_count": 2},
+             "stocks": [{"good": "food", "quantity": 10}]},
+            {"turn": 2, "coverage": {"region_count": 2},
+             "stocks": [{"good": "food", "quantity": 5}]},
+        ])
+        events = [
+            {"turn": 2, "kind": "civilian_food_consumption_total",
+             "subject": {"id": "North", "good": "food"},
+             "inputs": {"eaten_food_units": 2}},
+            {"turn": 2, "kind": "civilian_food_consumption_total",
+             "subject": {"id": "South", "good": "food"},
+             "inputs": {"eaten_food_units": 3}},
+        ]
+
+        result = audit_run(run, events)
+
+        self.assertTrue(result["passed"])
+        self.assertEqual(result["summary_by_good"]["food"][
+            "civilian_food_consumption_units"], 5.0)
+
 
 if __name__ == "__main__":
     unittest.main()
