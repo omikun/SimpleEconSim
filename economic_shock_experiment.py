@@ -728,19 +728,19 @@ def _default_resident_cohort_observation(server, turn, roster):
     }
 
 
-def _scenario_goods_stock_observation(server, turn):
-    """Census enumerated physical goods holdings in the supply-rivalry world.
+def _goods_stock_observation(server, turn, *, aggregate_world=False):
+    """Census enumerated physical goods holdings across the simulated world.
 
     This is a point-in-time holdings census, not a stock-flow conservation
     proof. All ordinary agents, trader pools, public food and granary stores,
-    and route queues are included; category and object counts make the scope
-    explicit.
+    fertilizer reserves and route queues are included; category and object
+    counts make the scope explicit. ``aggregate_world`` retains pool/good
+    totals without per-tile detail for larger default-game runs.
     """
-    if server.scenario_id != "supply_rivalry":
-        return None
     from goods import Goods
     from region_logistics import all_routes
 
+    world = server.scenario_id or "default"
     totals = {}
     seen_public = set()
     seen_charities = set()
@@ -748,6 +748,7 @@ def _scenario_goods_stock_observation(server, turn):
     scanned_agents = 0
     agent_categories = {}
     route_count = 0
+    fertilizer_stores_scanned = 0
     negative_holdings = []
 
     def add(tile_name, category, pool, good, quantity, route=None,
@@ -765,14 +766,16 @@ def _scenario_goods_stock_observation(server, turn):
                 "good": good_name, "quantity": round(amount, 6),
                 "route": route, "holder_id": holder_id,
             })
-        key = (str(tile_name), category, pool, good_name, route)
+        scope_tile = "__WORLD__" if aggregate_world else str(tile_name)
+        scope_route = None if aggregate_world else route
+        key = (scope_tile, category, pool, good_name, scope_route)
         totals[key] = totals.get(key, 0.0) + amount
 
     def add_array(tile_name, category, pool, values, *, holder_id=None):
         if values is None:
             return
         for good in Goods:
-            if good == Goods.none:
+            if good in (Goods.gov, Goods.none):
                 continue
             index = int(good.value)
             if index < len(values):
@@ -855,6 +858,11 @@ def _scenario_goods_stock_observation(server, turn):
                         shipment[1], shipment[2], route.name,
                         shipment[5] if len(shipment) > 5 else route.name)
 
+        fertilizer_stores_scanned += 1
+        add(tile.name, "environment", "fertilizer_stock", "fertilizer",
+            getattr(tile, "fertilizer_stock", 0.0),
+            holder_id=f"{tile.name}:fertilizer")
+
     rows = [{"tile": key[0], "category": key[1], "pool": key[2],
              "good": key[3], "quantity": round(value, 6), "route": key[4]}
             for key, value in sorted(totals.items())]
@@ -863,7 +871,8 @@ def _scenario_goods_stock_observation(server, turn):
         str(row.get("holder_id"))))
     return {
         "turn": int(turn),
-        "scope": "all supply-rivalry regions and their current route queues",
+        "scenario": world,
+        "scope": f"all {world} regions and their current route queues",
         "coverage": {
             "region_count": len(server.tiles),
             "agents_scanned": scanned_agents,
@@ -871,12 +880,20 @@ def _scenario_goods_stock_observation(server, turn):
             "distinct_government_stores": len(seen_public),
             "distinct_charity_stores": len(seen_charities),
             "granary_stores_scanned": granary_stores_scanned,
+            "fertilizer_stores_scanned": fertilizer_stores_scanned,
             "routes_scanned": route_count,
             "negative_stock_row_count": len(negative_holdings),
         },
         "negative_stock_rows": negative_holdings,
         "stocks": rows,
     }
+
+
+def _scenario_goods_stock_observation(server, turn):
+    """Compatibility wrapper for existing supply-rivalry callers."""
+    if server.scenario_id != "supply_rivalry":
+        return None
+    return _goods_stock_observation(server, turn)
 
 
 def _scenario_route_events(trace_path, scenario_id):
@@ -996,6 +1013,7 @@ def _run_child(experiment_id, arm, seed, out_path, audit_trace=False):
     default_resident_cohort_roster = []
     default_resident_cohort_observations = []
     scenario_goods_stock_observations = []
+    default_goods_stock_observations = []
     hook_observations = []
     target_tile, target_selection = _select_target_tile(server, experiment_id)
     for next_turn in range(1, TURN_COUNT + 1):
@@ -1016,6 +1034,9 @@ def _run_child(experiment_id, arm, seed, out_path, audit_trace=False):
             server, server.turn, target_tile.name,
             include_all_tiles=scenario_id == "supply_rivalry"))
         if scenario_id is None:
+            default_goods_stock_observations.append(
+                _goods_stock_observation(server, server.turn,
+                                         aggregate_world=True))
             if server.turn == SHOCK_START - 1:
                 default_resident_cohort_roster = (
                     _default_resident_cohort_roster(server, server.turn))
@@ -1095,6 +1116,7 @@ def _run_child(experiment_id, arm, seed, out_path, audit_trace=False):
         "default_resident_cohort_observations": (
             default_resident_cohort_observations),
         "scenario_goods_stock_observations": scenario_goods_stock_observations,
+        "default_goods_stock_observations": default_goods_stock_observations,
         "scenario_route_events": scenario_routes,
         "scenario_mill_order_events": scenario_mill_orders,
         "intervention_hook_observations": hook_observations,

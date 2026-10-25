@@ -2,6 +2,7 @@ import unittest
 from types import SimpleNamespace
 
 from economic_shock_experiment import (
+    _goods_stock_observation,
     _scenario_goods_stock_observation,
     _scenario_household_cohort_observations,
     _scenario_household_cohort_roster,
@@ -136,6 +137,27 @@ class EconomicShockInstrumentationTests(unittest.TestCase):
         self.assertEqual(census["coverage"]["routes_scanned"], 1)
         self.assertEqual(census["coverage"]["negative_stock_row_count"], 1)
         self.assertEqual(census["negative_stock_rows"][0]["quantity"], -0.5)
+
+    def test_default_world_census_aggregates_every_physical_goods_pool(self):
+        household = _actor(1, household=True, iron=2, tea=3, gov=99)
+        tile = _tile("North", [household], granary_stock=4)
+        tile.fertilizer_stock = 7.5
+        server = SimpleNamespace(scenario_id=None, tiles=[tile])
+
+        census = _goods_stock_observation(server, 7, aggregate_world=True)
+        stocks = {(row["tile"], row["category"], row["pool"], row["good"]):
+                  row["quantity"] for row in census["stocks"]}
+
+        self.assertEqual(census["scenario"], "default")
+        self.assertEqual(census["scope"],
+                         "all default regions and their current route queues")
+        self.assertEqual(stocks[("__WORLD__", "household", "inventory", "iron")], 2)
+        self.assertEqual(stocks[("__WORLD__", "household", "inventory", "tea")], 3)
+        self.assertEqual(stocks[("__WORLD__", "environment", "fertilizer_stock",
+                                 "fertilizer")], 7.5)
+        self.assertEqual(stocks[("__WORLD__", "public", "granary_food", "food")], 4)
+        self.assertNotIn(("__WORLD__", "household", "inventory", "gov"), stocks)
+        self.assertEqual(census["coverage"]["fertilizer_stores_scanned"], 1)
 
 
 if __name__ == "__main__":
