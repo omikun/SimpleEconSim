@@ -2,7 +2,7 @@
 
 Matched 20-turn runs at seeds 812, 813, 814, 815, 816. The two interventions are analyzed separately; turns 8–11 are the shock window and later differences are not draw-aligned after RNG paths diverge. Per-seed ranges are descriptive, not confidence intervals or empirical calibration.
 
-Simulation provenance by seed: 812: `569b723ca954c20869f89d4d70097994446a054a` (4 arms; dirty 0); 813: `569b723ca954c20869f89d4d70097994446a054a` (4 arms; dirty 0); 814: `569b723ca954c20869f89d4d70097994446a054a` (4 arms; dirty 0); 815: `569b723ca954c20869f89d4d70097994446a054a` (4 arms; dirty 0); 816: `569b723ca954c20869f89d4d70097994446a054a` (4 arms; dirty 0).
+Simulation provenance by seed: 812: `38d7a4413196ac5c27e17b5746ff9d78c91c7bf0` (4 arms; dirty 0); 813: `38d7a4413196ac5c27e17b5746ff9d78c91c7bf0` (4 arms; dirty 0); 814: `38d7a4413196ac5c27e17b5746ff9d78c91c7bf0` (4 arms; dirty 0); 815: `38d7a4413196ac5c27e17b5746ff9d78c91c7bf0` (4 arms; dirty 0); 816: `38d7a4413196ac5c27e17b5746ff9d78c91c7bf0` (4 arms; dirty 0).
 
 ## Deep trace audits
 
@@ -83,6 +83,74 @@ Effects on stocks are treatment-minus-control differences in the actor's turn-7-
 | 816 | Vesper Mill | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 / 0.00 | 4, 4, 4, 4, 4 |
 
 Flow coverage columns list observed turns, in order for food intake, output, sales cash, input costs and wages; each denominator is four. These are observed transactions, not a complete profit calculation. A stock value is unavailable when either arm lacks the same actor at turn 7 or 11.
+
+### Turn-7 household cohort
+
+The roster freezes all living non-company, non-government, non-trader residents in both scenario regions at turn 7. Effects compare matched baseline members; turn-8–11 flow metrics are per observed person-turn. Employer linkage is a status proxy, and calorie intake is compared with each person's recorded calorie need. This is the complete resident cohort for this small scenario, not a general population welfare index.
+
+| Seed | Baseline members C/T | Matched | Alive T11 (pp) | Need met (pp) | Food shortfall (pp) | Employer-linked (pp) | Calories (kcal/person-turn) | Cash change/person | Debt change/person | Wages/person-turn | Sales/person-turn | Purchases/person-turn | Input cost/person-turn |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 812 | 34/34 | 34 | +0.00 (34/34) | +0.00 (136/136) | +0.00 (136/136) | +0.00 (136/136) | +0.00 (136/136) | -0.17 (34/34) | +0.00 (34/34) | +0.00 (136/136) | -0.14 (136/136) | -0.08 (136/136) | +0.00 (136/136) |
+| 813 | 34/34 | 34 | +0.00 (34/34) | +0.00 (136/136) | +0.00 (136/136) | +0.00 (136/136) | -7.35 (136/136) | -0.27 (34/34) | +0.00 (34/34) | +0.00 (136/136) | -0.26 (136/136) | -0.14 (136/136) | +0.00 (136/136) |
+| 814 | 34/34 | 34 | +0.00 (34/34) | +0.00 (136/136) | +0.00 (136/136) | +0.00 (136/136) | +3.68 (136/136) | -0.43 (34/34) | +0.00 (34/34) | +0.00 (136/136) | -0.37 (136/136) | -0.23 (136/136) | +0.00 (136/136) |
+| 815 | 34/34 | 34 | +0.00 (34/34) | +0.00 (136/136) | +0.00 (136/136) | +0.00 (136/136) | -14.71 (136/136) | +0.03 (34/34) | +0.00 (34/34) | +0.00 (136/136) | -0.08 (136/136) | -0.07 (136/136) | +0.00 (136/136) |
+| 816 | 34/34 | 34 | +0.00 (34/34) | +0.00 (136/136) | +0.00 (136/136) | +0.00 (136/136) | -14.71 (136/136) | -0.15 (34/34) | +0.00 (34/34) | +0.00 (136/136) | -0.14 (136/136) | -0.09 (136/136) | +0.00 (136/136) |
+
+Percentage entries are treatment-minus-control percentage point effects. Parentheses show matched members or observed person-turns over expected coverage; missing or migrated-out members are not silently imputed as zero.
+
+### Physical holdings census
+
+The census sums every agent's ordinary inventory and the trader export, foreign, parked and legacy-pipeline pools; it also counts distinct government/charity food stores and pending/in-transit route cargo. It is a complete point-in-time census of these enumerated supply-rivalry stores, not a goods-flow conservation proof. The JSON sidecar retains all goods and turns; this table shows food, cotton and cloth at T7, T11 and T20.
+
+| Seed | T7 agents / routes / public stores | Negative stock observations C/T | Good | Holder / pool | T7 C/T | T11 C/T | T7-to-T11 change effect | T20 C/T |
+|---:|---|---:|---|---|---:|---:|---:|---:|
+| 812 | 44/44 agents; 2/2 routes; 2+2 public stores | 0/4 | cloth | household / inventory | 3.0/3.0 | 8.0/8.0 | 0.00 | 2.0/2.0 |
+|  |  |  | cotton | household / inventory | 12.0/12.0 | 1.0/0.0 | -1.00 | 0.0/0.0 |
+|  |  |  | food | household / inventory | 210.0/210.0 | 241.0/242.0 | 1.00 | 349.0/367.0 |
+|  |  |  | cloth | producer / inventory | 19.0/19.0 | 8.0/8.0 | 0.00 | 0.0/0.0 |
+|  |  |  | cotton | producer / inventory | 0.0/0.0 | 10.0/8.0 | -2.00 | 0.0/0.0 |
+|  |  |  | food | producer / inventory | 35.0/35.0 | 40.0/40.0 | 0.00 | 36.0/33.0 |
+|  |  |  | food | public / charity_food | 0.0/0.0 | 0.0/0.0 | 0.00 | 0.0/-0.5 |
+|  |  |  | food | public / government_food | 102.0/102.0 | 121.0/121.0 | 0.00 | 110.0/108.5 |
+|  |  |  | cotton | trader / foreign_inventory | 4.0/4.0 | 0.0/0.0 | 0.00 | 0.0/0.0 |
+|  |  |  | food | trader / inventory | 8.0/8.0 | 1.0/0.0 | -1.00 | 1.0/0.0 |
+| 813 | 44/44 agents; 2/2 routes; 2+2 public stores | 0/0 | cloth | household / inventory | 3.0/3.0 | 7.0/7.0 | 0.00 | 6.0/3.0 |
+|  |  |  | cotton | household / inventory | 0.0/0.0 | 3.0/1.0 | -2.00 | 2.0/0.0 |
+|  |  |  | food | household / inventory | 187.0/187.0 | 198.0/202.0 | 4.00 | 355.0/251.0 |
+|  |  |  | cotton | in_transit / route_in_transit | 18.0/18.0 | 0.0/0.0 | 0.00 | 0.0/0.0 |
+|  |  |  | cloth | producer / inventory | 18.0/18.0 | 21.0/13.0 | -8.00 | 0.0/0.0 |
+|  |  |  | cotton | producer / inventory | 0.0/0.0 | 2.0/3.0 | 1.00 | 6.0/1.0 |
+|  |  |  | food | producer / inventory | 42.0/42.0 | 43.0/44.0 | 1.00 | 28.0/48.0 |
+|  |  |  | food | public / government_food | 101.0/101.0 | 91.0/91.0 | 0.00 | 48.0/55.0 |
+|  |  |  | food | trader / inventory | 3.0/3.0 | 3.0/2.0 | -1.00 | 0.0/0.0 |
+| 814 | 44/44 agents; 2/2 routes; 2+2 public stores | 0/0 | cloth | government_agent / inventory | 0.0/0.0 | 0.0/0.0 | 0.00 | 4.0/3.0 |
+|  |  |  | cloth | household / inventory | 3.0/3.0 | 6.0/6.0 | 0.00 | 6.0/0.0 |
+|  |  |  | cotton | household / inventory | 10.0/10.0 | 4.0/3.0 | -1.00 | 2.0/1.0 |
+|  |  |  | food | household / inventory | 266.0/266.0 | 271.0/271.0 | 0.00 | 475.0/467.0 |
+|  |  |  | cloth | producer / inventory | 18.0/18.0 | 4.0/0.0 | -4.00 | 0.0/0.0 |
+|  |  |  | cotton | producer / inventory | 0.0/0.0 | 5.0/5.0 | 0.00 | 7.0/8.0 |
+|  |  |  | food | producer / inventory | 42.0/42.0 | 46.0/46.0 | 0.00 | 36.0/38.0 |
+|  |  |  | food | public / government_food | 73.0/73.0 | 78.0/79.0 | 1.00 | 22.0/21.0 |
+|  |  |  | food | trader / inventory | 2.0/2.0 | 3.0/4.0 | 1.00 | 0.0/0.0 |
+| 815 | 44/44 agents; 2/2 routes; 2+2 public stores | 0/0 | cloth | household / inventory | 3.0/3.0 | 7.0/7.0 | 0.00 | 5.0/5.0 |
+|  |  |  | cotton | household / inventory | 14.0/14.0 | 0.0/0.0 | 0.00 | 3.0/3.0 |
+|  |  |  | food | household / inventory | 214.0/214.0 | 263.0/262.0 | -1.00 | 333.0/378.0 |
+|  |  |  | cloth | producer / inventory | 18.0/18.0 | 2.0/2.0 | 0.00 | 8.0/1.0 |
+|  |  |  | cotton | producer / inventory | 0.0/0.0 | 14.0/12.0 | -2.00 | 5.0/1.0 |
+|  |  |  | food | producer / inventory | 34.0/34.0 | 50.0/56.0 | 6.00 | 24.0/28.0 |
+|  |  |  | food | public / government_food | 110.0/110.0 | 119.0/119.0 | 0.00 | 103.0/108.0 |
+|  |  |  | cotton | trader / foreign_inventory | 4.0/4.0 | 0.0/0.0 | 0.00 | 0.0/0.0 |
+|  |  |  | food | trader / inventory | 4.0/4.0 | 3.0/2.0 | -1.00 | 1.0/1.0 |
+| 816 | 44/44 agents; 2/2 routes; 2+2 public stores | 0/0 | cloth | household / inventory | 3.0/3.0 | 4.0/4.0 | 0.00 | 2.0/2.0 |
+|  |  |  | cotton | household / inventory | 12.0/12.0 | 1.0/0.0 | -1.00 | 0.0/3.0 |
+|  |  |  | food | household / inventory | 256.0/256.0 | 227.0/228.0 | 1.00 | 490.0/610.0 |
+|  |  |  | cloth | producer / inventory | 18.0/18.0 | 3.0/3.0 | 0.00 | 0.0/0.0 |
+|  |  |  | cotton | producer / inventory | 0.0/0.0 | 10.0/8.0 | -2.00 | 7.0/0.0 |
+|  |  |  | food | producer / inventory | 36.0/36.0 | 45.0/48.0 | 3.00 | 32.0/31.0 |
+|  |  |  | food | public / government_food | 99.0/99.0 | 112.0/112.0 | 0.00 | 69.0/96.0 |
+|  |  |  | food | trader / inventory | 3.0/3.0 | 4.0/4.0 | 0.00 | 2.0/0.0 |
+
+Negative-stock counts are negative category/pool/good holdings observed over all 20 turns in each arm. They are preserved as findings for follow-up, not clamped during census or report aggregation.
 
 ### Post-shock return to control bands
 
@@ -179,6 +247,73 @@ Effects on stocks are treatment-minus-control differences in the actor's turn-7-
 | 816 | Vesper Mill | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 / 0.00 | 4, 4, 4, 4, 4 |
 
 Flow coverage columns list observed turns, in order for food intake, output, sales cash, input costs and wages; each denominator is four. These are observed transactions, not a complete profit calculation. A stock value is unavailable when either arm lacks the same actor at turn 7 or 11.
+
+### Turn-7 household cohort
+
+The roster freezes all living non-company, non-government, non-trader residents in both scenario regions at turn 7. Effects compare matched baseline members; turn-8–11 flow metrics are per observed person-turn. Employer linkage is a status proxy, and calorie intake is compared with each person's recorded calorie need. This is the complete resident cohort for this small scenario, not a general population welfare index.
+
+| Seed | Baseline members C/T | Matched | Alive T11 (pp) | Need met (pp) | Food shortfall (pp) | Employer-linked (pp) | Calories (kcal/person-turn) | Cash change/person | Debt change/person | Wages/person-turn | Sales/person-turn | Purchases/person-turn | Input cost/person-turn |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 812 | 34/34 | 34 | +0.00 (34/34) | +0.00 (136/136) | +0.00 (136/136) | +0.00 (136/136) | +0.00 (136/136) | +0.00 (34/34) | +0.00 (34/34) | +0.00 (136/136) | +0.00 (136/136) | +0.00 (136/136) | +0.00 (136/136) |
+| 813 | 34/34 | 34 | +0.00 (34/34) | +0.00 (136/136) | +0.00 (136/136) | +0.00 (136/136) | +0.00 (136/136) | +0.00 (34/34) | +0.00 (34/34) | +0.00 (136/136) | +0.00 (136/136) | +0.00 (136/136) | +0.00 (136/136) |
+| 814 | 34/34 | 34 | +0.00 (34/34) | +0.00 (136/136) | +0.00 (136/136) | +0.00 (136/136) | +0.00 (136/136) | +0.00 (34/34) | +0.00 (34/34) | +0.00 (136/136) | +0.00 (136/136) | +0.00 (136/136) | +0.00 (136/136) |
+| 815 | 34/34 | 34 | +0.00 (34/34) | +0.00 (136/136) | +0.00 (136/136) | +0.00 (136/136) | +0.00 (136/136) | +0.00 (34/34) | +0.00 (34/34) | +0.00 (136/136) | +0.00 (136/136) | +0.00 (136/136) | +0.00 (136/136) |
+| 816 | 34/34 | 34 | +0.00 (34/34) | +0.00 (136/136) | +0.00 (136/136) | +0.00 (136/136) | +0.00 (136/136) | +0.00 (34/34) | +0.00 (34/34) | +0.00 (136/136) | +0.00 (136/136) | +0.00 (136/136) | +0.00 (136/136) |
+
+Percentage entries are treatment-minus-control percentage point effects. Parentheses show matched members or observed person-turns over expected coverage; missing or migrated-out members are not silently imputed as zero.
+
+### Physical holdings census
+
+The census sums every agent's ordinary inventory and the trader export, foreign, parked and legacy-pipeline pools; it also counts distinct government/charity food stores and pending/in-transit route cargo. It is a complete point-in-time census of these enumerated supply-rivalry stores, not a goods-flow conservation proof. The JSON sidecar retains all goods and turns; this table shows food, cotton and cloth at T7, T11 and T20.
+
+| Seed | T7 agents / routes / public stores | Negative stock observations C/T | Good | Holder / pool | T7 C/T | T11 C/T | T7-to-T11 change effect | T20 C/T |
+|---:|---|---:|---|---|---:|---:|---:|---:|
+| 812 | 44/44 agents; 2/2 routes; 2+2 public stores | 0/0 | cloth | household / inventory | 3.0/3.0 | 8.0/8.0 | 0.00 | 2.0/2.0 |
+|  |  |  | cotton | household / inventory | 12.0/12.0 | 1.0/1.0 | 0.00 | 0.0/0.0 |
+|  |  |  | food | household / inventory | 210.0/210.0 | 241.0/241.0 | 0.00 | 349.0/349.0 |
+|  |  |  | cloth | producer / inventory | 19.0/19.0 | 8.0/8.0 | 0.00 | 0.0/0.0 |
+|  |  |  | cotton | producer / inventory | 0.0/0.0 | 10.0/10.0 | 0.00 | 0.0/0.0 |
+|  |  |  | food | producer / inventory | 35.0/35.0 | 40.0/40.0 | 0.00 | 36.0/36.0 |
+|  |  |  | food | public / government_food | 102.0/102.0 | 121.0/121.0 | 0.00 | 110.0/110.0 |
+|  |  |  | cotton | trader / foreign_inventory | 4.0/4.0 | 0.0/0.0 | 0.00 | 0.0/0.0 |
+|  |  |  | food | trader / inventory | 8.0/8.0 | 1.0/1.0 | 0.00 | 1.0/1.0 |
+| 813 | 44/44 agents; 2/2 routes; 2+2 public stores | 0/0 | cloth | household / inventory | 3.0/3.0 | 7.0/7.0 | 0.00 | 6.0/6.0 |
+|  |  |  | cotton | household / inventory | 0.0/0.0 | 3.0/3.0 | 0.00 | 2.0/2.0 |
+|  |  |  | food | household / inventory | 187.0/187.0 | 198.0/198.0 | 0.00 | 355.0/355.0 |
+|  |  |  | cotton | in_transit / route_in_transit | 18.0/18.0 | 0.0/0.0 | 0.00 | 0.0/0.0 |
+|  |  |  | cloth | producer / inventory | 18.0/18.0 | 21.0/21.0 | 0.00 | 0.0/0.0 |
+|  |  |  | cotton | producer / inventory | 0.0/0.0 | 2.0/2.0 | 0.00 | 6.0/6.0 |
+|  |  |  | food | producer / inventory | 42.0/42.0 | 43.0/43.0 | 0.00 | 28.0/28.0 |
+|  |  |  | food | public / government_food | 101.0/101.0 | 91.0/91.0 | 0.00 | 48.0/48.0 |
+|  |  |  | food | trader / inventory | 3.0/3.0 | 3.0/3.0 | 0.00 | 0.0/0.0 |
+| 814 | 44/44 agents; 2/2 routes; 2+2 public stores | 0/0 | cloth | government_agent / inventory | 0.0/0.0 | 0.0/0.0 | 0.00 | 4.0/4.0 |
+|  |  |  | cloth | household / inventory | 3.0/3.0 | 6.0/6.0 | 0.00 | 6.0/6.0 |
+|  |  |  | cotton | household / inventory | 10.0/10.0 | 4.0/4.0 | 0.00 | 2.0/2.0 |
+|  |  |  | food | household / inventory | 266.0/266.0 | 271.0/271.0 | 0.00 | 475.0/475.0 |
+|  |  |  | cloth | producer / inventory | 18.0/18.0 | 4.0/4.0 | 0.00 | 0.0/0.0 |
+|  |  |  | cotton | producer / inventory | 0.0/0.0 | 5.0/5.0 | 0.00 | 7.0/7.0 |
+|  |  |  | food | producer / inventory | 42.0/42.0 | 46.0/46.0 | 0.00 | 36.0/36.0 |
+|  |  |  | food | public / government_food | 73.0/73.0 | 78.0/78.0 | 0.00 | 22.0/22.0 |
+|  |  |  | food | trader / inventory | 2.0/2.0 | 3.0/3.0 | 0.00 | 0.0/0.0 |
+| 815 | 44/44 agents; 2/2 routes; 2+2 public stores | 0/0 | cloth | household / inventory | 3.0/3.0 | 7.0/7.0 | 0.00 | 5.0/5.0 |
+|  |  |  | cotton | household / inventory | 14.0/14.0 | 0.0/0.0 | 0.00 | 3.0/3.0 |
+|  |  |  | food | household / inventory | 214.0/214.0 | 263.0/263.0 | 0.00 | 333.0/333.0 |
+|  |  |  | cloth | producer / inventory | 18.0/18.0 | 2.0/2.0 | 0.00 | 8.0/8.0 |
+|  |  |  | cotton | producer / inventory | 0.0/0.0 | 14.0/14.0 | 0.00 | 5.0/5.0 |
+|  |  |  | food | producer / inventory | 34.0/34.0 | 50.0/50.0 | 0.00 | 24.0/24.0 |
+|  |  |  | food | public / government_food | 110.0/110.0 | 119.0/119.0 | 0.00 | 103.0/103.0 |
+|  |  |  | cotton | trader / foreign_inventory | 4.0/4.0 | 0.0/0.0 | 0.00 | 0.0/0.0 |
+|  |  |  | food | trader / inventory | 4.0/4.0 | 3.0/3.0 | 0.00 | 1.0/1.0 |
+| 816 | 44/44 agents; 2/2 routes; 2+2 public stores | 0/0 | cloth | household / inventory | 3.0/3.0 | 4.0/4.0 | 0.00 | 2.0/2.0 |
+|  |  |  | cotton | household / inventory | 12.0/12.0 | 1.0/1.0 | 0.00 | 0.0/0.0 |
+|  |  |  | food | household / inventory | 256.0/256.0 | 227.0/227.0 | 0.00 | 490.0/490.0 |
+|  |  |  | cloth | producer / inventory | 18.0/18.0 | 3.0/3.0 | 0.00 | 0.0/0.0 |
+|  |  |  | cotton | producer / inventory | 0.0/0.0 | 10.0/10.0 | 0.00 | 7.0/7.0 |
+|  |  |  | food | producer / inventory | 36.0/36.0 | 45.0/45.0 | 0.00 | 32.0/32.0 |
+|  |  |  | food | public / government_food | 99.0/99.0 | 112.0/112.0 | 0.00 | 69.0/69.0 |
+|  |  |  | food | trader / inventory | 3.0/3.0 | 4.0/4.0 | 0.00 | 2.0/2.0 |
+
+Negative-stock counts are negative category/pool/good holdings observed over all 20 turns in each arm. They are preserved as findings for follow-up, not clamped during census or report aggregation.
 
 ### Post-shock return to control bands
 
