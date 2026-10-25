@@ -10,10 +10,11 @@ market, treasury and formula gates. One audit replay rule still rounded the
 fractional charity balance up; it now uses the whole-unit floor and a focused
 trace passes. The complete saved-trace audit refresh now passes in all 20
 scenario arms with 800/800 closes and attributed turns, zero structural/formula
-issues and a maximum residual of 1.73e-12. Full stock-flow conservation,
-default-game population welfare, prospective recovery evidence and empirical
-calibration remain. Keep economic-rule fixes separate from measurement
-changes.
+issues and a maximum residual of 1.73e-12. A historical analogue has been
+selected for mechanism-level comparison, but numerical calibration is not
+supported by the present evidence. Full stock-flow conservation, default-game
+population welfare, prospective recovery evidence and empirical calibration
+remain. Keep economic-rule fixes separate from measurement changes.
 
 ## Implementation progress
 
@@ -22,6 +23,7 @@ changes.
 | 1. Baseline evidence and case studies | Complete for the selected 20-turn trace | Added streaming panel extraction and a baseline report. It identifies the furniture-input and local-food cases below; the trace does not cover every household, balance or in-transit stock. |
 | 2. Controlled shock experiments | Five paired 20-turn default-game seeds and five paired supply-rivalry seeds complete | Default seeds 4242–4246 and scenario seeds 812–816 match complete canonical state at turn 7 for both shock pairs. All five scenario treatments preserve and remove their hooks on schedule; all ten scenario experiment-pairs pass market gates in both arms. The 20 scenario arm traces pass deep accounting and bounded structural/formula audits. A fixed turn-7 resident cohort and enumerated stock census are now captured in every scenario arm. |
 | 3. Criteria and interpretation | Shock, accounting and bounded replay gates pass; recovery remains descriptive | Five fresh scenario seed pairs and default seed 4242 were rerun after the one-unit distribution fix: all scenario hooks, market gates and turn-7 state matches pass; default pairs also pass matched-state, market, treasury and formula gates. All 400 scenario stock snapshots contain zero negative holdings. The replay formula now uses the whole-unit floor; all 20 scenario arms pass bounded structural/formula checks, 800/800 account closes and 800/800 treasury reconciliations, with maximum residual 1.73e-12. Complete causal coverage and stock-flow conservation remain unestablished. |
+| 4. Historical comparison | Analogue and primary-source scoping complete; calibration pending | Lancashire's cotton famine is a documented intermediate-input supply shock relevant to the scenario's cotton-to-cloth chain. Contemporary parliamentary evidence also describes lost export markets, relief and substitution, so it is not a clean single-shock calibration target. Compare mechanisms first; establish common geography, commodity definitions and time units before comparing magnitudes. |
 
 The old `market_price_stabilization_plan.md` describes an earlier price rule.
 Current `region_market.update_price_ref` already demand-gates positive scarcity
@@ -601,10 +603,40 @@ sidecar. The seed-812 per-arm report and treasury findings are in
    sufficient post-shock windows. Current five-seed classifications are
    post-hoc path diagnostics, and post-shock RNG divergence prevents a causal
    recovery claim.
-4. Select primary historical evidence for an explicit setting and compare
-   response magnitudes, delay, inventories and consumption before claiming
-   empirical realism. Extend to 50/100-turn runs only where the current
+4. Compare the cotton-supply intervention with Lancashire's cotton famine
+   only after aligning the model's regions, cotton grades, units and turn
+   duration to historical records. Prefer factory-inspector and import/stock
+   series over parliamentary estimates; use relief and labor outcomes as
+   separate indicators. Extend to 50/100-turn runs only where the current
    turn-20 screen cannot resolve persistence or recovery.
+
+## Historical analogue selected: Lancashire cotton famine
+
+The closest historical analogue for the scenario's cotton-input interruption
+is the Lancashire cotton famine during the U.S. Civil War. This is an analogue
+for a mechanism, not yet a parameter calibration: the model removes half of a
+local cotton recipe output for turns 8–11, while the historical disruption
+lasted years, changed the mix and quality of cotton sources, and affected both
+raw-material access and demand for finished exports.
+
+Contemporary parliamentary records establish several candidate observables:
+
+| Mechanism or outcome | Contemporary evidence | How it can inform the model | Limitation before calibration |
+|---|---|---|---|
+| Concentrated input-source interruption | In June 1862, a Commons speaker reported U.S. cotton imports at 22,000 bales to date versus 1,520,000 bales the prior year, and total stocks at 290,000 versus 1,180,000 bales. [Hansard, 19 June 1862](https://api.parliament.uk/historic-hansard/commons/1862/jun/19/papers-moved-for) | Establishes a severe cotton availability shock and the importance of inherited stocks. | Figures are a speech citing contemporary returns, not a normalized dataset. “To date” is a partial-year comparison. Bales, local model units and regional inventories are not yet crosswalked. |
+| Labor and income transmission | In July 1862, a Commons speaker estimated weekly cotton-area wages fell from £250,000 to £110,000, with 80,000 wholly unemployed and 370,000 half-employed. [Hansard, 24 July 1862](https://api.parliament.uk/historic-hansard/commons/1862/jul/24/second-reading) | Suggests measuring hours/employment, wage income and dependent household consumption alongside factory output. | The numbers are a contemporary parliamentary estimate over a broader geography and worker population than this scenario; they are not a precise treatment effect. |
+| Relief and household buffers | In February 1863, a Commons speech relayed that 595,675 people in 147 manufacturing-district unions received Poor Law or relief-fund assistance in one reported week. It also described people drawing down savings and selling possessions. [Hansard, 5 February 1863](https://api.parliament.uk/historic-hansard/commons/1863/feb/05/address-to-her-majesty-on-the-lords) | Motivates tracking public aid, private buffers and distributional incidence rather than output and prices alone. | The number covers manufacturing districts, not solely cotton workers or Lancashire; the speech attributes the totals to the relief committee and is not a resident panel. |
+| Supplier substitution and quality | A July 1863 Commons speaker reported U.S. cotton falling from 80% of imports in 1860 to 5.5% of the reduced 1862 supply, while India's share rose from 14% to 71%; Brazil and Mediterranean sources also gained share. [Hansard, 3 July 1863](https://api.parliament.uk/historic-hansard/commons/1863/jul/03/select-committee-moved-for) | Shows adaptation through alternate origins, and points to quality-adjusted input productivity as a possible response mechanism. | These are parliamentary statements from import returns; supplier shares alone do not quantify mill-level substitution, prices, or output per input unit. |
+| Confounding demand shock | The February 1863 debate described both loss of raw material and closure of an important market for British manufactures. [Hansard, 5 February 1863](https://api.parliament.uk/historic-hansard/commons/1863/feb/05/address-to-her-majesty-on-the-lords) | Requires separating input-supply effects from export-demand changes in any historical comparison. | The in-game cotton shock isolates one mechanism, so historical aggregate outcomes cannot be attributed to it alone. |
+
+Primary-source scoping therefore supports qualitative checks for stock
+buffering, delayed factory/labor adjustment, alternate sourcing, price
+pressure and public/private relief. It does not yet support saying the game is
+historically realistic. The next empirical step is to retrieve a consistent
+factory-inspector series and official import/stock series with dates, units,
+geography and definitions, then map one simulation turn to a declared time
+interval. Until that crosswalk exists, do not compare the game's 50%/four-turn
+shock numerically with the historical episode.
 
 The earlier phases are recorded in
 `planning/reports/economic_shock_baseline.md`,
