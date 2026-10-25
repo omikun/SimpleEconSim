@@ -2,9 +2,10 @@
 
 Date: 2026-10-24. Status: baseline and five-seed default-game paired screens
 complete; initial mechanical/formula audits applied. Treasury-flow writer
-gaps have been traced and instrumented; a fresh single-arm audit now closes.
-The refreshed four-arm audit, cross-scenario robustness, full stock/welfare
-accounting and empirical calibration remain.
+gaps have been traced and instrumented. The first refreshed four-arm audit
+found one additional tax-payer flow gap, now fixed; the post-fix audit is
+pending. Cross-scenario robustness, full stock/welfare accounting and
+empirical calibration remain.
 Preserve game rules during diagnosis; put any eventual economic fixes in
 separate changes.
 
@@ -14,7 +15,7 @@ separate changes.
 |---|---|---|
 | 1. Baseline evidence and case studies | Complete for the selected 20-turn trace | Added streaming panel extraction and a baseline report. It identifies the furniture-input and local-food cases below; the trace does not cover every household, balance or in-transit stock. |
 | 2. Controlled shock experiments | Five paired 20-turn default-game seeds complete | Seeds 4242–4246 match complete canonical state at turn 7 for both shock pairs; original seed-4243 no-op attempts are excluded. Active role targets are selected and recorded per seed. The paired report gives per-seed effects and coverage. |
-| 3. Criteria and interpretation | Market gates pass in all ten valid seed-pairs; treasury source legs instrumented and one fresh arm audited | Supported structural/formula and account-closure checks pass on the original four seed-4242 traces. A fresh seed-4242 wood control passes 60/60 account closes and 60/60 treasury-flow reconciliations after the source-flow updates. Rerun the other three arms before closing this phase. No recovery-time or empirical-realism claim is made. |
+| 3. Criteria and interpretation | Market gates pass in all ten valid seed-pairs; treasury source legs instrumented, final audit pending | The first refreshed four-arm seed-4242 audit passed treasury reconciliation in three arms; the fourth exposed a public-taxpayer debit that is now instrumented. Rerun all four arms before closing this phase. No recovery-time or empirical-realism claim is made. |
 
 The old `market_price_stabilization_plan.md` describes an earlier price rule.
 Current `region_market.update_price_ref` already demand-gates positive scarcity
@@ -393,6 +394,18 @@ market gates and the existing `trace_audit`/`trace_coverage` tools.
   complete causal coverage still false. Rerun the other three seed-4242 arms
   with the same audit before replacing the historical paired counts or
   claiming this gate for all four.
+- The first clean-source four-arm rerun after those writer updates passed the
+  treasury gate in three arms. Furniture-demand treatment retained one Japan
+  T16 residual of -5.00: the public-account ledger recorded
+  `public_taxpayer_cash_debit: -5.00`, while the aggregated
+  `income_tax_collected` receipt included that government-account payer
+  without its matching debit. `collect_tax` taxes all living agents, including
+  a government agent. It now emits a negative
+  `government_income_tax_payment` flow for actual tax paid from a counted
+  government account and links the flow to that account's cash-write evidence.
+  A regression test verifies that the payer leg offsets the tax receipt in
+  nation-level treasury change. Run the four-arm deep audit again after this
+  correction; until then the paired treasury gate remains open.
 
 The paired report distinguishes market mechanics from ledger attribution. The
 current mechanical gate does not prove goods conservation across household,
@@ -407,9 +420,9 @@ five-seed default-game summary are complete in
 `planning/reports/economic_shock_screen_seed4242.md`, and
 `planning/reports/economic_shock_multiseed_default.md`. Continue in this order:
 
-1. Rerun the other three seed-4242 arms with deep audit after the treasury-flow
-   source updates. Verify 60/60 account closes and treasury-flow reconciliation
-   in every arm; investigate and report any remaining residuals.
+1. Rerun all four seed-4242 arms with deep audit after the public-taxpayer flow
+   correction. Verify 60/60 account closes and treasury-flow reconciliation in
+   every arm; investigate and report any remaining residuals.
 2. Add a scenario-aware intervention adapter and test supply rivalry on seeds
    812–816. Confirm that native scenario stepping does not overwrite the shock;
    compare local production, shipment, arrival, price and welfare response.

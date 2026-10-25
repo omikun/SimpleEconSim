@@ -81,6 +81,48 @@ def _income_region(tiers=3, *, limited_cash=False, deduction=0.0,
 
 
 class FiscalPolicyTraceTests(unittest.TestCase):
+    def test_government_taxpayer_debit_offsets_the_recorded_tax_receipt(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            region, _calls = _income_region(tiers=1)
+            taxpayer = region.gov.agent
+            taxpayer.cash = 10.0
+            taxpayer._delta_cash = 1000.0
+            taxpayer._delta_deposits = 0.0
+            taxpayer.tax_loss_carryforward = 0.0
+            taxpayer.id = 9999
+            for agent in region.agents:
+                agent.cash = 0.5
+            region.agents.append(taxpayer)
+
+            trace = RunTrace(Path(tmp) / 'government-taxpayer.ctr',
+                             'government-taxpayer')
+            region._run_trace = trace
+            region._collective_trace_clock = {
+                'turn': 1, 'phase': 'finance', 'next': 1}
+            trace.treasury_book.register_nations(
+                [region.owner_nation], region._collective_trace_clock)
+            before = region.owner_nation.treasury()['total']
+
+            collect_tax(region, 1)
+
+            flows = [row for row in trace.recent
+                     if row.get('metric_id') == 'finance.treasury_flow']
+            assessment = next(row for row in trace.recent
+                              if row.get('kind') ==
+                              'income_tax_assessment_calculation')
+            bill = next(row for row in assessment['inputs']['bills']
+                        if row['agent_id'] == taxpayer.id)
+            self.assertGreater(bill['amount_paid'], 0.0)
+            taxpayer_flow = next(row for row in flows
+                                 if row.get('kind') ==
+                                 'government_income_tax_payment')
+            self.assertAlmostEqual(taxpayer_flow['value_after'],
+                                   -bill['amount_paid'])
+            self.assertTrue(taxpayer_flow['cause_event_ids'])
+            self.assertAlmostEqual(
+                region.owner_nation.treasury()['total'] - before,
+                sum(row['value_after'] for row in flows), places=7)
+
     def test_assessment_and_all_treasury_splits_match_untraced_outcomes(self):
         expected_splits = {
             1: {'total': 20.0, 'national': 0.0, 'provincial': 0.0, 'municipal': 20.0},
