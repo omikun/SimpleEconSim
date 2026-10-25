@@ -152,7 +152,7 @@ class EconomicShockStockFlowAuditTests(unittest.TestCase):
             "internal_turnover"]["granary_food_stock_transfer"][
                 "reported_quantity"], 1)
 
-    def test_granary_change_remains_inside_boundary_and_exposes_gap(self):
+    def test_unrecorded_granary_change_exposes_missing_stock_leg(self):
         run = self._run([
             {"turn": 1, "stocks": [
                 {"good": "food", "pool": "inventory", "quantity": 10},
