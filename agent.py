@@ -275,7 +275,7 @@ class Agent:
 
     def __setattr__(self, name, value):
         try:
-            super().__setattr__(name, value)
+            object.__setattr__(self, name, value)
         except AttributeError:
             if name.startswith('bid_') or name.startswith('ask_'):
                 try:
@@ -284,7 +284,7 @@ class Agent:
                     cb = None
                 if cb is None:
                     cb = {}
-                    super().__setattr__('_custom_bids', cb)
+                    object.__setattr__(self, '_custom_bids', cb)
                 cb[name] = value
             else:
                 try:
@@ -293,7 +293,7 @@ class Agent:
                     extra = None
                 if extra is None:
                     extra = {}
-                    super().__setattr__('_extra_attrs', extra)
+                    object.__setattr__(self, '_extra_attrs', extra)
                 extra[name] = value
 
     def __getattr__(self, name):
@@ -328,8 +328,7 @@ class Agent:
         inv_val = 0.0
         inv = self.inventory
         for g_enum in Goods:
-            gv = g_enum.value
-            amount = inv[gv]
+            amount = inv[g_enum]
             if amount and g_enum in r:
                 inv_val += amount * r[g_enum]['price']
         debt = 0.0
@@ -350,25 +349,28 @@ class Agent:
     # ---- Helper: get inventory value by good enum or string (replaces .get) ----
     def inv_get(self, good, default=0):
         """Return inventory[good.value] or custom_inventory[good] with a default fallback."""
-        if isinstance(good, Goods):
-            val = self.inventory[good.value]
+        if type(good) is Goods or isinstance(good, Goods):
+            val = self.inventory[good]
             return val if val else default
-        elif hasattr(Goods, str(good)):
-            val = self.inventory[getattr(Goods, str(good)).value]
+        g_enum = Goods.__members__.get(good if type(good) is str else str(good))
+        if g_enum is not None:
+            val = self.inventory[g_enum]
             return val if val else default
-        cust = getattr(self, 'custom_inventory', None)
+        cust = self.custom_inventory
         if cust and str(good) in cust:
             return cust[str(good)]
         return default
 
     def inv_set(self, good, value):
         """Set inventory[good.value] or custom_inventory[good]."""
-        if isinstance(good, Goods):
-            self.inventory[good.value] = value
-        elif hasattr(Goods, str(good)):
-            self.inventory[getattr(Goods, str(good)).value] = value
+        if type(good) is Goods or isinstance(good, Goods):
+            self.inventory[good] = value
+            return
+        g_enum = Goods.__members__.get(good if type(good) is str else str(good))
+        if g_enum is not None:
+            self.inventory[g_enum] = value
         else:
-            cust = getattr(self, 'custom_inventory', None)
+            cust = self.custom_inventory
             if cust is None:
                 cust = {}
                 self.custom_inventory = cust
@@ -376,12 +378,14 @@ class Agent:
 
     def inv_add(self, good, delta):
         """Add delta to inventory[good.value] or custom_inventory[good]."""
-        if isinstance(good, Goods):
-            self.inventory[good.value] += delta
-        elif hasattr(Goods, str(good)):
-            self.inventory[getattr(Goods, str(good)).value] += delta
+        if type(good) is Goods or isinstance(good, Goods):
+            self.inventory[good] += delta
+            return
+        g_enum = Goods.__members__.get(good if type(good) is str else str(good))
+        if g_enum is not None:
+            self.inventory[g_enum] += delta
         else:
-            cust = getattr(self, 'custom_inventory', None)
+            cust = self.custom_inventory
             if cust is None:
                 cust = {}
                 self.custom_inventory = cust
@@ -389,11 +393,11 @@ class Agent:
 
     # ---- Same for cost_basis ----
     def cost_get(self, good, default=0.0):
-        val = self.cost_basis[good.value]
+        val = self.cost_basis[good if type(good) is Goods else good.value]
         return val if val else default
 
     def cost_set(self, good, value):
-        self.cost_basis[good.value] = value
+        self.cost_basis[good if type(good) is Goods else good.value] = value
 
     # ---- T1: parked-foreign pool (per-destination) ----
     def parked_get(self, region_name, good, default=0):

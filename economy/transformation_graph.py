@@ -493,14 +493,23 @@ def initialize_default_transformation_ontology():
 
     # J. Class Legislation & State Economic Warfare (Statute of Laborers & Vagrancy Enforcement)
     def _check_statute_prereqs(agent, region):
-        from region_labor import calculate_labor_market_tightness
-        ltr = calculate_labor_market_tightness(region)
-        has_severe_wage_squeeze = any(getattr(a, 'wage', 0.0) >= 2.40 for a in getattr(region, 'agents', [])
-                                      if getattr(a, 'is_corporation', False))
-        is_elite = getattr(agent, 'is_lord', False) or getattr(agent, 'is_corporation', False) or (getattr(agent, 'company_owned', None) is not None) or getattr(agent, 'cash', 0.0) >= 150.0
         is_already_active = (getattr(region, 'statute_of_laborers', False)
                              or getattr(region, 'labor_laws', {}).get('wage_cap') == 'enacted')
-        return is_elite and (ltr >= 1.5 or has_severe_wage_squeeze) and not is_already_active
+        if is_already_active:
+            return False
+        is_elite = (getattr(agent, 'is_lord', False)
+                    or getattr(agent, 'is_corporation', False)
+                    or (getattr(agent, 'company_owned', None) is not None)
+                    or getattr(agent, 'cash', 0.0) >= 150.0)
+        if not is_elite:
+            return False
+        has_severe_wage_squeeze = any(getattr(a, 'wage', 0.0) >= 2.40 for a in getattr(region, 'agents', ())
+                                      if getattr(a, 'is_corporation', False))
+        if has_severe_wage_squeeze:
+            return True
+        from region_labor import calculate_labor_market_tightness
+        ltr = calculate_labor_market_tightness(region)
+        return ltr >= 1.5
 
     def _execute_statute_of_laborers(agent, region, t):
         from labor_laws import submit_law_petition

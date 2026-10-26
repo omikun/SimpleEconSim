@@ -62,19 +62,16 @@ def pay_wages(region, t):
                     # Legal tender cash payment
                     employer_cash_before = float(a.cash)
                     wage_to_pay = min(a.cash, wage_nominal)
-                    _trace_cash_write = _trace_public_begin(None, a)
-                    a.cash -= wage_to_pay
-                    _trace_public_finish(_trace_cash_write, 'region_finance:pay_wages',
-                                         inputs={"source_writer": 'region_finance.py:pay_wages:46655f1219471632:1'})
-                    _trace_cash_write = _trace_public_begin(None, e)
-                    e.cash += wage_to_pay
-                    _trace_public_finish(_trace_cash_write, 'region_finance:pay_wages',
-                                         inputs={"source_writer": 'region_finance.py:pay_wages:2781207220d5d2a8:1'})
-                    if wage_to_pay > 0:
-                        from economy.actor_accounts import record as record_economic_event
-                        record_economic_event(region, 'wage', turn=t,
-                                              payer_id=a.id, recipient_id=e.id,
-                                              amount=wage_to_pay)
+                    from state_handler import transfer_cash
+                    transfer_cash(
+                        a, e, wage_to_pay,
+                        region=region,
+                        kind='region_finance:pay_wages',
+                        payer_source_writer='region_finance.py:pay_wages:46655f1219471632:1',
+                        payee_source_writer='region_finance.py:pay_wages:2781207220d5d2a8:1',
+                        record_event_kind='wage',
+                        turn=t,
+                    )
                     e.wages_received = wage_to_pay
                     e.realized_wage = wage_to_pay
                     e.wage_withheld = wage_nominal - wage_to_pay

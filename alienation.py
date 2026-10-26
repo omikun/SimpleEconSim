@@ -12,7 +12,8 @@ from goods import Goods
 from random_cache import rand
 
 
-def compute_agent_alienation(agent, region, t: int) -> float:
+def compute_agent_alienation(agent, region, t: int,
+                             _precomputed_a_species: float | None = None) -> float:
     """Compute 4-dimensional alienation index (0.0 to 1.0) for an agent.
 
     Lords and capitalists who own property and command labor have low alienation.
@@ -28,8 +29,9 @@ def compute_agent_alienation(agent, region, t: int) -> float:
     # 1. Product Alienation: Inability to afford commodities produced
     # If craftsman or worker produces furniture/goods they cannot buy with cash
     price = 1.0
-    if hasattr(region, 'recipes') and agent.output in region.recipes:
-        price = region.recipes[agent.output].get('price', 1.0)
+    recipes = getattr(region, 'recipes', None)
+    if recipes is not None and agent.output in recipes:
+        price = recipes[agent.output].get('price', 1.0)
     a_product = min(1.0, price / max(1.0, agent.cash))
 
     # 2. Process Alienation: Enforced shift length beyond customary 8 hours
@@ -41,12 +43,17 @@ def compute_agent_alienation(agent, region, t: int) -> float:
 
     # 4. Species Alienation: Competition against the reserve army of unemployed
     # High unemployment pits workers against each other in wage deflation
-    adults = [a for a in getattr(region, 'agents', [])
-              if not getattr(a, 'is_corporation', False) and not getattr(a, 'is_government', False)
-              and getattr(a, 'alive', True)]
-    unemp_count = sum(1 for a in adults if getattr(a, 'employer', None) is None
-                      and not getattr(a, 'is_trader', False) and not getattr(a, 'is_lord', False))
-    a_species = min(1.0, unemp_count / max(1, len(adults)))
+    if _precomputed_a_species is not None:
+        a_species = _precomputed_a_species
+    else:
+        adult_count = 0
+        unemp_count = 0
+        for a in getattr(region, 'agents', ()):
+            if getattr(a, 'alive', True) and not getattr(a, 'is_corporation', False) and not getattr(a, 'is_government', False):
+                adult_count += 1
+                if getattr(a, 'employer', None) is None and not getattr(a, 'is_trader', False) and not getattr(a, 'is_lord', False):
+                    unemp_count += 1
+        a_species = min(1.0, unemp_count / max(1, adult_count))
 
     if employer is not None:
         # Wage laborers experience heavy process and nature alienation
@@ -140,7 +147,8 @@ def step_health_attrition(agent, region, t: int,
     return new_attrition
 
 
-def process_despair_spending(agent, region, t: int):
+def process_despair_spending(agent, region, t: int,
+                             _candidates: list | None = None):
     """Workers suffering acute despair spend discretionary cash on escapist vices.
 
     Money moves from worker to local merchant/artisan (conserved).
@@ -157,41 +165,39 @@ def process_despair_spending(agent, region, t: int):
     if despair > 0.45 and agent.cash >= 2.0:
         spend = min(1.5, agent.cash - 1.0)
         if spend > 0:
-            _trace_cash_write = _trace_public_begin(None, agent)
-            agent.cash -= spend
-            _trace_public_finish(_trace_cash_write, 'alienation:process_despair_spending',
-                                 inputs={"source_writer": 'alienation.py:process_despair_spending:71d18e835ace3cf3:1'})
             # Find a local non-corp merchant or artisan (tavern keeper / apothecary)
-            recipients = [a for a in getattr(region, 'agents', [])
-                          if getattr(a, 'alive', True) and not getattr(a, 'is_corporation', False)
-                          and getattr(a, 'employer', None) is None
-                          and (getattr(a, 'is_trader', False) or getattr(a, 'output', None) == Goods.furniture)
-                          and a != agent]
+            if _candidates is not None:
+                recipients = [a for a in _candidates if a != agent]
+            else:
+                recipients = [a for a in getattr(region, 'agents', [])
+                              if getattr(a, 'alive', True) and not getattr(a, 'is_corporation', False)
+                              and getattr(a, 'employer', None) is None
+                              and (getattr(a, 'is_trader', False) or getattr(a, 'output', None) == Goods.furniture)
+                              and a != agent]
+            from state_handler import transfer_cash
             if recipients:
                 target = recipients[rand.randint(0, len(recipients) - 1)]
-                _trace_cash_write = _trace_public_begin(None, target)
-                target.cash += spend
-                _trace_public_finish(_trace_cash_write, 'alienation:process_despair_spending',
-                                     inputs={"source_writer": 'alienation.py:process_despair_spending:f94e59d41b3dc2a4:1'})
+                recipient = target
+                payee_writer = 'alienation.py:process_despair_spending:f94e59d41b3dc2a4:1'
             elif getattr(region, 'gov', None) and getattr(region.gov, 'agent', None):
-                _trace_cash_write = _trace_public_begin(None, region.gov.agent)
-                region.gov.agent.cash += spend
-                _trace_public_finish(_trace_cash_write, 'alienation:process_despair_spending',
-                                     inputs={"source_writer": 'alienation.py:process_despair_spending:dee3e507baacae0f:1'})
+                recipient = region.gov.agent
+                payee_writer = 'alienation.py:process_despair_spending:dee3e507baacae0f:1'
             else:
-                _trace_cash_write = _trace_public_begin(None, agent)
-                agent.cash += spend  # refund if nowhere to transfer
-                _trace_public_finish(_trace_cash_write, 'alienation:process_despair_spending',
-                                     inputs={"source_writer": 'alienation.py:process_despair_spending:ffea72abaed47bbd:1'})
                 return
-            recipient = target if recipients else region.gov.agent
-            from economy.actor_accounts import record as record_economic_event
-            record_economic_event(
-                region, 'despair_spending', turn=t,
-                payer_id=agent.id, recipient_id=recipient.id, amount=spend,
-                detail={'despair': round(despair, 4),
-                        'alienation': round(alienation, 4),
-                        'hungry': bool(getattr(agent, 'hungry_steps', 0) > 0)})
+            transfer_cash(
+                agent, recipient, spend,
+                region=region,
+                kind='alienation:process_despair_spending',
+                payer_source_writer='alienation.py:process_despair_spending:71d18e835ace3cf3:1',
+                payee_source_writer=payee_writer,
+                record_event_kind='despair_spending',
+                turn=t,
+                event_detail={
+                    'despair': round(despair, 4),
+                    'alienation': round(alienation, 4),
+                    'hungry': bool(getattr(agent, 'hungry_steps', 0) > 0),
+                },
+            )
 
 
 def update_class_consciousness(agent, region, entertainment_level: float, t: int) -> float:
@@ -253,28 +259,18 @@ def apply_mass_entertainment_pacifier(region, t: int):
         if (getattr(a, 'alive', True) and not getattr(a, 'is_corporation', False)
                 and not getattr(a, 'is_government', False) and a.cash >= 3.0):
             fee = min(0.50, a.cash - 2.0)
-            if fee > 0:
-                _trace_cash_write = _trace_public_begin(None, a)
-                a.cash -= fee
-                _trace_public_finish(_trace_cash_write, 'alienation:apply_mass_entertainment_pacifier',
-                                     inputs={"source_writer": 'alienation.py:apply_mass_entertainment_pacifier:df7a0dcdc49b2563:1'})
-                # Transfer fee to entertainment venue owner or gov
-                if getattr(region, 'gov', None) and getattr(region.gov, 'agent', None):
-                    _trace_cash_write = _trace_public_begin(None, region.gov.agent)
-                    region.gov.agent.cash += fee
-                    _trace_public_finish(_trace_cash_write, 'alienation:apply_mass_entertainment_pacifier',
-                                         inputs={"source_writer": 'alienation.py:apply_mass_entertainment_pacifier:d70dafa5aa890e37:1'})
-                    from economy.actor_accounts import record as record_economic_event
-                    record_economic_event(
-                        region, 'entertainment_fee', turn=t,
-                        payer_id=a.id, recipient_id=region.gov.agent.id, amount=fee,
-                        detail={'entertainment_level': float(ent_level),
-                                'fee_cap': 0.50})
-                else:
-                    _trace_cash_write = _trace_public_begin(None, a)
-                    a.cash += fee
-                    _trace_public_finish(_trace_cash_write, 'alienation:apply_mass_entertainment_pacifier',
-                                         inputs={"source_writer": 'alienation.py:apply_mass_entertainment_pacifier:dda047ea717b3c2b:1'})
+            if fee > 0 and getattr(region, 'gov', None) and getattr(region.gov, 'agent', None):
+                from state_handler import transfer_cash
+                transfer_cash(
+                    a, region.gov.agent, fee,
+                    region=region,
+                    kind='alienation:apply_mass_entertainment_pacifier',
+                    payer_source_writer='alienation.py:apply_mass_entertainment_pacifier:df7a0dcdc49b2563:1',
+                    payee_source_writer='alienation.py:apply_mass_entertainment_pacifier:d70dafa5aa890e37:1',
+                    record_event_kind='entertainment_fee',
+                    turn=t,
+                    event_detail={'entertainment_level': float(ent_level), 'fee_cap': 0.50},
+                )
 
 
 def _emit_average_metric(region, metric_id, history_name, value, inputs,
@@ -346,8 +342,24 @@ def step_tile_alienation(region, t: int):
     bodily_wear_values = []
     accident_rolls = []
 
+    adult_count = 0
+    unemp_count = 0
+    despair_candidates = []
     for a in agents:
-        alien = compute_agent_alienation(a, region, t)
+        if not getattr(a, 'is_government', False):
+            adult_count += 1
+            if (getattr(a, 'employer', None) is None
+                    and not getattr(a, 'is_trader', False)
+                    and not getattr(a, 'is_lord', False)):
+                unemp_count += 1
+        if (getattr(a, 'employer', None) is None
+                and (getattr(a, 'is_trader', False) or getattr(a, 'output', None) == Goods.furniture)):
+            despair_candidates.append(a)
+    precomputed_a_species = min(1.0, unemp_count / max(1, adult_count))
+
+    for a in agents:
+        alien = compute_agent_alienation(a, region, t,
+                                         _precomputed_a_species=precomputed_a_species)
         a.alienation = alien
         total_alienation += alien
         alienation_ids.append(a.id)
@@ -360,7 +372,7 @@ def step_tile_alienation(region, t: int):
         if getattr(a, 'workplace_accident', False):
             total_accidents += 1
 
-        process_despair_spending(a, region, t)
+        process_despair_spending(a, region, t, _candidates=despair_candidates)
         c = update_class_consciousness(a, region, ent_level, t)
         total_consciousness += c
         consciousness_ids.append(a.id)

@@ -305,28 +305,42 @@ def begin_turn(region, turn):
     region._economic_opening_turn = int(turn)
     bank = getattr(region, 'bank', None)
     wage_arrears_payable, wage_arrears_claims = _wage_arrears_by_actor(region)
+    bank_debt_by_agent = {}
+    if bank:
+        for loan in getattr(bank, 'loans', ()):
+            rem = max(0.0, float(loan.principle) - float(loan.principle_paid))
+            if rem > 0.0:
+                bank_debt_by_agent[id(loan.agent)] = bank_debt_by_agent.get(id(loan.agent), 0.0) + rem
+    debt_by_debtor = {}
+    for c in getattr(region, 'cash_obligations', ()):
+        if c.status == 'active':
+            debt_by_debtor[c.debtor_id] = debt_by_debtor.get(c.debtor_id, 0.0) + float(c.balance)
+    plots_by_lord = {}
+    for p in getattr(getattr(region, 'tenure', None), 'plots', ()):
+        plots_by_lord.setdefault(p.lord_id, []).append(p.plot_id)
+    water_by_holder = {}
+    for r in getattr(region, 'water_rights', ()):
+        water_by_holder[r.holder_id] = water_by_holder.get(r.holder_id, 0.0) + float(r.units)
+    recipe_goods = [(g.name, g) for g in getattr(region, 'recipes', {})]
+    bank_deposits = bank.deposits if bank else None
+
     region._economic_opening = {
         a.id: {'cash': float(getattr(a, 'cash', 0.0)),
                'scrip': float(getattr(a, 'scrip_wallet', 0.0)),
                'wallets': {str(currency): float(amount)
                            for currency, amount in
                            (getattr(a, 'wallets', None) or {}).items()},
-               'bank_deposit': float(bank.deposits.get(a, 0.0)) if bank else 0.0,
-               'bank_debt': sum(max(0.0, float(loan.principle) - float(loan.principle_paid))
-                                for loan in getattr(bank, 'loans', [])
-                                if loan.agent is a) if bank else 0.0,
+               'bank_deposit': float(bank_deposits.get(a, 0.0)) if bank_deposits is not None else 0.0,
+               'bank_debt': bank_debt_by_agent.get(id(a), 0.0),
                'owner_loan': float(getattr(a, 'owner_loan', 0.0)),
                'company_debt': float(getattr(a, 'company_debt', 0.0)),
                'food': int(a.inv_get(Goods.food, 0)),
-               'inventory': {g.name: int(a.inv_get(g, 0)) for g in getattr(region, 'recipes', {})},
-               'debt': sum(float(c.balance) for c in getattr(region, 'cash_obligations', [])
-                           if c.debtor_id == a.id and c.status == 'active'),
+               'inventory': {g_name: int(a.inv_get(g, 0)) for g_name, g in recipe_goods},
+               'debt': debt_by_debtor.get(a.id, 0.0),
                'wage_arrears_payable': wage_arrears_payable.get(a.id, 0.0),
                'wage_arrears_claim': wage_arrears_claims.get(a.id, 0.0),
-               'title_plots': [p.plot_id for p in getattr(getattr(region, 'tenure', None), 'plots', [])
-                               if p.lord_id == a.id],
-               'water_units': sum(float(r.units) for r in getattr(region, 'water_rights', [])
-                                  if r.holder_id == a.id)}
+               'title_plots': list(plots_by_lord.get(a.id, ())),
+               'water_units': water_by_holder.get(a.id, 0.0)}
         for a in getattr(region, 'agents', []) if getattr(a, 'alive', True)}
 
 
@@ -369,6 +383,28 @@ def seal_turn(region, turn, event_regions=None):
     for event in wage_events:
         for ident in {event['payer_id'], event['recipient_id']} - {None}:
             wage_by_actor.setdefault(ident, []).append(event)
+    bank = getattr(region, 'bank', None)
+    bank_deposits = bank.deposits if bank else None
+    bank_debt_by_agent = {}
+    if bank:
+        for loan in getattr(bank, 'loans', ()):
+            rem = max(0.0, float(loan.principle) - float(loan.principle_paid))
+            if rem > 0.0:
+                bank_debt_by_agent[id(loan.agent)] = bank_debt_by_agent.get(id(loan.agent), 0.0) + rem
+    debt_by_debtor = {}
+    for c in getattr(region, 'cash_obligations', ()):
+        if c.status == 'active':
+            debt_by_debtor[c.debtor_id] = debt_by_debtor.get(c.debtor_id, 0.0) + float(c.balance)
+    plots_by_lord = {}
+    plots_by_controller = {}
+    for p in getattr(getattr(region, 'tenure', None), 'plots', ()):
+        plots_by_lord.setdefault(p.lord_id, []).append(p.plot_id)
+        ctrl_id = getattr(p, 'controlled_by_id', None)
+        if ctrl_id is not None:
+            plots_by_controller.setdefault(ctrl_id, []).append(p.plot_id)
+    water_by_holder = {}
+    for r in getattr(region, 'water_rights', ()):
+        water_by_holder[r.holder_id] = water_by_holder.get(r.holder_id, 0.0) + float(r.units)
     accounts = []
     for actor in getattr(region, 'agents', []):
         own = by_actor.get(actor.id, [])
@@ -584,18 +620,14 @@ def seal_turn(region, turn, event_regions=None):
             or (e['recipient_id'] == actor.id
                 and e['kind'] == 'wallet_transfer_in'
                 and e['detail'].get('payment_kind') == 'owner_loan_repayment'))
-        for_lease = [p.plot_id for p in getattr(getattr(region, 'tenure', None), 'plots', [])
-                     if getattr(p, 'controlled_by_id', None) == actor.id]
-        debt = sum(float(c.balance) for c in getattr(region, 'cash_obligations', [])
-                   if c.debtor_id == actor.id and c.status == 'active')
-        bank = getattr(region, 'bank', None)
-        bank_deposit = float(bank.deposits.get(actor, 0.0)) if bank else 0.0
-        bank_debt = sum(max(0.0, float(loan.principle) - float(loan.principle_paid))
-                        for loan in getattr(bank, 'loans', []) if loan.agent is actor) if bank else 0.0
+        for_lease = list(plots_by_controller.get(actor.id, ()))
+        debt = debt_by_debtor.get(actor.id, 0.0)
+        bank_deposit = float(bank_deposits.get(actor, 0.0)) if bank_deposits is not None else 0.0
+        bank_debt = bank_debt_by_agent.get(id(actor), 0.0)
         company_debt = float(getattr(actor, 'company_debt', 0.0))
         output = getattr(actor, 'output', None)
         output_name = _name(output)
-        produced = sum(e['quantity'] for e in events if e['recipient_id'] == actor.id
+        produced = sum(e['quantity'] for e in own if e['recipient_id'] == actor.id
                        and e['kind'] == 'production' and e['good'] == output_name)
         accounts.append({
             'turn': int(turn), 'tile': region.name, 'actor_id': actor.id,
@@ -734,12 +766,10 @@ def seal_turn(region, turn, event_regions=None):
             'opening_output_stock': prior['inventory'].get(output_name, 0),
             'closing_output_stock': int(actor.inv_get(output, 0)) if output is not None else 0,
             'opening_title_plots': prior['title_plots'],
-            'closing_title_plots': [p.plot_id for p in getattr(getattr(region, 'tenure', None), 'plots', [])
-                                    if p.lord_id == actor.id],
+            'closing_title_plots': list(plots_by_lord.get(actor.id, ())),
             'leased_control_plots': for_lease,
             'opening_water_units': round(prior['water_units'], 3),
-            'closing_water_units': round(sum(float(r.units) for r in getattr(region, 'water_rights', [])
-                                             if r.holder_id == actor.id), 3),
+            'closing_water_units': round(water_by_holder.get(actor.id, 0.0), 3),
             'event_ids': [e['id'] for e in own[-30:]],
             'cash_event_refs': [{'tile': e['tile'], 'id': e['id']}
                                 for e in cash_own[-30:]],

@@ -142,22 +142,29 @@ def calculate_labor_market_tightness(region) -> float:
     LTR < 1.0 indicates a labor surplus (workers compete for jobs).
     """
     total_vacancies = 0
-    for a in region.agents:
-        if getattr(a, 'is_corporation', False) and getattr(a, 'alive', True):
-            vacancies = max(0, getattr(a, 'max_employees', 10) - len(getattr(a, 'employees', [])))
-            total_vacancies += vacancies
-
+    job_seeker_count = 0
     t = getattr(region, 'turn', 0)
-    job_seekers = [
-        a for a in region.agents
-        if getattr(a, 'alive', True) and not getattr(a, 'is_corporation', False) and not getattr(a, 'is_government', False)
-        and not getattr(a, 'is_lord', False)
-        and getattr(a, 'employer', None) is None
-        and not getattr(a, 'is_trader', False)
-        and (getattr(a, 'birth_round', 0) == 0 or (getattr(a, 'age', None)(t) if callable(getattr(a, 'age', None)) else 25) > 20)
-    ]
+    for a in region.agents:
+        if not getattr(a, 'alive', True):
+            continue
+        if getattr(a, 'is_corporation', False):
+            vacancies = getattr(a, 'max_employees', 10) - len(getattr(a, 'employees', ()))
+            if vacancies > 0:
+                total_vacancies += vacancies
+        elif (getattr(a, 'employer', None) is None
+              and not getattr(a, 'is_government', False)
+              and not getattr(a, 'is_lord', False)
+              and not getattr(a, 'is_trader', False)):
+            br = getattr(a, 'birth_round', 0)
+            if br == 0:
+                job_seeker_count += 1
+            else:
+                age_fn = getattr(a, 'age', None)
+                age_val = (t - br) if isinstance(br, (int, float)) and type(a).__name__ == 'Agent' else (age_fn(t) if callable(age_fn) else 25)
+                if age_val > 20:
+                    job_seeker_count += 1
 
-    return total_vacancies / max(1, len(job_seekers))
+    return total_vacancies / max(1, job_seeker_count)
 
 
 def calculate_firm_wage_ceiling(firm, region) -> float:

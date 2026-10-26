@@ -505,6 +505,30 @@ class Region:
                 self.gov._add_citizen(agent)
 
     # ------------------------------------------------------------------
+    # Cohort Accessor Helpers
+    # ------------------------------------------------------------------
+
+    def living_households(self, *, include_traders: bool = True):
+        """Return living non-corporate, non-government household agents in this region."""
+        if include_traders:
+            return [
+                a for a in self.agents
+                if a.alive and not a.is_corporation and not a.is_government
+            ]
+        return [
+            a for a in self.agents
+            if a.alive and not a.is_corporation and not a.is_government and not a.is_trader
+        ]
+
+    def active_corporations(self):
+        """Return active corporate firm agents in this region."""
+        return [a for a in self.agents if a.is_corporation]
+
+    def labor_market_stats(self) -> float:
+        """Compute current labor market tightness (vacancies / job seekers)."""
+        return _labor.calculate_labor_market_tightness(self)
+
+    # ------------------------------------------------------------------
 
     # ------------------------------------------------------------------
     # Stepper and Lifecycle Delegations

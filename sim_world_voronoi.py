@@ -368,171 +368,20 @@ def build_world_voronoi(
     # 5. Geographic Passability & Trade Network Degree Capping
     edge_mgr = reset_edge_manager(tiles, layout)
 
-    # Guarantee mountain peaks have at least 1-2 passable passes
-    for tile in tiles:
-        if tile.is_ocean:
-            continue
-        if tile.elevation >= 0.70:
-            candidates = []
-            passable_count = 0
-            for other in tile.adjacent_tiles.values():
-                if not other.is_ocean:
-                    edge = edge_mgr.get_edge(tile.name, other.name)
-                    if edge and edge.passable:
-                        passable_count += 1
-                    if edge:
-                        candidates.append((edge.elevation_delta, other.name))
-            if passable_count == 0 and candidates:
-                candidates.sort(key=lambda x: x[0])
-                for _, other_name in candidates[:min(2, len(candidates))]:
-                    edge_mgr.unblock_mountain_pass(tile.name, other_name)
-
-    def _max_trade_partners(t: Region) -> int:
-        return 2 if t.elevation >= 0.70 else 3
-
-    # Gather candidate passable land-to-land edges
-    candidate_edges = []
-    seen_cand = set()
-    for tile in tiles:
-        if tile.is_ocean:
-            continue
-        for other in tile.adjacent_tiles.values():
-            if other.is_ocean:
-                continue
-            edge_key = tuple(sorted((tile.name, other.name)))
-            if edge_key in seen_cand:
-                continue
-            if edge_mgr.is_passable(tile.name, other.name):
-                seen_cand.add(edge_key)
-                edge = edge_mgr.get_edge(tile.name, other.name)
-                score = 100.0
-                if edge and edge.is_river:
-                    score += 160.0
-                if edge and edge.has_mountain_pass:
-                    score += 80.0
-                t_nation = getattr(tile, 'owner_nation', None)
-                o_nation = getattr(other, 'owner_nation', None)
-                if t_nation is not None and t_nation == o_nation:
-                    score += 40.0
-                frict = edge.friction if edge else 1.0
-                dh = abs(tile.elevation - other.elevation)
-                score -= frict * 15.0 + dh * 30.0
-                candidate_edges.append((score, tile, other))
-
-    candidate_edges.sort(key=lambda x: x[0], reverse=True)
-
-    # Pass 1: Ensure every land tile gets at least 1 connection
-    tile_cand_map: Dict[str, list] = {}
-    for score, t_a, t_b in candidate_edges:
-        tile_cand_map.setdefault(t_a.name, []).append((score, t_b))
-        tile_cand_map.setdefault(t_b.name, []).append((score, t_a))
-
-    for t in tiles:
-        if t.is_ocean:
-            continue
-        if len(t.neighbors) == 0 and t.name in tile_cand_map:
-            for _, cand in tile_cand_map[t.name]:
-                if len(cand.neighbors) < _max_trade_partners(cand):
-                    t.add_neighbor(cand)
-                    cand.add_neighbor(t)
-                    break
-            if len(t.neighbors) == 0 and tile_cand_map[t.name]:
-                sorted_cands = sorted(tile_cand_map[t.name], key=lambda sc: len(sc[1].neighbors))
-                best_cand = sorted_cands[0][1]
-                t.add_neighbor(best_cand)
-                best_cand.add_neighbor(t)
-
-    # Pass 2: Greedily connect high-value corridors up to degree caps
-    for _, t_a, t_b in candidate_edges:
-        cap_a = _max_trade_partners(t_a)
-        cap_b = _max_trade_partners(t_b)
-        if len(t_a.neighbors) < cap_a and len(t_b.neighbors) < cap_b:
-            if t_b.name not in t_a.neighbors:
-                t_a.add_neighbor(t_b)
-                t_b.add_neighbor(t_a)
-
-    # Pass 3: Strict degree cap guarantee
-    for t in tiles:
-        if t.is_ocean:
-            continue
-        max_cap = _max_trade_partners(t)
-        while len(t.neighbors) > max_cap:
-            removable = [n for n in t.neighbors.values() if len(n.neighbors) > 1]
-            if not removable:
-                removable = list(t.neighbors.values())
-            victim = max(removable, key=lambda n: abs(t.elevation - n.elevation) + edge_mgr.get_friction(t.name, n.name))
-            t.neighbors.pop(victim.name, None)
-            t.routes.pop(victim.name, None)
-            victim.neighbors.pop(t.name, None)
-            victim.routes.pop(t.name, None)
-
-    # Pass 4: Global Connectivity Bridging (100% of land tiles connected)
-    land_tiles = [t for t in tiles if not t.is_ocean]
-
-    def _get_trade_components():
-        visited = set()
-        comps = []
-        for lt in land_tiles:
-            if lt.name not in visited:
-                comp = []
-                queue = [lt]
-                visited.add(lt.name)
-                while queue:
-                    curr = queue.pop(0)
-                    comp.append(curr)
-                    for n in curr.neighbors.values():
-                        if n.name not in visited and not n.is_ocean:
-                            visited.add(n.name)
-                            queue.append(n)
-                comps.append(comp)
-        return comps
-
-    trade_comps = _get_trade_components()
-    while len(trade_comps) > 1:
-        trade_comps.sort(key=len, reverse=True)
-        main_comp = trade_comps[0]
-        main_names = {t.name for t in main_comp}
-
-        best_bridge = None
-        best_bridge_score = -1e9
-        for other_comp in trade_comps[1:]:
-            for t_other in other_comp:
-                for t_main in t_other.adjacent_tiles.values():
-                    if t_main.name in main_names and not t_main.is_ocean:
-                        dh = abs(t_other.elevation - t_main.elevation)
-                        score = -dh * 20.0
-                        if score > best_bridge_score:
-                            best_bridge_score = score
-                            best_bridge = (t_other, t_main)
-
-        if best_bridge:
-            u, v = best_bridge
-            edge_mgr.unblock_mountain_pass(u.name, v.name)
-            u.add_neighbor(v)
-            v.add_neighbor(u)
-            trade_comps = _get_trade_components()
-        else:
-            break
+    from world_topology import build_trade_network_topology, connect_claimed_forex_and_trader_wealth
+    build_trade_network_topology(
+        tiles,
+        edge_mgr,
+        lambda t: t.adjacent_tiles.values(),
+        is_mountain_fn=lambda t: t.elevation >= 0.70,
+        max_trade_partners_fn=lambda t: 2 if t.elevation >= 0.70 else 3,
+        river_bonus=160.0,
+        strict_degree_cap_on_bridge=False,
+        fallback_respects_cap=False,
+    )
 
     # 6. Forex Desks between adjacent claimed tiles
-    seen_desks = set()
-    for a in tiles:
-        if getattr(a, 'owner_nation', None) is None:
-            continue
-        for other in a.neighbors.values():
-            if getattr(other, 'owner_nation', None) is None:
-                continue
-            key = tuple(sorted((a.name, other.name)))
-            if key in seen_desks:
-                continue
-            seen_desks.add(key)
-            fx.connect_desks(a, other, t=0)
-
-    for r in tiles:
-        if getattr(r, 'owner_nation', None) is not None:
-            r._init_trader_wealth = trader_wealth(r)
-        else:
-            r._init_trader_wealth = 0.0
+    connect_claimed_forex_and_trader_wealth(tiles, fx, trader_wealth)
 
     # 7. Procedural Natural Resources & City/Country Names
     assign_tile_resources(tiles, seed=seed if seed is not None else 42)

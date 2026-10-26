@@ -24,9 +24,8 @@ class RandomCache:
 
     def _refill(self):
         """Refill the buffer with fresh random floats."""
-        b = self._buf
-        for i in range(self._capacity):
-            b[i] = random.random()
+        _rand = random.random
+        self._buf[:] = [_rand() for _ in range(self._capacity)]
         self._idx = 0
 
     def _ensure(self, n=1):
@@ -36,9 +35,14 @@ class RandomCache:
 
     # ---- Public API ----
 
-    def reset(self):
-        """Refill buffer at the start of a new turn."""
-        self._refill()
+    def reset(self, force=False):
+        """Ensure buffer is ready at the start of a new turn.
+
+        Refills lazily when exhausted unless *force* is True, avoiding
+        discarding ~199,000 unused random floats twice per tile per turn.
+        """
+        if force or self._idx >= self._capacity:
+            self._refill()
 
     def random(self):
         """Return the next cached random float in [0.0, 1.0)."""

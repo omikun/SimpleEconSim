@@ -135,6 +135,7 @@ class PopularResistanceManager:
         food_distributed = 0
         from nutrition import feed_emergency_meal
         charity = getattr(tile, 'charity', None)
+        sympathetic_donors = None
 
         for a in participants:
             if not getattr(a, 'alive', True):
@@ -155,15 +156,29 @@ class PopularResistanceManager:
 
             # 2. Check sympathetic citizens (non-gentry, non-gov, non-corp with surplus food)
             if not fed:
-                for s in getattr(tile, 'agents', []):
-                    if s.id == a.id or getattr(s, 'is_corporation', False) or getattr(s, 'is_government', False):
+                if sympathetic_donors is None:
+                    sympathetic_donors = [
+                        s for s in getattr(tile, 'agents', [])
+                        if not getattr(s, 'is_corporation', False)
+                        and not getattr(s, 'is_government', False)
+                        and getattr(s, 'social_class', '') in ('proletarian', 'artisan', 'cottar', 'serf')
+                        and s.inv_get(Goods.food, 0) > 1
+                    ]
+                donor_idx = 0
+                while donor_idx < len(sympathetic_donors):
+                    s = sympathetic_donors[donor_idx]
+                    if s.inv_get(Goods.food, 0) <= 1:
+                        sympathetic_donors.pop(donor_idx)
                         continue
-                    if getattr(s, 'social_class', '') in ('proletarian', 'artisan', 'cottar', 'serf') and s.inv_get(Goods.food, 0) > 1:
+                    if s.id != a.id:
                         s.inv_add(Goods.food, -1)
                         feed_emergency_meal(a, 1)
                         food_distributed += 1
                         fed = True
+                        if s.inv_get(Goods.food, 0) <= 1:
+                            sympathetic_donors.pop(donor_idx)
                         break
+                    donor_idx += 1
 
             # 3. Unfed marcher accumulates hunger
             if not fed:

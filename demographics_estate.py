@@ -21,8 +21,13 @@ def is_last_of_profession(agent, agents, ctx):
     output = agent.output
     if output == Goods.gov:
         return False
-    count = sum(1 for a in agents if a.alive and a.output == output and not a.is_trader)
-    return count <= 1
+    found = 0
+    for a in agents:
+        if a.alive and a.output == output and not a.is_trader:
+            found += 1
+            if found > 1:
+                return False
+    return True
 
 
 def living_descendants_recursive(agent):

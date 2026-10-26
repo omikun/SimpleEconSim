@@ -131,7 +131,7 @@ class TraceIndex:
 
 class KnownEventIds:
     """Bounded recent identity cache with cold lookup in the source index."""
-    def __init__(self,path,limit=4096):
+    def __init__(self,path,limit=262144):
         from collections import OrderedDict
         self.path=Path(path);self.limit=limit;self.recent=OrderedDict()
 

@@ -13,6 +13,17 @@ from trace_codec import CompactTraceWriter, iter_payloads
 SCHEMA_VERSION = 1
 
 
+def _subject_key(subject):
+    if subject is None:
+        return None
+    if type(subject) is dict and len(subject) == 2 and 'id' in subject and 'type' in subject:
+        val_id = subject['id']
+        val_type = subject['type']
+        if type(val_id) is int and type(val_type) is str and '"' not in val_type and '\\' not in val_type:
+            return f'{{"id": {val_id}, "type": "{val_type}"}}'
+    return json.dumps(subject, sort_keys=True)
+
+
 class RunTrace:
     def __init__(self, path, run_id, *, seed=None, scenario=None, recent_limit=256):
         self.path = Path(path)
@@ -246,8 +257,7 @@ class RunTrace:
                 row['formula_replay'] = replay
                 if not replay['matches']:
                     row['confidence'] = 'unknown'
-        provenance_key = (metric_id, json.dumps(subject, sort_keys=True)
-                          if subject is not None else None)
+        provenance_key = (metric_id, _subject_key(subject))
         if kind == 'price_bridge':
             self._stock_closures[provenance_key] = (
                 row.get('explanation_status') == 'ordered_writes_reconciled', after)
@@ -396,12 +406,12 @@ class RunTrace:
 
     def latest_metric_calculation_event_id(self, metric_id, subject):
         """Return the latest current-turn calculation for an exact subject."""
-        key = (metric_id, json.dumps(subject, sort_keys=True))
+        key = (metric_id, _subject_key(subject))
         return self._latest_calculation_event_ids.get(key)
 
     def latest_metric_event_id(self, metric_id, subject):
         """Return the latest current-turn record for an exact metric subject."""
-        key = (metric_id, json.dumps(subject, sort_keys=True))
+        key = (metric_id, _subject_key(subject))
         return self._latest_metric_event_ids.get(key)
 
     def turn_tile_production_event_id(self, tile_id, good_name):
@@ -418,7 +428,7 @@ class RunTrace:
         return matches[-limit:] if limit else []
 
     def snapshot(self, clock, *, subject, metric_id, unit, before, after):
-        key = (metric_id, json.dumps(subject, sort_keys=True))
+        key = (metric_id, _subject_key(subject))
         explained = (self.write_error is None and key in self._calculated_values
                      and self._calculated_values[key] == after)
         if metric_id == 'goods.price':
@@ -476,7 +486,7 @@ class RunTrace:
                                  if change is not None and before != 0 else None},
                          cause_event_ids=[row['event_id'] for row in mutations])
         if reconciled and self.write_error is None:
-            self._calculated_value_sources[('goods.price', json.dumps(subject, sort_keys=True))] = bridge_id
+            self._calculated_value_sources[('goods.price', _subject_key(subject))] = bridge_id
         return bridge_id
 
     def checkpoint(self, clock):

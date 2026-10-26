@@ -333,10 +333,13 @@ class LaborMobilityScheduler:
                     region.labor_decision_log = []
                     log = region.labor_decision_log
                 from collective_trace_clock import stamp
+                from region_labor import calculate_labor_market_tightness
+                worker_tightness = calculate_labor_market_tightness(region)
                 hired = False
                 offer_rows = []
                 for firm in list(firms_with_vacancies):
-                    decision = evaluate_offer(worker, firm, region, t)
+                    decision = evaluate_offer(worker, firm, region, t,
+                                              tightness=worker_tightness)
                     row = {'turn': t, 'worker_id': worker.id, 'firm_id': firm.id,
                            'accepted': decision.accepted, 'reason': decision.reason,
                            'offer': round(decision.offered_wage, 4),
