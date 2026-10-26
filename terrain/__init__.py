@@ -2,6 +2,18 @@
 terrain — Modular Geography, Cartography, Elevation, Biomes, and Meshes for Call of Capital.
 """
 
+from terrain.hex import (
+    rectangular_hex_layout,
+    axial_to_offset,
+    offset_to_axial,
+    axial_to_pixel,
+    pixel_to_axial,
+    axial_neighbors,
+    hex_distance,
+    adjacent,
+    hex_corners,
+    hex_bbox,
+)
 from terrain.mesh import Center, Corner, Edge, NoisyEdges
 from terrain.biomes import BIOME_COLORS, mapgen2_biome, whittaker_biome
 from terrain.generator import PolygonMapGenerator, ParallelPolygonMapGenerator, apply_polygon_map_to_world
@@ -20,18 +32,6 @@ from terrain.wilderness import (
     enter_claimed,
     forage,
     step_wilderness,
-)
-from terrain.hex import (
-    rectangular_hex_layout,
-    axial_to_offset,
-    offset_to_axial,
-    axial_to_pixel,
-    pixel_to_axial,
-    axial_neighbors,
-    hex_distance,
-    adjacent,
-    hex_corners,
-    hex_bbox,
 )
 
 __all__ = [

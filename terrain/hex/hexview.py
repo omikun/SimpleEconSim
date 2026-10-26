@@ -15,7 +15,7 @@ from logger import logInit
 import forex as fx
 from world_trade import trader_wealth
 from sim_nation import build_world
-from hexmap import (LAYOUT_2X3, axial_to_pixel, hex_corners, pixel_to_axial)
+from terrain.hex.hexmap import (LAYOUT_2X3, axial_to_pixel, hex_corners, pixel_to_axial)
 import sim_engine
 
 from client.desktop.charts.charts import (
@@ -215,7 +215,7 @@ def _draw_panel(surface, world, font, font_small):
     panel_h = HEIGHT - 20 - d
     pygame.draw.rect(surface, PANEL_BG,
                      (PANEL_LEFT - 10, 10 + d, panel_w + 4, panel_h))
-    title = font.render("Call of Capital (CoC) — Hex View", True, ACCENT)
+    title = font.render("Call of Capital — Hex View", True, ACCENT)
     surface.blit(title, (PANEL_LEFT, 20 + d))
     t_ = world['turn']
     turn_line = font_small.render(f"Turn: {t_}  win={world['window']}t", True, TEXT)

@@ -87,7 +87,7 @@ def apply_polygon_map_to_world(
     
     Provides 100% plug-and-play parity with apply_heightmap_to_world in heightmap.py.
     """
-    from hexmap import rectangular_hex_layout, axial_to_pixel
+    from terrain.hex.hexmap import rectangular_hex_layout, axial_to_pixel
 
     gen = PolygonMapGenerator(
         seed=seed,

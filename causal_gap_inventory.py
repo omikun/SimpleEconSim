@@ -120,6 +120,30 @@ class Discover(ast.NodeVisitor):
         if (isinstance(node.func, ast.Attribute) and node.func.attr in ('clear', 'pop', 'update', 'setdefault')
                 and isinstance(node.func.value, ast.Attribute) and node.func.value.attr == 'deposits'):
             self.write(node, [ast.Subscript(value=node.func.value, slice=ast.Constant('<bulk>'))])
+        # Centralized state_handler calls carry explicit source_writer IDs.
+        func_name = (node.func.id if isinstance(node.func, ast.Name)
+                     else node.func.attr if isinstance(node.func, ast.Attribute) else None)
+        if func_name in ('transfer_cash', 'adjust_cash', 'transfer_deposit'):
+            kw_map = {kw.arg: kw.value for kw in node.keywords if kw.arg}
+            for arg_idx, writer_kw in ((0, 'payer_source_writer'), (0, 'source_writer'), (1, 'payee_source_writer')):
+                w_node = kw_map.get(writer_kw)
+                if isinstance(w_node, ast.Constant) and isinstance(w_node.value, str) and len(node.args) > arg_idx:
+                    writer_id = w_node.value
+                    self.source_probe_literals.add(writer_id)
+                    if any(existing['id'] == writer_id for existing in self.rows):
+                        continue
+                    target_expr = ast.unparse(node.args[arg_idx]) + '.cash'
+                    function = '.'.join(self.scope) or '<module>'
+                    self.rows.append({
+                        'id': writer_id, 'path': self.path,
+                        'function': function, 'line': node.lineno,
+                        'target': target_expr, 'balance_candidate': 'cash',
+                        'guard_context': list(self.guards),
+                        'statement': ast.unparse(node), 'review': 'needs_review',
+                        'writer': 'unknown', 'formula': 'unknown', 'links': 'unknown',
+                        'closure': 'unknown', 'ui': 'unknown',
+                        'missing_work': 'Classify actual account owner, lifecycle and active caller; attach fixture evidence.'
+                    })
         self.generic_visit(node)
 
 
@@ -132,9 +156,10 @@ def discover_source(source, path):
 def production_paths(root):
     files = subprocess.run(['rg', '--files', '-g', '*.py'], cwd=root, check=True,
                            capture_output=True, text=True).stdout.splitlines()
-    excluded = {'venv', '.venv', 'tmp', 'scratch', 'node_modules', '.git', '__pycache__'}
+    excluded = {'venv', '.venv', 'tmp', 'scratch', 'node_modules', '.git', '__pycache__',
+                'tests', 'scripts', 'benchmarks', 'docs', 'archive'}
     return sorted(path for path in files if not (excluded & set(Path(path).parts))
-                  and not Path(path).name.startswith(('test_', 'audit_', 'benchmark_', 'probe_', 'causal_gap_inventory')))
+                  and not Path(path).name.startswith(('test_', 'audit_', 'benchmark_', 'probe_', 'causal_gap_inventory', 'state_handler')))
 
 
 def inventory(root=ROOT):

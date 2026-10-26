@@ -1,0 +1,1218 @@
+"""
+test_web_server.py — Comprehensive Unit & Integration Tests for Call of Capital Web Client & REST API.
+"""
+
+import sys
+import os
+import json
+from io import BytesIO
+import urllib.parse
+import unittest
+
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+from sim_server.qr_code import QRCode, generate_terminal_qr, generate_svg_qr
+from sim_server.sim_server import SimServer
+from sim_server.web_server import (
+    CoCHTTPRequestHandler,
+    CoCWebServer,
+    get_local_ip,
+)
+
+class MockCoCServer:
+    """Mock HTTP server context for dispatching requests without opening external sockets."""
+
+    def __init__(self, sim_server: SimServer, base_url: str = "http://192.168.1.100:8080"):
+        self.sim_server = sim_server
+        self.base_url = base_url
+        self.api_token = 'test-token'
+
+class MockHttpRequestHandler(CoCHTTPRequestHandler):
+    """Executes CoCHTTPRequestHandler methods in-memory using BytesIO streams."""
+
+    def __init__(self, mock_server: MockCoCServer, method: str, path: str,
+                 headers: dict = None, body: bytes = b''):
+        self.server = mock_server
+        self.command = method
+        self.path = path
+        self.request_version = 'HTTP/1.1'
+        self.requestline = f"{method} {path} HTTP/1.1"
+        self.headers = headers or {}
+        self.rfile = BytesIO(body)
+        self.wfile = BytesIO()
+        self._headers_buffer = []
+        self.response_status = None
+        self.response_headers = {}
+
+        if method == 'GET':
+            self.do_GET()
+        elif method == 'POST':
+            self.do_POST()
+        elif method == 'OPTIONS':
+            self.do_OPTIONS()
+
+    def send_response(self, code, message=None):
+        self.response_status = code
+        super().send_response(code, message)
+
+    def send_header(self, keyword, value):
+        self.response_headers[keyword.lower()] = value
+        super().send_header(keyword, value)
+
+    def get_body(self) -> bytes:
+        raw = self.wfile.getvalue()
+        # Find header / body boundary
+        boundary = b'\r\n\r\n'
+        idx = raw.find(boundary)
+        if idx != -1:
+            return raw[idx + len(boundary):]
+        return raw
+
+class TestQRCodeGenerator(unittest.TestCase):
+    """Test pure-Python dependency-free QR code generation."""
+
+    def test_qr_matrix_dimensions(self):
+        qr = QRCode("http://192.168.1.100:8080")
+        self.assertIn(qr.version, [1, 2, 3, 4, 5, 6])
+        self.assertEqual(len(qr.matrix), qr.size)
+        self.assertEqual(len(qr.matrix[0]), qr.size)
+
+    def test_qr_ansi_terminal_output(self):
+        ansi_full = generate_terminal_qr("http://10.0.0.1:8080", style='full')
+        self.assertIsInstance(ansi_full, str)
+        self.assertIn("\033[47m", ansi_full)  # White background ANSI
+        self.assertIn("\033[40m", ansi_full)  # Black background ANSI
+
+        ansi_half = generate_terminal_qr("http://10.0.0.1:8080", style='half')
+        self.assertIsInstance(ansi_half, str)
+        self.assertIn("\033[47m", ansi_half)
+        self.assertTrue(any(ch in ansi_half for ch in ("█", "▀", "▄")))
+
+    def test_qr_svg_output(self):
+        svg = generate_svg_qr("http://10.0.0.1:8080", size=240)
+        self.assertTrue(svg.startswith("<svg"))
+        self.assertTrue(svg.endswith("</svg>"))
+        self.assertIn('<rect', svg)
+        self.assertIn('viewBox="0 0 240 240"', svg)
+
+class TestWebServerEndpoints(unittest.TestCase):
+    """Test HTTP static file serving, REST API endpoints, and simulation state commands."""
+
+    def setUp(self):
+        self.sim = SimServer(seed=4242)
+        self.mock_server = MockCoCServer(self.sim)
+
+    def test_local_ip_resolution(self):
+        ip = get_local_ip()
+        self.assertIsInstance(ip, str)
+        parts = ip.split('.')
+        self.assertEqual(len(parts), 4)
+
+    def test_serve_index_html(self):
+        handler = MockHttpRequestHandler(self.mock_server, 'GET', '/')
+        self.assertEqual(handler.response_status, 200)
+        self.assertIn('text/html', handler.response_headers.get('content-type', ''))
+        body = handler.get_body().decode('utf-8')
+        self.assertIn('Call of Capital', body)
+        self.assertIn('map-canvas', body)
+        self.assertIn('drawer', body)
+        self.assertIn('window.COC_API_TOKEN="test-token"', body)
+
+    def test_serve_css(self):
+        handler = MockHttpRequestHandler(self.mock_server, 'GET', '/style.css')
+        self.assertEqual(handler.response_status, 200)
+        self.assertIn('text/css', handler.response_headers.get('content-type', ''))
+        body = handler.get_body().decode('utf-8')
+        self.assertIn('--gold', body)
+        self.assertIn('safe-area-inset-bottom', body)
+
+    def test_serve_javascript(self):
+        handler = MockHttpRequestHandler(self.mock_server, 'GET', '/client.js')
+        self.assertEqual(handler.response_status, 200)
+        self.assertIn('javascript', handler.response_headers.get('content-type', ''))
+        body = handler.get_body().decode('utf-8')
+        self.assertIn('axialToPixel', body)
+        self.assertIn('pixelToAxial', body)
+        self.assertIn('tap a point to inspect its turn', body)
+        self.assertIn('Recorded inputs and formula evidence', body)
+        self.assertIn('nation:${worldState.player_nation}', body)
+
+    def test_serve_web_ui_utilities(self):
+        handler = MockHttpRequestHandler(self.mock_server, 'GET', '/ui_utils.js')
+        self.assertEqual(handler.response_status, 200)
+        self.assertIn('javascript', handler.response_headers.get('content-type', ''))
+        body = handler.get_body().decode('utf-8')
+        self.assertIn('CoCUIUtils', body)
+        self.assertIn('escapeHtml', body)
+
+    def test_serve_state_sync_module(self):
+        handler = MockHttpRequestHandler(self.mock_server, 'GET', '/state_sync.js')
+        self.assertEqual(handler.response_status, 200)
+        self.assertIn('javascript', handler.response_headers.get('content-type', ''))
+        body = handler.get_body().decode('utf-8')
+        self.assertIn('CoCStateSync', body)
+
+    def test_serve_hex_geometry_module(self):
+        handler = MockHttpRequestHandler(self.mock_server, 'GET', '/hex_geometry.js')
+        self.assertEqual(handler.response_status, 200)
+        self.assertIn('javascript', handler.response_headers.get('content-type', ''))
+        body = handler.get_body().decode('utf-8')
+        self.assertIn('CoCHexGeometry', body)
+
+    def test_serve_chart_renderer_module(self):
+        handler = MockHttpRequestHandler(self.mock_server, 'GET', '/chart_renderer.js')
+        self.assertEqual(handler.response_status, 200)
+        self.assertIn('javascript', handler.response_headers.get('content-type', ''))
+        body = handler.get_body().decode('utf-8')
+        self.assertIn('CoCCharts', body)
+        self.assertIn('getTraceBinding', body)
+        self.assertIn('Nominal GDP', body)
+
+    def test_serve_help_content_module(self):
+        handler = MockHttpRequestHandler(self.mock_server, 'GET', '/help_content.js')
+        self.assertEqual(handler.response_status, 200)
+        self.assertIn('javascript', handler.response_headers.get('content-type', ''))
+        body = handler.get_body().decode('utf-8')
+        self.assertIn('CoCHelpContent', body)
+
+    def test_get_qr_svg_endpoint(self):
+        handler = MockHttpRequestHandler(self.mock_server, 'GET', '/api/qr.svg')
+        self.assertEqual(handler.response_status, 200)
+        self.assertIn('image/svg+xml', handler.response_headers.get('content-type', ''))
+        body = handler.get_body()
+        self.assertTrue(body.startswith(b'<svg'))
+
+    def test_trace_query_and_download(self):
+        self.sim.step()
+        tile = self.sim.tiles[0].name
+        query = urllib.parse.urlencode({'turn': 1, 'entity': f'tile:{tile}',
+                                        'metric': 'goods.price', 'limit': 5})
+        handler = MockHttpRequestHandler(self.mock_server, 'GET', f'/api/trace?{query}')
+        self.assertEqual(handler.response_status, 200)
+        payload = json.loads(handler.get_body())
+        self.assertTrue(payload['events'])
+        self.assertLessEqual(len(payload['events']), 5)
+        event_id = payload['events'][0]['event_id']
+        exact_query = urllib.parse.urlencode({'event_id': event_id})
+        handler = MockHttpRequestHandler(self.mock_server, 'GET',
+                                         f'/api/trace?{exact_query}')
+        self.assertEqual(handler.response_status, 200)
+        exact_payload = json.loads(handler.get_body())
+        self.assertEqual(exact_payload['total'], 1)
+        self.assertEqual(exact_payload['events'][0]['event_id'], event_id)
+        kind_query = urllib.parse.urlencode({'turn': 1, 'kind': 'turn_checkpoint',
+                                             'limit': 5})
+        handler = MockHttpRequestHandler(self.mock_server, 'GET',
+                                         f'/api/trace?{kind_query}')
+        self.assertEqual(handler.response_status, 200)
+        kind_payload = json.loads(handler.get_body())
+        self.assertEqual(len(kind_payload['events']), 1)
+        self.assertEqual(kind_payload['events'][0]['kind'], 'turn_checkpoint')
+        first_page_query = urllib.parse.urlencode({
+            'turn': 1, 'kind': 'metric_snapshot', 'limit': 2, 'offset': 0})
+        first_page = json.loads(MockHttpRequestHandler(
+            self.mock_server, 'GET', f'/api/trace?{first_page_query}').get_body())
+        self.assertGreaterEqual(first_page['total'], 2)
+        next_page_query = urllib.parse.urlencode({
+            'turn': 1, 'kind': 'metric_snapshot', 'limit': 1, 'offset': 1})
+        next_page = json.loads(MockHttpRequestHandler(
+            self.mock_server, 'GET', f'/api/trace?{next_page_query}').get_body())
+        self.assertEqual(next_page['events'], first_page['events'][1:2])
+        explained_query = urllib.parse.urlencode({'event_id': payload['events'][0]['event_id'], 'explain': 1})
+        explained = json.loads(MockHttpRequestHandler(self.mock_server, 'GET', '/api/trace?' + explained_query).get_body())
+        from trace_explanation import ExplanationReader
+        shared = ExplanationReader(self.sim.run_trace.path, explained['boundary'])
+        self.assertEqual([shared.explain(explained['events'][0])], explained['explanations'])
+        handler = MockHttpRequestHandler(self.mock_server, 'GET', '/api/trace/download')
+        self.assertEqual(handler.response_status, 200)
+        self.assertIn(b'"run_id"', handler.get_body())
+        decoded_rows = [json.loads(line) for line in handler.get_body().splitlines()]
+        self.assertEqual(decoded_rows[-1]['kind'], 'turn_checkpoint')
+        compact = MockHttpRequestHandler(self.mock_server, 'GET',
+                                         '/api/trace/download?format=compact')
+        self.assertEqual(compact.response_status, 200)
+        from trace_codec import MAGIC
+        self.assertTrue(compact.get_body().startswith(MAGIC))
+        self.assertLess(len(compact.get_body()), len(handler.get_body()))
+        self.assertTrue(compact.response_headers['content-disposition'].endswith('.ctr"'))
+
+    def test_macro_chart_metrics_are_queryable_by_nation_and_turn(self):
+        self.sim.step()
+        nation = self.sim.nations[0].name
+        for metric in ('economy.gdp_nominal', 'finance.treasury',
+                       'people.population', 'politics.protest_energy'):
+            query = urllib.parse.urlencode({
+                'turn': 1, 'entity': f'nation:{nation}', 'metric': metric,
+                'limit': 200})
+            handler = MockHttpRequestHandler(
+                self.mock_server, 'GET', f'/api/trace?{query}')
+            self.assertEqual(handler.response_status, 200)
+            payload = json.loads(handler.get_body())
+            self.assertGreater(payload['total'], 0, metric)
+            self.assertTrue(all(row['metric_id'] == metric
+                                and row['turn'] == 1
+                                and row['subject']['id'] == nation
+                                for row in payload['events']), metric)
+        tile = self.sim.nations[0].tiles[0].name
+        for metric in ('economy.gdp_nominal', 'people.population',
+                       'politics.protest_energy'):
+            query = urllib.parse.urlencode({
+                'turn': 1, 'entity': f'tile:{tile}', 'metric': metric,
+                'limit': 200})
+            handler = MockHttpRequestHandler(
+                self.mock_server, 'GET', f'/api/trace?{query}')
+            payload = json.loads(handler.get_body())
+            self.assertGreater(payload['total'], 0, (tile, metric))
+            self.assertTrue(all(row['metric_id'] == metric
+                                and row['turn'] == 1
+                                and row['subject']['id'] == tile
+                                for row in payload['events']), (tile, metric))
+        for metric in ('goods.production', 'goods.producer_inventory'):
+            query = urllib.parse.urlencode({
+                'turn': 1, 'entity': f'tile:{tile}', 'metric': metric,
+                'good': 'food', 'limit': 200})
+            handler = MockHttpRequestHandler(
+                self.mock_server, 'GET', f'/api/trace?{query}')
+            payload = json.loads(handler.get_body())
+            self.assertGreater(payload['total'], 0, (tile, metric))
+            self.assertTrue(all(row['metric_id'] == metric
+                                and row['turn'] == 1
+                                and row['subject']['id'] == tile
+                                and row['subject']['good'] == 'food'
+                                for row in payload['events']), (tile, metric))
+        for disease in ('malnutrition', 'waterborne', 'respiratory', 'chemical'):
+            query = urllib.parse.urlencode({
+                'turn': 1, 'entity': f'tile:{tile}',
+                'metric': 'health.disease_cases', 'disease': disease, 'limit': 200})
+            handler = MockHttpRequestHandler(
+                self.mock_server, 'GET', f'/api/trace?{query}')
+            payload = json.loads(handler.get_body())
+            self.assertGreater(payload['total'], 0, disease)
+            self.assertTrue(all(row['subject']['disease'] == disease
+                                for row in payload['events']), disease)
+
+    def test_food_cash_gini_chart_point_has_a_trace_record(self):
+        self.sim.step()
+        self.sim.step()
+        tile = self.sim.nations[0].tiles[0]
+        query = urllib.parse.urlencode({
+            'turn': 2, 'entity': f'tile:{tile.name}',
+            'metric': 'economy.gini', 'good': 'food', 'limit': 200})
+        handler = MockHttpRequestHandler(
+            self.mock_server, 'GET', f'/api/trace?{query}')
+        payload = json.loads(handler.get_body())
+        calculations = [row for row in payload['events']
+                        if row['kind'] == 'gini_series_calculation']
+        self.assertTrue(calculations)
+        calculation = calculations[0]
+        self.assertEqual(calculation['formula_id'],
+                         'gini.retain_previous_value.v1')
+        self.assertTrue(calculation['inputs']['replay_matches'])
+        chart = self.sim.serialize_tile(tile, turn=self.sim.turn)['charts']
+        displayed = chart['economic']['gini_migration']['gini'][-1]
+        self.assertAlmostEqual(displayed, calculation['value_after'] * 100)
+
+    def test_labor_chart_points_have_trace_calculations(self):
+        self.sim.step()
+        tile = self.sim.nations[0].tiles[0]
+        chart = self.sim.serialize_tile(tile, turn=self.sim.turn)['charts']['labor']
+        cases = (
+            ('labor.average_shift_hours', 'shifts_exploitation', 'shifts', 1.0),
+            ('labor.exploitation_rate', 'shifts_exploitation', 'sv_rate', 100.0),
+            ('labor.average_alienation', 'alienation_health', 'alienation', 100.0),
+            ('labor.average_class_consciousness', 'consciousness_pacification',
+             'consciousness', 100.0),
+            ('labor.strikers', 'workplace_resistance', 'strikers', 1.0),
+        )
+        for metric, group, series, chart_scale in cases:
+            query = urllib.parse.urlencode({
+                'turn': 1, 'entity': f'tile:{tile.name}', 'metric': metric,
+                'limit': 200})
+            handler = MockHttpRequestHandler(
+                self.mock_server, 'GET', f'/api/trace?{query}')
+            payload = json.loads(handler.get_body())
+            calculations = [row for row in payload['events']
+                            if row['record_class'] == 'calculation']
+            self.assertTrue(calculations, metric)
+            calculation = calculations[0]
+            displayed = chart[group][series][-1]
+            self.assertAlmostEqual(
+                displayed, calculation['value_after'] * chart_scale,
+                places=1, msg=metric)
+            self.assertTrue(calculation.get('formula_id'), metric)
+            inputs = calculation.get('inputs', {})
+            if metric == 'labor.average_shift_hours':
+                denominator = inputs['worker_count']
+                replay = (inputs['weighted_shift_hours_sum'] / denominator
+                          if denominator else inputs['empty_value'])
+                self.assertAlmostEqual(replay, calculation['value_after'])
+            elif metric in ('labor.average_alienation',
+                            'labor.average_class_consciousness'):
+                denominator = inputs['denominator']
+                replay = (sum(inputs['values']) / denominator
+                          if denominator else inputs['empty_population_value'])
+                self.assertAlmostEqual(replay, calculation['value_after'])
+            elif metric == 'labor.exploitation_rate':
+                denominator = inputs['total_variable_capital']
+                replay = (inputs['total_surplus_value'] / denominator
+                          if denominator else inputs['empty_value'])
+                self.assertAlmostEqual(replay, calculation['value_after'])
+            elif metric == 'labor.strikers':
+                self.assertEqual(len(inputs['striking_agent_ids']),
+                                 calculation['value_after'])
+
+    def test_web_workday_cap_chart_uses_effective_turn_history(self):
+        tile = self.sim.nations[0].tiles[0]
+        tile.max_workday_hours = 16.0
+        tile.workday_cap = 10.0
+        self.sim.step()
+
+        charts = self.sim.serialize_tile(tile, turn=self.sim.turn)['charts']
+        effective_cap = charts['labor']['shifts_exploitation']['caps'][-1]
+        query = urllib.parse.urlencode({
+            'turn': self.sim.turn, 'entity': f'tile:{tile.name}',
+            'metric': 'labor.statutory_workday', 'limit': 200})
+        payload = json.loads(MockHttpRequestHandler(
+            self.mock_server, 'GET', f'/api/trace?{query}').get_body())
+        samples = [row for row in payload['events']
+                   if row['kind'] == 'effective_workday_cap_sample']
+
+        self.assertEqual(len(samples), 1)
+        self.assertEqual(effective_cap, 10.0)
+        self.assertEqual(samples[0]['value_after'], effective_cap)
+        self.assertEqual(samples[0]['inputs']['statute_display_value'], 16.0)
+
+    def test_nation_citizen_and_labor_chart_histories_match_trace_aggregates(self):
+        self.sim.step()
+        nation = self.sim.nations[0]
+        history = self.sim.serialize_world()['history']
+        cases = (
+            ('class_worker', 'society.class_population', 'worker', None,
+             'worker', 1.0),
+            ('workday_cap', 'labor.statutory_workday', None, None,
+             'avg effective cap', 1.0),
+            ('commons_access', 'land.commons_access', None, None,
+             'avg commons %', 100.0),
+            ('gini', 'economy.gini', None, 'food',
+             'avg gini (x100)', 100.0),
+            ('trade', 'trade.net_value', None, None, 'net', 1.0),
+            ('trade_exports', 'trade.export_value', None, None,
+             'exports', 1.0),
+            ('trade_imports', 'trade.import_value', None, None,
+             'imports', 1.0),
+        )
+        for history_key, metric, class_group, good, chart_series, scale in cases:
+            with self.subTest(history_key=history_key):
+                self.assertTrue(history[history_key])
+                params = {'turn': self.sim.turn,
+                          'entity': f'nation:{nation.name}',
+                          'metric': metric, 'limit': 200}
+                if class_group:
+                    params['class_group'] = class_group
+                if good:
+                    params['good'] = good
+                query = urllib.parse.urlencode(params)
+                payload = json.loads(MockHttpRequestHandler(
+                    self.mock_server, 'GET', f'/api/trace?{query}').get_body())
+                rows = [row for row in payload['events']
+                        if row['kind'] == 'nation_chart_history_aggregate'
+                        and row['inputs']['chart_series'] == chart_series]
+                self.assertEqual(len(rows), 1)
+                self.assertAlmostEqual(
+                    history[history_key][-1],
+                    round(rows[0]['value_after'] * scale, 1), places=1)
+                if metric.startswith('trade.'):
+                    self.assertFalse(
+                        rows[0]['inputs']['currency_conversion_applied'])
+                    self.assertEqual(
+                        rows[0]['inputs']['currency_semantics'],
+                        'raw member-tile local-currency sum without conversion')
+                    self.assertIn('member_tiles', rows[0]['inputs'])
+
+    def test_nation_good_price_histories_match_reference_price_aggregates(self):
+        self.sim.step()
+        nation = self.sim.nations[0]
+        history = self.sim.serialize_world()['history']
+        for good in ('wood', 'wool'):
+            with self.subTest(good=good):
+                history_key = f'market_price_{good}'
+                self.assertTrue(history[history_key])
+                query = urllib.parse.urlencode({
+                    'turn': self.sim.turn, 'entity': f'nation:{nation.name}',
+                    'metric': 'goods.national_reference_price',
+                    'good': good, 'limit': 200})
+                payload = json.loads(MockHttpRequestHandler(
+                    self.mock_server, 'GET', f'/api/trace?{query}').get_body())
+                rows = [row for row in payload['events']
+                        if row['kind'] == 'national_reference_price_aggregate']
+                self.assertEqual(len(rows), 1)
+                self.assertAlmostEqual(
+                    history[history_key][-1],
+                    round(rows[0]['value_after'], 2), places=2)
+                self.assertEqual(
+                    rows[0]['inputs']['price_basis'],
+                    'displayed_recipe_reference')
+                self.assertFalse(
+                    rows[0]['inputs']['currency_conversion_applied'])
+
+    def test_nation_market_histories_match_current_turn_aggregates(self):
+        self.sim.step()
+        nation = self.sim.nations[0]
+        history = self.sim.serialize_world()['history']
+        cases = (
+            ('market_production_food', 'market_production',
+             'goods.production', 1.0),
+            ('market_inventory_food', 'market_inventory',
+             'goods.producer_inventory', 1.0),
+            ('market_demand_ratio_food', 'market_demand_ratio',
+             'goods.demand_ratio', 1.0),
+        )
+        for history_key, family, metric, scale in cases:
+            with self.subTest(history_key=history_key):
+                self.assertEqual(len(history[history_key]), len(history['turns']))
+                self.assertIsNone(history[history_key][0])
+                self.assertIsNotNone(history[history_key][-1])
+                query = urllib.parse.urlencode({
+                    'turn': self.sim.turn, 'entity': f'nation:{nation.name}',
+                    'metric': metric, 'good': 'food', 'limit': 200})
+                payload = json.loads(MockHttpRequestHandler(
+                    self.mock_server, 'GET', f'/api/trace?{query}').get_body())
+                rows = [row for row in payload['events']
+                        if row['kind'] == 'nation_chart_history_aggregate'
+                        and row['inputs']['chart_family'] == family
+                        and row['inputs']['chart_series'] == 'food']
+                self.assertEqual(len(rows), 1)
+                row = rows[0]
+                self.assertAlmostEqual(
+                    history[history_key][-1],
+                    round(row['value_after'] * scale, 2 if family == 'market_demand_ratio' else 1),
+                    places=2 if family == 'market_demand_ratio' else 1)
+                self.assertTrue(any(
+                    contribution['source_link_status'] in (
+                        'linked', 'linked_observation')
+                    for contribution in row['inputs']['member_contributions']))
+                if family == 'market_demand_ratio':
+                    self.assertEqual(row['inputs']['reducer'], 'mean')
+                    self.assertTrue(all(
+                        contribution['source_link_status'] == 'linked'
+                        for contribution in row['inputs']['member_contributions']
+                        if contribution['value'] is not None))
+
+    def test_nation_ecology_and_health_histories_match_aggregates(self):
+        self.sim.step()
+        nation = self.sim.nations[0]
+        history = self.sim.serialize_world()['history']
+        cases = (
+            ('soil', 'ecology', 'soil', 'ecology.soil_fertility', None, None, 100.0),
+            ('nutrition', 'ecology', 'nutrition', 'ecology.nutrition_density', None, None, 100.0),
+            ('smog', 'ecology', 'smog', 'ecology.pollution_air', None, None, 1.0),
+            ('effluent', 'ecology', 'effluent', 'ecology.pollution_water', None, None, 1.0),
+            ('soil_pollution', 'ecology', 'soil toxicity', 'ecology.pollution_soil', None, None, 1.0),
+            ('malnutrition_cases', 'health', 'malnutrition cases', 'health.disease_cases', 'disease', 'malnutrition', 1.0),
+            ('waterborne_cases', 'health', 'waterborne cases', 'health.disease_cases', 'disease', 'waterborne', 1.0),
+            ('respiratory_cases', 'health', 'respiratory cases', 'health.disease_cases', 'disease', 'respiratory', 1.0),
+            ('chemical_cases', 'health', 'chemical cases', 'health.disease_cases', 'disease', 'chemical', 1.0),
+            ('health_outlays', 'health', 'outlays', 'health.medical_spending', None, None, 1.0),
+            ('untreated_cases', 'health', 'untreated', 'health.untreated_cases', None, None, 1.0),
+            ('illness_deaths', 'health', 'fatalities', 'health.fatalities', None, None, 1.0),
+        )
+        for history_key, family, chart_series, metric, filter_key, filter_value, scale in cases:
+            with self.subTest(history_key=history_key):
+                self.assertEqual(len(history[history_key]), len(history['turns']))
+                self.assertIsNone(history[history_key][0])
+                self.assertIsNotNone(history[history_key][-1])
+                params = {'turn': self.sim.turn, 'entity': f'nation:{nation.name}',
+                          'metric': metric, 'limit': 200}
+                if filter_key:
+                    params[filter_key] = filter_value
+                query = urllib.parse.urlencode(params)
+                payload = json.loads(MockHttpRequestHandler(
+                    self.mock_server, 'GET', f'/api/trace?{query}').get_body())
+                rows = [row for row in payload['events']
+                        if row['kind'] == 'nation_chart_history_aggregate'
+                        and row['inputs']['chart_family'] == family
+                        and row['inputs']['chart_series'] == chart_series]
+                self.assertEqual(len(rows), 1)
+                row = rows[0]
+                self.assertAlmostEqual(
+                    history[history_key][-1],
+                    round(row['value_after'] * scale, 1), places=1)
+                self.assertTrue(any(
+                    contribution['source_link_status'] in (
+                        'linked', 'linked_observation')
+                    for contribution in row['inputs']['member_contributions']))
+                if history_key == 'health_outlays':
+                    self.assertFalse(row['inputs']['currency_conversion_applied'])
+                    self.assertIn('local-currency', row['inputs']['currency_semantics'])
+
+    def test_workplace_condition_charts_replay_from_trace_inputs(self):
+        self.sim.step()
+        tile = self.sim.nations[0].tiles[0]
+        charts = self.sim.serialize_tile(tile, turn=self.sim.turn)['charts']['labor']
+
+        def calculation(metric, kind):
+            query = urllib.parse.urlencode({
+                'turn': self.sim.turn, 'entity': f'tile:{tile.name}',
+                'metric': metric, 'limit': 200})
+            payload = json.loads(MockHttpRequestHandler(
+                self.mock_server, 'GET', f'/api/trace?{query}').get_body())
+            matches = [row for row in payload['events'] if row['kind'] == kind]
+            self.assertEqual(len(matches), 1, metric)
+            return matches[0]
+
+        accidents = calculation('labor.workplace_accidents',
+                                'labor_workplace_accidents_calculation')
+        rolls = accidents['inputs']['accident_rolls']
+        self.assertEqual(
+            accidents['value_after'],
+            sum(row['draw'] < row['probability'] for row in rolls))
+        self.assertEqual(charts['workplace_conditions']['accidents'][-1],
+                         accidents['value_after'])
+
+        entertainment = calculation('society.entertainment_level',
+                                    'society_entertainment_level_sample')
+        self.assertEqual(entertainment['value_after'],
+                         entertainment['inputs']['configured_entertainment_level'])
+        self.assertAlmostEqual(
+            charts['workplace_conditions']['entertainment'][-1],
+            entertainment['value_after'] * 100, places=1)
+
+        sabotage = calculation('labor.machinery_sabotaged',
+                               'labor_machinery_sabotage_calculation')
+        sabotage_inputs = sabotage['inputs']
+        self.assertEqual(
+            sabotage['value_after'],
+            sum(int(row.get('smashed', 0))
+                for row in sabotage_inputs['firm_rolls']))
+        self.assertEqual(charts['workplace_conditions']['sabotage'][-1],
+                         sabotage['value_after'])
+
+        broken = calculation('labor.broken_machinery',
+                             'labor_broken_machinery_calculation')
+        broken_inputs = broken['inputs']
+        self.assertEqual(
+            broken['value_after'],
+            sum(row['broken_close'] for row in broken_inputs['firm_states']))
+        self.assertTrue(broken_inputs['replay_matches'])
+        self.assertEqual(charts['workplace_conditions']['broken'][-1],
+                         broken['value_after'])
+
+    def test_hunger_and_untreated_case_chart_points_have_trace_records(self):
+        self.sim.step()
+        tile = self.sim.nations[0].tiles[0]
+        charts = self.sim.serialize_tile(tile, turn=self.sim.turn)['charts']
+
+        hunger_query = urllib.parse.urlencode({
+            'turn': self.sim.turn, 'entity': f'tile:{tile.name}',
+            'metric': 'people.hungry', 'limit': 200})
+        hunger_payload = json.loads(MockHttpRequestHandler(
+            self.mock_server, 'GET', f'/api/trace?{hunger_query}').get_body())
+        hunger_rows = [row for row in hunger_payload['events']
+                       if row['kind'] == 'population_hunger_count_calculation']
+        self.assertEqual(len(hunger_rows), 1)
+        hunger = hunger_rows[0]
+        self.assertEqual(hunger['value_after'],
+                         sum(hunger['inputs']['group_counts'].values()))
+        self.assertEqual(charts['economic']['pop_hunger']['hungry'][-1],
+                         hunger['value_after'])
+
+        untreated_query = urllib.parse.urlencode({
+            'turn': self.sim.turn, 'entity': f'tile:{tile.name}',
+            'metric': 'health.untreated_cases', 'limit': 200})
+        untreated_payload = json.loads(MockHttpRequestHandler(
+            self.mock_server, 'GET', f'/api/trace?{untreated_query}').get_body())
+        untreated_rows = [row for row in untreated_payload['events']
+                          if row['kind'] == 'disease_untreated_cases_observed']
+        self.assertEqual(len(untreated_rows), 1)
+        untreated = untreated_rows[0]
+        self.assertEqual(untreated['inputs']['replay_count'],
+                         len(untreated['inputs']['untreated_patients']))
+        self.assertTrue(untreated['inputs']['replay_matches'])
+        self.assertEqual(charts['ecological']['untreated_fatalities']['untreated'][-1],
+                         untreated['value_after'])
+
+    def test_soil_toxicity_and_bodily_wear_chart_points_have_trace_records(self):
+        self.sim.step()
+        tile = self.sim.nations[0].tiles[0]
+        charts = self.sim.serialize_tile(tile, turn=self.sim.turn)['charts']
+
+        soil_query = urllib.parse.urlencode({
+            'turn': 1, 'entity': f'tile:{tile.name}',
+            'metric': 'ecology.pollution_soil', 'limit': 200})
+        soil_payload = json.loads(MockHttpRequestHandler(
+            self.mock_server, 'GET', f'/api/trace?{soil_query}').get_body())
+        soil_updates = [row for row in soil_payload['events']
+                        if row['kind'] == 'pollution_soil_update']
+        self.assertEqual(len(soil_updates), 1)
+        self.assertAlmostEqual(
+            charts['ecological']['pollution']['soil'][-1],
+            soil_updates[0]['value_after'], places=1)
+        soil_inputs = soil_updates[0]['inputs']
+        self.assertAlmostEqual(
+            soil_inputs['raw_soil_emission'],
+            soil_inputs['pesticide_runoff'] + soil_inputs['scrubber_sludge'])
+
+        wear_query = urllib.parse.urlencode({
+            'turn': 1, 'entity': f'tile:{tile.name}',
+            'metric': 'health.average_bodily_wear', 'limit': 200})
+        wear_payload = json.loads(MockHttpRequestHandler(
+            self.mock_server, 'GET', f'/api/trace?{wear_query}').get_body())
+        wear_calculations = [row for row in wear_payload['events']
+                             if row['kind'] ==
+                             'health_average_bodily_wear_calculation']
+        self.assertEqual(len(wear_calculations), 1)
+        wear = wear_calculations[0]
+        inputs = wear['inputs']
+        denominator = inputs['denominator']
+        replay = (sum(inputs['values']) / denominator if denominator
+                  else inputs['empty_population_value'])
+        self.assertAlmostEqual(replay, wear['value_after'])
+        self.assertEqual(len(inputs['agent_ids']), inputs['member_count'])
+        displayed = charts['ecological']['health_attrition'][-1]
+        self.assertAlmostEqual(displayed, wear['value_after'] * 100, places=1)
+
+    def test_citizen_and_tenure_charts_match_turn_calculations(self):
+        self.sim.step()
+        tile = self.sim.nations[0].tiles[0]
+        charts = self.sim.serialize_tile(tile, turn=self.sim.turn)['charts']
+
+        for chart_key, class_group, member_classes in (
+                ('serf', 'serf', ('serf',)),
+                ('tenant', 'tenant', ('tenant',)),
+                ('worker', 'worker', ('proletarian',)),
+                ('dispossessed', 'dispossessed', ('dispossessed',)),
+                ('gentry', 'gentry', ('lord', 'landlord')),
+                ('artisan', 'artisan', ('petty_bourgeois', 'industrialist'))):
+            query = urllib.parse.urlencode({
+                'turn': 1, 'entity': f'tile:{tile.name}',
+                'metric': 'society.class_population',
+                'class_group': class_group, 'limit': 200})
+            payload = json.loads(MockHttpRequestHandler(
+                self.mock_server, 'GET', f'/api/trace?{query}').get_body())
+            calculations = [row for row in payload['events']
+                            if row['kind'] ==
+                            'social_class_population_calculation']
+            self.assertEqual(len(calculations), 1, class_group)
+            calculation = calculations[0]
+            self.assertEqual(calculation['subject']['class_group'], class_group)
+            self.assertEqual(
+                calculation['inputs']['member_classes'], list(member_classes))
+            replay = sum(calculation['inputs']['member_class_counts'].values())
+            self.assertEqual(replay, calculation['value_after'])
+            self.assertEqual(charts['citizens']['classes'][chart_key][-1],
+                             calculation['value_after'])
+
+        for chart_key, metric, event_kind, series_key in (
+                ('foraged', 'food.foraged', 'foraged_food_total', 'foraged'),
+                ('market', 'food.purchased', 'purchased_food_total', 'market')):
+            query = urllib.parse.urlencode({
+                'turn': 1, 'entity': f'tile:{tile.name}',
+                'metric': metric, 'limit': 200})
+            payload = json.loads(MockHttpRequestHandler(
+                self.mock_server, 'GET', f'/api/trace?{query}').get_body())
+            calculations = [row for row in payload['events']
+                            if row['kind'] == event_kind]
+            self.assertEqual(len(calculations), 1, metric)
+            calculation = calculations[0]
+            replay = sum(row['food_units']
+                         for row in calculation['inputs']['agent_food_units'])
+            self.assertEqual(
+                len(calculation['inputs']['agent_food_units']),
+                calculation['inputs']['contributor_count'])
+            self.assertEqual(replay, calculation['value_after'])
+            self.assertEqual(charts['citizens']['food_source'][series_key][-1],
+                             calculation['value_after'])
+
+        commons_query = urllib.parse.urlencode({
+            'turn': 1, 'entity': f'tile:{tile.name}',
+            'metric': 'land.commons_access', 'limit': 200})
+        commons_payload = json.loads(MockHttpRequestHandler(
+            self.mock_server, 'GET', f'/api/trace?{commons_query}').get_body())
+        commons_rows = [row for row in commons_payload['events']
+                        if row['kind'] == 'commons_access_calculation']
+        self.assertEqual(len(commons_rows), 1)
+        commons = commons_rows[0]
+        plot_rows = commons['inputs']['plots']
+        if plot_rows:
+            replay = min(commons['inputs']['upper_bound'], sum(
+                row['fraction'] * {
+                    'feudal': commons['inputs']['feudal_weight'],
+                    'leasehold': commons['inputs']['leasehold_weight'],
+                    'commons': commons['inputs']['commons_weight'],
+                    'enclosed': commons['inputs']['enclosed_weight'],
+                }.get(row['tenure'], 0.0) for row in plot_rows))
+        else:
+            replay = commons['inputs']['no_plot_default']
+        self.assertAlmostEqual(replay, commons['value_after'])
+        self.assertAlmostEqual(
+            charts['citizens']['commons_rent']['commons'][-1],
+            commons['value_after'] * 100, places=1)
+
+        for metric, event_kind, series_key in (
+                ('finance.rent_collected', 'rent_collection_summary', 'rent'),
+                ('finance.rent_arrears', 'rent_arrears_summary', 'arrears')):
+            query = urllib.parse.urlencode({
+                'turn': 1, 'entity': f'tile:{tile.name}',
+                'metric': metric, 'limit': 200})
+            payload = json.loads(MockHttpRequestHandler(
+                self.mock_server, 'GET', f'/api/trace?{query}').get_body())
+            calculation = next(row for row in payload['events']
+                               if row['kind'] == event_kind)
+            self.assertAlmostEqual(
+                charts['citizens']['commons_rent'][series_key][-1],
+                calculation['value_after'], places=1)
+
+    def test_nonfood_market_charts_match_good_and_turn_trace_records(self):
+        self.sim.step()
+        self.sim.step()
+        tile = self.sim.nations[0].tiles[0]
+        charts = self.sim.serialize_tile(tile, turn=self.sim.turn)['charts']
+
+        for good, price_series, production_series, inventory_series in (
+                ('wood', 'wood', 'wood', 'wood'),
+                ('furniture', 'furniture', 'furniture', 'furniture')):
+            query = urllib.parse.urlencode({
+                'turn': 2, 'entity': f'tile:{tile.name}',
+                'metric': 'goods.price', 'good': good, 'limit': 200})
+            payload = json.loads(MockHttpRequestHandler(
+                self.mock_server, 'GET', f'/api/trace?{query}').get_body())
+            price_bridge = next(row for row in payload['events']
+                                if row['kind'] == 'price_bridge')
+            displayed_price = charts['economic']['prices'][price_series][-1]
+            self.assertAlmostEqual(displayed_price,
+                                   price_bridge['value_after'], places=2)
+
+            production_query = urllib.parse.urlencode({
+                'turn': 2, 'entity': f'tile:{tile.name}',
+                'metric': 'goods.production', 'good': good, 'limit': 200})
+            production_payload = json.loads(MockHttpRequestHandler(
+                self.mock_server, 'GET',
+                f'/api/trace?{production_query}').get_body())
+            production = next(row for row in production_payload['events']
+                              if row['kind'] == 'tile_production_total')
+            self.assertEqual(
+                charts['economic']['production'][production_series][-1],
+                production['value_after'])
+
+            inventory_query = urllib.parse.urlencode({
+                'turn': 2, 'entity': f'tile:{tile.name}',
+                'metric': 'goods.producer_inventory', 'good': good,
+                'limit': 200})
+            inventory_payload = json.loads(MockHttpRequestHandler(
+                self.mock_server, 'GET',
+                f'/api/trace?{inventory_query}').get_body())
+            inventory = next(row for row in inventory_payload['events']
+                             if row['kind'] == 'producer_inventory_total')
+            self.assertAlmostEqual(
+                charts['economic']['inventories'][inventory_series][-1],
+                inventory['value_after'], places=1)
+
+        for good, series_key in (('food', 'food'), ('wood', 'wood'),
+                                 ('furniture', 'furniture')):
+            points = charts['economic']['demand_ratio'][series_key]
+            self.assertEqual(len(points), 2, good)
+            for index, turn in enumerate((1, 2)):
+                query = urllib.parse.urlencode({
+                    'turn': turn, 'entity': f'tile:{tile.name}',
+                    'metric': 'goods.demand_ratio', 'good': good,
+                    'limit': 200})
+                payload = json.loads(MockHttpRequestHandler(
+                    self.mock_server, 'GET', f'/api/trace?{query}').get_body())
+                calculation = next(row for row in payload['events']
+                                   if row['kind'] ==
+                                   'market_demand_supply_ratio')
+                inputs = calculation['inputs']
+                replay = (inputs['bids'] / inputs['total_asks']
+                          if inputs['total_asks'] else
+                          inputs['zero_supply_ratio'])
+                self.assertAlmostEqual(replay, calculation['value_after'])
+                self.assertEqual(round(points[index], 2),
+                                 round(calculation['value_after'], 2),
+                                 msg=(good, turn))
+
+    def test_additional_active_good_is_exposed_to_dynamic_market_charts(self):
+        from goods import Goods
+        tile = self.sim.nations[0].tiles[0]
+        cotton_worker = next(agent for agent in tile.agents
+                             if agent.alive and not agent.is_corporation
+                             and not agent.is_government and not agent.is_trader)
+        cotton_worker.output = Goods.cotton
+        self.sim.step()
+        charts = self.sim.serialize_tile(tile, turn=self.sim.turn)['charts']
+        economic = charts['economic']
+        self.assertIn('cotton', economic['prices'])
+        self.assertIn('cotton', economic['production'])
+        self.assertIn('cotton', economic['inventories'])
+        self.assertEqual(len(economic['demand_ratio']['cotton']), 1)
+
+        for metric, kind, series in (
+                ('goods.price', 'price_bridge', 'prices'),
+                ('goods.production', 'tile_production_total', 'production'),
+                ('goods.producer_inventory', 'producer_inventory_total',
+                 'inventories'),
+                ('goods.demand_ratio', 'market_demand_supply_ratio',
+                 'demand_ratio')):
+            query = urllib.parse.urlencode({
+                'turn': 1, 'entity': f'tile:{tile.name}', 'metric': metric,
+                'good': 'cotton', 'limit': 200})
+            payload = json.loads(MockHttpRequestHandler(
+                self.mock_server, 'GET', f'/api/trace?{query}').get_body())
+            calculation = next(row for row in payload['events']
+                               if row['kind'] == kind)
+            displayed = economic[series]['cotton'][-1]
+            self.assertAlmostEqual(displayed, calculation['value_after'],
+                                   places=2, msg=metric)
+
+    def test_government_revenue_chart_point_has_trace_record(self):
+        self.sim.step()
+        tile = self.sim.nations[0].tiles[0]
+        query = urllib.parse.urlencode({
+            'turn': 1, 'entity': f'tile:{tile.name}',
+            'metric': 'finance.government_income', 'limit': 200})
+        handler = MockHttpRequestHandler(
+            self.mock_server, 'GET', f'/api/trace?{query}')
+        payload = json.loads(handler.get_body())
+        calculations = [row for row in payload['events']
+                        if row['kind'] == 'government_income_calculation']
+        self.assertEqual(len(calculations), 1)
+        calculation = calculations[0]
+        components = calculation['inputs']['components']
+        self.assertAlmostEqual(sum(components.values()),
+                               calculation['value_after'])
+        self.assertIn(calculation['inputs']['scope'],
+                      ('tile', 'shared_province'))
+        self.assertIn(tile.name, calculation['inputs']['member_tiles'])
+        chart = self.sim.serialize_tile(tile, turn=self.sim.turn)['charts']
+        revenue = chart['economic']['gov_income']
+        displayed = sum(revenue[key][-1]
+                        for key in ('tax', 'tariff', 'inheritance'))
+        self.assertAlmostEqual(displayed, calculation['value_after'], places=1)
+
+        nation = self.sim.nations[0]
+        history = self.sim.serialize_world()['history']
+        self.assertEqual(len(history['government_income']), len(history['turns']))
+        self.assertIsNone(history['government_income'][0])
+        nation_query = urllib.parse.urlencode({
+            'turn': self.sim.turn, 'entity': f'nation:{nation.name}',
+            'metric': 'finance.government_income', 'limit': 200})
+        nation_payload = json.loads(MockHttpRequestHandler(
+            self.mock_server, 'GET', f'/api/trace?{nation_query}').get_body())
+        aggregates = [row for row in nation_payload['events']
+                      if row['kind'] == 'nation_chart_history_aggregate'
+                      and row['inputs']['chart_family'] == 'government'
+                      and row['inputs']['chart_series'] == 'income']
+        self.assertEqual(len(aggregates), 1)
+        aggregate = aggregates[0]
+        self.assertAlmostEqual(history['government_income'][-1],
+                               aggregate['value_after'], places=1)
+        current_governments = {id(member.gov) for member in nation.tiles
+                               if getattr(member, 'gov', None) is not None
+                               and len(getattr(member.gov, 'income_log', ())) >= self.sim.turn}
+        self.assertEqual(aggregate['inputs']['government_count'],
+                         len(current_governments))
+        self.assertEqual(len(aggregate['inputs']['member_values']),
+                         len(current_governments))
+        self.assertTrue(any(
+            contribution['government_income_contribution']
+            == 'duplicate_shared_government_snapshot'
+            for contribution in aggregate['inputs']['member_contributions']))
+        self.assertFalse(aggregate['inputs']['currency_conversion_applied'])
+        self.assertTrue(all(
+            contribution['source_link_status'] == 'linked'
+            for contribution in aggregate['inputs']['member_contributions']))
+
+    def test_trade_chart_points_have_turn_aligned_trace_records(self):
+        self.sim.step()
+        self.sim.step()
+        tile = self.sim.nations[0].tiles[0]
+        chart = self.sim.serialize_tile(tile, turn=self.sim.turn)['charts']
+        cases = (
+            ('trade.export_value', 'export', 'trade_export_value_calculation'),
+            ('trade.import_value', 'import', 'trade_import_value_calculation'),
+            ('trade.net_value', 'balance', 'trade_net_value_calculation'),
+        )
+        for metric, series, kind in cases:
+            points = chart['economic']['trade_flow'][series]
+            self.assertEqual(len(points), 2, metric)
+            for point_index, turn in enumerate((1, 2)):
+                query = urllib.parse.urlencode({
+                    'turn': turn, 'entity': f'tile:{tile.name}',
+                    'metric': metric, 'limit': 200})
+                handler = MockHttpRequestHandler(
+                    self.mock_server, 'GET', f'/api/trace?{query}')
+                payload = json.loads(handler.get_body())
+                calculations = [row for row in payload['events']
+                                if row['kind'] == kind]
+                self.assertEqual(len(calculations), 1, (metric, turn))
+                calculation = calculations[0]
+                displayed = points[point_index]
+                self.assertAlmostEqual(displayed, calculation['value_after'],
+                                       places=1, msg=(metric, turn))
+                inputs = calculation['inputs']
+                if metric == 'trade.export_value':
+                    replay = sum(row['value_in_home_currency']
+                                 for row in inputs['partner_settlements'])
+                    self.assertTrue(all(row['conversion_basis']
+                                        for row in inputs['partner_settlements']))
+                elif metric == 'trade.import_value':
+                    replay = sum(row['value'] for row in inputs['goods'])
+                    self.assertFalse(inputs['currency_conversion_applied'])
+                else:
+                    replay = (inputs['export_value_home_currency']
+                              - inputs['import_value_home_currency'])
+                self.assertAlmostEqual(replay, calculation['value_after'])
+
+    def test_api_world_state(self):
+        handler = MockHttpRequestHandler(self.mock_server, 'GET', '/api/state')
+        self.assertEqual(handler.response_status, 200)
+        self.assertIn('application/json', handler.response_headers.get('content-type', ''))
+        data = json.loads(handler.get_body().decode('utf-8'))
+        self.assertIn('turn', data)
+        self.assertIn('playing', data)
+        self.assertIn('tiles', data)
+        self.assertIn('nations', data)
+        self.assertEqual(data.get('lan_url'), "http://192.168.1.100:8080")
+        self.assertGreater(len(data['tiles']), 0)
+        self.assertGreater(len(data['nations']), 0)
+
+        sample_tile = data['tiles'][0]
+        self.assertIn('name', sample_tile)
+        self.assertIn('q', sample_tile)
+        self.assertIn('r', sample_tile)
+        self.assertIn('biome', sample_tile)
+        self.assertIn('elevation_meters', sample_tile)
+        self.assertIn('tenure', sample_tile)
+        self.assertIn('labor', sample_tile)
+
+        # Verify all tiles have distinct (q, r) hex coordinates (not collapsed to 0, 0)
+        coords = [(t['q'], t['r']) for t in data['tiles']]
+        self.assertEqual(len(coords), len(set(coords)), "Every tile must have unique (q, r) coordinates!")
+        self.assertGreater(len(set(coords)), 1)
+
+        # Verify terrain bounds & coordinate layout for Approach A rendering
+        self.assertIn('hex_size', data)
+        self.assertEqual(data['hex_size'], 50.0)
+        self.assertIn('bbox', data)
+        self.assertEqual(len(data['bbox']), 4)
+        self.assertIn('terrain_bounds', data)
+        bounds = data['terrain_bounds']
+        self.assertIn('min_x', bounds)
+        self.assertIn('min_y', bounds)
+        self.assertIn('width', bounds)
+        self.assertIn('height', bounds)
+        self.assertGreater(bounds['width'], 0)
+        self.assertGreater(bounds['height'], 0)
+
+    def test_compact_state_and_versioned_refresh(self):
+        first = MockHttpRequestHandler(self.mock_server, 'GET', '/api/state?compact=1')
+        self.assertEqual(first.response_status, 200)
+        state = json.loads(first.get_body())
+        self.assertIn('version', state)
+        self.assertIn('population', state['tiles'][0])
+        self.assertNotIn('citizens', state['tiles'][0])
+        self.assertNotIn('charts', state['tiles'][0])
+
+        unchanged = MockHttpRequestHandler(
+            self.mock_server, 'GET', f"/api/state?compact=1&since={state['version']}"
+        )
+        self.assertEqual(unchanged.response_status, 304)
+        self.assertEqual(unchanged.get_body(), b'')
+
+        tile_name = urllib.parse.quote(state['tiles'][0]['name'])
+        detail = MockHttpRequestHandler(self.mock_server, 'GET', f'/api/tile?name={tile_name}')
+        self.assertEqual(detail.response_status, 200)
+        self.assertIn('charts', json.loads(detail.get_body()))
+
+        command_body = json.dumps({'cmd_type': 'PAUSE', 'payload': {}}).encode()
+        command = MockHttpRequestHandler(
+            self.mock_server, 'POST', '/api/command',
+            headers={'Content-Length': str(len(command_body)), 'X-COC-Token': 'test-token'}, body=command_body
+        )
+        self.assertEqual(command.response_status, 200)
+        after_command = MockHttpRequestHandler(
+            self.mock_server, 'GET', f"/api/state?compact=1&since={state['version']}"
+        )
+        self.assertEqual(after_command.response_status, 200)
+        command_version = json.loads(after_command.get_body())['version']
+        self.assertNotEqual(command_version, state['version'])
+
+        self.sim.step()
+        changed = MockHttpRequestHandler(
+            self.mock_server, 'GET', f'/api/state?compact=1&since={command_version}'
+        )
+        self.assertEqual(changed.response_status, 200)
+        self.assertNotEqual(json.loads(changed.get_body())['version'], command_version)
+
+    def test_download_collective_trace_of_current_run(self):
+        self.sim.step()
+        handler = MockHttpRequestHandler(self.mock_server, 'GET', '/api/collective-trace')
+        self.assertEqual(handler.response_status, 200)
+        self.assertIn('application/x-ndjson', handler.response_headers['content-type'])
+        self.assertIn('attachment', handler.response_headers['content-disposition'])
+        rows = [json.loads(line) for line in handler.get_body().splitlines()]
+        self.assertEqual(rows[0]['source'], 'run')
+        self.assertEqual(rows[0]['final_turn'], self.sim.turn)
+        self.assertEqual(rows[0]['event_count'], len(rows) - 1)
+
+    def test_api_terrain_png(self):
+        handler = MockHttpRequestHandler(self.mock_server, 'GET', '/api/terrain.png')
+        self.assertEqual(handler.response_status, 200)
+        self.assertEqual(handler.response_headers.get('content-type'), 'image/png')
+        body = handler.get_body()
+        self.assertTrue(body.startswith(b'\x89PNG\r\n\x1a\n'))
+        self.assertGreater(len(body), 1000)
+
+    def test_api_terrain_jpg(self):
+        handler = MockHttpRequestHandler(self.mock_server, 'GET', '/api/terrain.jpg')
+        self.assertEqual(handler.response_status, 200)
+        self.assertEqual(handler.response_headers.get('content-type'), 'image/jpeg')
+        body = handler.get_body()
+        self.assertTrue(body.startswith(b'\xff\xd8'))
+        self.assertGreater(len(body), 1000)
+
+    def test_qr_pygame_surface(self):
+        from sim_server.qr_code import generate_pygame_qr
+        surf = generate_pygame_qr("http://10.0.0.1:8080", module_px=4)
+        self.assertIsNotNone(surf)
+        self.assertGreater(surf.get_width(), 100)
+        self.assertEqual(surf.get_width(), surf.get_height())
+
+    def test_api_single_tile_detail(self):
+        tile_name = self.sim.tiles[0].name
+        quoted = urllib.parse.quote(tile_name)
+        handler = MockHttpRequestHandler(self.mock_server, 'GET', f'/api/tile?name={quoted}')
+        self.assertEqual(handler.response_status, 200)
+        data = json.loads(handler.get_body().decode('utf-8'))
+        self.assertEqual(data['name'], tile_name)
+        self.assertIn('tenure', data)
+        self.assertIn('workhouse', data)
+        self.assertIn('labor', data)
+
+    def test_api_tile_missing_param(self):
+        handler = MockHttpRequestHandler(self.mock_server, 'GET', '/api/tile')
+        self.assertEqual(handler.response_status, 400)
+
+    def test_api_tile_not_found(self):
+        handler = MockHttpRequestHandler(self.mock_server, 'GET', '/api/tile?name=NonExistentTile')
+        self.assertEqual(handler.response_status, 404)
+
+    def test_api_command_step(self):
+        initial_turn = self.sim.turn
+        body = json.dumps({'cmd_type': 'STEP'}).encode('utf-8')
+        handler = MockHttpRequestHandler(self.mock_server, 'POST', '/api/command',
+                                         headers={'Content-Length': len(body), 'X-COC-Token': 'test-token'}, body=body)
+        self.assertEqual(handler.response_status, 200)
+        data = json.loads(handler.get_body().decode('utf-8'))
+        self.assertTrue(data.get('success'))
+        self.assertEqual(data.get('turn'), initial_turn + 1)
+        self.assertEqual(self.sim.turn, initial_turn + 1)
+
+    def test_api_command_play_pause(self):
+        body = json.dumps({'cmd_type': 'PLAY'}).encode('utf-8')
+        handler = MockHttpRequestHandler(self.mock_server, 'POST', '/api/command',
+                                         headers={'Content-Length': len(body), 'X-COC-Token': 'test-token'}, body=body)
+        self.assertEqual(handler.response_status, 200)
+        data = json.loads(handler.get_body().decode('utf-8'))
+        self.assertTrue(data.get('playing'))
+        self.assertTrue(self.sim.playing)
+
+        body = json.dumps({'cmd_type': 'PAUSE'}).encode('utf-8')
+        handler = MockHttpRequestHandler(self.mock_server, 'POST', '/api/command',
+                                         headers={'Content-Length': len(body), 'X-COC-Token': 'test-token'}, body=body)
+        self.assertEqual(handler.response_status, 200)
+        data = json.loads(handler.get_body().decode('utf-8'))
+        self.assertFalse(data.get('playing'))
+        self.assertFalse(self.sim.playing)
+
+    def test_api_command_invalid(self):
+        body = json.dumps({'cmd_type': 'INVALID_CMD'}).encode('utf-8')
+        handler = MockHttpRequestHandler(self.mock_server, 'POST', '/api/command',
+                                         headers={'Content-Length': len(body), 'X-COC-Token': 'test-token'}, body=body)
+        self.assertEqual(handler.response_status, 400)
+
+    def test_api_command_requires_token(self):
+        body = json.dumps({'cmd_type': 'STEP'}).encode('utf-8')
+        handler = MockHttpRequestHandler(
+            self.mock_server, 'POST', '/api/command',
+            headers={'Content-Length': len(body)}, body=body,
+        )
+        self.assertEqual(handler.response_status, 403)
+        self.assertEqual(self.sim.turn, 0)
+
+    def test_api_command_rejects_non_object_payload(self):
+        body = json.dumps({'cmd_type': 'STEP', 'payload': []}).encode('utf-8')
+        handler = MockHttpRequestHandler(
+            self.mock_server, 'POST', '/api/command',
+            headers={'Content-Length': len(body), 'X-COC-Token': 'test-token'}, body=body,
+        )
+        self.assertEqual(handler.response_status, 400)
+        self.assertEqual(self.sim.turn, 0)
+
+    def test_api_command_rejects_oversized_body(self):
+        handler = MockHttpRequestHandler(
+            self.mock_server, 'POST', '/api/command',
+            headers={'Content-Length': str(1024 * 1024 + 1), 'X-COC-Token': 'test-token'},
+        )
+        self.assertEqual(handler.response_status, 413)
+
+    def test_api_command_reports_malformed_request_body(self):
+        malformed_json = MockHttpRequestHandler(
+            self.mock_server, 'POST', '/api/command',
+            headers={'Content-Length': '1', 'X-COC-Token': 'test-token'}, body=b'{',
+        )
+        self.assertEqual(malformed_json.response_status, 400)
+
+        malformed_length = MockHttpRequestHandler(
+            self.mock_server, 'POST', '/api/command',
+            headers={'Content-Length': 'one', 'X-COC-Token': 'test-token'}, body=b'',
+        )
+        self.assertEqual(malformed_length.response_status, 400)
+
+    def test_api_does_not_enable_cross_origin_access(self):
+        options = MockHttpRequestHandler(self.mock_server, 'OPTIONS', '/api/state')
+        self.assertEqual(options.response_status, 405)
+        self.assertNotIn('access-control-allow-origin', options.response_headers)
+
+    def test_shutdown_get_is_disabled_and_post_requires_token(self):
+        get_handler = MockHttpRequestHandler(self.mock_server, 'GET', '/api/shutdown')
+        self.assertEqual(get_handler.response_status, 405)
+
+        post_handler = MockHttpRequestHandler(self.mock_server, 'POST', '/api/shutdown')
+        self.assertEqual(post_handler.response_status, 403)
+
+    def test_voronoi_topology_serialization(self):
+        from sim_server.sim_server import SimServer
+        voronoi_sim = SimServer(topology='voronoi')
+        self.assertEqual(voronoi_sim.topology, 'voronoi')
+        self.assertGreaterEqual(len(voronoi_sim.tiles), 80)
+
+        world = voronoi_sim.serialize_world()
+        self.assertEqual(world.get('topology'), 'voronoi')
+        self.assertEqual(world.get('terrain_bounds', {}).get('pad_ratio'), 0.0)
+
+        tiles = world.get('tiles', [])
+        self.assertGreaterEqual(len(tiles), 80)
+        first_tile = tiles[0]
+        self.assertIsNotNone(first_tile.get('centroid'))
+        self.assertEqual(len(first_tile['centroid']), 2)
+        self.assertIsNotNone(first_tile.get('polygon'))
+        self.assertGreaterEqual(len(first_tile['polygon']), 3)
+
+        # Deep inspection of first tile
+        detail = voronoi_sim.serialize_tile(voronoi_sim.tiles[0], turn=0)
+        self.assertIsNotNone(detail.get('centroid'))
+        self.assertIsNotNone(detail.get('polygon'))
+        self.assertIsInstance(detail.get('neighbors'), list)
+
+        # HTTP request endpoint test with Voronoi mock server
+        mock_voronoi_server = MockCoCServer(voronoi_sim)
+        handler = MockHttpRequestHandler(mock_voronoi_server, 'GET', '/api/state')
+        self.assertEqual(handler.response_status, 200)
+        data = json.loads(handler.get_body().decode('utf-8'))
+        self.assertEqual(data.get('topology'), 'voronoi')
+        self.assertGreaterEqual(len(data.get('tiles', [])), 80)
+
+if __name__ == '__main__':
+    unittest.main()

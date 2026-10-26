@@ -97,7 +97,7 @@ def draw_seasonal_clock(surface: pygame.Surface, world: dict, font_small: pygame
     txt_season = font_small.render(info['name'], True, info['color'])
     surface.blit(txt_season, (bx + 26, by + 6))
 
-    txt_year = font_small.render(f"Yr {info['year']}", True, DIM)
+    txt_year = font_small.render(f"Crop yr {info['year']}", True, DIM)
     surface.blit(txt_year, (bx + bw - txt_year.get_width() - 8, by + 6))
 
     # 4. Multiplier Row: Live biological food yield readout
@@ -169,7 +169,7 @@ def draw_seasonal_clock_tooltip(surface: pygame.Surface, world: dict, font_small
     info = get_season_info(t)
 
     card_w = 260
-    card_h = 176
+    card_h = 240
     # Anchored right beneath the seasonal clock widget on the top right
     card_x = max(10, MAP_RIGHT - card_w - 10)
     card_y = min(SEASON_CLOCK_RECT[1] + SEASON_CLOCK_RECT[3] + 8, 800 - card_h - 20)
@@ -182,12 +182,13 @@ def draw_seasonal_clock_tooltip(surface: pygame.Surface, world: dict, font_small
     # Title
     icon_s = get_icon(info['icon'], size=16)
     surface.blit(icon_s, (card_x + 10, card_y + 10))
-    txt_t = font_small.render(f"Year {info['year']} • {info['name']} (T{info['turn_in_year']})", True, (255, 255, 255))
+    txt_t = font_small.render(f"Crop year {info['year']} • {info['name']} (T{info['turn_in_year']})", True, (255, 255, 255))
     surface.blit(txt_t, (card_x + 32, card_y + 10))
 
     pygame.draw.line(surface, (60, 65, 85), (card_x + 10, card_y + 32), (card_x + card_w - 10, card_y + 32), 1)
 
     lines = [
+        ("Agent lifecycle:", "1 year per turn; 10 turns per crop cycle", DIM),
         ("Biological Multiplier:", f"{info['mult']:.2f}x ({'+' if info['pct_delta']>0 else ''}{info['pct_delta']}%)",
          GREEN if info['pct_delta'] > 0 else (RED if info['pct_delta'] < 0 else TEXT)),
         ("Seasonal Phase:", info['phase_desc'], info['color']),

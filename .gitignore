@@ -8,6 +8,14 @@ pyvenv.cfg
 __pycache__/
 *.pyc
 
+# Build & Cython artifacts
+build/
+archive/
+*.so
+*.o
+*.prof
+*.reladraw
+
 # OS files
 .DS_Store
 *.swp

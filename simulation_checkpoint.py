@@ -33,9 +33,9 @@ VERSION = 1
 ROOT = Path(__file__).resolve().parent
 # Runtime services are recreated by their owners; their gameplay objects and
 # account state are already retained through the simulation graph.
-SERVICE_PREFIXES = ('client.', 'render_engine', 'worldview', 'test_', 'logger',
-                    'simulation_checkpoint', 'trace_', 'run_trace', 'causal_gap_inventory',
-                    'state_handler')
+SERVICE_PREFIXES = ('client.', 'render_engine', 'worldview', 'test_', 'tests',
+                    'scripts', 'benchmarks', 'logger', 'simulation_checkpoint',
+                    'trace_', 'run_trace', 'causal_gap_inventory', 'state_handler')
 
 
 @contextmanager
@@ -52,8 +52,9 @@ def _graph_recursion_budget(limit=20000):
 def _modules():
     for name, module in sorted(tuple(sys.modules.items())):
         filename = getattr(module, '__file__', None)
-        if (name == '__main__' or name.startswith('test_') or not filename
-                or not filename.endswith('.py')):
+        if (name in ('__main__', 'tests', 'scripts', 'benchmarks')
+                or name.startswith(('test_', 'tests.', 'scripts.', 'benchmarks.'))
+                or not filename or not filename.endswith('.py')):
             continue
         path = Path(filename).resolve()
         if path.is_relative_to(ROOT) and not path.is_relative_to(ROOT / 'venv'):

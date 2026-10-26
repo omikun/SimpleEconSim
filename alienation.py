@@ -177,27 +177,44 @@ def process_despair_spending(agent, region, t: int,
             from state_handler import transfer_cash
             if recipients:
                 target = recipients[rand.randint(0, len(recipients) - 1)]
-                recipient = target
-                payee_writer = 'alienation.py:process_despair_spending:f94e59d41b3dc2a4:1'
+                transfer_cash(
+                    agent, target, spend,
+                    region=region,
+                    kind='alienation:process_despair_spending',
+                    payer_source_writer='alienation.py:process_despair_spending:71d18e835ace3cf3:1',
+                    payee_source_writer='alienation.py:process_despair_spending:f94e59d41b3dc2a4:1',
+                    record_event_kind='despair_spending',
+                    turn=t,
+                    event_detail={
+                        'despair': round(despair, 4),
+                        'alienation': round(alienation, 4),
+                        'hungry': bool(getattr(agent, 'hungry_steps', 0) > 0),
+                    },
+                )
             elif getattr(region, 'gov', None) and getattr(region.gov, 'agent', None):
-                recipient = region.gov.agent
-                payee_writer = 'alienation.py:process_despair_spending:dee3e507baacae0f:1'
+                transfer_cash(
+                    agent, region.gov.agent, spend,
+                    region=region,
+                    kind='alienation:process_despair_spending',
+                    payer_source_writer='alienation.py:process_despair_spending:71d18e835ace3cf3:1',
+                    payee_source_writer='alienation.py:process_despair_spending:dee3e507baacae0f:1',
+                    record_event_kind='despair_spending',
+                    turn=t,
+                    event_detail={
+                        'despair': round(despair, 4),
+                        'alienation': round(alienation, 4),
+                        'hungry': bool(getattr(agent, 'hungry_steps', 0) > 0),
+                    },
+                )
             else:
+                from state_handler import adjust_cash
+                adjust_cash(
+                    agent, 0.0,
+                    region=region,
+                    kind='alienation:process_despair_spending',
+                    source_writer='alienation.py:process_despair_spending:ffea72abaed47bbd:1',
+                )
                 return
-            transfer_cash(
-                agent, recipient, spend,
-                region=region,
-                kind='alienation:process_despair_spending',
-                payer_source_writer='alienation.py:process_despair_spending:71d18e835ace3cf3:1',
-                payee_source_writer=payee_writer,
-                record_event_kind='despair_spending',
-                turn=t,
-                event_detail={
-                    'despair': round(despair, 4),
-                    'alienation': round(alienation, 4),
-                    'hungry': bool(getattr(agent, 'hungry_steps', 0) > 0),
-                },
-            )
 
 
 def update_class_consciousness(agent, region, entertainment_level: float, t: int) -> float:
@@ -259,18 +276,27 @@ def apply_mass_entertainment_pacifier(region, t: int):
         if (getattr(a, 'alive', True) and not getattr(a, 'is_corporation', False)
                 and not getattr(a, 'is_government', False) and a.cash >= 3.0):
             fee = min(0.50, a.cash - 2.0)
-            if fee > 0 and getattr(region, 'gov', None) and getattr(region.gov, 'agent', None):
-                from state_handler import transfer_cash
-                transfer_cash(
-                    a, region.gov.agent, fee,
-                    region=region,
-                    kind='alienation:apply_mass_entertainment_pacifier',
-                    payer_source_writer='alienation.py:apply_mass_entertainment_pacifier:df7a0dcdc49b2563:1',
-                    payee_source_writer='alienation.py:apply_mass_entertainment_pacifier:d70dafa5aa890e37:1',
-                    record_event_kind='entertainment_fee',
-                    turn=t,
-                    event_detail={'entertainment_level': float(ent_level), 'fee_cap': 0.50},
-                )
+            if fee > 0:
+                if getattr(region, 'gov', None) and getattr(region.gov, 'agent', None):
+                    from state_handler import transfer_cash
+                    transfer_cash(
+                        a, region.gov.agent, fee,
+                        region=region,
+                        kind='alienation:apply_mass_entertainment_pacifier',
+                        payer_source_writer='alienation.py:apply_mass_entertainment_pacifier:df7a0dcdc49b2563:1',
+                        payee_source_writer='alienation.py:apply_mass_entertainment_pacifier:d70dafa5aa890e37:1',
+                        record_event_kind='entertainment_fee',
+                        turn=t,
+                        event_detail={'entertainment_level': float(ent_level), 'fee_cap': 0.50},
+                    )
+                else:
+                    from state_handler import adjust_cash
+                    adjust_cash(
+                        a, 0.0,
+                        region=region,
+                        kind='alienation:apply_mass_entertainment_pacifier',
+                        source_writer='alienation.py:apply_mass_entertainment_pacifier:dda047ea717b3c2b:1',
+                    )
 
 
 def _emit_average_metric(region, metric_id, history_name, value, inputs,

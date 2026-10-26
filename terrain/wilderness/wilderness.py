@@ -150,7 +150,17 @@ def step_wilderness(region, t):
     logs.  No conservation impact except the sanctioned foraged food.
     """
     foraged = forage(region, t)
+    if getattr(region, '_run_trace', None) is not None:
+        from micro.region.stepper import _trace_profession_population
+        profession_groups = {good: [] for good in region.goods}
+        profession_groups[Goods.food] = list(region.agents)
+        profession_groups['trader'] = []
+        _trace_profession_population(region, profession_groups)
     _align_logs(region)
+    from gini_trace import record_sample
+    for good, history in region.gini_log.items():
+        if history:
+            record_sample(region, (), good, t, history)
     # This turn's food-production entry reflects the foraged units (GDP too).
     region.production_log[Goods.food][-1] = foraged
     region.population_log[Goods.food][-1] = len(region.agents)
@@ -169,6 +179,66 @@ def step_wilderness(region, t):
     region.trader_cash_log.append(0.0)
     region.pipeline_depth_log.append(0)
     region.population_change_rate_log.append(0.0)
+    from run_trace import emit
+    receipts = getattr(region, '_trace_forage_receipts', [])
+    production_id = emit(
+        region, kind='wilderness_food_production', record_class='calculation',
+        subject={'type': 'tile', 'id': region.name, 'good': Goods.food.name},
+        metric_id='goods.production', unit='units', after=foraged,
+        formula_id='production.sum_receipts.v1',
+        inputs={'producer_receipts': receipts, 'granary_release_units': 0,
+                'wool_from_pasture': 0, 'sample_point': 'wilderness_history_write'},
+        cause_event_ids=[receipt['event_id'] for receipt in receipts])
+    emit(region, kind='wilderness_nominal_gdp', record_class='calculation',
+         subject={'type': 'tile', 'id': region.name},
+         metric_id='economy.gdp_nominal', unit='local_currency_per_turn',
+         after=food_val, formula_id='gdp.sum_output_times_reference_price.v1',
+         inputs={'goods': {'food': {'units': foraged,
+                 'reference_price': region.recipes[Goods.food]['price']}},
+                 'sample_point': 'wilderness_history_write'},
+         cause_event_ids=[production_id] if production_id else None)
+    emit(region, kind='wilderness_population_census', record_class='calculation',
+         subject={'type': 'tile', 'id': region.name},
+         metric_id='people.population', unit='people', after=len(region.agents),
+         formula_id='population.resident_ids.v1',
+         inputs={'resident_agent_ids': [person.id for person in region.agents],
+                 'sample_point': 'wilderness_history_write'})
+    emit(region, kind='trader_cash_total_calculation',
+         record_class='calculation', phase='demographics',
+         subject={'type': 'tile', 'id': region.name},
+         metric_id='trade.trader_cash', unit='local_currency',
+         before=(region.trader_cash_log[-2]
+                 if len(region.trader_cash_log) > 1 else None),
+         after=0.0, formula_id='trade.trader_cash_sum_wallets.v1',
+         inputs={'traders': [], 'trader_count': 0,
+                 'currency': None, 'wilderness_cash_rule': 'no trader wallets'})
+    emit(region, kind='trade_pipeline_depth_calculation',
+         record_class='calculation', phase='demographics',
+         subject={'type': 'tile', 'id': region.name},
+         metric_id='trade.pipeline_depth', unit='goods_units',
+         before=(region.pipeline_depth_log[-2]
+                 if len(region.pipeline_depth_log) > 1 else None),
+         after=0, formula_id='trade.pipeline_depth_in_transit_goods.v1',
+         inputs={'routes': [], 'shipments': [],
+                 'included_goods': ['food', 'wood', 'furniture'],
+                 'included_state': 'in_transit',
+                 'excluded_states': ['pending', 'parked'],
+                 'aggregation_rule': 'sum quantities across listed goods and routes',
+                 'wilderness_route_rule': 'wilderness has no market routes'})
+    emit(region, kind='population_change_rate_calculation',
+         record_class='calculation', phase='demographics',
+         subject={'type': 'tile', 'id': region.name},
+         metric_id='people.population_change_rate',
+         unit='percent_over_sample_window',
+         before=(region.population_change_rate_log[-2]
+                 if len(region.population_change_rate_log) > 1 else None),
+         after=0.0, formula_id='population.rate_wilderness_zero.v1',
+         inputs={'turn': int(t), 'population_samples': [],
+                 'sample_count': 0, 'window_sample_count': 10,
+                 'baseline_population': None,
+                 'current_population': len(region.agents),
+                 'window_status': 'wilderness_series_fixed_zero',
+                 'rule': 'wilderness writer stores zero growth'})
     region.forage_log.append((t, foraged, len(region.agents)))
     region.tenure_log.append(1.0)
     region.social_class_log.append({'serf': len(region.agents)})
@@ -177,6 +247,8 @@ def step_wilderness(region, t):
     region.rent_collected_log.append(0.0)
     region.rent_arrears_log.append(0.0)
     region.avg_shift_hours_log.append(8.0)
+    from micro.region.stepper import sample_effective_workday_cap
+    sample_effective_workday_cap(region)
     region.surplus_value_log.append(0.0)
     region.rate_of_exploitation_log.append(0.0)
     region.avg_alienation_log.append(0.0)
@@ -191,6 +263,10 @@ def step_wilderness(region, t):
         region.tribute_collected_log.append(0.0)
     if hasattr(region, 'tax_distribution_log'):
         region.tax_distribution_log.append({'total': 0.0, 'municipal': 0.0, 'provincial': 0.0, 'national': 0.0})
+        from finance_trace import emit_tax_distribution
+        emit_tax_distribution(
+            region, turn=t, closing=region.tax_distribution_log[-1],
+            reason='wilderness_no_income_tax', phase='local')
     if hasattr(region, 'grievance_sources_log'):
         region.grievance_sources_log.append({
             'raw': {'overworked': 0.0, 'rent_enclosure': 0.0, 'hunger': 0.0, 'labor_resistance': 0.0, 'unemployment': 0.0, 'tax': 0.0, 'repression': 0.0, 'inequality': 0.0},

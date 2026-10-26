@@ -7,7 +7,7 @@ import random
 from collections import deque
 import numpy as np
 
-from hexmap import rectangular_hex_layout, axial_neighbors, axial_to_offset, axial_to_pixel, HEX_DIRS, _SQRT3
+from terrain.hex.hexmap import rectangular_hex_layout, axial_neighbors, axial_to_offset, axial_to_pixel, HEX_DIRS, _SQRT3
 from terrain.elevation.topographic import get_cached_topographic_surface, _generate_topographic_surface_impl
 
 class HeightMapGenerator:

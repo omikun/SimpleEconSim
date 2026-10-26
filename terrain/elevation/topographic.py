@@ -6,7 +6,7 @@ import os
 import math
 import numpy as np
 from PIL import Image
-from hexmap import axial_to_pixel, rectangular_hex_layout
+from terrain.hex.hexmap import axial_to_pixel, rectangular_hex_layout
 
 _SQRT3 = math.sqrt(3.0)
 HEX_DIRS = ((1, 0), (1, -1), (0, -1), (-1, 0), (-1, 1), (0, 1))

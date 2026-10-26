@@ -477,13 +477,21 @@ def draw_terrain_glyph(surface, region, cx, cy):
     if getattr(region, 'climate', '') == 'cold':
         pygame.draw.circle(surface, (230, 242, 255), (cx, y), 3)
 
-    # Ultra-Rare Natural Guano & Nitrate Global Deposit Beacon
+    # Geological Mineral Deposit Beacons (Balanced Gating & Rarity)
+    from ui_icons import get_icon
+    if getattr(region, 'has_iron_deposit', False):
+        icon_fe = get_icon('iron_ore', size=14)
+        surface.blit(icon_fe, (cx - 22, cy - 28))
+    if getattr(region, 'has_coal_vein', False):
+        icon_coal = get_icon('coal_seam', size=14)
+        surface.blit(icon_coal, (cx + 8, cy - 28))
+
+    # Natural Guano & Nitrate Global Deposit Beacon
     from tile_resources import TileResource
-    if TileResource.NATURAL_NITRATES in getattr(region, 'natural_resources', []):
-        from ui_icons import get_icon
-        icon = get_icon('guano', size=16)
-        surface.blit(icon, (cx - 8, cy - 32))
-        pygame.draw.circle(surface, (255, 235, 120), (cx, cy - 24), 12, 1)
+    if getattr(region, 'has_nitrate_deposit', False) or (TileResource.NATURAL_NITRATES in getattr(region, 'natural_resources', [])):
+        icon_ntr = get_icon('guano', size=15)
+        surface.blit(icon_ntr, (cx - 7, cy - 32))
+        pygame.draw.circle(surface, (255, 235, 120), (cx, cy - 24), 11, 1)
 
 
 def trade_anim(world, center_map=None):
@@ -790,6 +798,59 @@ def draw_activity_badges(surface, region, cx, cy, font_small):
             pygame.draw.rect(surface, (220, 40, 60), (cx - 26, cy - 70, 52, 14), border_radius=3)
             pygame.draw.rect(surface, (255, 220, 80), (cx - 26, cy - 70, 52, 14), 1, border_radius=3)
             surface.blit(font_small.render("STINK!", True, (255, 255, 255)), (cx - 22, cy - 71))
+
+        # Capitalist Propagation Badges: Mills, Pastures, Cotton, Luxuries, Captive Labor
+        agents = getattr(region, 'agents', [])
+
+        # 1. Active Mechanized Manufacturing Mill
+        corps = [a for a in agents if getattr(a, 'is_corporation', False) and getattr(a, 'alive', True)]
+        if corps:
+            c0 = corps[0]
+            is_brk = getattr(c0, 'machinery_broken', False) or getattr(c0, 'machinery_level', 0) == 0
+            m_col = (215, 60, 60) if is_brk else (70, 130, 180)
+            m_lbl = "!BRK" if is_brk else f"M{getattr(c0, 'machinery_level', 1)}"
+            pygame.draw.rect(surface, m_col, (cx - 42, cy + 8, 26, 13), border_radius=3)
+            surface.blit(font_small.render(m_lbl, True, (255, 255, 255)), (cx - 40, cy + 7))
+
+        # 2. Enclosed Sheep Pasture (Wool)
+        tenure = getattr(region, 'tenure', None)
+        if tenure and any(getattr(p, 'production_type', '') == 'pasture' for p in getattr(tenure, 'plots', [])):
+            pygame.draw.rect(surface, (150, 195, 140), (cx - 42, cy - 6, 26, 13), border_radius=3)
+            surface.blit(font_small.render("WOL", True, (25, 40, 25)), (cx - 40, cy - 7))
+
+        # 3. Raw Cotton Cultivation
+        tot_cotton = sum(a.inv_get(Goods.cotton, 0) for a in agents)
+        if tot_cotton >= 5 or (tenure and any(getattr(p, 'production_type', '') == 'cotton' for p in getattr(tenure, 'plots', []))):
+            pygame.draw.rect(surface, (245, 240, 230), (cx + 14, cy + 8, 26, 13), border_radius=3)
+            surface.blit(font_small.render("COT", True, (40, 45, 40)), (cx + 16, cy + 7))
+
+        # 4. Foreign Luxuries Trade Emporium
+        lux_held = sum(a.inv_get(Goods.foreign_luxuries, 0) + a.inv_get(Goods.fine_textiles, 0)
+                       + a.inv_get(Goods.rum, 0) + a.inv_get(Goods.porcelain, 0) for a in agents)
+        if lux_held >= 2:
+            pygame.draw.rect(surface, (245, 205, 65), (cx + 14, cy - 6, 26, 13), border_radius=3)
+            surface.blit(font_small.render("LUX", True, (35, 25, 15)), (cx + 16, cy - 7))
+
+        # 5. Unfree Captive Labor Gang Cohort (War Capitalism)
+        has_captive = any(any(e.get('captive_labor', 0) > 0 for e in getattr(a, 'frontier_estates', [])) for a in agents)
+        if has_captive:
+            pygame.draw.rect(surface, (140, 30, 45), (cx - 14, cy + 46, 28, 13), border_radius=3)
+            surface.blit(font_small.render("CAP", True, (255, 235, 235)), (cx - 12, cy + 45))
+
+        # 6. Active Oceanic Trade Triangle Voyage (Merchant Marine)
+        trade_mgr = getattr(region, 'trade_manager', None)
+        active_triangles = [v for v in getattr(trade_mgr, 'active_voyages', []) if getattr(v, 'home_region', '') == region.name]
+        if active_triangles:
+            pygame.draw.rect(surface, (30, 80, 160), (cx + 14, cy + 22, 26, 13), border_radius=3)
+            surface.blit(font_small.render("TRG", True, (240, 245, 255)), (cx + 16, cy + 21))
+
+        # 7. Luddite Machine-Breaking / Secret Combination Alert Badge
+        ludd_mgr = getattr(region, 'luddite_manager', None)
+        if ludd_mgr:
+            l_st = ludd_mgr.get_state(region.name)
+            if l_st.combination_strength >= 50.0:
+                pygame.draw.rect(surface, (210, 45, 45), (cx - 42, cy + 22, 26, 13), border_radius=3)
+                surface.blit(font_small.render("LUD", True, (255, 230, 230)), (cx - 40, cy + 21))
     except Exception as error:
         global _popular_resistance_warning_logged
         if not _popular_resistance_warning_logged:
@@ -1172,12 +1233,7 @@ def draw_hex_map(surface, world, font, font_small):
                 slot_state = {}
             world['_slot_state_cache'] = slot_state
 
-    if world.get('scenario_id') == 'labor_frontier_rivalry':
-        topo_surf = pygame.Surface((512, 512))
-        topo_surf.fill((32, 43, 49))
-        world['_map_generation_done'] = True
-        world['loading_modal'] = None
-    elif _is_voronoi and world.get('scenario_id') == 'egypt_1877':
+    if _is_voronoi and world.get('scenario_id') == 'egypt_1877':
         # The campaign's terrain is built by the full 3D renderer below. Its
         # schematic geography must not load the sandbox's 2D terrain snapshot.
         topo_surf = None
@@ -1320,7 +1376,9 @@ def draw_hex_map(surface, world, font, font_small):
         world['_cached_topo_surface'] = topo_surf
         world['_map_generation_done'] = True
         world['loading_modal'] = None
-        if not world.get('_cached_from_disk', False) and not getattr(terrain_renderer, 'used_gpu', False) and not _is_voronoi:
+        if (world.get('scenario_id') != 'labor_frontier_rivalry' and
+                not world.get('_cached_from_disk', False) and
+                not getattr(terrain_renderer, 'used_gpu', False) and not _is_voronoi):
             from world_cache import save_map_cache
             save_map_cache(world, topo_surf)
             world['_cached_from_disk'] = True
@@ -1541,7 +1599,7 @@ def draw_hex_map(surface, world, font, font_small):
 
     # 4. Text, City Titles, Stats Lines, and Badges (DYNAMIC OVERLAP-AWARE CULLING)
     layer_mode = world.get('map_layer', 'overview')
-    guided_scenario_map = world.get('scenario_id') in ('egypt_1877', 'labor_frontier_rivalry', 'supply_rivalry') and world.get('ui_mode') == 'guided'
+    guided_scenario_map = world.get('scenario_id') == 'egypt_1877' and world.get('ui_mode') == 'guided'
 
     label_candidates = []
 
@@ -1555,8 +1613,7 @@ def draw_hex_map(surface, world, font, font_small):
 
         is_nat_cap = False
         is_prov_cap = False
-        labor_map = world.get('scenario_id') == 'labor_frontier_rivalry'
-        raw_city = (region.name if labor_map else scenario_role if scenario_role
+        raw_city = (scenario_role if scenario_role
                     else getattr(region, 'display_name', getattr(region, 'city_name', region.name)))
         if not is_ocean:
             is_nat_cap = getattr(region, 'is_national_capital', False) or (owner and owner.tiles and region == owner.tiles[0])
@@ -1588,21 +1645,11 @@ def draw_hex_map(surface, world, font, font_small):
                 continue
 
         line1, line2, line3, c1, c2, c3 = tile_stats(region, layer_mode=layer_mode, world=world)
-        if labor_map:
-            units = sum(u.soldiers for u in getattr(region, 'military_units', []))
-            commons = sum(right.usable_share > 0 for rights in getattr(region, 'access_rights', {}).values()
-                          for right in rights if right.resource == 'commons_food')
-            line1 = f'{owner.name if owner else "Unclaimed"} · {units} soldiers'
-            line2 = f'{commons} commons rights' if scenario_role == 'borderland' else 'Cloth market'
-            line3 = ''
-        elif guided_scenario_map:
+        if guided_scenario_map:
             line1 = line2 = line3 = ''
 
         # Compute label bounding box
-        if labor_map:
-            w = max(110, name_font.size(city_title)[0] + 12)
-            box = pygame.Rect(cx - w // 2, cy - 29, w, 60)
-        elif scenario_role:
+        if scenario_role:
             w = max(70, name_font.size(city_title)[0] + 16)
             box = pygame.Rect(cx - w // 2, cy - 18, w, 28)
         elif not is_ocean:
@@ -1766,11 +1813,7 @@ def draw_hex_map(surface, world, font, font_small):
         line1, line2, line3 = cand['line1'], cand['line2'], cand['line3']
         c1, c2, c3 = cand['c1'], cand['c2'], cand['c3']
 
-        if world.get('scenario_id') == 'labor_frontier_rivalry' and not is_ocean:
-            draw_text_with_shadow(label_surface, name_font, city_title, (cx, cy - 20), (242, 239, 205))
-            draw_text_with_shadow(label_surface, font_small, line1, (cx, cy), (221, 235, 247))
-            draw_text_with_shadow(label_surface, font_small, line2, (cx, cy + 18), (234, 204, 135))
-        elif guided_scenario_map and getattr(region, 'scenario_location', None) and not is_ocean:
+        if guided_scenario_map and getattr(region, 'scenario_location', None) and not is_ocean:
             label_color = (255, 238, 172) if getattr(region, 'scenario_location', '') == 'Cairo' else (220, 240, 250)
             draw_text_with_shadow(label_surface, name_font, city_title, (cx, cy - 10), label_color)
         elif not is_ocean:
