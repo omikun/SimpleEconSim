@@ -1,0 +1,1516 @@
+{
+  "additional_native_checkpoint_check": {
+    "passed": false,
+    "status": "timed_out",
+    "timeout_seconds": 150,
+    "traceback_log": "tmp/economic-policy-bounded-tests.log",
+    "waiting_at": "tests/test_native_simulation_checkpoint.py:63"
+  },
+  "artisan_4242_wood_acquisition_evidence": {
+    "clearing_event_id": "a37eef18118745de8dc3a41550637c42-1:460174",
+    "destination": "c50",
+    "filled_units": 0,
+    "good": "wood",
+    "representative_bid_event_id": "a37eef18118745de8dc3a41550637c42-1:460030",
+    "selected_trader_ids": [
+      575,
+      583,
+      666,
+      667,
+      668,
+      669,
+      670,
+      671
+    ],
+    "source": "c48",
+    "source_market_bid_units": 429,
+    "source_market_offer_units": 32,
+    "source_market_sold_units": 32,
+    "source_paid_vwap": 2.2114533366431237,
+    "source_production_units": 18,
+    "total_submitted_units": 80,
+    "trace_path": "/Users/sli/Code/tmp/traces/a37eef18118745de8dc3a41550637c42-1.ctr",
+    "trader_bid_limit": 1.9038395431243833,
+    "turn": 12
+  },
+  "artisan_4242_wood_routing_evidence": {
+    "counts": {
+      "candidates": 265,
+      "independent_requests_visible": 80,
+      "margin_does_not_exceed_required_threshold": 185,
+      "margin_exceeds_required_threshold": 80,
+      "profitable_not_selected": 8,
+      "profitable_selected": 72,
+      "selected_other_wood": 0,
+      "selected_other_wool": 8
+    },
+    "examples": [
+      {
+        "event_id": "a37eef18118745de8dc3a41550637c42-1:412127",
+        "requested_input_units": 96,
+        "selected_destination": "c50",
+        "selected_good": "wood",
+        "selected_score": 0.37934079152611844,
+        "source": "c48",
+        "turn": 11,
+        "wood_score": 0.37934079152611844
+      },
+      {
+        "event_id": "a37eef18118745de8dc3a41550637c42-1:412129",
+        "requested_input_units": 96,
+        "selected_destination": "c50",
+        "selected_good": "wood",
+        "selected_score": 0.37934079152611844,
+        "source": "c48",
+        "turn": 11,
+        "wood_score": 0.37934079152611844
+      },
+      {
+        "event_id": "a37eef18118745de8dc3a41550637c42-1:412131",
+        "requested_input_units": 96,
+        "selected_destination": "c50",
+        "selected_good": "wood",
+        "selected_score": 0.37934079152611844,
+        "source": "c48",
+        "turn": 11,
+        "wood_score": 0.37934079152611844
+      }
+    ],
+    "trace_path": "/Users/sli/Code/tmp/traces/a37eef18118745de8dc3a41550637c42-1.ctr"
+  },
+  "combined_4242_quality": {
+    "market": {
+      "market_rows": 4320,
+      "passed": true,
+      "settlements_checked": 885,
+      "violations": []
+    },
+    "trace_quality": {
+      "audit_issue_count": 0,
+      "complete_causal_coverage": false,
+      "counts": {
+        "checkpoints_verified": 20,
+        "formula_not_supported_by_replay": 32091,
+        "formula_verified": 313015,
+        "rows": 872509,
+        "source_contract_not_supported": 337501,
+        "source_contract_verified": 138306
+      },
+      "structural_and_supported_formula_checks_pass": true,
+      "treasury_account_closure": {
+        "all_verified": true,
+        "gaps": 0,
+        "membership_changes": 0,
+        "nation_closes": 60,
+        "verified": 60
+      },
+      "treasury_reconciliation": {
+        "fully_attributed": true,
+        "fully_attributed_turns": 60,
+        "turns": 60,
+        "unattributed_absolute_total": 4.945023557301198e-12,
+        "unattributed_turns": 0
+      }
+    }
+  },
+  "focused_tests": {
+    "new_policy_response_tests": 9,
+    "passed": 125
+  },
+  "runs": [
+    {
+      "arm": "rivals_only",
+      "arrival_units": 723.0,
+      "dispatch_units": 723.0,
+      "initial_economy_and_rng_sha256": "4c87d6ada03ada54038cfbc0168cacbdaadefde2d7dd77a34ba164108844376b",
+      "nations": [
+        {
+          "deaths": 1,
+          "nation": "China",
+          "resident_turns": 10403,
+          "underfed_resident_turns": 913
+        },
+        {
+          "deaths": 4,
+          "nation": "Japan",
+          "resident_turns": 11132,
+          "underfed_resident_turns": 807
+        },
+        {
+          "deaths": 7,
+          "nation": "United States",
+          "resident_turns": 8692,
+          "underfed_resident_turns": 1963
+        }
+      ],
+      "negative_stock_rows": 0,
+      "policy": {
+        "artisan_inputs": false,
+        "autoplay_nations": false,
+        "national_relief": false
+      },
+      "result_path": "tmp/economic-policy-controls-4242/rivals_only.json",
+      "seed": 4242,
+      "source_commit": "8591bd80f485df22efbc699f869b4a4235e26cca",
+      "stock_flow_issues": [],
+      "stock_flow_summary": {
+        "food": {
+          "absolute_residual_total": 215.0,
+          "balanced_interval_count": 9,
+          "civilian_food_consumption_units": 125437.0,
+          "fertilizer_stock_change_units": 0.0,
+          "foraged_food_units": 56802.0,
+          "granary_stock_change_units": 1044.0,
+          "household_nonfood_consumption_units": 0.0,
+          "internal_turnover": {
+            "away_trader_food_purchase": {
+              "event_count": 1101,
+              "reported_quantity": 0.0
+            },
+            "charity_food_purchase": {
+              "event_count": 309,
+              "reported_quantity": 0.0
+            },
+            "dependent_food_inventory_transfer": {
+              "event_count": 113,
+              "reported_quantity": 0.0
+            },
+            "emergency_food_levy": {
+              "event_count": 28,
+              "reported_quantity": 0.0
+            },
+            "feudal_tribute_transfer": {
+              "event_count": 12423,
+              "reported_quantity": 0.0
+            },
+            "government_food_aid": {
+              "event_count": 170,
+              "reported_quantity": 0.0
+            },
+            "government_food_aid_recipient": {
+              "event_count": 2235,
+              "reported_quantity": 0.0
+            },
+            "government_food_purchase": {
+              "event_count": 507,
+              "reported_quantity": 0.0
+            },
+            "granary_food_stock_transfer": {
+              "event_count": 120,
+              "reported_quantity": 1620.0
+            },
+            "market_seller_receipt_posted": {
+              "event_count": 14202,
+              "reported_quantity": 0.0
+            },
+            "paid_market_sale": {
+              "event_count": 14202,
+              "reported_quantity": 40178.0
+            },
+            "provincial_food_arrival": {
+              "event_count": 2,
+              "reported_quantity": 0.0
+            },
+            "provincial_food_dispatch": {
+              "event_count": 2,
+              "reported_quantity": 0.0
+            },
+            "provincial_relief_donor_transfer": {
+              "event_count": 4,
+              "reported_quantity": 0.0
+            },
+            "provincial_relief_government_stock_transfer": {
+              "event_count": 1,
+              "reported_quantity": 0.0
+            },
+            "provincial_relief_recipient_transfer": {
+              "event_count": 139,
+              "reported_quantity": 0.0
+            }
+          },
+          "interval_count": 20,
+          "max_absolute_residual": 151.0,
+          "military_food_consumption_units": 0.0,
+          "operator_production_units": 0.0,
+          "production_input_units": 0.0,
+          "production_units": 78964.0,
+          "provincial_food_arrival_units": 723.0,
+          "provincial_food_cargo_adjustment_units": 0.0,
+          "provincial_food_dispatch_units": 723.0
+        },
+        "furniture": {
+          "absolute_residual_total": 8.0,
+          "balanced_interval_count": 15,
+          "civilian_food_consumption_units": 0.0,
+          "fertilizer_stock_change_units": 0.0,
+          "foraged_food_units": 0.0,
+          "granary_stock_change_units": 0.0,
+          "household_nonfood_consumption_units": 463.0,
+          "internal_turnover": {
+            "feudal_tribute_transfer": {
+              "event_count": 36,
+              "reported_quantity": 0.0
+            },
+            "market_seller_receipt_posted": {
+              "event_count": 659,
+              "reported_quantity": 0.0
+            },
+            "paid_market_sale": {
+              "event_count": 659,
+              "reported_quantity": 697.0
+            }
+          },
+          "interval_count": 20,
+          "max_absolute_residual": 2.0,
+          "military_food_consumption_units": 0.0,
+          "operator_production_units": 0.0,
+          "production_input_units": 0.0,
+          "production_units": 689.0,
+          "provincial_food_arrival_units": 0.0,
+          "provincial_food_cargo_adjustment_units": 0.0,
+          "provincial_food_dispatch_units": 0.0
+        },
+        "wood": {
+          "absolute_residual_total": 0.0,
+          "balanced_interval_count": 20,
+          "civilian_food_consumption_units": 0.0,
+          "fertilizer_stock_change_units": 0.0,
+          "foraged_food_units": 0.0,
+          "granary_stock_change_units": 0.0,
+          "household_nonfood_consumption_units": 5770.0,
+          "internal_turnover": {
+            "feudal_tribute_transfer": {
+              "event_count": 5761,
+              "reported_quantity": 0.0
+            },
+            "government_market_sale_receipt": {
+              "event_count": 4,
+              "reported_quantity": 0.0
+            },
+            "market_seller_receipt_posted": {
+              "event_count": 6518,
+              "reported_quantity": 0.0
+            },
+            "paid_market_sale": {
+              "event_count": 6518,
+              "reported_quantity": 11241.0
+            },
+            "route_freight_settlement": {
+              "event_count": 16,
+              "reported_quantity": 0.0
+            },
+            "route_shipment_arrival": {
+              "event_count": 16,
+              "reported_quantity": 160.0
+            },
+            "route_shipment_departure": {
+              "event_count": 16,
+              "reported_quantity": 160.0
+            },
+            "route_shipment_loaded": {
+              "event_count": 16,
+              "reported_quantity": 160.0
+            },
+            "route_shipment_progress": {
+              "event_count": 16,
+              "reported_quantity": 160.0
+            }
+          },
+          "interval_count": 20,
+          "max_absolute_residual": 0.0,
+          "military_food_consumption_units": 0.0,
+          "operator_production_units": 0.0,
+          "production_input_units": 978.0,
+          "production_units": 7141.0,
+          "provincial_food_arrival_units": 0.0,
+          "provincial_food_cargo_adjustment_units": 0.0,
+          "provincial_food_dispatch_units": 0.0
+        }
+      },
+      "trace_path": "/Users/sli/Code/tmp/traces/29be57cf5f5642e79e524665358fabad-1.ctr",
+      "trace_verification": {
+        "checkpoints": 20,
+        "rows": 887843,
+        "sha256": "bec89294c4261c3e4dd3b3ec258066d410633521cf9a8572e645942c76cc1cab"
+      },
+      "worktree_diff_sha256": "33f1142604335a45895a16aa2d18caafb21dc11206ab3eb3262bb55605633517"
+    },
+    {
+      "arm": "all_ai",
+      "arrival_units": 448,
+      "dispatch_units": 900,
+      "initial_economy_and_rng_sha256": "4c87d6ada03ada54038cfbc0168cacbdaadefde2d7dd77a34ba164108844376b",
+      "nations": [
+        {
+          "deaths": 0,
+          "nation": "China",
+          "resident_turns": 10315,
+          "underfed_resident_turns": 199
+        },
+        {
+          "deaths": 1,
+          "nation": "Japan",
+          "resident_turns": 11176,
+          "underfed_resident_turns": 599
+        },
+        {
+          "deaths": 1,
+          "nation": "United States",
+          "resident_turns": 9185,
+          "underfed_resident_turns": 23
+        }
+      ],
+      "negative_stock_rows": 0,
+      "policy": {
+        "artisan_inputs": false,
+        "autoplay_nations": true,
+        "national_relief": false
+      },
+      "result_path": "tmp/economic-policy-controls-4242/all_ai.json",
+      "seed": 4242,
+      "source_commit": "8591bd80f485df22efbc699f869b4a4235e26cca",
+      "stock_flow_issues": [],
+      "stock_flow_summary": {
+        "food": {
+          "absolute_residual_total": 7.0,
+          "balanced_interval_count": 15,
+          "civilian_food_consumption_units": 139715.0,
+          "fertilizer_stock_change_units": 0.0,
+          "foraged_food_units": 63652.0,
+          "granary_stock_change_units": 1044.0,
+          "household_nonfood_consumption_units": 0.0,
+          "internal_turnover": {
+            "away_trader_food_purchase": {
+              "event_count": 1383,
+              "reported_quantity": 0.0
+            },
+            "charity_food_purchase": {
+              "event_count": 127,
+              "reported_quantity": 0.0
+            },
+            "dependent_food_inventory_transfer": {
+              "event_count": 110,
+              "reported_quantity": 0.0
+            },
+            "emergency_food_levy": {
+              "event_count": 40,
+              "reported_quantity": 0.0
+            },
+            "feudal_tribute_transfer": {
+              "event_count": 15384,
+              "reported_quantity": 0.0
+            },
+            "government_food_aid": {
+              "event_count": 188,
+              "reported_quantity": 0.0
+            },
+            "government_food_aid_recipient": {
+              "event_count": 2856,
+              "reported_quantity": 0.0
+            },
+            "government_food_purchase": {
+              "event_count": 460,
+              "reported_quantity": 0.0
+            },
+            "granary_food_stock_transfer": {
+              "event_count": 111,
+              "reported_quantity": 1620.0
+            },
+            "market_seller_receipt_posted": {
+              "event_count": 15841,
+              "reported_quantity": 0.0
+            },
+            "paid_market_sale": {
+              "event_count": 15841,
+              "reported_quantity": 47028.0
+            },
+            "provincial_food_arrival": {
+              "event_count": 1,
+              "reported_quantity": 0.0
+            },
+            "provincial_food_dispatch": {
+              "event_count": 2,
+              "reported_quantity": 0.0
+            },
+            "provincial_relief_donor_transfer": {
+              "event_count": 7,
+              "reported_quantity": 0.0
+            },
+            "provincial_relief_recipient_transfer": {
+              "event_count": 93,
+              "reported_quantity": 0.0
+            }
+          },
+          "interval_count": 20,
+          "max_absolute_residual": 2.0,
+          "military_food_consumption_units": 0.0,
+          "operator_production_units": 0.0,
+          "production_input_units": 0.0,
+          "production_units": 104822.0,
+          "provincial_food_arrival_units": 448.0,
+          "provincial_food_cargo_adjustment_units": 0.0,
+          "provincial_food_dispatch_units": 900.0
+        },
+        "furniture": {
+          "absolute_residual_total": 1.0,
+          "balanced_interval_count": 19,
+          "civilian_food_consumption_units": 0.0,
+          "fertilizer_stock_change_units": 0.0,
+          "foraged_food_units": 0.0,
+          "granary_stock_change_units": 0.0,
+          "household_nonfood_consumption_units": 482.0,
+          "internal_turnover": {
+            "feudal_tribute_transfer": {
+              "event_count": 35,
+              "reported_quantity": 0.0
+            },
+            "market_seller_receipt_posted": {
+              "event_count": 689,
+              "reported_quantity": 0.0
+            },
+            "paid_market_sale": {
+              "event_count": 689,
+              "reported_quantity": 696.0
+            }
+          },
+          "interval_count": 20,
+          "max_absolute_residual": 1.0,
+          "military_food_consumption_units": 0.0,
+          "operator_production_units": 0.0,
+          "production_input_units": 0.0,
+          "production_units": 489.0,
+          "provincial_food_arrival_units": 0.0,
+          "provincial_food_cargo_adjustment_units": 0.0,
+          "provincial_food_dispatch_units": 0.0
+        },
+        "wood": {
+          "absolute_residual_total": 0.0,
+          "balanced_interval_count": 20,
+          "civilian_food_consumption_units": 0.0,
+          "fertilizer_stock_change_units": 0.0,
+          "foraged_food_units": 0.0,
+          "granary_stock_change_units": 0.0,
+          "household_nonfood_consumption_units": 5924.0,
+          "internal_turnover": {
+            "feudal_tribute_transfer": {
+              "event_count": 7113,
+              "reported_quantity": 0.0
+            },
+            "market_seller_receipt_posted": {
+              "event_count": 7240,
+              "reported_quantity": 0.0
+            },
+            "paid_market_sale": {
+              "event_count": 7240,
+              "reported_quantity": 11702.0
+            }
+          },
+          "interval_count": 20,
+          "max_absolute_residual": 0.0,
+          "military_food_consumption_units": 0.0,
+          "operator_production_units": 0.0,
+          "production_input_units": 970.0,
+          "production_units": 6058.0,
+          "provincial_food_arrival_units": 0.0,
+          "provincial_food_cargo_adjustment_units": 0.0,
+          "provincial_food_dispatch_units": 0.0
+        }
+      },
+      "trace_path": "/Users/sli/Code/tmp/traces/e86c460d7eea4581a4617dfcc8c7792a-1.ctr",
+      "trace_verification": {
+        "checkpoints": 20,
+        "rows": 871782,
+        "sha256": "72bae71288e876d8f2310be685f9f0a621193010c20390ed05a44476030d25f8"
+      },
+      "worktree_diff_sha256": "33f1142604335a45895a16aa2d18caafb21dc11206ab3eb3262bb55605633517"
+    },
+    {
+      "arm": "artisan_inputs",
+      "arrival_units": 448,
+      "dispatch_units": 900,
+      "initial_economy_and_rng_sha256": "4c87d6ada03ada54038cfbc0168cacbdaadefde2d7dd77a34ba164108844376b",
+      "nations": [
+        {
+          "deaths": 0,
+          "nation": "China",
+          "resident_turns": 10315,
+          "underfed_resident_turns": 199
+        },
+        {
+          "deaths": 1,
+          "nation": "Japan",
+          "resident_turns": 11176,
+          "underfed_resident_turns": 599
+        },
+        {
+          "deaths": 1,
+          "nation": "United States",
+          "resident_turns": 9185,
+          "underfed_resident_turns": 23
+        }
+      ],
+      "negative_stock_rows": 0,
+      "policy": {
+        "artisan_inputs": true,
+        "autoplay_nations": true,
+        "national_relief": false
+      },
+      "result_path": "tmp/economic-policy-final-4242/artisan_inputs.json",
+      "seed": 4242,
+      "source_commit": "8591bd80f485df22efbc699f869b4a4235e26cca",
+      "stock_flow_issues": [],
+      "stock_flow_summary": {
+        "food": {
+          "absolute_residual_total": 7.0,
+          "balanced_interval_count": 15,
+          "civilian_food_consumption_units": 139715.0,
+          "fertilizer_stock_change_units": 0.0,
+          "foraged_food_units": 63652.0,
+          "granary_stock_change_units": 1044.0,
+          "household_nonfood_consumption_units": 0.0,
+          "internal_turnover": {
+            "away_trader_food_purchase": {
+              "event_count": 1383,
+              "reported_quantity": 0.0
+            },
+            "charity_food_purchase": {
+              "event_count": 127,
+              "reported_quantity": 0.0
+            },
+            "dependent_food_inventory_transfer": {
+              "event_count": 110,
+              "reported_quantity": 0.0
+            },
+            "emergency_food_levy": {
+              "event_count": 40,
+              "reported_quantity": 0.0
+            },
+            "feudal_tribute_transfer": {
+              "event_count": 15384,
+              "reported_quantity": 0.0
+            },
+            "government_food_aid": {
+              "event_count": 188,
+              "reported_quantity": 0.0
+            },
+            "government_food_aid_recipient": {
+              "event_count": 2856,
+              "reported_quantity": 0.0
+            },
+            "government_food_purchase": {
+              "event_count": 460,
+              "reported_quantity": 0.0
+            },
+            "granary_food_stock_transfer": {
+              "event_count": 111,
+              "reported_quantity": 1620.0
+            },
+            "market_seller_receipt_posted": {
+              "event_count": 15841,
+              "reported_quantity": 0.0
+            },
+            "paid_market_sale": {
+              "event_count": 15841,
+              "reported_quantity": 47028.0
+            },
+            "provincial_food_arrival": {
+              "event_count": 1,
+              "reported_quantity": 0.0
+            },
+            "provincial_food_dispatch": {
+              "event_count": 2,
+              "reported_quantity": 0.0
+            },
+            "provincial_relief_donor_transfer": {
+              "event_count": 7,
+              "reported_quantity": 0.0
+            },
+            "provincial_relief_recipient_transfer": {
+              "event_count": 93,
+              "reported_quantity": 0.0
+            }
+          },
+          "interval_count": 20,
+          "max_absolute_residual": 2.0,
+          "military_food_consumption_units": 0.0,
+          "operator_production_units": 0.0,
+          "production_input_units": 0.0,
+          "production_units": 104822.0,
+          "provincial_food_arrival_units": 448.0,
+          "provincial_food_cargo_adjustment_units": 0.0,
+          "provincial_food_dispatch_units": 900.0
+        },
+        "furniture": {
+          "absolute_residual_total": 1.0,
+          "balanced_interval_count": 19,
+          "civilian_food_consumption_units": 0.0,
+          "fertilizer_stock_change_units": 0.0,
+          "foraged_food_units": 0.0,
+          "granary_stock_change_units": 0.0,
+          "household_nonfood_consumption_units": 482.0,
+          "internal_turnover": {
+            "feudal_tribute_transfer": {
+              "event_count": 35,
+              "reported_quantity": 0.0
+            },
+            "market_seller_receipt_posted": {
+              "event_count": 689,
+              "reported_quantity": 0.0
+            },
+            "paid_market_sale": {
+              "event_count": 689,
+              "reported_quantity": 696.0
+            }
+          },
+          "interval_count": 20,
+          "max_absolute_residual": 1.0,
+          "military_food_consumption_units": 0.0,
+          "operator_production_units": 0.0,
+          "production_input_units": 0.0,
+          "production_units": 489.0,
+          "provincial_food_arrival_units": 0.0,
+          "provincial_food_cargo_adjustment_units": 0.0,
+          "provincial_food_dispatch_units": 0.0
+        },
+        "wood": {
+          "absolute_residual_total": 0.0,
+          "balanced_interval_count": 20,
+          "civilian_food_consumption_units": 0.0,
+          "fertilizer_stock_change_units": 0.0,
+          "foraged_food_units": 0.0,
+          "granary_stock_change_units": 0.0,
+          "household_nonfood_consumption_units": 5924.0,
+          "internal_turnover": {
+            "feudal_tribute_transfer": {
+              "event_count": 7113,
+              "reported_quantity": 0.0
+            },
+            "market_seller_receipt_posted": {
+              "event_count": 7240,
+              "reported_quantity": 0.0
+            },
+            "paid_market_sale": {
+              "event_count": 7240,
+              "reported_quantity": 11702.0
+            }
+          },
+          "interval_count": 20,
+          "max_absolute_residual": 0.0,
+          "military_food_consumption_units": 0.0,
+          "operator_production_units": 0.0,
+          "production_input_units": 970.0,
+          "production_units": 6058.0,
+          "provincial_food_arrival_units": 0.0,
+          "provincial_food_cargo_adjustment_units": 0.0,
+          "provincial_food_dispatch_units": 0.0
+        }
+      },
+      "trace_path": "/Users/sli/Code/tmp/traces/a37eef18118745de8dc3a41550637c42-1.ctr",
+      "trace_verification": {
+        "checkpoints": 20,
+        "rows": 871802,
+        "sha256": "766b141f8d01fc8de36ac252dd9ccd0f7d8a887ef548802e739db199a5aec45d"
+      },
+      "worktree_diff_sha256": "33f1142604335a45895a16aa2d18caafb21dc11206ab3eb3262bb55605633517"
+    },
+    {
+      "arm": "national_relief",
+      "arrival_units": 744.0,
+      "dispatch_units": 2346.0,
+      "initial_economy_and_rng_sha256": "4c87d6ada03ada54038cfbc0168cacbdaadefde2d7dd77a34ba164108844376b",
+      "nations": [
+        {
+          "deaths": 0,
+          "nation": "China",
+          "resident_turns": 10335,
+          "underfed_resident_turns": 199
+        },
+        {
+          "deaths": 2,
+          "nation": "Japan",
+          "resident_turns": 11204,
+          "underfed_resident_turns": 555
+        },
+        {
+          "deaths": 1,
+          "nation": "United States",
+          "resident_turns": 9209,
+          "underfed_resident_turns": 31
+        }
+      ],
+      "negative_stock_rows": 0,
+      "policy": {
+        "artisan_inputs": false,
+        "autoplay_nations": true,
+        "national_relief": true
+      },
+      "result_path": "tmp/economic-policy-final-4242/national_relief.json",
+      "seed": 4242,
+      "source_commit": "8591bd80f485df22efbc699f869b4a4235e26cca",
+      "stock_flow_issues": [],
+      "stock_flow_summary": {
+        "food": {
+          "absolute_residual_total": 10.0,
+          "balanced_interval_count": 15,
+          "civilian_food_consumption_units": 140004.0,
+          "fertilizer_stock_change_units": 0.0,
+          "foraged_food_units": 63298.0,
+          "granary_stock_change_units": 1044.0,
+          "household_nonfood_consumption_units": 0.0,
+          "internal_turnover": {
+            "away_trader_food_purchase": {
+              "event_count": 1379,
+              "reported_quantity": 0.0
+            },
+            "charity_food_purchase": {
+              "event_count": 134,
+              "reported_quantity": 0.0
+            },
+            "dependent_food_inventory_transfer": {
+              "event_count": 101,
+              "reported_quantity": 0.0
+            },
+            "emergency_food_levy": {
+              "event_count": 40,
+              "reported_quantity": 0.0
+            },
+            "feudal_tribute_transfer": {
+              "event_count": 15364,
+              "reported_quantity": 0.0
+            },
+            "government_food_aid": {
+              "event_count": 188,
+              "reported_quantity": 0.0
+            },
+            "government_food_aid_recipient": {
+              "event_count": 2914,
+              "reported_quantity": 0.0
+            },
+            "government_food_purchase": {
+              "event_count": 474,
+              "reported_quantity": 0.0
+            },
+            "granary_food_stock_transfer": {
+              "event_count": 111,
+              "reported_quantity": 1620.0
+            },
+            "market_seller_receipt_posted": {
+              "event_count": 15896,
+              "reported_quantity": 0.0
+            },
+            "paid_market_sale": {
+              "event_count": 15896,
+              "reported_quantity": 47657.0
+            },
+            "provincial_food_arrival": {
+              "event_count": 2,
+              "reported_quantity": 0.0
+            },
+            "provincial_food_dispatch": {
+              "event_count": 8,
+              "reported_quantity": 0.0
+            },
+            "provincial_relief_donor_transfer": {
+              "event_count": 26,
+              "reported_quantity": 0.0
+            },
+            "provincial_relief_government_stock_transfer": {
+              "event_count": 1,
+              "reported_quantity": 0.0
+            },
+            "provincial_relief_recipient_transfer": {
+              "event_count": 142,
+              "reported_quantity": 0.0
+            }
+          },
+          "interval_count": 20,
+          "max_absolute_residual": 5.0,
+          "military_food_consumption_units": 0.0,
+          "operator_production_units": 0.0,
+          "production_input_units": 0.0,
+          "production_units": 104709.0,
+          "provincial_food_arrival_units": 744.0,
+          "provincial_food_cargo_adjustment_units": 0.0,
+          "provincial_food_dispatch_units": 2346.0
+        },
+        "furniture": {
+          "absolute_residual_total": 1.0,
+          "balanced_interval_count": 19,
+          "civilian_food_consumption_units": 0.0,
+          "fertilizer_stock_change_units": 0.0,
+          "foraged_food_units": 0.0,
+          "granary_stock_change_units": 0.0,
+          "household_nonfood_consumption_units": 479.0,
+          "internal_turnover": {
+            "feudal_tribute_transfer": {
+              "event_count": 35,
+              "reported_quantity": 0.0
+            },
+            "market_seller_receipt_posted": {
+              "event_count": 689,
+              "reported_quantity": 0.0
+            },
+            "paid_market_sale": {
+              "event_count": 689,
+              "reported_quantity": 689.0
+            }
+          },
+          "interval_count": 20,
+          "max_absolute_residual": 1.0,
+          "military_food_consumption_units": 0.0,
+          "operator_production_units": 0.0,
+          "production_input_units": 0.0,
+          "production_units": 482.0,
+          "provincial_food_arrival_units": 0.0,
+          "provincial_food_cargo_adjustment_units": 0.0,
+          "provincial_food_dispatch_units": 0.0
+        },
+        "wood": {
+          "absolute_residual_total": 0.0,
+          "balanced_interval_count": 20,
+          "civilian_food_consumption_units": 0.0,
+          "fertilizer_stock_change_units": 0.0,
+          "foraged_food_units": 0.0,
+          "granary_stock_change_units": 0.0,
+          "household_nonfood_consumption_units": 5953.0,
+          "internal_turnover": {
+            "feudal_tribute_transfer": {
+              "event_count": 7096,
+              "reported_quantity": 0.0
+            },
+            "government_market_purchase": {
+              "event_count": 1,
+              "reported_quantity": 0.0
+            },
+            "market_seller_receipt_posted": {
+              "event_count": 7277,
+              "reported_quantity": 0.0
+            },
+            "paid_market_sale": {
+              "event_count": 7277,
+              "reported_quantity": 11753.0
+            }
+          },
+          "interval_count": 20,
+          "max_absolute_residual": 0.0,
+          "military_food_consumption_units": 0.0,
+          "operator_production_units": 0.0,
+          "production_input_units": 964.0,
+          "production_units": 6104.0,
+          "provincial_food_arrival_units": 0.0,
+          "provincial_food_cargo_adjustment_units": 0.0,
+          "provincial_food_dispatch_units": 0.0
+        }
+      },
+      "trace_path": "/Users/sli/Code/tmp/traces/f1c9dcd45a194c1892a6b82d17e843ab-1.ctr",
+      "trace_verification": {
+        "checkpoints": 20,
+        "rows": 872489,
+        "sha256": "3d1ae0425a8e03201840a7a2a2e5642ab9a023ac03d7a97edd668128881868d1"
+      },
+      "worktree_diff_sha256": "33f1142604335a45895a16aa2d18caafb21dc11206ab3eb3262bb55605633517"
+    },
+    {
+      "arm": "combined",
+      "arrival_units": 744.0,
+      "dispatch_units": 2346.0,
+      "initial_economy_and_rng_sha256": "4c87d6ada03ada54038cfbc0168cacbdaadefde2d7dd77a34ba164108844376b",
+      "nations": [
+        {
+          "deaths": 0,
+          "nation": "China",
+          "resident_turns": 10335,
+          "underfed_resident_turns": 199
+        },
+        {
+          "deaths": 2,
+          "nation": "Japan",
+          "resident_turns": 11204,
+          "underfed_resident_turns": 555
+        },
+        {
+          "deaths": 1,
+          "nation": "United States",
+          "resident_turns": 9209,
+          "underfed_resident_turns": 31
+        }
+      ],
+      "negative_stock_rows": 0,
+      "policy": {
+        "artisan_inputs": true,
+        "autoplay_nations": true,
+        "national_relief": true
+      },
+      "result_path": "tmp/economic-policy-final-4242/combined.json",
+      "seed": 4242,
+      "source_commit": "8591bd80f485df22efbc699f869b4a4235e26cca",
+      "stock_flow_issues": [],
+      "stock_flow_summary": {
+        "food": {
+          "absolute_residual_total": 10.0,
+          "balanced_interval_count": 15,
+          "civilian_food_consumption_units": 140004.0,
+          "fertilizer_stock_change_units": 0.0,
+          "foraged_food_units": 63298.0,
+          "granary_stock_change_units": 1044.0,
+          "household_nonfood_consumption_units": 0.0,
+          "internal_turnover": {
+            "away_trader_food_purchase": {
+              "event_count": 1379,
+              "reported_quantity": 0.0
+            },
+            "charity_food_purchase": {
+              "event_count": 134,
+              "reported_quantity": 0.0
+            },
+            "dependent_food_inventory_transfer": {
+              "event_count": 101,
+              "reported_quantity": 0.0
+            },
+            "emergency_food_levy": {
+              "event_count": 40,
+              "reported_quantity": 0.0
+            },
+            "feudal_tribute_transfer": {
+              "event_count": 15364,
+              "reported_quantity": 0.0
+            },
+            "government_food_aid": {
+              "event_count": 188,
+              "reported_quantity": 0.0
+            },
+            "government_food_aid_recipient": {
+              "event_count": 2914,
+              "reported_quantity": 0.0
+            },
+            "government_food_purchase": {
+              "event_count": 474,
+              "reported_quantity": 0.0
+            },
+            "granary_food_stock_transfer": {
+              "event_count": 111,
+              "reported_quantity": 1620.0
+            },
+            "market_seller_receipt_posted": {
+              "event_count": 15896,
+              "reported_quantity": 0.0
+            },
+            "paid_market_sale": {
+              "event_count": 15896,
+              "reported_quantity": 47657.0
+            },
+            "provincial_food_arrival": {
+              "event_count": 2,
+              "reported_quantity": 0.0
+            },
+            "provincial_food_dispatch": {
+              "event_count": 8,
+              "reported_quantity": 0.0
+            },
+            "provincial_relief_donor_transfer": {
+              "event_count": 26,
+              "reported_quantity": 0.0
+            },
+            "provincial_relief_government_stock_transfer": {
+              "event_count": 1,
+              "reported_quantity": 0.0
+            },
+            "provincial_relief_recipient_transfer": {
+              "event_count": 142,
+              "reported_quantity": 0.0
+            }
+          },
+          "interval_count": 20,
+          "max_absolute_residual": 5.0,
+          "military_food_consumption_units": 0.0,
+          "operator_production_units": 0.0,
+          "production_input_units": 0.0,
+          "production_units": 104709.0,
+          "provincial_food_arrival_units": 744.0,
+          "provincial_food_cargo_adjustment_units": 0.0,
+          "provincial_food_dispatch_units": 2346.0
+        },
+        "furniture": {
+          "absolute_residual_total": 1.0,
+          "balanced_interval_count": 19,
+          "civilian_food_consumption_units": 0.0,
+          "fertilizer_stock_change_units": 0.0,
+          "foraged_food_units": 0.0,
+          "granary_stock_change_units": 0.0,
+          "household_nonfood_consumption_units": 479.0,
+          "internal_turnover": {
+            "feudal_tribute_transfer": {
+              "event_count": 35,
+              "reported_quantity": 0.0
+            },
+            "market_seller_receipt_posted": {
+              "event_count": 689,
+              "reported_quantity": 0.0
+            },
+            "paid_market_sale": {
+              "event_count": 689,
+              "reported_quantity": 689.0
+            }
+          },
+          "interval_count": 20,
+          "max_absolute_residual": 1.0,
+          "military_food_consumption_units": 0.0,
+          "operator_production_units": 0.0,
+          "production_input_units": 0.0,
+          "production_units": 482.0,
+          "provincial_food_arrival_units": 0.0,
+          "provincial_food_cargo_adjustment_units": 0.0,
+          "provincial_food_dispatch_units": 0.0
+        },
+        "wood": {
+          "absolute_residual_total": 0.0,
+          "balanced_interval_count": 20,
+          "civilian_food_consumption_units": 0.0,
+          "fertilizer_stock_change_units": 0.0,
+          "foraged_food_units": 0.0,
+          "granary_stock_change_units": 0.0,
+          "household_nonfood_consumption_units": 5953.0,
+          "internal_turnover": {
+            "feudal_tribute_transfer": {
+              "event_count": 7096,
+              "reported_quantity": 0.0
+            },
+            "government_market_purchase": {
+              "event_count": 1,
+              "reported_quantity": 0.0
+            },
+            "market_seller_receipt_posted": {
+              "event_count": 7277,
+              "reported_quantity": 0.0
+            },
+            "paid_market_sale": {
+              "event_count": 7277,
+              "reported_quantity": 11753.0
+            }
+          },
+          "interval_count": 20,
+          "max_absolute_residual": 0.0,
+          "military_food_consumption_units": 0.0,
+          "operator_production_units": 0.0,
+          "production_input_units": 964.0,
+          "production_units": 6104.0,
+          "provincial_food_arrival_units": 0.0,
+          "provincial_food_cargo_adjustment_units": 0.0,
+          "provincial_food_dispatch_units": 0.0
+        }
+      },
+      "trace_path": "/Users/sli/Code/tmp/traces/3a5a39c221d04258b9d7653ac43c02c3-1.ctr",
+      "trace_verification": {
+        "checkpoints": 20,
+        "rows": 872509,
+        "sha256": "01eace0949846a2174862aa7a52cbf6b687b9295a87fef1f58bd6dc89a3059b0"
+      },
+      "worktree_diff_sha256": "33f1142604335a45895a16aa2d18caafb21dc11206ab3eb3262bb55605633517"
+    },
+    {
+      "arm": "all_ai",
+      "arrival_units": 482,
+      "dispatch_units": 482,
+      "initial_economy_and_rng_sha256": "e41b4cbdc694c164258eed5fb1e3ff257e0c917584ab263d13383b358a0d4fc3",
+      "nations": [
+        {
+          "deaths": 0,
+          "nation": "China",
+          "resident_turns": 11157,
+          "underfed_resident_turns": 900
+        },
+        {
+          "deaths": 2,
+          "nation": "Japan",
+          "resident_turns": 11277,
+          "underfed_resident_turns": 194
+        },
+        {
+          "deaths": 0,
+          "nation": "United States",
+          "resident_turns": 7349,
+          "underfed_resident_turns": 59
+        }
+      ],
+      "negative_stock_rows": 0,
+      "policy": {
+        "artisan_inputs": false,
+        "autoplay_nations": true,
+        "national_relief": false
+      },
+      "result_path": "tmp/economic-policy-holdout-4243/all_ai.json",
+      "seed": 4243,
+      "source_commit": "8591bd80f485df22efbc699f869b4a4235e26cca",
+      "stock_flow_issues": [],
+      "stock_flow_summary": {
+        "food": {
+          "absolute_residual_total": 15.0,
+          "balanced_interval_count": 11,
+          "civilian_food_consumption_units": 133558.0,
+          "fertilizer_stock_change_units": 0.0,
+          "foraged_food_units": 64622.0,
+          "granary_stock_change_units": 1044.0,
+          "household_nonfood_consumption_units": 0.0,
+          "internal_turnover": {
+            "away_trader_food_purchase": {
+              "event_count": 1184,
+              "reported_quantity": 0.0
+            },
+            "charity_food_purchase": {
+              "event_count": 122,
+              "reported_quantity": 0.0
+            },
+            "dependent_food_inventory_transfer": {
+              "event_count": 45,
+              "reported_quantity": 0.0
+            },
+            "emergency_food_levy": {
+              "event_count": 43,
+              "reported_quantity": 0.0
+            },
+            "feudal_tribute_transfer": {
+              "event_count": 15088,
+              "reported_quantity": 0.0
+            },
+            "government_food_aid": {
+              "event_count": 186,
+              "reported_quantity": 0.0
+            },
+            "government_food_aid_recipient": {
+              "event_count": 2373,
+              "reported_quantity": 0.0
+            },
+            "government_food_purchase": {
+              "event_count": 363,
+              "reported_quantity": 0.0
+            },
+            "granary_food_stock_transfer": {
+              "event_count": 110,
+              "reported_quantity": 1620.0
+            },
+            "market_seller_receipt_posted": {
+              "event_count": 15446,
+              "reported_quantity": 0.0
+            },
+            "paid_market_sale": {
+              "event_count": 15446,
+              "reported_quantity": 47591.0
+            },
+            "provincial_food_arrival": {
+              "event_count": 2,
+              "reported_quantity": 0.0
+            },
+            "provincial_food_dispatch": {
+              "event_count": 2,
+              "reported_quantity": 0.0
+            },
+            "provincial_relief_donor_transfer": {
+              "event_count": 6,
+              "reported_quantity": 0.0
+            },
+            "provincial_relief_recipient_transfer": {
+              "event_count": 108,
+              "reported_quantity": 0.0
+            }
+          },
+          "interval_count": 20,
+          "max_absolute_residual": 3.0,
+          "military_food_consumption_units": 0.0,
+          "operator_production_units": 0.0,
+          "production_input_units": 0.0,
+          "production_units": 97661.0,
+          "provincial_food_arrival_units": 482.0,
+          "provincial_food_cargo_adjustment_units": 0.0,
+          "provincial_food_dispatch_units": 482.0
+        },
+        "furniture": {
+          "absolute_residual_total": 0.0,
+          "balanced_interval_count": 20,
+          "civilian_food_consumption_units": 0.0,
+          "fertilizer_stock_change_units": 0.0,
+          "foraged_food_units": 0.0,
+          "granary_stock_change_units": 0.0,
+          "household_nonfood_consumption_units": 584.0,
+          "internal_turnover": {
+            "feudal_tribute_transfer": {
+              "event_count": 57,
+              "reported_quantity": 0.0
+            },
+            "market_seller_receipt_posted": {
+              "event_count": 819,
+              "reported_quantity": 0.0
+            },
+            "paid_market_sale": {
+              "event_count": 819,
+              "reported_quantity": 827.0
+            }
+          },
+          "interval_count": 20,
+          "max_absolute_residual": 0.0,
+          "military_food_consumption_units": 0.0,
+          "operator_production_units": 0.0,
+          "production_input_units": 0.0,
+          "production_units": 586.0,
+          "provincial_food_arrival_units": 0.0,
+          "provincial_food_cargo_adjustment_units": 0.0,
+          "provincial_food_dispatch_units": 0.0
+        },
+        "wood": {
+          "absolute_residual_total": 0.0,
+          "balanced_interval_count": 20,
+          "civilian_food_consumption_units": 0.0,
+          "fertilizer_stock_change_units": 0.0,
+          "foraged_food_units": 0.0,
+          "granary_stock_change_units": 0.0,
+          "household_nonfood_consumption_units": 5517.0,
+          "internal_turnover": {
+            "feudal_tribute_transfer": {
+              "event_count": 7051,
+              "reported_quantity": 0.0
+            },
+            "government_market_purchase": {
+              "event_count": 4,
+              "reported_quantity": 0.0
+            },
+            "government_market_sale_receipt": {
+              "event_count": 2,
+              "reported_quantity": 0.0
+            },
+            "market_seller_receipt_posted": {
+              "event_count": 6917,
+              "reported_quantity": 0.0
+            },
+            "paid_market_sale": {
+              "event_count": 6917,
+              "reported_quantity": 11366.0
+            }
+          },
+          "interval_count": 20,
+          "max_absolute_residual": 0.0,
+          "military_food_consumption_units": 0.0,
+          "operator_production_units": 0.0,
+          "production_input_units": 1170.0,
+          "production_units": 5730.0,
+          "provincial_food_arrival_units": 0.0,
+          "provincial_food_cargo_adjustment_units": 0.0,
+          "provincial_food_dispatch_units": 0.0
+        }
+      },
+      "trace_path": "/Users/sli/Code/tmp/traces/d45baf2ff8ea415ab7cd126413278bca-1.ctr",
+      "trace_verification": {
+        "checkpoints": 20,
+        "rows": 869686,
+        "sha256": "fa0dfc896257601b6a299ba44df5ac4360f9ec46c66ecb29d947b0ba9fa8e497"
+      },
+      "worktree_diff_sha256": "33f1142604335a45895a16aa2d18caafb21dc11206ab3eb3262bb55605633517"
+    },
+    {
+      "arm": "combined",
+      "arrival_units": 485,
+      "dispatch_units": 503,
+      "initial_economy_and_rng_sha256": "e41b4cbdc694c164258eed5fb1e3ff257e0c917584ab263d13383b358a0d4fc3",
+      "nations": [
+        {
+          "deaths": 0,
+          "nation": "China",
+          "resident_turns": 11157,
+          "underfed_resident_turns": 900
+        },
+        {
+          "deaths": 2,
+          "nation": "Japan",
+          "resident_turns": 11277,
+          "underfed_resident_turns": 194
+        },
+        {
+          "deaths": 0,
+          "nation": "United States",
+          "resident_turns": 7349,
+          "underfed_resident_turns": 59
+        }
+      ],
+      "negative_stock_rows": 0,
+      "policy": {
+        "artisan_inputs": true,
+        "autoplay_nations": true,
+        "national_relief": true
+      },
+      "result_path": "tmp/economic-policy-holdout-4243/combined.json",
+      "seed": 4243,
+      "source_commit": "8591bd80f485df22efbc699f869b4a4235e26cca",
+      "stock_flow_issues": [],
+      "stock_flow_summary": {
+        "food": {
+          "absolute_residual_total": 15.0,
+          "balanced_interval_count": 11,
+          "civilian_food_consumption_units": 133561.0,
+          "fertilizer_stock_change_units": 0.0,
+          "foraged_food_units": 64622.0,
+          "granary_stock_change_units": 1044.0,
+          "household_nonfood_consumption_units": 0.0,
+          "internal_turnover": {
+            "away_trader_food_purchase": {
+              "event_count": 1184,
+              "reported_quantity": 0.0
+            },
+            "charity_food_purchase": {
+              "event_count": 122,
+              "reported_quantity": 0.0
+            },
+            "dependent_food_inventory_transfer": {
+              "event_count": 46,
+              "reported_quantity": 0.0
+            },
+            "emergency_food_levy": {
+              "event_count": 43,
+              "reported_quantity": 0.0
+            },
+            "feudal_tribute_transfer": {
+              "event_count": 15088,
+              "reported_quantity": 0.0
+            },
+            "government_food_aid": {
+              "event_count": 186,
+              "reported_quantity": 0.0
+            },
+            "government_food_aid_recipient": {
+              "event_count": 2373,
+              "reported_quantity": 0.0
+            },
+            "government_food_purchase": {
+              "event_count": 363,
+              "reported_quantity": 0.0
+            },
+            "granary_food_stock_transfer": {
+              "event_count": 110,
+              "reported_quantity": 1620.0
+            },
+            "market_seller_receipt_posted": {
+              "event_count": 15448,
+              "reported_quantity": 0.0
+            },
+            "paid_market_sale": {
+              "event_count": 15448,
+              "reported_quantity": 47594.0
+            },
+            "provincial_food_arrival": {
+              "event_count": 3,
+              "reported_quantity": 0.0
+            },
+            "provincial_food_dispatch": {
+              "event_count": 5,
+              "reported_quantity": 0.0
+            },
+            "provincial_relief_donor_transfer": {
+              "event_count": 9,
+              "reported_quantity": 0.0
+            },
+            "provincial_relief_recipient_transfer": {
+              "event_count": 109,
+              "reported_quantity": 0.0
+            }
+          },
+          "interval_count": 20,
+          "max_absolute_residual": 3.0,
+          "military_food_consumption_units": 0.0,
+          "operator_production_units": 0.0,
+          "production_input_units": 0.0,
+          "production_units": 97661.0,
+          "provincial_food_arrival_units": 485.0,
+          "provincial_food_cargo_adjustment_units": 0.0,
+          "provincial_food_dispatch_units": 503.0
+        },
+        "furniture": {
+          "absolute_residual_total": 0.0,
+          "balanced_interval_count": 20,
+          "civilian_food_consumption_units": 0.0,
+          "fertilizer_stock_change_units": 0.0,
+          "foraged_food_units": 0.0,
+          "granary_stock_change_units": 0.0,
+          "household_nonfood_consumption_units": 584.0,
+          "internal_turnover": {
+            "feudal_tribute_transfer": {
+              "event_count": 57,
+              "reported_quantity": 0.0
+            },
+            "market_seller_receipt_posted": {
+              "event_count": 819,
+              "reported_quantity": 0.0
+            },
+            "paid_market_sale": {
+              "event_count": 819,
+              "reported_quantity": 827.0
+            }
+          },
+          "interval_count": 20,
+          "max_absolute_residual": 0.0,
+          "military_food_consumption_units": 0.0,
+          "operator_production_units": 0.0,
+          "production_input_units": 0.0,
+          "production_units": 586.0,
+          "provincial_food_arrival_units": 0.0,
+          "provincial_food_cargo_adjustment_units": 0.0,
+          "provincial_food_dispatch_units": 0.0
+        },
+        "wood": {
+          "absolute_residual_total": 0.0,
+          "balanced_interval_count": 20,
+          "civilian_food_consumption_units": 0.0,
+          "fertilizer_stock_change_units": 0.0,
+          "foraged_food_units": 0.0,
+          "granary_stock_change_units": 0.0,
+          "household_nonfood_consumption_units": 5518.0,
+          "internal_turnover": {
+            "feudal_tribute_transfer": {
+              "event_count": 7051,
+              "reported_quantity": 0.0
+            },
+            "government_market_purchase": {
+              "event_count": 3,
+              "reported_quantity": 0.0
+            },
+            "government_market_sale_receipt": {
+              "event_count": 2,
+              "reported_quantity": 0.0
+            },
+            "market_seller_receipt_posted": {
+              "event_count": 6917,
+              "reported_quantity": 0.0
+            },
+            "paid_market_sale": {
+              "event_count": 6917,
+              "reported_quantity": 11366.0
+            }
+          },
+          "interval_count": 20,
+          "max_absolute_residual": 0.0,
+          "military_food_consumption_units": 0.0,
+          "operator_production_units": 0.0,
+          "production_input_units": 1170.0,
+          "production_units": 5730.0,
+          "provincial_food_arrival_units": 0.0,
+          "provincial_food_cargo_adjustment_units": 0.0,
+          "provincial_food_dispatch_units": 0.0
+        }
+      },
+      "trace_path": "/Users/sli/Code/tmp/traces/82eed6143d594442a374d307b375acd3-1.ctr",
+      "trace_verification": {
+        "checkpoints": 20,
+        "rows": 869741,
+        "sha256": "356ddc6816febb4801a7e3524dc7559769a9cf3c83f1f822df31438e9a19eff6"
+      },
+      "worktree_diff_sha256": "33f1142604335a45895a16aa2d18caafb21dc11206ab3eb3262bb55605633517"
+    }
+  ],
+  "source_files_sha256": {
+    "core/sim_engine.py": "ac9c79f18d92c7008d21866d063232d5e563747b71cd50d002ee04f10189095d",
+    "economy/economic_policy_experiment.py": "7b0c6dd3803ca2656df4df8aa03f1133ee8f56be41cf5cbef0ee6aa224eb5932",
+    "macro/ai_nation.py": "eac6a930b5d02dad06ec2422994886f963c761c8de56ae9f662eef2af01403ea",
+    "meso/food_logistics.py": "90e51f9f9974b5fcb485fea28f8418185a6abee6ddb08077deab19aebb5d28e0",
+    "meso/province.py": "a65635d22de98a2311ca75a73196b231d414181b682ddc1675174fd6c1d590c9",
+    "meso/region_logistics.py": "0edca350b11622d3c8b9d456e77eb29f2b8cb4aff4d06c9a8a39c44012aacf3d",
+    "micro/food_security.py": "49060f9fbd21353429e5343d3888f8e2175833e430f1199b317e3ab8147d89f3",
+    "micro/region_market.py": "e6209466a24b0654a53128069c12175c8311aa7424fe586f065706a61fc775f2",
+    "sim_server/sim_server.py": "894b300171f0effc9e5183fca1f9f87bd37c58480eaf747828e02165bd60743a"
+  }
+}

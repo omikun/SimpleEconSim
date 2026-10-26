@@ -105,6 +105,9 @@ def step_turn(t: int, tiles: list, nations: list = None,
         trace_clock['phase'] = 'local'
     _provinces = [p for n in nations for p in getattr(n, 'provinces', [])]
     _prov_tiles = {r.name: r for p in _provinces for r in p.tiles}
+    from food_logistics import national_relief_enabled, prepare_food_relief
+    if any(national_relief_enabled(nation) for nation in nations):
+        prepare_food_relief(_provinces, t)
     for p in _provinces:
         p.step(t)
     for r in tiles:

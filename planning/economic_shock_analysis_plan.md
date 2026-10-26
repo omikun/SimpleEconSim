@@ -1,5 +1,85 @@
 # Economic response to supply and demand shocks
 
+## Policy-response follow-up (2026-10-25)
+
+The repository has been refactored into domain directories. Implementation and
+validation use the current `core`, `micro`, `meso`, `macro`, `economy` and `tests`
+modules; no obsolete root modules are recreated.
+
+The original trace has 20 national AI decisions each for China and Japan and
+none for the U.S., which was left under player control. Tokyo's turn-10 AI
+response transfers 70.36 currency units locally and distributes 122 food units
+to 85 recipients. Japan also dispatches 768 provincial relief units on turn 16
+that arrive on turn 17. Existing policy mechanisms were therefore active,
+rather than uniformly absent. The `gov` occupation is also used by landlords:
+the large Tokyo food offers are private estate holdings, rather than public granaries.
+Keep growers' protected next meals; reducing that reserve would redistribute
+hunger rather than establish a supply solution.
+
+Authorized implementation and evaluation:
+
+1. Compare fresh seed-4242 20-turn rivals-only and all-nation-AI games. Preserve
+   human control in interactive play. Require matching initial economy/RNG
+   digests and identical implementation fingerprints across arms.
+2. Include independent input-using artisans in profitable trader-route demand
+   signals, excluding employees and unfunded requests. Protect cash needed for
+   their next meal. Trace producer identity and role explicitly.
+3. Let AI nations coordinate the existing relief cargo across their provinces,
+   reusing provincial queues, physical-stock censuses, quarter-surplus levy
+   limits, reserves, paid haulage and travel delay. Stay within owned domestic
+   territory/currency, respect blocked paths, subtract already dispatched cargo,
+   and deliver arrivals before any destination's meals. The source provincial
+   government funds haulage; no additional treasury money or grain is created.
+4. Compare artisan-only, logistics-only and combined changes against all-AI;
+   retain observed intake denominators, unmet input-production reasons,
+   checkpoints, stock-flow residuals and decision evidence. Do not treat one
+   seed, resident-turn aggregates or verified trace framing as proof of general
+   resilience, fixed-cohort welfare improvements or complete conservation.
+5. Update findings, document any remaining work and commit once at completion.
+
+Implemented and evaluated on the refactored source. The runner is
+`economy/economic_policy_experiment.py`; focused conservation, timing,
+eligibility, funding, blocked-route, foreign-transit, cargo and cart-capacity
+checks are in `tests/test_economic_policy_response.py`. All 125 focused tests
+pass. The report and bounded reproducibility rollup are
+`planning/reports/economic_policy_response.md` and `.json`.
+
+Five fresh seed-4242 arms match their initial economy/RNG and source fingerprints.
+The existing all-nation AI reduces U.S. underfed resident-turns from 1,963 to 23.
+Artisan requests become visible but do not change measured outcomes. Wider
+relief reduces Tokyo's observed appetite shortfall from 1,272 to 1,020 units,
+with mixed effects elsewhere; the all-AI/combined seed-4243 holdout has identical
+underfeeding and death totals. Across seven 20-turn runs, 140 checkpoints
+verify and no negative stock rows are observed. The combined seed-4242 arm
+passes supported structural/formula checks, 60/60 treasury-attributed turns,
+60/60 public account closes and the measured market gates. Physical food and
+furniture residuals remain; complete causal coverage is false.
+
+Remaining work:
+
+- Reconcile the remaining food/furniture lifecycle and storage balances before
+  claiming complete physical conservation or reconciled welfare effects.
+- Follow timber availability upstream. In c48 on turn 12, eight traders selected
+  Beijing and submitted 80 units of wood bids, but received none: the source
+  itself has 429 bid units against 32 offered units. Trader bid limits are about
+  1.90 while source transactions average 2.21. Requests do not create harvests,
+  and a routing bonus cannot guarantee goods for export. Test a funded timber
+  production/procurement response after tracing supplier returns and failed
+  acquisition fills.
+- Measure a fixed initial household cohort and a longer recovery window;
+  resident-turn totals and additional dispatched cargo alone do not establish
+  welfare improvement. Keep arrivals after turn 20 in the in-transit census.
+- Consider national funding for source-provincial haulage when skipped-dispatch
+  evidence identifies cash limits. Current coordination uses the source
+  province's funds and existing levy mechanism. International procurement,
+  additional production investment and replacing nominal-price expansion
+  thresholds remain separately scoped policy work.
+- The optional broader native Egypt checkpoint integration run timed out after
+  150 seconds waiting for its fresh-process restore subprocess. The 125 focused
+  checks pass independently. Diagnose the native restore test separately;
+  retain its captured traceback in `tmp/economic-policy-bounded-tests.log` and
+  do not report the broader batch as passing.
+
 Date: 2026-10-24. Status: baseline and five-seed default-game paired screens
 complete; five-seed supply-rivalry experiments, cohort measurements, and an
 enumerated physical-holdings census are complete. The pre-fix census on commit

@@ -1761,6 +1761,10 @@ def trade(region, t):
                     inputs={'seller_id': a.id, 'good': g.name,
                             'quantity': int(local_ask), 'offer_rule': offer_rule,
                             'seller_output': getattr(a.output, 'name', str(a.output)),
+                            'seller_role': ('government' if a.is_government else
+                                            'corporation' if a.is_corporation else
+                                            'landlord' if getattr(a, 'is_lord', False) else
+                                            'trader' if a.is_trader else 'person'),
                             'inventory_before_order': stock,
                             'reserved_inventory': reserved,
                             'food_meal_reserve': food_reserve,

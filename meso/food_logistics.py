@@ -1,4 +1,4 @@
-"""Paid, delayed movement of emergency grain between districts in a province."""
+"""Paid, delayed emergency grain shipments, including national coordination."""
 
 from __future__ import annotations
 from treasury_trace import begin_public_change as _trace_public_begin, finish_public_change as _trace_public_finish
@@ -16,7 +16,9 @@ def _residents(tile):
             and not a.is_government and not getattr(a, 'military_unit_id', None)]
 
 
-def _distance(source, destination, tile_names):
+def _distance(source, destination, tile_names, *, respect_blocks=False):
+    from terrain_edges import get_edge_manager
+    edges = get_edge_manager() if respect_blocks else None
     queue = deque([(source, 0)])
     seen = {source.name}
     while queue:
@@ -25,9 +27,39 @@ def _distance(source, destination, tile_names):
             return max(1, hops)
         for neighbor in tile.neighbors.values():
             if neighbor.name in tile_names and neighbor.name not in seen:
+                if edges is not None and edges.get_friction(tile.name, neighbor.name) == float('inf'):
+                    continue
                 seen.add(neighbor.name)
                 queue.append((neighbor, hops + 1))
     return None
+
+
+def _national_tiles(province):
+    nation = getattr(province, 'nation', None)
+    if nation is None:
+        return list(province.tiles)
+    return [tile for tile in nation.tiles
+            if getattr(tile, 'owner_nation', None) is nation
+            and getattr(tile, 'home_currency', None) == nation.currency]
+
+
+def national_relief_enabled(nation):
+    return (getattr(nation, 'ai', None) is not None
+            and getattr(nation, 'national_food_logistics_enabled', True))
+
+
+def prepare_food_relief(provinces, turn):
+    """Arrive everywhere before any district eats; then plan new shipments."""
+    from economy.actor_accounts import begin_turn
+    for province in provinces:
+        for tile in province.tiles:
+            tile._last_turn = turn
+            begin_turn(tile, turn)
+    for province in provinces:
+        deliver_province_food(province, turn)
+    for province in provinces:
+        dispatch_province_food(province, turn)
+        province._food_relief_prepared_turn = turn
 
 
 def _trace_goods_transfer(region, *, kind, operation_id, shipment_id,
@@ -127,7 +159,10 @@ def deliver_province_food(province, turn):
         if shipment['arrival_turn'] > turn:
             pending.append(shipment)
             continue
-        destination = next((r for r in province.tiles
+        # Cargo stays in its originating province's ledger even when its
+        # destination is in another province. Ownership changes never turn it
+        # into an unrecorded transfer to a foreign government.
+        destination = next((r for r in _national_tiles(province)
                             if r.name == shipment['destination']), None)
         if destination is None:
             pending.append(shipment)
@@ -215,14 +250,21 @@ def deliver_province_food(province, turn):
 
 def dispatch_province_food(province, turn):
     """Levy local surplus, pay haulers, and send grain to a hungry district."""
+    if not province.tiles:
+        return []
     if not hasattr(province, 'food_shipments'):
         province.food_shipments = []
-    if not getattr(province.gov, 'emergency_food_policy', False):
+    nation = getattr(province, 'nation', None)
+    coordinated = national_relief_enabled(nation)
+    network = _national_tiles(province) if coordinated else list(province.tiles)
+    if not (getattr(province.gov, 'emergency_food_policy', False)
+            or coordinated and any(getattr(t.gov, 'emergency_food_policy', False)
+                                   for t in network)):
         return []
-    tile_names = {tile.name for tile in province.tiles}
+    tile_names = {tile.name for tile in network}
     destinations = []
     sources = []
-    for tile in province.tiles:
+    for tile in network:
         residents = _residents(tile)
         if not residents:
             continue
@@ -231,6 +273,8 @@ def dispatch_province_food(province, turn):
                        for a in residents)
         if hungry_share >= 0.1 and meal_gap:
             destinations.append((tile, hungry_share, meal_gap))
+        if tile not in province.tiles:
+            continue
         donors = []
         for person in tile.agents:
             if (not person.alive or person.is_government
@@ -245,6 +289,17 @@ def dispatch_province_food(province, turn):
                         for person, _surplus in donors)
         if available > 4 * len(residents) and hungry_share < 0.1:
             sources.append((tile, available, donors))
+    emit(province.tiles[0], kind='food_relief_network_assessment',
+         record_class='decision', phase='local',
+         subject={'type': 'province', 'id': province.name},
+         metric_id='goods.provincial_relief',
+         inputs={'logistics_scope': 'nation' if coordinated else 'province',
+                 'destinations': [{'tile': tile.name, 'meal_gap': gap}
+                                  for tile, _share, gap in destinations],
+                 'source_tiles': [tile.name for tile, _units, _donors in sources],
+                 'reason': ('no_hungry_destination' if not destinations else
+                            'no_collectible_surplus' if not sources else 'dispatch_candidates_available'),
+                 'funding_government': province.gov.name})
     if not destinations or not sources:
         return []
 
@@ -256,26 +311,43 @@ def dispatch_province_food(province, turn):
         gov.food_levy_last_turn = 0
         gov._food_aid_turn = turn
     dispatched = []
+    source_used_capacity = {}
     for destination, _hunger, meal_gap in destinations:
-        outstanding = meal_gap
+        provinces = list(getattr(nation, 'provinces', ()))
+        if province not in provinces:
+            provinces.append(province)
+        incoming = sum(shipment['units'] for owner in provinces
+                       for shipment in getattr(owner, 'food_shipments', ())
+                       if shipment['destination'] == destination.name)
+        outstanding = max(0, meal_gap - incoming)
+        if not outstanding:
+            emit(destination, kind='provincial_food_dispatch_skipped',
+                 record_class='outcome', phase='local',
+                 subject={'type': 'tile', 'id': destination.name, 'good': Goods.food.name},
+                 metric_id='goods.provincial_relief',
+                 inputs={'reason': 'inbound_relief_covers_gap', 'meal_gap': meal_gap,
+                         'inbound_food_units': incoming, 'dispatching_province': province.name})
         for source, _available, donors in sources:
             if outstanding <= 0 or source is destination:
                 continue
-            distance = _distance(source, destination, tile_names)
+            distance = _distance(source, destination, tile_names,
+                                 respect_blocks=coordinated)
             if distance is None:
                 emit(source, kind='provincial_food_dispatch_skipped',
                      record_class='outcome', phase='local',
                      subject={'type': 'tile', 'id': source.name,
                               'good': Goods.food.name},
                      metric_id='goods.provincial_relief',
-                     inputs={'reason': 'no_provincial_route',
+                     inputs={'reason': ('no_domestic_route' if coordinated else 'no_provincial_route'),
+                             'logistics_scope': 'nation' if coordinated else 'province',
                              'source': source.name,
                              'destination': destination.name,
                              'turn': int(turn)})
                 continue
             # Larger districts can mobilize more carts; the wage is paid to
             # named local residents and each hop adds travel time and cost.
-            capacity = max(32, 4 * len(_residents(source)))
+            capacity = max(0, max(32, 4 * len(_residents(source)))
+                           - source_used_capacity.get(source.name, 0))
             unit_cost = 0.05 * distance
             deposit = province.bank.deposits.get(gov.agent, 0)
             if getattr(province.bank, 'is_frozen', False):
@@ -290,7 +362,8 @@ def dispatch_province_food(province, turn):
                      subject={'type': 'tile', 'id': source.name,
                               'good': Goods.food.name},
                      metric_id='goods.provincial_relief',
-                     inputs={'reason': 'haulage_unaffordable',
+                     inputs={'reason': ('haulage_capacity_exhausted' if capacity <= 0
+                                        else 'haulage_unaffordable'),
                              'source': source.name,
                              'destination': destination.name,
                              'turn': int(turn),
@@ -448,6 +521,9 @@ def dispatch_province_food(province, turn):
                         'haulage_wages': round(cost, 4),
                         'shipment_id': shipment_id}
             province.food_shipments.append(shipment)
+            shipment['logistics_scope'] = 'nation' if coordinated else 'province'
+            shipment['funding_government'] = gov.name
+            source_used_capacity[source.name] = source_used_capacity.get(source.name, 0) + taken
             source.emergency_grain_levy_units = (
                 getattr(source, 'emergency_grain_levy_units', 0) + taken)
             gov.food_levy_last_turn += taken

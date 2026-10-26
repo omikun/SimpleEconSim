@@ -145,8 +145,9 @@ class Province:
             region._last_turn = t
             begin_turn(region, t)
         from food_logistics import deliver_province_food, dispatch_province_food
-        deliver_province_food(self, t)
-        dispatch_province_food(self, t)
+        if getattr(self, '_food_relief_prepared_turn', None) != t:
+            deliver_province_food(self, t)
+            dispatch_province_food(self, t)
         if charity is not None and bank is not None:
             charity.collect_donations(t, all_agents, bank, regions=self.tiles)
         for r in self.tiles:
