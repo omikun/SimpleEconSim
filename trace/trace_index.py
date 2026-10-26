@@ -68,14 +68,17 @@ class TraceIndex:
 
     def _query(self,*,boundary=None,turn=None,subject=None,metric_id=None,kind=None,event_id=None,offset=0,limit=100):
         if offset<0 or limit<0:raise ValueError('invalid trace page range')
+        # iter_records publishes a same-process buffered writer. Obtain the
+        # source identity before measuring size, otherwise a fresh reader can
+        # freeze its boundary halfway through that writer's buffered block.
+        records=iter_records(self.path)
+        try:first=next(records).payload
+        finally:records.close()
         size=self.path.stat().st_size
         boundary=size if boundary is None else boundary
         if boundary>size:raise ValueError('trace boundary exceeds published data')
         with closing(self._connect()) as db, db:
             meta=dict(db.execute('SELECT key,value FROM meta'))
-            records=iter_records(self.path)
-            try:first=next(records).payload
-            finally:records.close()
             identity=json.dumps([self.path.stat().st_dev,self.path.stat().st_ino,hashlib.sha256(first.encode()).hexdigest()])
             try:
                 previous=int(meta.get('end','0'))

@@ -435,6 +435,7 @@ def main():
         modal_open = is_any_modal_open(world)
         loading_modal = world.get('loading_modal')
         is_loading = bool(loading_modal.get('active') if isinstance(loading_modal, dict) else loading_modal)
+        is_loading = is_loading or bool(world.get('_ai_explainer'))
         _is_voronoi = _voronoi_check()
         is_active = world.get('playing') or drag
         if modal_open and not is_loading:
@@ -451,6 +452,9 @@ def main():
 
         now = pygame.time.get_ticks()
         mouse_pos = pygame.mouse.get_pos()
+        from explanations.desktop import tick as tick_ai_explainer
+        if tick_ai_explainer(world):
+            _mark_dirty(world, map_changed=False)
         if modal_open:
             last_animation_ms = now
             next_animation_ms = now + 66
@@ -462,6 +466,8 @@ def main():
             if event.type == pygame.QUIT:
                 running = False
             elif event.type == RESTART_EVENT_TYPE:
+                from explanations.desktop import close as close_ai_explainer
+                close_ai_explainer(world)
                 world = reload_world(args)
                 _mark_dirty(world)
                 continue
@@ -858,6 +864,8 @@ def main():
                 elif event.key == pygame.K_q:
                     running = False
                 elif event.key == pygame.K_r and (event.mod & (pygame.KMOD_META | pygame.KMOD_CTRL)):
+                    from explanations.desktop import close as close_ai_explainer
+                    close_ai_explainer(world)
                     world = reload_world(args)
                     _mark_dirty(world)
                     continue
@@ -1023,6 +1031,8 @@ def main():
             pygame.display.flip()
             world['needs_redraw'] = False
 
+    from explanations.service import close_default_service
+    close_default_service()
     pygame.quit()
 
 

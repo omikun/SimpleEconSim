@@ -75,6 +75,10 @@ class CoCHTTPRequestHandler(BaseHTTPRequestHandler):
         path = parsed.path
         query = urllib.parse.parse_qs(parsed.query)
 
+        if path.startswith('/api/ai-'):
+            self._ai_request('GET', path, query)
+            return
+
         # 1. API: World State Snapshot
         if path == '/api/state':
             try:
@@ -151,6 +155,7 @@ class CoCHTTPRequestHandler(BaseHTTPRequestHandler):
                 result = trace.query(turn=turn, subject=subject, metric_id=metric_id,
                                      kind=kind, event_id=event_id, offset=offset, limit=limit,
                                      boundary=selected_boundary)
+                result['run_id'] = trace.run_id
                 if query.get('explain', ['0'])[0] == '1':
                     from trace_explanation import ExplanationReader
                     reader = ExplanationReader(trace.path, result['boundary'])
@@ -358,6 +363,9 @@ class CoCHTTPRequestHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         parsed = urllib.parse.urlparse(self.path)
+        if parsed.path.startswith('/api/ai-'):
+            self._ai_request('POST', parsed.path, urllib.parse.parse_qs(parsed.query))
+            return
         if parsed.path == '/api/command':
             if not self._authorized_mutation():
                 return
@@ -439,6 +447,68 @@ class CoCHTTPRequestHandler(BaseHTTPRequestHandler):
             return
 
         self._send_error_json(404, "Endpoint not found")
+
+    def _ai_request(self, method, path, query):
+        """Generation is an authenticated explicit POST, never a state-read side effect."""
+        if not self._authorized_mutation():
+            return
+        try:
+            from explanations.service import default_service
+            if path == '/api/ai-metrics' and method == 'GET':
+                from metric_catalog import METRICS
+                data = {'metrics': [{'id': key, 'unit': val[1], 'scope': val[0]}
+                                    for key, val in sorted(METRICS.items())]}
+            else:
+                service = default_service()
+                if method == 'POST':
+                    length = int(self.headers.get('Content-Length', 0))
+                    if not 0 < length <= 8192:
+                        raise ValueError('Explanation body must be between one byte and eight KiB.')
+                    body = json.loads(self.rfile.read(length))
+                    if not isinstance(body, dict):
+                        raise ValueError('Explanation body must be an object.')
+                else:
+                    body = {}
+                if path == '/api/ai-explanations' and method == 'POST':
+                    from explanations.context import capture_server
+                    data = service.request(capture_server(self.server.sim_server, body))
+                else:
+                    parts = path.strip('/').split('/')
+                    if len(parts) not in (3, 4) or parts[1] != 'ai-explanations':
+                        self._send_error_json(404, 'Unknown explanation route')
+                        return
+                    ident = parts[2]
+                    viewer = body.get('viewer') if method == 'POST' else query.get('viewer', [''])[0]
+                    if len(parts) == 3 and method == 'GET':
+                        data = service.status(ident, viewer)
+                    elif len(parts) == 4 and parts[3] == 'cancel' and method == 'POST':
+                        service.cancel(ident, viewer)
+                        data = {'state': 'cancelled'}
+                    elif len(parts) == 4 and parts[3] == 'log' and method == 'POST':
+                        data = service.retry_logging(ident, viewer)
+                    elif len(parts) == 4 and parts[3] == 'availability' and method == 'GET':
+                        snapshot = service.status(ident, viewer)
+                        if snapshot['state'] != 'ready':
+                            raise ValueError('Wait for the explanation before reviewing actions.')
+                        from explanations.mechanics import current
+                        sim = self.server.sim_server
+                        with sim._lock:
+                            data = current({'tiles': sim.tiles, 'nations': sim.nations,
+                                            'run_trace': sim.run_trace, 'turn': sim.turn}, snapshot['result']['packet'])
+                    else:
+                        self._send_error_json(404, 'Unknown explanation route')
+                        return
+            raw = json.dumps(data, allow_nan=False).encode('utf-8')
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.send_header('Cache-Control', 'no-store')
+            self.send_header('Content-Length', str(len(raw)))
+            self.end_headers()
+            self.wfile.write(raw)
+        except (ValueError, TypeError, UnicodeDecodeError) as error:
+            self._send_error_json(400, str(error)[:300])
+        except Exception:
+            self._send_error_json(500, 'Explanation service unavailable; recorded evidence remains usable.')
 
     def _send_error_json(self, status_code: int, message: str):
         body = json.dumps({'error': message, 'success': False}).encode('utf-8')
@@ -930,6 +1000,8 @@ class CoCWebServer:
     def stop(self):
         """Gracefully shutdown web server and background simulation loop."""
         self._stop_event.set()
+        from explanations.service import close_default_service
+        close_default_service()
         if self.httpd:
             self.httpd.shutdown()
             self.httpd.server_close()

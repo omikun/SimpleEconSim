@@ -2141,3 +2141,20 @@ input[type="range"] {
 .trace-record pre { overflow: auto; max-height: 24rem; }
 
 .trace-record button { font-size: .85rem; padding: .45rem .65rem; max-width: 100%; white-space: normal; text-align: left; margin: .2rem; }
+/* The AI loading/result screen stays in its own drawer while play continues. */
+.ai-explainer-panel { position: fixed; z-index: 10050; right: 16px; bottom: 64px;
+  width: min(520px, calc(100vw - 32px)); max-height: calc(100dvh - 100px); overflow: auto;
+  background: #101c2c; color: #e5edf7; border: 1px solid #708cad; border-radius: 12px;
+  padding: 18px; box-shadow: 0 12px 48px #0009; line-height: 1.5; }
+.ai-explainer-panel h4 { margin: 18px 0 6px; color: #f0d08b; }
+.ai-explainer-panel p { margin: 8px 0; }
+.ai-explainer-panel a { color: #a6d7ff; overflow-wrap: anywhere; }
+.ai-explainer-panel label { display: block; margin: 10px 0; }
+.ai-explainer-panel input:not([type=checkbox]) { display: block; width: 100%; color: #edf3fc; background: #20334c; padding: 8px; border: 1px solid #7287a2; }
+.ai-explainer-panel button, .ai-explain-control { min-height: 44px; }
+.ai-explainer-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.ai-explainer-launcher { position: fixed; right: 16px; bottom: 12px; z-index: 10000; min-height: 44px; background: #203952; color: #fff; }
+.ai-loading { display: flex; gap: 12px; align-items: center; padding: 22px 0; }
+.ai-spinner { display: inline-block; width: 22px; height: 22px; border: 3px solid #71849b; border-top-color: #f0d08b; border-radius: 50%; animation: ai-spin 1s linear infinite; }
+@keyframes ai-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .ai-spinner { animation: none; } }

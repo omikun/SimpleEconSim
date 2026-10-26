@@ -54,6 +54,9 @@ def open_panel(world):
 
 
 def handle_event(event,world):
+    from explanations.desktop import handle_event as handle_ai_event
+    if handle_ai_event(event, world):
+        return True
     if event.type==pygame.KEYDOWN and event.key==pygame.K_F11:
         if world.get('_causal_panel'):world['_causal_panel']=None
         else:open_panel(world)
@@ -148,5 +151,7 @@ def render_with_evidence(function):
     def wrapped(surface,world,*args,**kwargs):
         result=function(surface,world,*args,**kwargs)
         draw(surface,world)
+        from explanations.desktop import draw as draw_ai
+        draw_ai(surface, world)
         return result
     return wrapped

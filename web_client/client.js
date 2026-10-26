@@ -38,6 +38,13 @@
   let laborMapConfigured = false;
   let selectedTileName = null;
   let selectedTileDetail = null;
+  window.CoCAIExplainer?.setContext(() => ({
+    world_id: (worldState?.version || '').split(':').slice(0, 2).join(':'),
+    turn: Number(worldState?.turn || 0),
+    entity: selectedTileDetail ? `tile:${selectedTileDetail.name}` : `nation:${worldState?.player_nation || ''}`,
+    entities: [...(worldState?.nations || []).map(n => `nation:${n.name}`),
+      ...(worldState?.tiles || []).map(t => `tile:${t.name}`)]
+  }));
   let isPlaying = false;
   let pollTimer = null;
   let stateVersion = null;
@@ -3025,6 +3032,7 @@
 
   function openPriceTraceInspector({ good, entity, metric, turn, container }) {
     if (!container) return;
+    window.CoCAIExplainer?.close();
     const old = document.getElementById('market-price-trace-detail');
     if (old) old.remove();
     const detail = document.createElement('div');
@@ -3057,6 +3065,11 @@
     const output = detail.querySelector('.price-trace-result');
     let pageOffset = 0;
     let traceBoundary = null;
+    let traceRun = null;
+    window.CoCAIExplainer?.attach(detail, () => ({entity, good,
+      metric_id: priceKind.value, turn: Number(turnInput.value), boundary: traceBoundary,
+      ...(traceRun ? {run_id: traceRun} : {})}));
+    for (const field of [turnInput, priceKind, eventIdInput]) field.addEventListener('input', () => window.CoCAIExplainer?.close());
     const load = async () => {
       const selected = Number(turnInput.value);
       const eventId = eventIdInput.value.trim();
@@ -3078,6 +3091,7 @@
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const result = await response.json();
         traceBoundary = result.boundary;
+        traceRun = result.run_id;
         const rows = result.events || [];
         const bridge = !eventId && priceKind.value === 'goods.price'
           ? rows.find(row => row.kind === 'price_bridge') : null;
@@ -3173,6 +3187,7 @@
     classGroup,
     chartScale, displayUnit, container }) {
     if (!container) return;
+    window.CoCAIExplainer?.close();
     const old = document.getElementById('market-price-trace-detail');
     if (old) old.remove();
     const detail = document.createElement('div');
@@ -3190,6 +3205,14 @@
     const output = detail.querySelector('.trace-record-result');
     let pageOffset = 0;
     let traceBoundary = null;
+    let traceRun = null;
+    window.CoCAIExplainer?.attach(detail, () => ({entity, metric_id: metric,
+      turn: Number(turnInput.value), boundary: traceBoundary,
+      ...(good ? {good} : {}), ...(disease ? {disease} : {}),
+      ...(classGroup ? {class_group: classGroup} : {}),
+      ...(chartScale ? {display: `Chart scale ${chartScale}`} : {}),
+      ...(traceRun ? {run_id: traceRun} : {})}));
+    for (const field of [turnInput, eventIdInput]) field.addEventListener('input', () => window.CoCAIExplainer?.close());
     const load = async () => {
       const selected = Number(turnInput.value);
       const eventId = eventIdInput.value.trim();
@@ -3214,6 +3237,7 @@
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const result = await response.json();
         traceBoundary = result.boundary;
+        traceRun = result.run_id;
         const rows = result.events || [];
         output.replaceChildren();
         const summary = document.createElement('p');

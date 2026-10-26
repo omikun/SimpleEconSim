@@ -34,6 +34,7 @@ ROOT = Path(__file__).resolve().parents[1]
 # Runtime services are recreated by their owners; their gameplay objects and
 # account state are already retained through the simulation graph.
 SERVICE_PREFIXES = ('client.', 'render_engine', 'worldview', 'test_', 'tests',
+                    'explanations',
                     'scripts', 'benchmarks', 'sitecustomize', 'logger', 'simulation_checkpoint',
                     'trace_', 'run_trace', 'causal_gap_inventory', 'state_handler')
 

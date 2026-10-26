@@ -1,0 +1,54 @@
+[
+  {
+    "id": "ireland_food_relief_1845",
+    "title": "Food relief during the Great Famine in Ireland",
+    "start_year": 1845,
+    "end_year": 1852,
+    "nations": ["Ireland", "United Kingdom", "Britain"],
+    "tags": ["food", "hungry", "harvest", "famine", "nutrition"],
+    "cause": "Repeated potato blight devastated a staple crop while food continued to leave Ireland.",
+    "response": "Peel bought imported maize for cheap sale; authorities also distributed relief and organized public works.",
+    "outcome": "Later public works and limited aid failed to relieve the crisis adequately; shifting relief costs onto landowners also encouraged evictions.",
+    "difference": "The historical crisis involved colonial power and land tenure; a game price movement alone does not establish famine.",
+    "sources": [{"id": "parliament_famine", "title": "UK Parliament — The great famine", "url": "https://www.parliament.uk/about/living-heritage/evolutionofparliament/legislativescrutiny/parliamentandireland/overview/the-great-famine/", "supports": ["cause", "response", "outcome"], "reviewed": "2026-10-26"}]
+  },
+  {
+    "id": "egypt_revenue_pledges_1876",
+    "title": "Egypt's debt settlement and revenue controls",
+    "start_year": 1876,
+    "end_year": 1876,
+    "nations": ["Egypt", "Egyptian Khedivate"],
+    "tags": ["treasury", "debt", "bond", "fiscal", "receivership"],
+    "cause": "Egypt negotiated a settlement with representatives of English and French bondholders.",
+    "response": "The decree pledged railway and Alexandria port revenue to privileged bonds and provided for foreign financial supervision.",
+    "outcome": "The documented arrangement constrained control of revenue. The reporting consul expected improved debt service; this dispatch does not establish that his forecast was realized.",
+    "difference": "The document is a contemporary diplomatic account, not proof of later success or a neutral assessment of all affected groups.",
+    "sources": [{"id": "frus1877_345", "title": "US Office of the Historian — Farman to Fish, December 1876, FRUS document 345", "url": "https://history.state.gov/historicaldocuments/frus1877/d345", "supports": ["cause", "response", "outcome"], "reviewed": "2026-10-26"}]
+  },
+  {
+    "id": "england_public_health_1848",
+    "title": "Coordinating sanitation under the Public Health Act",
+    "start_year": 1848,
+    "end_year": 1848,
+    "nations": ["England", "Wales", "Britain", "United Kingdom"],
+    "tags": ["health", "disease", "pollution_water", "sewage", "effluent"],
+    "cause": "The legislation addressed the sanitary condition of towns and populous places in England and Wales.",
+    "response": "It provided for local management of water supply, sewerage, drainage, and cleansing under general supervision.",
+    "outcome": "The Act established a legal framework with geographic exceptions. The statute alone does not demonstrate a particular mortality reduction.",
+    "difference": "Medical treatment funding and sanitation infrastructure address different mechanisms; the game may model only part of this response.",
+    "sources": [{"id": "public_health_act1848", "title": "The National Archives — Public Health Act 1848, original statute", "url": "https://www.legislation.gov.uk/ukpga/Vict/11-12/63/pdfs/ukpga_18480063_en.pdf", "supports": ["cause", "response", "outcome"], "reviewed": "2026-10-26"}]
+  },
+  {
+    "id": "britain_factory_hours_1847",
+    "title": "Limits on textile factory working hours",
+    "start_year": 1847,
+    "end_year": 1847,
+    "nations": ["Britain", "United Kingdom", "England"],
+    "tags": ["labor", "shift", "workday", "bodily_wear", "strik", "protest"],
+    "cause": "Factory working time became a subject of statutory regulation.",
+    "response": "The Factory Act reduced maximum daily hours for women and young people working in textile factories.",
+    "outcome": "The legal limit was ten hours; the source does not establish universal enforcement or a measured improvement in wages or health.",
+    "difference": "Historical coverage was limited by age, sex, and industry; the game's national policy may apply more broadly.",
+    "sources": [{"id": "commons_hours1996", "title": "House of Commons Library — Working Time Directive, RP96/106, Annex 2", "url": "https://researchbriefings.files.parliament.uk/documents/RP96-106/RP96-106.pdf", "supports": ["response", "outcome"], "reviewed": "2026-10-26"}]
+  }
+]

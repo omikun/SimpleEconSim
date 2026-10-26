@@ -20,7 +20,9 @@ BLOCK_RECORDS = 256
 MAX_FRAME = 64 * 1024 * 1024
 
 _OPEN_WRITERS = weakref.WeakValueDictionary()
-_OPEN_WRITERS_LOCK = threading.Lock()
+# Weak-reference cleanup can run a writer's finalizer while the registry is
+# being accessed. Its close() re-enters this same lock on the current thread.
+_OPEN_WRITERS_LOCK = threading.RLock()
 
 
 class TornTraceTail(ValueError):
