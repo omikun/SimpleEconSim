@@ -30,11 +30,11 @@ from trace_codec import iter_records, CorruptTrace, TornTraceTail
 from python_code_signature import code_signature
 
 VERSION = 1
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parents[1]
 # Runtime services are recreated by their owners; their gameplay objects and
 # account state are already retained through the simulation graph.
 SERVICE_PREFIXES = ('client.', 'render_engine', 'worldview', 'test_', 'tests',
-                    'scripts', 'benchmarks', 'logger', 'simulation_checkpoint',
+                    'scripts', 'benchmarks', 'sitecustomize', 'logger', 'simulation_checkpoint',
                     'trace_', 'run_trace', 'causal_gap_inventory', 'state_handler')
 
 
@@ -52,7 +52,7 @@ def _graph_recursion_budget(limit=20000):
 def _modules():
     for name, module in sorted(tuple(sys.modules.items())):
         filename = getattr(module, '__file__', None)
-        if (name in ('__main__', 'tests', 'scripts', 'benchmarks')
+        if (name in ('__main__', 'tests', 'scripts', 'benchmarks', 'sitecustomize')
                 or name.startswith(('test_', 'tests.', 'scripts.', 'benchmarks.'))
                 or not filename or not filename.endswith('.py')):
             continue

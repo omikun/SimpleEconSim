@@ -41,7 +41,7 @@ if "--window" not in sys.argv:
 import numpy as np
 import pygame
 
-sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from polygon_map import PolygonMapGenerator, BIOME_COLORS
 
 

@@ -16,7 +16,7 @@ from goods import Goods
 from agent import Agent, initialize_agent
 
 
-TEMPLATE_PATH = Path(__file__).parent / 'scenarios' / 'templates' / 'empire_of_cotton.scenario.json'
+TEMPLATE_PATH = Path(__file__).resolve().parent / 'templates' / 'empire_of_cotton.scenario.json'
 
 
 def get_empire_of_cotton_interpreter() -> ScenarioInterpreter:

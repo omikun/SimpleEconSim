@@ -33,7 +33,7 @@ class TraceAuditTests(unittest.TestCase):
             result=audit(trace.path)
             self.assertTrue(result['structural_and_supported_formula_checks_pass'])
             export=Path(directory)/'decoded.jsonl'
-            subprocess.run([sys.executable,str(Path(__file__).resolve().parents[1]/'trace_report.py'),
+            subprocess.run([sys.executable,str(Path(__file__).resolve().parents[1]/'trace'/'trace_report.py'),
                             '--run',str(trace.path),'--decode-jsonl',str(export)],check=True,capture_output=True)
             self.assertEqual(export.stat().st_size,result['decoded_trace_bytes'])
 

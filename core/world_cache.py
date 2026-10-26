@@ -19,7 +19,7 @@ import time
 from typing import Any
 import pygame
 
-CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "map_cache")
+CACHE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "map_cache")
 CONFIG_PATH = os.path.join(CACHE_DIR, "map_config.json")
 WORLD_STATE_PATH = os.path.join(CACHE_DIR, "world_state.pkl")
 TOPO_SURF_PATH = os.path.join(CACHE_DIR, "topo_surface.png")

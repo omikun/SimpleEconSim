@@ -13,7 +13,7 @@ import re
 from pathlib import Path
 import subprocess
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parents[1]
 BASELINE = ROOT / 'planning/coverage/financial_write_baseline.json'
 REVIEWS = ROOT / 'planning/coverage/reviewed_financial_writers.json'
 BALANCES = {'cash', 'capital', 'total_deposits', 'total_liabilities', 'deposits'}
@@ -164,9 +164,27 @@ def production_paths(root):
 
 def inventory(root=ROOT):
     rows, histories, history_methods = [], [], []
+    existing_subpaths = (
+        'agents/resistance/', 'client/desktop/', 'commonweal/',
+        'economy/actor_accounts.py', 'economy/capitalist_planner.py',
+        'economy/commodity_visuals.py', 'economy/conspicuous_consumption.py',
+        'economy/finance_bills.py', 'economy/geopolitical_rivalry.py',
+        'economy/inventory_provenance.py', 'economy/labor_mobility.py',
+        'economy/luddite_resistance.py', 'economy/map_generator.py',
+        'economy/portfolio_optimizer.py', 'economy/supply_strategy.py',
+        'economy/trade_circuit_discovery.py', 'economy/trade_costs.py',
+        'economy/transformation_graph.py', 'economy/triangular_trade.py',
+        'economy/true_cost_ledger.py', 'macro/imperialism/', 'micro/region/',
+        'scenarios/effects.py', 'scenarios/evaluator.py',
+        'scenarios/interpreter.py', 'scenarios/modules/', 'scenarios/schema.py',
+        'sim_server/', 'terrain/biomes/', 'terrain/edges/', 'terrain/elevation/',
+        'terrain/erosion/', 'terrain/generator/', 'terrain/hex/', 'terrain/mesh/',
+        'terrain/wilderness/',
+    )
     for path in production_paths(root):
-        visitor = Discover(path)
-        visitor.visit(ast.parse((root / path).read_text(), filename=path))
+        logical = path if path.startswith(existing_subpaths) else Path(path).name
+        visitor = Discover(logical)
+        visitor.visit(ast.parse((root / path).read_text(), filename=logical))
         for row in visitor.rows:
             row['source_probe'] = ('writer_literal_present' if row['id'] in visitor.source_probe_literals
                                    else 'not_detected_by_literal_scan')

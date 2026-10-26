@@ -13,7 +13,7 @@ def attach(world):
     from labor_census_trace import capture_labor_censuses
     import forex
     identity='desktop-'+uuid.uuid4().hex
-    trace=RunTrace(Path(__file__).resolve().parent/'tmp'/'traces'/(identity+'.ctr'),identity,
+    trace=RunTrace(Path(__file__).resolve().parents[1]/'tmp'/'traces'/(identity+'.ctr'),identity,
                    seed=world.get('seed'),scenario=world.get('scenario_id'))
     tiles,nations=world['tiles'],world['nations']
     clock={'turn':world.get('turn',0),'epoch':0,'next':1,'phase':'setup'}

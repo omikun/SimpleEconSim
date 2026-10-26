@@ -82,13 +82,13 @@ class TraceCodecTests(unittest.TestCase):
                                 for payload in iter_payloads(compact.path))
             self.assertLess(compact.path.stat().st_size, decoded_bytes * 0.6)
             exported = root / 'decoded.jsonl'
-            command = [sys.executable, str(Path(__file__).resolve().parents[1] / 'trace_report.py'),
+            command = [sys.executable, str(Path(__file__).resolve().parents[1] / 'trace' / 'trace_report.py'),
                        '--run', str(compact.path), '--decode-jsonl', str(exported)]
             subprocess.run(command, check=True, capture_output=True, text=True)
             self.assertEqual([json.loads(line) for line in exported.read_text().splitlines()],
                              decoded)
             kind_command = [sys.executable,
-                            str(Path(__file__).resolve().parents[1] / 'trace_report.py'),
+                            str(Path(__file__).resolve().parents[1] / 'trace' / 'trace_report.py'),
                             '--run', str(compact.path), '--kind',
                             'route_shipment_departure']
             kind_result = subprocess.run(kind_command, check=True,

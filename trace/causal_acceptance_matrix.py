@@ -16,7 +16,7 @@ import tarfile
 from causal_acceptance import SCENARIOS, SEEDS
 from simulation_semantics import graph_differences
 
-ROOT=Path(__file__).resolve().parent
+ROOT=Path(__file__).resolve().parents[1]
 
 
 def cases(profile):
@@ -90,7 +90,7 @@ def main():
         reports={}
         for mode in ('on','off'):
             stem=f'{scenario}-{seed}-{turns}-{mode}';report=out/(stem+'.json')
-            command=[sys.executable,str(source/'causal_acceptance.py'),'--scenario',scenario,
+            command=[sys.executable,str(source/'trace'/'causal_acceptance.py'),'--scenario',scenario,
                      '--seed',str(seed),'--turns',str(turns),'--trace',mode,'--out',str(report)]
             print('START '+stem,flush=True)
             with (out/(stem+'.log')).open('w') as log:

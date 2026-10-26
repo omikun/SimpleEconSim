@@ -18,7 +18,7 @@ from scenarios.interpreter import ScenarioInterpreter
 
 
 SCENARIO_ID = "labor_frontier_rivalry"
-TEMPLATE_PATH = Path(__file__).parent / "scenarios" / "templates" / "labor_frontier_rivalry.scenario.json"
+TEMPLATE_PATH = Path(__file__).resolve().parent / "templates" / "labor_frontier_rivalry.scenario.json"
 DISTRICTS = ("Meridian Works", "Meridian Fields", "Vesper Fields", "Vesper Works")
 
 

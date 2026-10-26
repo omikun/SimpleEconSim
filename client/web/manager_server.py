@@ -43,7 +43,7 @@ SERVICES = {
         "name": "Mapgen2 Terrain Explorer",
         "subtitle": "3D Micropoly Mesh & Geopolitical Map Viewer",
         "default_port": 8080,
-        "cmd": [PYTHON_BIN, "mapgen_web.py", "--port", "8080", "--host", "0.0.0.0"],
+        "cmd": [PYTHON_BIN, "terrain/mapgen_web.py", "--port", "8080", "--host", "0.0.0.0"],
         "log_file": os.path.join(LOGS_DIR, "mapgen_server.log"),
         "icon": "🗺️",
         "accent": "#3b82f6",

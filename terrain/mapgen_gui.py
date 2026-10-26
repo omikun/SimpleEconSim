@@ -20,7 +20,7 @@ from typing import Optional, Tuple, List, Dict, Any
 import pygame
 import numpy as np
 
-sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from polygon_map import PolygonMapGenerator, BIOME_COLORS
 from render_island_micropolys import (
     build_island_mesh,

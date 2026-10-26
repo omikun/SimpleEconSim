@@ -1422,7 +1422,7 @@ def _quality_payload(run):
 
 def _display_path(value):
     path = Path(value)
-    root = Path(__file__).resolve().parent
+    root = Path(__file__).resolve().parents[1]
     try:
         return path.resolve().relative_to(root).as_posix()
     except ValueError:

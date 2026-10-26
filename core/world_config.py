@@ -32,7 +32,7 @@ VORONOI_HEIGHT = 1024.0
 
 def load_mapgen_slot_one() -> dict:
     """Load the saved Mapgen2 world used by the default Voronoi client."""
-    slot_path = os.path.join(os.path.dirname(__file__), "saved_slots", "slot_1.json")
+    slot_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "saved_slots", "slot_1.json")
     try:
         with open(slot_path, "r", encoding="utf-8") as slot_file:
             state = json.load(slot_file).get("state", {})

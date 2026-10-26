@@ -61,11 +61,11 @@ Or discover all tests in [`tests/`](file:///Users/sli/Code/tests):
 
 ---
 
-## Key ArchitecturalSubsystems
+## Key Architectural Subsystems
 
-- **Centralized State Mutation & Guarding ([`state_handler.py`](file:///Users/sli/Code/state_handler.py))**:
-  Provides [`StateMutationHandler`](file:///Users/sli/Code/state_handler.py#L46-L426) (`state_handler`) for atomic, conservation-checked mutations of agent cash (`transfer_cash`, `adjust_cash`), inventory (`transfer_inventory`, `adjust_inventory`), and bank deposits (`transfer_deposit`), with watchpoints, NaN/Inf guards, and causal trace hooks.
-- **Precomputed World Topology ([`world_topology.py`](file:///Users/sli/Code/world_topology.py))**:
+- **Centralized State Mutation & Guarding ([`core/state_handler.py`](file:///Users/sli/Code/core/state_handler.py))**:
+  Provides [`StateMutationHandler`](file:///Users/sli/Code/core/state_handler.py#L46-L426) (`state_handler`) for atomic, conservation-checked mutations of agent cash (`transfer_cash`, `adjust_cash`), inventory (`transfer_inventory`, `adjust_inventory`), and bank deposits (`transfer_deposit`), with watchpoints, NaN/Inf guards, and causal trace hooks.
+- **Precomputed World Topology ([`core/world_topology.py`](file:///Users/sli/Code/core/world_topology.py))**:
   Builds `O(1)` spatial neighbor and nation/province tile indices (`build_neighbor_index`, `build_nation_tile_index`) used across regional logistics, diplomacy, and world stepping.
-- **Indexed Causal Trace Engine ([`run_trace.py`](file:///Users/sli/Code/run_trace.py), [`trace_index.py`](file:///Users/sli/Code/trace_index.py))**:
-  Records every state mutation and decision into a compact binary trace (`.ctr`) with an incremental in-memory [`TraceIndex`](file:///Users/sli/Code/trace_index.py#L65-L345) for `O(1)` event-ID, turn, metric, and subject lookups.
+- **Indexed Causal Trace Engine ([`trace/run_trace.py`](file:///Users/sli/Code/trace/run_trace.py), [`trace/trace_index.py`](file:///Users/sli/Code/trace/trace_index.py))**:
+  Records every state mutation and decision into a compact binary trace (`.ctr`) with an incremental in-memory [`TraceIndex`](file:///Users/sli/Code/trace/trace_index.py#L65-L345) for `O(1)` event-ID, turn, metric, and subject lookups.
