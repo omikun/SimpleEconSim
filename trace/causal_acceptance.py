@@ -94,6 +94,9 @@ def run(scenario,seed,turns,traced,out,*,audit_trace=True):
         from trace_codec import iter_payloads
         result['trace_path']=str(trace.path);result['trace_bytes']=trace.path.stat().st_size
         result['rows']=trace.count;result['bank_objects_retained']=len(trace.bank_book.banks)
+        result['event_records']=trace.event_count
+        result['coverage_groups']=trace._compact_writer.coverage_groups
+        result['virtual_samples']=trace._compact_writer.virtual_count
         result['public_accounts_retained']=len(trace.treasury_book.accounts)
         result['known_event_ids_cached']=len(trace._known_event_ids)
         result['shipment_departures_retained']=len(trace._shipment_departure_events)

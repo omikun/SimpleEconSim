@@ -50,7 +50,7 @@ class PackedTraceTests(unittest.TestCase):
         for trace in traces:
             self.record(trace)
             rows = [json.loads(payload) for payload in iter_payloads(trace.path)]
-            views.append([{k: v for k, v in row.items() if k not in ('sha256_before', 'digest_scope')}
+            views.append([{k: v for k, v in row.items() if k not in ('sha256_before', 'digest_scope', 'event_count_before')}
                           for row in rows if row.get('record_class') != 'metadata'])
             self.assertEqual(3, verify(trace.path)['checkpoints'])
             self.assertEqual(trace.count, verify(trace.path)['rows'])
@@ -59,7 +59,7 @@ class PackedTraceTests(unittest.TestCase):
         self.assertEqual(LEGACY_MAGIC, traces[0].path.read_bytes()[:len(MAGIC)])
         stats = storage_stats(traces[2].path)
         self.assertEqual(573, stats['covered_snapshots'])
-        self.assertEqual(6, stats['explicit_snapshots'])
+        self.assertEqual(6, stats['explicit_snapshots']+stats['initial_samples'])
         self.assertLess(stats['physical_frames'], stats['logical_records'] // 10)
         self.assertEqual(0, storage_stats(traces[1].path)['covered_snapshots'])
 

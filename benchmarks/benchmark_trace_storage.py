@@ -26,7 +26,7 @@ def normalized_evidence(row, run_id, identities):
         if isinstance(value, list):
             return [visit(item) for item in value]
         return value
-    row = {key: value for key, value in row.items() if key not in ('sha256_before', 'digest_scope')}
+    row = {key: value for key, value in row.items() if key not in ('sha256_before', 'digest_scope', 'event_count_before')}
     return json.dumps(visit(row), sort_keys=True, separators=(',', ':'))
 
 
@@ -56,7 +56,7 @@ def main():
             start = time.perf_counter(); step_world(world); seconds = time.perf_counter() - start
             timings.append(seconds)
             print(json.dumps({'mode': args.mode, 'turn': world['turn'], 'seconds': seconds,
-                              'logical_records': trace.count}), flush=True)
+                              'expanded_records': trace.count, 'event_records':trace.event_count}), flush=True)
         trace.publish()
         metrics = normalized_metrics(SimpleNamespace(tiles=world['tiles'], nations=world['nations']))
         metrics_digest = hashlib.sha256(json.dumps(sorted(metrics.items()), sort_keys=True).encode()).hexdigest()

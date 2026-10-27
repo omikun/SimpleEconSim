@@ -150,3 +150,10 @@ first, keep detailed action/flow events, and assess the secondary derived pool
 afterward. This is a materially larger count reduction than another packing
 optimization. Detailed measured counters and illustrative input records are in
 [the JSON analysis](trace_count_reduction_candidates.json).
+
+Implementation follow-up: the primary grouped-state/index redesign is complete.
+Default turn 2 now emits 40,263 actual events/groups instead of 262,026, with
+identical expanded evidence and preserved gross financial flows. Initial
+readings use a separate unknown-opening rule. The secondary pool was assessed
+and remains explicit pending category-specific rules. See
+[the implementation measurements and validation](state_coverage_event_reduction.md).

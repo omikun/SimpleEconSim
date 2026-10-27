@@ -159,6 +159,11 @@ print('FULL_STATE_DIGEST='+state_digest(full))
             manifest=save(server,directory)
             source=server.run_trace.path
             saved=json.loads(manifest.read_text())
+            wrong_count=Path(directory)/'wrong-count.checkpoint.json'
+            wrong_count.write_text(json.dumps({**saved,'trace_event_records':saved['trace_event_records']+1}))
+            with self.assertRaisesRegex(CorruptTrace,'digest/count'):
+                restore(wrong_count,Path(directory)/'wrong-count')
+            wrong_count.unlink()
             server.run_trace.emit(server.tiles[0]._collective_trace_clock,kind='uncommitted_test')
             # Model a process crash after the uncommitted tail reached disk.
             server.run_trace._compact_writer.publish()

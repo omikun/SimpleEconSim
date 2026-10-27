@@ -14,7 +14,7 @@ import tempfile
 
 from price_trace import replay_event
 from causal_contracts import validate as validate_sources
-from trace_codec import iter_records, PACKED_DIGEST
+from trace_codec import iter_records, PACKED_DIGEST, COVERAGE_DIGEST
 
 
 def audit(path):
@@ -33,7 +33,9 @@ def audit(path):
                 row=json.loads(payload);counters['rows']+=1
                 if row.get('kind')=='turn_checkpoint':
                     valid=(row.get('count_before')==rows and row.get('sha256_before')==record.digest_before
-                           and (record.digest_scope!=PACKED_DIGEST or row.get('digest_scope')==PACKED_DIGEST))
+                           and (record.digest_scope not in (PACKED_DIGEST,COVERAGE_DIGEST)
+                                or row.get('digest_scope')==record.digest_scope)
+                           and (record.digest_scope!=COVERAGE_DIGEST or row.get('event_count_before')==record.count_before))
                     counters['checkpoints_verified' if valid else 'checkpoint_failures']+=1
                 digest=record.digest_after;rows+=1
                 ident=row.get('event_id')

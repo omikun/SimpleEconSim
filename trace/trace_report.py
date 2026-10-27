@@ -12,7 +12,7 @@ import sqlite3
 import tempfile
 from contextlib import closing
 
-from trace_codec import decoded_size, iter_payloads, storage_stats
+from trace_codec import decoded_size, iter_payloads, storage_stats, iter_storage_records
 
 
 def iter_report(path, *, turn=None, entity=None, metric=None, kind=None,
@@ -132,6 +132,8 @@ def main():
                         help='show records naming this person as subject or actor')
     parser.add_argument('--decode-jsonl', metavar='OUTPUT',
                         help='losslessly decode the whole run to OUTPUT, or - for stdout')
+    parser.add_argument('--stored-records', action='store_true',
+                        help='export stored events/coverage groups, without expanding virtual observations')
     parser.add_argument('--storage-stats', action='store_true',
                         help='print stored size, decoded JSONL size and compression ratio')
     parser.add_argument('--explain', action='store_true', help='show the shared player explanation and coverage status')
@@ -154,7 +156,8 @@ def main():
         output = (sys.stdout if args.decode_jsonl == '-'
                   else Path(args.decode_jsonl).open('w', encoding='utf-8'))
         try:
-            for payload in iter_payloads(args.run):
+            payloads=(record.payload for record in iter_storage_records(args.run)) if args.stored_records else iter_payloads(args.run)
+            for payload in payloads:
                 output.write(payload + '\n')
         finally:
             if output is not sys.stdout:
@@ -163,7 +166,9 @@ def main():
     if args.verify:
         from run_trace import verify
         check = verify(args.run)
-        print(f"Verified {check['rows']} rows and {check['checkpoints']} checkpoints")
+        print(f"Verified {check['event_records']} stored records, {check['coverage_groups']} coverage groups, "
+              f"{check['virtual_samples']} virtual samples ({check['rows']} expanded rows), "
+              f"and {check['checkpoints']} checkpoints")
     rows = iter_report(args.run, turn=args.turn, entity=args.entity, metric=args.metric,
                   kind=args.kind,
                   good=args.good, person_id=args.person_id,

@@ -66,6 +66,11 @@ and remaining trace-recording costs on the default 1,000-region map.
 New traces use [packed storage and checked unchanged-stat coverage](trace_storage.md).
 Historical selections still expose the same observed values and causal source
 IDs, including unchanged stats; coverage does not silently fill missing turns.
+V5 groups checked samples under bounded state-coverage events and resolves their
+original IDs on demand. F12 can select historical stats on any recorded tile;
+the sparse index does not allocate one row per checked sample. Initial readings
+remain explicitly without an opening value or delta. This storage change adds
+no background generation or model calls.
 National requests additionally receive reconciled regional contribution totals
 and selected material sources from both directions. Opposing changes and gross
 fiscal inflows/outflows remain visible even at zero net change. These summaries

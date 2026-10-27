@@ -11,6 +11,7 @@ from collections import deque
 CONTEXT = ('schema_version', 'run_id', 'branch_id', 'turn', 'epoch', 'phase',
            'kind', 'record_class', 'confidence', 'explanation_status')
 COVERAGE_RULE = 'checked_unchanged_snapshot.v1'
+BASELINE_RULE = 'checked_initial_snapshot.v1'
 SNAPSHOT_KEYS = frozenset((*CONTEXT, 'event_id', 'sequence', 'subject', 'metric_id',
                           'unit', 'value_before', 'value_after', 'delta',
                           'inputs', 'cause_event_ids'))
@@ -77,17 +78,19 @@ class RecentEvents(deque):
 
 
 def expand_rule(row, rule):
-    if rule == COVERAGE_RULE:
+    if rule in (COVERAGE_RULE, BASELINE_RULE):
         source = row.pop('@source')
         value = row['value_after']
         if ((source is not None and type(source) is not str) or type(value) not in (str, int, float, bool)
                 or (type(value) is float and not math.isfinite(value))):
             raise ValueError('invalid checked observation baseline/source')
-        row.update(kind='metric_snapshot', record_class='observation', value_before=value,
+        row.update(kind='metric_snapshot', record_class='observation',
                    inputs={'source_event_id': source}, cause_event_ids=[source] if source else [],
                    confidence='exact' if source else 'unknown',
                    explanation_status='calculation_recorded' if source else 'source_missing')
-        if isinstance(value, (int, float)): row['delta'] = value - value
+        if rule == COVERAGE_RULE:
+            row['value_before'] = value
+            if isinstance(value, (int, float)): row['delta'] = value - value
     elif rule == PRICE_IDLE_RULE:
         value = row['value_after']
         if type(value) not in (int, float) or not math.isfinite(value):

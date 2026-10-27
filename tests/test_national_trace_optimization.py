@@ -65,7 +65,7 @@ class NationalTraceOptimizationTests(unittest.TestCase):
             self.assertEqual(list(trace.recent), list(restored_recent))
             self.assertEqual(rows[-2], trace.recent[-2])
             self.assertEqual(list(reversed(trace.recent)), list(reversed(rows[1:])))
-            views.append([{k:v for k,v in row.items() if k != 'sha256_before'} for row in rows])
+            views.append([{k:v for k,v in row.items() if k not in ('sha256_before','event_count_before')} for row in rows])
             self.assertEqual(trace.digest, verify(trace.path)['sha256'])
         self.assertEqual(views[0], views[1])
 

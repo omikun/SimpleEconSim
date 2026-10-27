@@ -13,9 +13,12 @@ import struct
 import threading
 import weakref
 import zlib
-from trace_packing import canonical, freeze, pack, unpack, PreparedEvent, COVERAGE_RULE
+from trace_packing import canonical, freeze, pack, unpack, PreparedEvent, COVERAGE_RULE, BASELINE_RULE
+from trace_state_coverage import (CoverageBuffer, CoverageGroup, CoverageSample, capture_cell,
+                            validate_group, context_of, expand_cell, expanded_count)
 
-MAGIC = b'COCTRACE4\n'
+MAGIC = b'COCTRACE5\n'
+PACKED_MAGIC = b'COCTRACE4\n'
 LEGACY_MAGIC = b'COCTRACE3\n'
 SYNC_MARKER = b'\x00\x00\xff\xff'
 HEADER = struct.Struct('>cII')
@@ -24,6 +27,7 @@ MAX_FRAME = 64 * 1024 * 1024
 PACK_ROWS = 128
 PACK_BYTES = 512 * 1024
 PACKED_DIGEST = 'packed-payload-chain-sha256.v1'
+COVERAGE_DIGEST = 'state-coverage-packet-chain-sha256.v1'
 LEGACY_DIGEST = 'canonical-json-chain-sha256.v1'
 _OPEN_WRITERS = weakref.WeakValueDictionary()
 _OPEN_WRITERS_LOCK = threading.RLock()
@@ -49,31 +53,35 @@ class TraceRecord:
 
     @cached_property
     def checksum(self):
-        if self.digest_scope == PACKED_DIGEST:
+        if self.digest_scope in (PACKED_DIGEST, COVERAGE_DIGEST):
             return hashlib.sha256((self.digest_after + ':' + str(self.record_in_block)).encode()).hexdigest()
         return hashlib.sha256(self.payload.encode()).hexdigest()
 
 class CompactTraceWriter:
-    def __init__(self, path, *, level=6, resume=False, block_records=BLOCK_RECORDS, version=4, sparse=True):
+    def __init__(self, path, *, level=6, resume=False, block_records=BLOCK_RECORDS, version=5, sparse=True):
         self.path = Path(path)
         self.level, self.block_records = level, block_records
         self.compressor = None; self.in_block = 0
         self._pending = []; self._pending_size = 0; self._failure = None
         self.digest = '0' * 64; self.logical_count = 0
+        self.accepted_count = 0; self.virtual_count = 0; self.coverage_groups = 0; self._coverage = None
         self.version = version; self.sparse = sparse
         self.stats = {'packed_frames': 0, 'raw_frames': 0, 'covered_snapshots': 0,
                       'explicit_snapshots': 0, 'logical_records': 0}
         self._lock = threading.RLock()
         if resume:
             with self.path.open('rb') as stream: magic = stream.read(len(MAGIC))
-            self.version = 3 if magic == LEGACY_MAGIC else 4 if magic == MAGIC else 0
+            self.version = {LEGACY_MAGIC:3, PACKED_MAGIC:4, MAGIC:5}.get(magic,0)
             if not self.version: raise ValueError('unsupported causal trace format')
-            for record in iter_records(self.path):
+            for record in iter_storage_records(self.path):
                 self.digest = record.digest_after; self.logical_count += 1
+                if record.row and record.row.get('kind') == 'state_coverage':
+                    self.virtual_count += expanded_count(record.row); self.coverage_groups += 1
+            self.accepted_count = self.logical_count
             self.end_offset = self.path.stat().st_size
         else:
-            if version not in (3, 4): raise ValueError('unsupported causal trace version')
-            with self.path.open('xb') as stream: stream.write(LEGACY_MAGIC if version == 3 else MAGIC)
+            if version not in (3, 4, 5): raise ValueError('unsupported causal trace version')
+            with self.path.open('xb') as stream: stream.write({3:LEGACY_MAGIC,4:PACKED_MAGIC,5:MAGIC}[version])
             self.end_offset = len(MAGIC)
         self.stats['logical_records'] = self.logical_count
         self._stream = self.path.open('ab', buffering=1024 * 1024)
@@ -82,7 +90,32 @@ class CompactTraceWriter:
 
     @property
     def digest_scope(self):
-        return PACKED_DIGEST if self.version == 4 else LEGACY_DIGEST
+        return COVERAGE_DIGEST if self.version == 5 else PACKED_DIGEST if self.version == 4 else LEGACY_DIGEST
+
+    @property
+    def event_count(self):
+        return self.accepted_count + (self._coverage is not None)
+
+    def append_coverage(self, context, rule, fields):
+        with self._lock:
+            self._check_open()
+            if self.version != 5: raise ValueError('grouped coverage requires V5')
+            cell, size = capture_cell(rule, fields)
+            if self._coverage is not None and not self._coverage.accepts(context, cell[4], size):
+                self.flush_coverage()
+            if self._coverage is None: self._coverage = CoverageBuffer(context, cell[4])
+            self._coverage.cells.append(cell); self._coverage.size += size; self.virtual_count += 1
+            if len(self._coverage.cells) >= 512 or self._coverage.size >= PACK_BYTES: self.flush_coverage()
+            return CoverageSample(context,cell)
+
+    def flush_coverage(self):
+        with self._lock:
+            if self._coverage is None: return
+            group = self._coverage.group(); self._coverage = None
+            try: self.append(group)
+            except (OSError,ValueError,TypeError) as error:
+                self._failure = str(error); raise
+            self.coverage_groups += 1
 
     def _check_open(self):
         if self._stream.closed: raise OSError('compact trace writer is closed')
@@ -127,21 +160,26 @@ class CompactTraceWriter:
         """Dicts take the packed path; strings retain the raw framing API."""
         with self._lock:
             self._check_open()
+            self.flush_coverage()
             if isinstance(payload, PreparedEvent):
-                if self.version != 4:
+                if self.version < 4:
                     return self.append(canonical(payload.expand()))
                 if self._pending_size + payload.size > PACK_BYTES: self.flush_pending()
                 self._pending.append(payload); self._pending_size += payload.size
+                self.accepted_count += 1
                 if len(self._pending) >= PACK_ROWS or self._pending_size >= PACK_BYTES: self.flush_pending()
                 return
             if isinstance(payload, dict):
                 if self.version == 3: return self.append(canonical(payload))
                 budget = [0]
-                try: row = freeze(payload, budget)
+                try:
+                    row = payload if isinstance(payload,CoverageGroup) else freeze(payload, budget)
+                    if isinstance(payload,CoverageGroup): budget[0] = payload.size
                 except RecursionError as error: raise ValueError('Circular or excessively nested JSON data') from error
                 boundary = row.get('kind') == 'turn_checkpoint' or row.get('record_class') == 'metadata'
                 if boundary or self._pending_size + budget[0] > PACK_BYTES: self.flush_pending()
                 self._pending.append(row); self._pending_size += budget[0]
+                self.accepted_count += 1
                 if boundary or len(self._pending) >= PACK_ROWS or self._pending_size >= PACK_BYTES: self.flush_pending()
                 return
             if not isinstance(payload, str) or '\n' in payload: raise ValueError('trace payload must be one canonical JSON line')
@@ -158,6 +196,7 @@ class CompactTraceWriter:
             self._write(frame)
             self.digest = hashlib.sha256((self.digest + payload).encode()).hexdigest()
             self.logical_count += 1; self.stats['logical_records'] += 1; self.stats['raw_frames'] += 1
+            self.accepted_count += 1
             self.in_block += 1
             if self.in_block >= self.block_records: self._publish_stream()
 
@@ -184,6 +223,7 @@ class CompactTraceWriter:
     def flush_pending(self):
         with self._lock:
             self._check_open()
+            self.flush_coverage()
             if not self._pending: return
             try: self._batch(self._pending)
             except (OSError, ValueError, TypeError) as error:
@@ -202,7 +242,7 @@ def _frames(path, *, start_offset=None, end_offset=None):
                 writer._stream.flush()
             elif 'changed outside its active writer' not in str(error): raise
     with path.open('rb') as stream:
-        magic = stream.read(len(MAGIC)); version = 3 if magic == LEGACY_MAGIC else 4 if magic == MAGIC else 0
+        magic = stream.read(len(MAGIC)); version = {LEGACY_MAGIC:3,PACKED_MAGIC:4,MAGIC:5}.get(magic,0)
         if not version: raise ValueError('unsupported causal trace format; expected compact .ctr blocks')
         size = path.stat().st_size if end_offset is None else end_offset
         if size > path.stat().st_size or size < len(MAGIC): raise TornTraceTail('truncated compact trace boundary')
@@ -217,7 +257,7 @@ def _frames(path, *, start_offset=None, end_offset=None):
             if kind == b'S':
                 if length or checksum: raise CorruptTrace(f'corrupt compact trace block header at {offset}')
                 decoder = zlib.decompressobj(-15); block_offset = offset; number = 0; last = kind; continue
-            if kind not in ((b'D', b'P') if version == 4 else (b'D',)) or decoder is None or length > MAX_FRAME:
+            if kind not in ((b'D', b'P') if version >= 4 else (b'D',)) or decoder is None or length > MAX_FRAME:
                 raise CorruptTrace(f'corrupt compact trace frame at {offset}')
             if stream.tell() + length > size: raise TornTraceTail(f'truncated compact trace payload at {offset}')
             chunk = stream.read(length)
@@ -236,9 +276,10 @@ def _frames(path, *, start_offset=None, end_offset=None):
             number += 1
         if last not in (b'D', b'P'): raise TornTraceTail('truncated compact trace after block header')
 
-def iter_records(path, *, start_offset=None, end_offset=None):
+def iter_storage_records(path, *, start_offset=None, end_offset=None):
     digest = '0' * 64 if start_offset in (None, len(MAGIC)) else None
     count = 0 if digest is not None else None
+    last_sequence = None
     for version, kind, payload, block, position, end in _frames(path, start_offset=start_offset, end_offset=end_offset):
         if kind == b'D':
             # A seek into a legacy/raw block has no preceding chain digest.
@@ -255,13 +296,41 @@ def iter_records(path, *, start_offset=None, end_offset=None):
             if digest is not None and digest != previous: raise ValueError('packed digest chain mismatch')
             if count is not None and count != prior_count: raise ValueError('packed logical count mismatch')
             after = hashlib.sha256(payload.encode()).hexdigest(); rows = list(unpack(envelope['packet']))
+            for row in rows:
+                if row.get('kind') == 'state_coverage':
+                    if version != 5: raise ValueError('state coverage requires V5')
+                    validate_group(row)
+                if version == 5 and row.get('sequence') is not None:
+                    first = row['inputs']['sequence_min'] if row.get('kind') == 'state_coverage' else row['sequence']
+                    if type(first) is not int or (last_sequence is not None and first <= last_sequence):
+                        raise ValueError('non-increasing V5 event sequence')
+                    last_sequence = row['sequence']
             if any(row.get('kind') == 'turn_checkpoint' for row in rows) and len(rows) != 1:
                 raise ValueError('checkpoint must have its own packed frame')
         except (KeyError, TypeError, ValueError, IndexError, OverflowError) as error:
             raise CorruptTrace(f'corrupt packed trace batch at {block}: {error}') from error
         for i, row in enumerate(rows):
-            yield TraceRecord(None, block, i, end, row, previous, after, prior_count + i, PACKED_DIGEST)
+            yield TraceRecord(None, block, i, end, row, previous, after, prior_count + i,
+                              COVERAGE_DIGEST if version == 5 else PACKED_DIGEST)
         digest = after; count = prior_count + len(rows)
+
+
+def iter_records(path, *, start_offset=None, end_offset=None):
+    """Expanded compatibility view. Storage/index work uses iter_storage_records."""
+    block = None; position = 0
+    for record in iter_storage_records(path,start_offset=start_offset,end_offset=end_offset):
+        if block != record.block_offset: block = record.block_offset; position = 0
+        row = record.row
+        if row is not None and row.get('kind') == 'state_coverage':
+            context = context_of(row)
+            for cell in row['inputs']['cells']:
+                yield TraceRecord(None,block,position,record.end_offset,expand_cell(context,cell),
+                                  record.digest_before,record.digest_after,record.count_before,record.digest_scope)
+                position += 1
+        else:
+            yield TraceRecord(record.raw_payload,block,position,record.end_offset,row,
+                              record.digest_before,record.digest_after,record.count_before,record.digest_scope)
+            position += 1
 
 def iter_payloads(path, *, end_offset=None):
     for record in iter_records(path, end_offset=end_offset): yield record.payload
@@ -272,12 +341,18 @@ def decoded_size(path, *, end_offset=None):
 def storage_stats(path):
     stats = {'packed_frames': 0, 'raw_frames': 0, 'covered_snapshots': 0, 'explicit_snapshots': 0,
              'logical_records': 0, 'stored_bytes': Path(path).stat().st_size}
+    groups = virtual = initial = 0
     for version, kind, payload, *_ in _frames(path):
         stats['version'] = version
         if kind == b'P':
             packet = json.loads(payload)['packet']; expanded = list(unpack(packet)); covered = packet['covered_observations']
             stats['packed_frames'] += 1; stats['logical_records'] += len(expanded); stats['covered_snapshots'] += covered
             stats['explicit_snapshots'] += sum(row.get('kind') == 'metric_snapshot' for row in expanded) - covered
+            for row in expanded:
+                if row.get('kind') == 'state_coverage':
+                    cells = validate_group(row);groups += 1;virtual += len(cells)
+                    stats['covered_snapshots'] += sum(cell[1] == COVERAGE_RULE for cell in cells)
+                    initial += sum(cell[1] == BASELINE_RULE for cell in cells)
         else:
             stats['raw_frames'] += 1; stats['logical_records'] += 1
             try: row = json.loads(payload)
@@ -285,4 +360,9 @@ def storage_stats(path):
             if isinstance(row, dict) and row.get('kind') == 'metric_snapshot': stats['explicit_snapshots'] += 1
     stats['physical_frames'] = stats['packed_frames'] + stats['raw_frames']
     stats['stored_bytes'] = Path(path).stat().st_size
+    stats['event_records'] = stats['logical_records']
+    stats['coverage_groups'] = groups;stats['virtual_samples'] = virtual
+    stats['initial_samples'] = initial
+    stats['expanded_records'] = stats['event_records']-groups+virtual
+    stats['logical_records'] = stats['expanded_records']  # Legacy expanded-view alias.
     return stats

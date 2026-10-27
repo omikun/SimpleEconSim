@@ -26,7 +26,8 @@ from contextlib import contextmanager
 import numpy as np
 
 from run_trace import verify
-from trace_codec import iter_records, CorruptTrace, TornTraceTail
+from trace_codec import iter_storage_records, CorruptTrace, TornTraceTail
+from trace_state_coverage import expanded_count
 from python_code_signature import code_signature
 
 VERSION = 1
@@ -235,7 +236,8 @@ def save(server, directory):
         trace_path = directory / (identity + '.ctr')
         _copy_prefix(trace.path, trace_path, boundary)
         checked = verify(trace_path)
-        if checked['rows'] != trace.count or checked['sha256'] != trace.digest:
+        if (checked['rows'] != trace.count or checked['sha256'] != trace.digest
+                or checked['event_records'] != trace.event_count):
             raise CorruptTrace('checkpoint trace does not match live recorder state')
         _publish(state_path, payload)
         manifest = {'version': VERSION, 'python': platform.python_version(),
@@ -244,6 +246,7 @@ def save(server, directory):
                     'turn': server.turn, 'epoch': clock.get('epoch', 0),
                     'next_sequence': clock['next'], 'trace_bytes': boundary,
                     'trace_rows': trace.count, 'trace_sha256': trace.digest,
+                    'trace_event_records':trace.event_count,
                     'trace_file': trace_path.name, 'state_file': state_path.name,
                     'state_sha256': hashlib.sha256(payload).hexdigest()}
         manifest_path = directory / (identity + '.checkpoint.json')
@@ -273,7 +276,8 @@ def restore(manifest_path, branch_directory):
     if saved_trace.stat().st_size != manifest['trace_bytes']:
         raise CorruptTrace('checkpoint trace boundary mismatch')
     checked = verify(saved_trace)
-    if checked['rows'] != manifest['trace_rows'] or checked['sha256'] != manifest['trace_sha256']:
+    if (checked['rows'] != manifest['trace_rows'] or checked['sha256'] != manifest['trace_sha256']
+            or checked['event_records'] != manifest.get('trace_event_records', checked['event_records'])):
         raise CorruptTrace('checkpoint trace digest/count mismatch')
     payload = artifact('state_file').read_bytes()
     if hashlib.sha256(payload).hexdigest() != manifest['state_sha256']:
@@ -316,11 +320,11 @@ def recover(manifest_path, damaged_trace, branch_directory):
     prefix_rows = 0
     torn = None; complete_end = 0
     try:
-        for record in iter_records(damaged_trace):
+        for record in iter_storage_records(damaged_trace):
             complete_end = record.end_offset
             if record.end_offset <= boundary:
                 prefix_digest = record.digest_after
-                prefix_rows += 1
+                prefix_rows += expanded_count(record.row) if record.row is not None else 1
     except TornTraceTail as error:
         torn = str(error)
     if prefix_rows != manifest['trace_rows'] or prefix_digest != manifest['trace_sha256']:

@@ -84,7 +84,7 @@ def record_labor_censuses(trace, clock, current_censuses, prior_censuses, previo
                     'status_priority': ['military', 'trader', 'constable', 'workhouse', 'employed', 'independent'],
                     'sample_point': 'end of world turn, after migration and scenario operations',
                     'person_event_links': links}
-        shared = (trace._compact_writer.version == 4
+        shared = (trace._compact_writer.version >= 4
                   and os.environ.get('COC_TRACE_SHARED_INPUTS', '1') != '0')
         evidence = SharedEvidence(evidence) if shared else evidence
         def with_evidence(specific):

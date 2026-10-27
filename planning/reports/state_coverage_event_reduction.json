@@ -1,0 +1,1354 @@
+{
+  "date": "2026-10-27",
+  "baseline_commit": "3c73b2f",
+  "method": "Separate sequential processes, PYTHONHASHSEED=0, seed777, numpy seed777; V4 and V5 with all previous optimizations enabled. Single local sample per configuration.",
+  "scenarios": {
+    "default": {
+      "reports": {
+        "baseline": {
+          "mode": "coverage",
+          "seed": 777,
+          "scenario": null,
+          "turns": [
+            3.68735491624102,
+            3.6549041252583265,
+            3.5411738753318787
+          ],
+          "tiles": 1000,
+          "stats": {
+            "packed_frames": 6588,
+            "raw_frames": 0,
+            "covered_snapshots": 395711,
+            "explicit_snapshots": 144828,
+            "logical_records": 785108,
+            "stored_bytes": 14099198,
+            "version": 4,
+            "physical_frames": 6588,
+            "event_records": 785108,
+            "coverage_groups": 0,
+            "virtual_samples": 0,
+            "initial_samples": 0,
+            "expanded_records": 785108
+          },
+          "trace": "/Users/sli/Code/tmp/traces/desktop-35207a25632d4df4983063b60e55660d.ctr",
+          "integrity": {
+            "rows": 785108,
+            "checkpoints": 3,
+            "sha256": "c405bf821434ea271a9c1ca1ae659d667b6c03ad1a553a1fe33e35aa740cb5e8",
+            "event_records": 785108,
+            "coverage_groups": 0,
+            "virtual_samples": 0
+          },
+          "metrics_digest": "0981a125fae60b7f427388f785f0556895577628689e7e14a822955ce4e9da15",
+          "evidence_digest": "e7a15d27dd1e9d84eeec49ea84bf6cdb344e82b98319d7961ac4867418151a60",
+          "python_rng_digest": "8ef15db2cb468ada13b6cc6c0047dc67fb11a0183c03db347ffb40035fe16cce",
+          "numpy_rng_digest": "b4587759d63d8a810c3b5f8017d8a75a76ab15258462948f43893ca7ad8faca4",
+          "catalog_cold_seconds": 9.513171208556741,
+          "catalog_warm_seconds": 0.002459708135575056,
+          "catalog_options": 973,
+          "normalization": "Run/operation identities and format-specific checkpoint digest metadata only."
+        },
+        "optimized": {
+          "mode": "coverage",
+          "seed": 777,
+          "scenario": null,
+          "turns": [
+            3.182013957761228,
+            3.3786938753910363,
+            3.23081862507388
+          ],
+          "tiles": 1000,
+          "stats": {
+            "packed_frames": 3083,
+            "raw_frames": 0,
+            "covered_snapshots": 395711,
+            "explicit_snapshots": 2157,
+            "logical_records": 785108,
+            "stored_bytes": 13374288,
+            "version": 5,
+            "physical_frames": 3083,
+            "event_records": 137131,
+            "coverage_groups": 12043,
+            "virtual_samples": 660020,
+            "initial_samples": 142671,
+            "expanded_records": 785108
+          },
+          "trace": "/Users/sli/Code/tmp/traces/desktop-f44388555d4f427d8546f2bb0e8864ef.ctr",
+          "integrity": {
+            "rows": 785108,
+            "checkpoints": 3,
+            "sha256": "2558b817bd20ff4f3baa9dff1f648b66d27189d0156e25ecb846751ac054f69c",
+            "event_records": 137131,
+            "coverage_groups": 12043,
+            "virtual_samples": 660020
+          },
+          "metrics_digest": "0981a125fae60b7f427388f785f0556895577628689e7e14a822955ce4e9da15",
+          "evidence_digest": "e7a15d27dd1e9d84eeec49ea84bf6cdb344e82b98319d7961ac4867418151a60",
+          "python_rng_digest": "8ef15db2cb468ada13b6cc6c0047dc67fb11a0183c03db347ffb40035fe16cce",
+          "numpy_rng_digest": "b4587759d63d8a810c3b5f8017d8a75a76ab15258462948f43893ca7ad8faca4",
+          "catalog_cold_seconds": 3.599670249968767,
+          "catalog_warm_seconds": 0.00253183301538229,
+          "catalog_options": 973,
+          "normalization": "Run/operation identities and format-specific checkpoint digest metadata only."
+        }
+      },
+      "storage": {
+        "baseline": {
+          "per_turn": {
+            "0": {
+              "event_records": 136,
+              "expanded_records": 136
+            },
+            "1": {
+              "event_records": 261010,
+              "expanded_records": 261010
+            },
+            "2": {
+              "event_records": 262026,
+              "expanded_records": 262026
+            },
+            "3": {
+              "event_records": 261935,
+              "expanded_records": 261935
+            }
+          },
+          "rules": {},
+          "index_events_rows": 785108,
+          "index_coverage_rows": 0,
+          "index_total_data_rows": 785108,
+          "index_bytes": 370393088
+        },
+        "optimized": {
+          "per_turn": {
+            "0": {
+              "event_records": 136,
+              "expanded_records": 136
+            },
+            "1": {
+              "event_records": 56623,
+              "expanded_records": 261010,
+              "coverage_groups": 3172,
+              "virtual_samples": 207559
+            },
+            "2": {
+              "event_records": 40263,
+              "expanded_records": 262026,
+              "coverage_groups": 4442,
+              "virtual_samples": 226205
+            },
+            "3": {
+              "event_records": 40108,
+              "expanded_records": 261935,
+              "coverage_groups": 4429,
+              "virtual_samples": 226256
+            }
+          },
+          "rules": {
+            "checked_empty_tax_distribution.v1": 11856,
+            "checked_empty_disease_census.v1": 14996,
+            "checked_unchanged_snapshot.v1": 395698,
+            "checked_initial_snapshot.v1": 142671,
+            "checked_no_price_writes.v1": 56775,
+            "checked_retained_gini.v1": 480,
+            "checked_wilderness_gini_zero.v1": 37544
+          },
+          "index_events_rows": 137131,
+          "index_coverage_rows": 12043,
+          "index_total_data_rows": 149174,
+          "index_bytes": 173285376
+        }
+      },
+      "evidence": {
+        "nonmetadata_rows_compared": 785107,
+        "digest": "e7a15d27dd1e9d84eeec49ea84bf6cdb344e82b98319d7961ac4867418151a60",
+        "all_rows_and_kind_counts_equal": true,
+        "all_economic_metrics_and_both_rng_states_equal": true,
+        "normalization": "Run/operation identity strings and format-specific checkpoint hash/scope/event_count_before only; every numeric economic value and all original financial legs retained.",
+        "event_counts_by_kind": {
+          "bank_registered": 5,
+          "public_account_registered": 22,
+          "fx_trader_float_seeded": 109,
+          "food_security_assessment": 27,
+          "nation_border_vulnerability": 27,
+          "nation_diplomacy_evaluation": 6,
+          "nation_ai_decision": 6,
+          "intent_execution": 12,
+          "construction_funding_plan": 5,
+          "public_account_write": 511,
+          "public_construction_cash_debit": 10,
+          "construction_funding_decision": 5,
+          "person_role_conversion": 4,
+          "construction_contractor_payment": 5,
+          "construction_project_commissioned": 5,
+          "construction_project_step": 9,
+          "treasury_phase_delta": 14,
+          "charity_donation": 70,
+          "bank_deposit_posted": 49,
+          "bank_balance_operation": 269,
+          "cost_of_living_calculation": 36,
+          "trader_route_decision": 216,
+          "elite_planner_phase_gate": 36,
+          "elite_market_novelty_scan": 36,
+          "elite_planning_gate": 292,
+          "elite_luxury_purchase_evaluation": 201,
+          "elite_voyage_circuit_evaluation": 201,
+          "elite_spatial_trade_delegation": 201,
+          "elite_labor_legislation_evaluation": 201,
+          "elite_lord_transformation_evaluation": 54,
+          "elite_operator_execution": 38,
+          "corporation_ai_decision": 201,
+          "corporation_ai_outcome": 201,
+          "elite_operator_evaluation": 815,
+          "elite_inventory_liquidation_decision": 163,
+          "elite_capital_allocation_evaluation": 90,
+          "labor_scheduler_gate": 36,
+          "labor_machinery_sabotage_calculation": 36,
+          "labor_broken_machinery_calculation": 36,
+          "labor_striker_count_calculation": 36,
+          "commons_foraging": 2590,
+          "foraged_food_receipt": 2590,
+          "seasonal_water_allocation": 36,
+          "independent_production": 2195,
+          "independent_production_zero": 1001,
+          "granary_food_stock_transfer": 12,
+          "tile_production_total": 648,
+          "feudal_tribute_transfer": 3711,
+          "feudal_tribute_reference_valuation": 36,
+          "market_seller_order_submitted": 2657,
+          "market_buyer_order_submitted": 6413,
+          "local_seller_ask": 2368,
+          "market_zero_order_summary": 189,
+          "market_demand_total": 189,
+          "market_supply_total": 189,
+          "market_demand_supply_ratio": 225,
+          "local_buyer_bid": 6413,
+          "paid_market_sale": 3701,
+          "paid_market_unit_price": 3701,
+          "market_seller_receipt_posted": 3701,
+          "market_transaction_vwap": 132,
+          "market_clearing_summary": 140,
+          "market_price_update": 189,
+          "bank_withdrawal_posted": 78,
+          "charity_food_purchase": 20,
+          "government_food_purchase": 556,
+          "market_total_units_sold": 140,
+          "market_price_decay": 36,
+          "rent_collection_summary": 36,
+          "rent_arrears_summary": 36,
+          "pasture_fraction_calculation": 36,
+          "government_reserve_deficit_calculation": 15,
+          "income_tax_assessment_calculation": 15,
+          "tax_revenue_distribution_calculation": 12000,
+          "government_remaining_financing_gap": 15,
+          "government_tax_rate_decision": 15,
+          "nominal_gdp_calculation": 36,
+          "effective_workday_cap_sample": 3000,
+          "labor_shift_hours_calculation": 36,
+          "labor_exploitation_rate_calculation": 36,
+          "labor_surplus_value_calculation": 36,
+          "youth_livelihood_entry": 72,
+          "household_nonfood_consumption": 1066,
+          "civilian_food_consumption_total": 36,
+          "social_class_population_calculation": 216,
+          "workhouse_forced_labor_calculation": 36,
+          "workhouse_inmate_census": 36,
+          "labor_average_alienation_calculation": 36,
+          "labor_average_class_consciousness_calculation": 36,
+          "health_average_bodily_wear_calculation": 36,
+          "labor_workplace_accidents_calculation": 36,
+          "society_entertainment_level_sample": 36,
+          "pollution_downstream_advection": 51,
+          "soil_fertility_update": 36,
+          "nutrition_density_update": 36,
+          "pollution_air_update": 36,
+          "pollution_water_update": 36,
+          "pollution_soil_update": 36,
+          "disease_fatalities_observed": 36,
+          "disease_cases_observed": 180,
+          "medical_care_summary": 36,
+          "disease_untreated_cases_observed": 36,
+          "pollution_health_assessment": 36,
+          "gini_series_calculation": 57036,
+          "producer_inventory_total": 648,
+          "trader_cash_total_calculation": 3000,
+          "population_hunger_count_calculation": 36,
+          "trade_pipeline_depth_calculation": 3000,
+          "infant_fatalities_turn_total": 36,
+          "grievance_sources": 36,
+          "faction_support_history_calculation": 504,
+          "faction_grievance_history_calculation": 504,
+          "protest_energy_update": 36,
+          "unrest_roll": 36,
+          "population_count_calculation": 36,
+          "commons_access_calculation": 36,
+          "foraged_food_total": 36,
+          "purchased_food_total": 36,
+          "bank_equity_calculation": 36,
+          "total_cash_calculation": 36,
+          "population_change_rate_calculation": 3000,
+          "bank_loan_issued": 44,
+          "government_deposit_interest_received": 12,
+          "bank_deposit_interest_payout": 15,
+          "charity_food_aid_recipient": 36,
+          "charity_food_aid": 13,
+          "government_income_calculation": 36,
+          "corporate_payroll_funding_decision": 8,
+          "corporate_wage_decision": 8,
+          "labor_collective_organization_check": 8,
+          "labor_workforce_availability": 8,
+          "market_no_trade": 49,
+          "income_tax_collected": 5,
+          "government_bank_borrowing": 5,
+          "household_food_intake": 549,
+          "disease_onset_assessment": 544,
+          "wilderness_food_production": 2964,
+          "wilderness_nominal_gdp": 2964,
+          "wilderness_population_census": 2964,
+          "fx_conversion_executed": 396,
+          "migration_push_decision": 36,
+          "coup_check": 9,
+          "legitimacy_drift": 9,
+          "uprising_pressure_gate": 9,
+          "uprising_response_decision": 9,
+          "uprising_response_outcome": 9,
+          "diplomacy_relation_drift": 9,
+          "innovation_learning_calculation": 45,
+          "innovation_bottleneck_pressure": 87,
+          "innovation_breakthrough_evaluation": 87,
+          "innovation_research_gate": 174,
+          "innovation_diffusion_gate": 108,
+          "fx_mid_update": 66,
+          "trade_export_value_calculation": 3000,
+          "trade_import_value_calculation": 3000,
+          "trade_net_value_calculation": 3000,
+          "bank_closing_balance": 45,
+          "bank_closing_equity": 15,
+          "bank_tile_closing_alias": 144,
+          "public_account_close": 66,
+          "treasury_account_closure": 9,
+          "final_labor_member_count": 3224,
+          "final_temporary_work_share_mean": 3000,
+          "resident_population_bridge": 8,
+          "closing_active_disease_census": 15000,
+          "person_event_count": 6000,
+          "living_person_count": 3000,
+          "treasury_reconciliation": 9,
+          "treasury_components": 9,
+          "national_aggregate": 75,
+          "national_reference_price_aggregate": 171,
+          "national_food_price_history_aggregate": 9,
+          "metric_snapshot": 540539,
+          "price_bridge": 57000,
+          "nation_chart_history_aggregate": 741,
+          "turn_checkpoint": 3,
+          "native_command_boundary": 3,
+          "public_construction_deposit_funding_debit": 4,
+          "enclosure_bailiff_force_decision": 6,
+          "bailiff_service": 6,
+          "enclosure_charter_fee": 6,
+          "enclosure_charter_fee_treasury_receipt": 6,
+          "obligation_assessed": 534,
+          "enclosure_charter_granted": 6,
+          "disease_health_attrition": 42,
+          "medical_care_payment": 40,
+          "medical_treatment": 40,
+          "takeover_attempt_failed": 6,
+          "bank_loan_repayment": 75,
+          "government_automatic_bank_credit": 3,
+          "government_ordinary_loan_repayment": 3,
+          "government_loan_service": 7,
+          "government_food_aid_recipient": 75,
+          "government_food_aid": 13,
+          "mortality_assessment": 191,
+          "welfare_distributed": 3,
+          "welfare_payment_recipient_payment": 18,
+          "away_trader_food_purchase": 57,
+          "fx_order_match": 17,
+          "obligation_settlement": 267,
+          "cash_obligation_payment": 267,
+          "obligation_payment": 267,
+          "medical_treatment_unaffordable": 2,
+          "trader_route_assignment": 42
+        }
+      },
+      "historical_catalogs": [
+        {
+          "subject": {
+            "type": "tile",
+            "id": "c0"
+          },
+          "turn": 2,
+          "catalog_variants": 910
+        },
+        {
+          "subject": {
+            "type": "tile",
+            "id": "c500"
+          },
+          "turn": 2,
+          "catalog_variants": 181
+        },
+        {
+          "subject": {
+            "id": "China",
+            "type": "nation"
+          },
+          "turn": 2,
+          "catalog_variants": 167
+        }
+      ],
+      "identical_historical_packets": [
+        {
+          "metric": "goods.price",
+          "subject": {
+            "good": "food",
+            "id": "c0",
+            "type": "tile"
+          },
+          "values": {
+            "before": 1.0,
+            "after": 1.076313531015601,
+            "delta": 0.0763135310156009,
+            "percent": 7.63135310156009,
+            "unit": "local_currency_per_unit",
+            "epoch": 1
+          },
+          "evidence_events": 64
+        },
+        {
+          "metric": "goods.sold",
+          "subject": {
+            "good": "food",
+            "id": "c0",
+            "type": "tile"
+          },
+          "values": {
+            "before": 148.0,
+            "after": 123.0,
+            "delta": -25.0,
+            "percent": -16.89189189189189,
+            "unit": "units",
+            "epoch": 1
+          },
+          "evidence_events": 64
+        },
+        {
+          "metric": "economy.gini",
+          "subject": {
+            "good": "food",
+            "id": "c0",
+            "type": "tile"
+          },
+          "values": {
+            "before": 0.0,
+            "after": 0.0,
+            "delta": 0.0,
+            "percent": null,
+            "unit": "ratio",
+            "epoch": 1
+          },
+          "evidence_events": 3
+        },
+        {
+          "metric": "people.population",
+          "subject": {
+            "id": "c0",
+            "type": "tile"
+          },
+          "values": {
+            "before": 99,
+            "after": 99,
+            "delta": 0,
+            "percent": 0.0,
+            "unit": "people",
+            "epoch": 1
+          },
+          "evidence_events": 2
+        },
+        {
+          "metric": "goods.price",
+          "subject": {
+            "good": "food",
+            "id": "c500",
+            "type": "tile"
+          },
+          "values": {
+            "before": 1.0,
+            "after": 1.0,
+            "delta": 0.0,
+            "percent": 0.0,
+            "unit": "local_currency_per_unit",
+            "epoch": 1
+          },
+          "evidence_events": 2
+        },
+        {
+          "metric": "goods.sold",
+          "subject": {
+            "good": "food",
+            "id": "c500",
+            "type": "tile"
+          },
+          "values": {
+            "before": 0.0,
+            "after": 0.0,
+            "delta": 0.0,
+            "percent": null,
+            "unit": "units",
+            "epoch": 1
+          },
+          "evidence_events": 1
+        },
+        {
+          "metric": "economy.gini",
+          "subject": {
+            "good": "food",
+            "id": "c500",
+            "type": "tile"
+          },
+          "values": {
+            "before": 0.0,
+            "after": 0.0,
+            "delta": 0.0,
+            "percent": null,
+            "unit": "ratio",
+            "epoch": 1
+          },
+          "evidence_events": 3
+        },
+        {
+          "metric": "people.population",
+          "subject": {
+            "id": "c500",
+            "type": "tile"
+          },
+          "values": {
+            "before": 0,
+            "after": 0,
+            "delta": 0,
+            "percent": null,
+            "unit": "people",
+            "epoch": 1
+          },
+          "evidence_events": 2
+        },
+        {
+          "metric": "economy.gini",
+          "subject": {
+            "good": "food",
+            "id": "China",
+            "type": "nation"
+          },
+          "values": {
+            "before": 0.0,
+            "after": 0.0,
+            "delta": 0.0,
+            "percent": null,
+            "unit": "ratio",
+            "epoch": 1
+          },
+          "evidence_events": 10
+        },
+        {
+          "metric": "people.population",
+          "subject": {
+            "id": "China",
+            "type": "nation"
+          },
+          "values": {
+            "before": 396,
+            "after": 396,
+            "delta": 0,
+            "percent": 0.0,
+            "unit": "people",
+            "epoch": 1
+          },
+          "evidence_events": 2
+        },
+        {
+          "metric": "finance.treasury",
+          "subject": {
+            "id": "China",
+            "type": "nation"
+          },
+          "values": {
+            "before": 1336.0839999999998,
+            "after": 1148.1455964065,
+            "delta": -187.93840359349974,
+            "percent": -14.066361366014396,
+            "unit": "CNY",
+            "epoch": 1
+          },
+          "evidence_events": 64
+        }
+      ],
+      "reductions_percent": {
+        "event_records": 82.53348583889095,
+        "index_data_rows": 80.99955674888041,
+        "stored_bytes": 5.141498119254728,
+        "total_turn_time": 10.032739365870924,
+        "cold_catalog": 62.16119555662997
+      }
+    },
+    "egypt_1877": {
+      "reports": {
+        "baseline": {
+          "mode": "coverage",
+          "seed": 777,
+          "scenario": "egypt_1877",
+          "turns": [
+            3.9826702503487468,
+            3.927590916864574
+          ],
+          "tiles": 1000,
+          "stats": {
+            "packed_frames": 4492,
+            "raw_frames": 0,
+            "covered_snapshots": 216252,
+            "explicit_snapshots": 144141,
+            "logical_records": 527764,
+            "stored_bytes": 10175386,
+            "version": 4,
+            "physical_frames": 4492,
+            "event_records": 527764,
+            "coverage_groups": 0,
+            "virtual_samples": 0,
+            "initial_samples": 0,
+            "expanded_records": 527764
+          },
+          "trace": "/Users/sli/Code/tmp/traces/desktop-957a4f0adb334513a82fe15b178e4b0a.ctr",
+          "integrity": {
+            "rows": 527764,
+            "checkpoints": 2,
+            "sha256": "db27a806c72d10483bdb36c36406dc356ca6c43a19aca24f8c395ce7be9bc096",
+            "event_records": 527764,
+            "coverage_groups": 0,
+            "virtual_samples": 0
+          },
+          "metrics_digest": "5599acf189dd71a37bf59148d6d1308bcdfbe20513e33b3c23d89175af41095e",
+          "evidence_digest": "2d86d69e9fe8748a385bdd94f677603bf809582bb0bbf7de84434240b21d9293",
+          "python_rng_digest": "d8413accc783c9b8465f194852cbd16e1add29a06c69f01400ba40989f2d350f",
+          "numpy_rng_digest": "b4587759d63d8a810c3b5f8017d8a75a76ab15258462948f43893ca7ad8faca4",
+          "catalog_cold_seconds": 6.622377791907638,
+          "catalog_warm_seconds": 0.000939750112593174,
+          "catalog_options": 181,
+          "normalization": "Run/operation identities and format-specific checkpoint digest metadata only."
+        },
+        "optimized": {
+          "mode": "coverage",
+          "seed": 777,
+          "scenario": "egypt_1877",
+          "turns": [
+            3.3838984169997275,
+            3.6214852910488844
+          ],
+          "tiles": 1000,
+          "stats": {
+            "packed_frames": 2185,
+            "raw_frames": 0,
+            "covered_snapshots": 216252,
+            "explicit_snapshots": 1467,
+            "logical_records": 527764,
+            "stored_bytes": 9605098,
+            "version": 5,
+            "physical_frames": 2185,
+            "event_records": 101722,
+            "coverage_groups": 7628,
+            "virtual_samples": 433670,
+            "initial_samples": 142674,
+            "expanded_records": 527764
+          },
+          "trace": "/Users/sli/Code/tmp/traces/desktop-2a2964a3ab6b4fc0b6e84355e9e05e59.ctr",
+          "integrity": {
+            "rows": 527764,
+            "checkpoints": 2,
+            "sha256": "2b1ec6e8471551c7f7b75ef5cb636e449f3cbd2cb972bb5ef73dfcc7fd25ef29",
+            "event_records": 101722,
+            "coverage_groups": 7628,
+            "virtual_samples": 433670
+          },
+          "metrics_digest": "5599acf189dd71a37bf59148d6d1308bcdfbe20513e33b3c23d89175af41095e",
+          "evidence_digest": "2d86d69e9fe8748a385bdd94f677603bf809582bb0bbf7de84434240b21d9293",
+          "python_rng_digest": "d8413accc783c9b8465f194852cbd16e1add29a06c69f01400ba40989f2d350f",
+          "numpy_rng_digest": "b4587759d63d8a810c3b5f8017d8a75a76ab15258462948f43893ca7ad8faca4",
+          "catalog_cold_seconds": 2.594577500130981,
+          "catalog_warm_seconds": 0.001064084004610777,
+          "catalog_options": 181,
+          "normalization": "Run/operation identities and format-specific checkpoint digest metadata only."
+        }
+      },
+      "storage": {
+        "baseline": {
+          "per_turn": {
+            "1": {
+              "event_records": 142,
+              "expanded_records": 142
+            },
+            "2": {
+              "event_records": 263489,
+              "expanded_records": 263489
+            },
+            "3": {
+              "event_records": 264132,
+              "expanded_records": 264132
+            }
+          },
+          "rules": {},
+          "index_events_rows": 527764,
+          "index_coverage_rows": 0,
+          "index_total_data_rows": 527764,
+          "index_bytes": 248840192
+        },
+        "optimized": {
+          "per_turn": {
+            "1": {
+              "event_records": 142,
+              "expanded_records": 142
+            },
+            "2": {
+              "event_records": 59104,
+              "expanded_records": 263489,
+              "coverage_groups": 3167,
+              "virtual_samples": 207552
+            },
+            "3": {
+              "event_records": 42475,
+              "expanded_records": 264132,
+              "coverage_groups": 4461,
+              "virtual_samples": 226118
+            }
+          },
+          "rules": {
+            "checked_empty_tax_distribution.v1": 7904,
+            "checked_empty_disease_census.v1": 9995,
+            "checked_no_price_writes.v1": 37842,
+            "checked_unchanged_snapshot.v1": 216243,
+            "checked_initial_snapshot.v1": 142674,
+            "checked_retained_gini.v1": 240,
+            "checked_wilderness_gini_zero.v1": 18772
+          },
+          "index_events_rows": 101722,
+          "index_coverage_rows": 7628,
+          "index_total_data_rows": 109350,
+          "index_bytes": 118018048
+        }
+      },
+      "evidence": {
+        "nonmetadata_rows_compared": 527763,
+        "digest": "2d86d69e9fe8748a385bdd94f677603bf809582bb0bbf7de84434240b21d9293",
+        "all_rows_and_kind_counts_equal": true,
+        "all_economic_metrics_and_both_rng_states_equal": true,
+        "normalization": "Run/operation identity strings and format-specific checkpoint hash/scope/event_count_before only; every numeric economic value and all original financial legs retained.",
+        "event_counts_by_kind": {
+          "bank_registered": 5,
+          "public_account_registered": 22,
+          "fx_trader_float_seeded": 115,
+          "charity_donation": 151,
+          "bank_deposit_posted": 42,
+          "bank_balance_operation": 173,
+          "cost_of_living_calculation": 24,
+          "trader_route_decision": 144,
+          "elite_planner_phase_gate": 24,
+          "elite_market_novelty_scan": 24,
+          "elite_planning_gate": 268,
+          "elite_luxury_purchase_evaluation": 268,
+          "elite_voyage_circuit_evaluation": 268,
+          "elite_spatial_trade_delegation": 268,
+          "elite_labor_legislation_evaluation": 268,
+          "elite_lord_transformation_evaluation": 56,
+          "elite_operator_execution": 50,
+          "corporation_ai_decision": 268,
+          "corporation_ai_outcome": 268,
+          "elite_operator_evaluation": 1090,
+          "elite_capital_allocation_evaluation": 175,
+          "elite_inventory_liquidation_decision": 218,
+          "labor_scheduler_gate": 24,
+          "labor_machinery_sabotage_calculation": 24,
+          "labor_broken_machinery_calculation": 24,
+          "labor_striker_count_calculation": 24,
+          "commons_foraging": 1247,
+          "foraged_food_receipt": 1247,
+          "seasonal_water_allocation": 24,
+          "independent_production_zero": 479,
+          "independent_production": 1789,
+          "private_harvest_purchase_payment": 65,
+          "private_harvest_purchase_food": 65,
+          "tile_production_total": 432,
+          "feudal_tribute_transfer": 1206,
+          "feudal_tribute_reference_valuation": 24,
+          "market_seller_order_submitted": 1541,
+          "market_buyer_order_submitted": 4920,
+          "local_seller_ask": 1321,
+          "market_zero_order_summary": 134,
+          "market_demand_total": 134,
+          "market_supply_total": 134,
+          "market_demand_supply_ratio": 158,
+          "local_buyer_bid": 4920,
+          "paid_market_sale": 2569,
+          "paid_market_unit_price": 2569,
+          "market_seller_receipt_posted": 2569,
+          "market_transaction_vwap": 99,
+          "market_clearing_summary": 99,
+          "market_price_update": 134,
+          "bank_withdrawal_posted": 33,
+          "charity_food_purchase": 35,
+          "public_account_write": 255,
+          "government_food_purchase": 286,
+          "market_total_units_sold": 99,
+          "market_price_decay": 24,
+          "rent_collection_summary": 24,
+          "rent_arrears_summary": 24,
+          "pasture_fraction_calculation": 24,
+          "government_reserve_deficit_calculation": 10,
+          "income_tax_assessment_calculation": 10,
+          "tax_revenue_distribution_calculation": 8040,
+          "government_remaining_financing_gap": 10,
+          "government_tax_rate_decision": 10,
+          "nominal_gdp_calculation": 24,
+          "effective_workday_cap_sample": 2000,
+          "labor_shift_hours_calculation": 24,
+          "labor_exploitation_rate_calculation": 24,
+          "labor_surplus_value_calculation": 24,
+          "government_food_aid_recipient": 47,
+          "government_food_aid": 9,
+          "youth_livelihood_entry": 72,
+          "household_food_intake": 773,
+          "household_nonfood_consumption": 456,
+          "civilian_food_consumption_total": 24,
+          "social_class_population_calculation": 144,
+          "workhouse_forced_labor_calculation": 24,
+          "workhouse_inmate_census": 24,
+          "labor_average_alienation_calculation": 24,
+          "labor_average_class_consciousness_calculation": 24,
+          "health_average_bodily_wear_calculation": 24,
+          "labor_workplace_accidents_calculation": 24,
+          "society_entertainment_level_sample": 24,
+          "pollution_downstream_advection": 10,
+          "soil_fertility_update": 24,
+          "nutrition_density_update": 24,
+          "pollution_air_update": 24,
+          "pollution_water_update": 24,
+          "pollution_soil_update": 24,
+          "disease_onset_assessment": 643,
+          "disease_fatalities_observed": 24,
+          "disease_cases_observed": 120,
+          "medical_care_summary": 24,
+          "disease_untreated_cases_observed": 24,
+          "pollution_health_assessment": 24,
+          "gini_series_calculation": 38024,
+          "producer_inventory_total": 432,
+          "trader_cash_total_calculation": 2000,
+          "population_hunger_count_calculation": 24,
+          "trade_pipeline_depth_calculation": 2000,
+          "infant_fatalities_turn_total": 24,
+          "grievance_sources": 24,
+          "faction_support_history_calculation": 336,
+          "faction_grievance_history_calculation": 336,
+          "protest_energy_update": 24,
+          "unrest_roll": 24,
+          "population_count_calculation": 24,
+          "commons_access_calculation": 24,
+          "foraged_food_total": 24,
+          "purchased_food_total": 24,
+          "bank_equity_calculation": 24,
+          "total_cash_calculation": 24,
+          "population_change_rate_calculation": 2000,
+          "bank_loan_issued": 46,
+          "enclosure_charter_fee": 22,
+          "enclosure_charter_fee_treasury_receipt": 22,
+          "obligation_assessed": 995,
+          "enclosure_charter_granted": 22,
+          "fertilizer_stock_inflow": 4,
+          "government_deposit_interest_received": 10,
+          "bank_deposit_interest_payout": 10,
+          "charity_food_aid_recipient": 52,
+          "charity_food_aid": 6,
+          "government_income_calculation": 24,
+          "disease_health_attrition": 39,
+          "medical_treatment_unaffordable": 10,
+          "wilderness_food_production": 1976,
+          "wilderness_nominal_gdp": 1976,
+          "wilderness_population_census": 1976,
+          "treasury_phase_delta": 9,
+          "away_trader_food_purchase": 5,
+          "fx_conversion_executed": 264,
+          "migration_push_decision": 24,
+          "coup_check": 6,
+          "legitimacy_drift": 6,
+          "uprising_pressure_gate": 6,
+          "uprising_response_decision": 6,
+          "uprising_response_outcome": 6,
+          "army_payroll": 2,
+          "abstract_military_payroll_cash_sink": 2,
+          "army_ration_consumption": 2,
+          "army_upkeep_outcome": 2,
+          "diplomacy_relation_drift": 6,
+          "innovation_learning_calculation": 30,
+          "innovation_bottleneck_pressure": 44,
+          "innovation_breakthrough_evaluation": 44,
+          "innovation_research_gate": 130,
+          "innovation_diffusion_gate": 70,
+          "fx_mid_update": 44,
+          "trade_export_value_calculation": 2000,
+          "trade_import_value_calculation": 2000,
+          "trade_net_value_calculation": 2000,
+          "cadastral_tax_payment": 1006,
+          "cadastral_tax_arrears_balance": 1031,
+          "cadastral_foreclosure_risk_roll": 1031,
+          "cadastral_tax_treasury_receipt": 20,
+          "occupation_revenue_assessment": 20,
+          "scenario_politics_dynamics_calculation": 2,
+          "scenario_politics_metric_outcome": 8,
+          "scenario_political_crisis_gate_evaluation": 4,
+          "bank_closing_balance": 30,
+          "bank_closing_equity": 10,
+          "bank_tile_closing_alias": 96,
+          "public_account_close": 44,
+          "treasury_account_closure": 6,
+          "final_labor_member_count": 2144,
+          "final_temporary_work_share_mean": 2000,
+          "closing_active_disease_census": 10000,
+          "person_event_count": 4000,
+          "living_person_count": 2000,
+          "treasury_reconciliation": 6,
+          "treasury_components": 6,
+          "national_aggregate": 56,
+          "national_reference_price_aggregate": 114,
+          "national_food_price_history_aggregate": 6,
+          "price_bridge": 38000,
+          "metric_snapshot": 360393,
+          "nation_chart_history_aggregate": 202,
+          "turn_checkpoint": 2,
+          "native_command_boundary": 2,
+          "enclosure_bailiff_force_decision": 10,
+          "bailiff_service": 10,
+          "market_no_trade": 35,
+          "government_market_purchase": 2,
+          "mortality_assessment": 31,
+          "medical_care_payment": 29,
+          "medical_treatment": 29,
+          "bank_loan_repayment": 42,
+          "obligation_settlement": 62,
+          "cash_obligation_payment": 59,
+          "obligation_payment": 59,
+          "labor_enforcement_case": 17,
+          "starvation_death_assessment": 3,
+          "person_died": 3,
+          "profession_population_count": 3,
+          "government_estate_cash_receipt": 2,
+          "estate_cash_allocated": 4,
+          "estate_decedent_cash_closed": 2,
+          "estate_inventory_allocated": 1,
+          "estate_decedent_inventory_closed": 1,
+          "resident_population_bridge": 4
+        }
+      },
+      "historical_catalogs": [
+        {
+          "subject": {
+            "type": "tile",
+            "id": "c0"
+          },
+          "turn": 2,
+          "catalog_variants": 181
+        },
+        {
+          "subject": {
+            "type": "tile",
+            "id": "c500"
+          },
+          "turn": 2,
+          "catalog_variants": 181
+        },
+        {
+          "subject": {
+            "id": "Britain",
+            "type": "nation"
+          },
+          "turn": 2,
+          "catalog_variants": 112
+        },
+        {
+          "subject": {
+            "type": "nation",
+            "id": "Egypt"
+          },
+          "turn": 2,
+          "catalog_variants": 113
+        },
+        {
+          "subject": {
+            "type": "nation",
+            "id": "Egypt"
+          },
+          "turn": 3,
+          "catalog_variants": 111
+        }
+      ],
+      "identical_historical_packets": [
+        {
+          "metric": "goods.price",
+          "subject": {
+            "good": "food",
+            "id": "c0",
+            "type": "tile"
+          },
+          "values": {
+            "before": 1.0,
+            "after": 1.0,
+            "delta": 0.0,
+            "percent": 0.0,
+            "unit": "local_currency_per_unit",
+            "epoch": 0
+          },
+          "evidence_events": 2
+        },
+        {
+          "metric": "goods.sold",
+          "subject": {
+            "good": "food",
+            "id": "c0",
+            "type": "tile"
+          },
+          "values": {
+            "before": null,
+            "after": 0.0,
+            "delta": null,
+            "percent": null,
+            "unit": "units",
+            "epoch": 0
+          },
+          "evidence_events": 1
+        },
+        {
+          "metric": "economy.gini",
+          "subject": {
+            "good": "food",
+            "id": "c0",
+            "type": "tile"
+          },
+          "values": {
+            "before": null,
+            "after": 0.0,
+            "delta": null,
+            "percent": null,
+            "unit": "ratio",
+            "epoch": 0
+          },
+          "evidence_events": 2
+        },
+        {
+          "metric": "people.population",
+          "subject": {
+            "id": "c0",
+            "type": "tile"
+          },
+          "values": {
+            "before": 0,
+            "after": 0,
+            "delta": 0,
+            "percent": null,
+            "unit": "people",
+            "epoch": 0
+          },
+          "evidence_events": 2
+        },
+        {
+          "metric": "goods.price",
+          "subject": {
+            "good": "food",
+            "id": "c500",
+            "type": "tile"
+          },
+          "values": {
+            "before": 1.0,
+            "after": 1.0,
+            "delta": 0.0,
+            "percent": 0.0,
+            "unit": "local_currency_per_unit",
+            "epoch": 0
+          },
+          "evidence_events": 2
+        },
+        {
+          "metric": "goods.sold",
+          "subject": {
+            "good": "food",
+            "id": "c500",
+            "type": "tile"
+          },
+          "values": {
+            "before": null,
+            "after": 0.0,
+            "delta": null,
+            "percent": null,
+            "unit": "units",
+            "epoch": 0
+          },
+          "evidence_events": 1
+        },
+        {
+          "metric": "economy.gini",
+          "subject": {
+            "good": "food",
+            "id": "c500",
+            "type": "tile"
+          },
+          "values": {
+            "before": null,
+            "after": 0.0,
+            "delta": null,
+            "percent": null,
+            "unit": "ratio",
+            "epoch": 0
+          },
+          "evidence_events": 2
+        },
+        {
+          "metric": "people.population",
+          "subject": {
+            "id": "c500",
+            "type": "tile"
+          },
+          "values": {
+            "before": 0,
+            "after": 0,
+            "delta": 0,
+            "percent": null,
+            "unit": "people",
+            "epoch": 0
+          },
+          "evidence_events": 2
+        },
+        {
+          "metric": "economy.gini",
+          "subject": {
+            "good": "food",
+            "id": "Britain",
+            "type": "nation"
+          },
+          "values": {
+            "before": null,
+            "after": 0.0,
+            "delta": null,
+            "percent": null,
+            "unit": "ratio",
+            "epoch": 0
+          },
+          "evidence_events": 5
+        },
+        {
+          "metric": "people.population",
+          "subject": {
+            "id": "Britain",
+            "type": "nation"
+          },
+          "values": {
+            "before": 406,
+            "after": 396,
+            "delta": -10,
+            "percent": -2.4630541871921183,
+            "unit": "people",
+            "epoch": 0
+          },
+          "evidence_events": 2
+        },
+        {
+          "metric": "finance.treasury",
+          "subject": {
+            "id": "Britain",
+            "type": "nation"
+          },
+          "values": {
+            "before": 1400.0,
+            "after": 1336.1680000000001,
+            "delta": -63.83199999999988,
+            "percent": -4.559428571428563,
+            "unit": "GBP",
+            "epoch": 0
+          },
+          "evidence_events": 64
+        },
+        {
+          "metric": "finance.treasury",
+          "subject": {
+            "id": "Egypt",
+            "type": "nation"
+          },
+          "turn": 2,
+          "values": {
+            "before": 635.0,
+            "after": 735.0312065967203,
+            "delta": 100.03120659672027,
+            "percent": 15.752945920743347,
+            "unit": "EGP",
+            "epoch": 0
+          },
+          "evidence_events": 64
+        },
+        {
+          "metric": "people.population",
+          "subject": {
+            "id": "Egypt",
+            "type": "nation"
+          },
+          "turn": 2,
+          "values": {
+            "before": 587,
+            "after": 571,
+            "delta": -16,
+            "percent": -2.72572402044293,
+            "unit": "people",
+            "epoch": 0
+          },
+          "evidence_events": 2
+        },
+        {
+          "metric": "goods.national_food_price",
+          "subject": {
+            "good": "food",
+            "id": "Egypt",
+            "type": "nation"
+          },
+          "turn": 2,
+          "values": {
+            "before": 1.0,
+            "after": 1.0367465677032868,
+            "delta": 0.03674656770328677,
+            "percent": 3.674656770328677,
+            "unit": "mean_local_currency_per_unit",
+            "epoch": 0
+          },
+          "evidence_events": 64
+        },
+        {
+          "metric": "politics.legitimacy",
+          "subject": {
+            "id": "Egypt",
+            "type": "nation"
+          },
+          "turn": 2,
+          "values": {
+            "before": 1.0,
+            "after": 0.9575577036615213,
+            "delta": -0.042442296338478736,
+            "percent": -4.2442296338478736,
+            "unit": "ratio",
+            "epoch": 0
+          },
+          "evidence_events": 2
+        },
+        {
+          "metric": "politics.protest_energy",
+          "subject": {
+            "id": "Egypt",
+            "type": "nation"
+          },
+          "turn": 2,
+          "values": {
+            "before": 0.0,
+            "after": 1.959272470090348,
+            "delta": 1.959272470090348,
+            "percent": null,
+            "unit": "mean_score",
+            "epoch": 0
+          },
+          "evidence_events": 2
+        },
+        {
+          "metric": "finance.treasury",
+          "subject": {
+            "id": "Egypt",
+            "type": "nation"
+          },
+          "turn": 3,
+          "values": {
+            "before": 735.0312065967203,
+            "after": 987.5284267361118,
+            "delta": 252.49722013939152,
+            "percent": 34.35190477265352,
+            "unit": "EGP",
+            "epoch": 1
+          },
+          "evidence_events": 64
+        },
+        {
+          "metric": "people.population",
+          "subject": {
+            "id": "Egypt",
+            "type": "nation"
+          },
+          "turn": 3,
+          "values": {
+            "before": 571,
+            "after": 568,
+            "delta": -3,
+            "percent": -0.5253940455341506,
+            "unit": "people",
+            "epoch": 1
+          },
+          "evidence_events": 8
+        },
+        {
+          "metric": "goods.national_food_price",
+          "subject": {
+            "good": "food",
+            "id": "Egypt",
+            "type": "nation"
+          },
+          "turn": 3,
+          "values": {
+            "before": 1.0367465677032868,
+            "after": 1.126123842870224,
+            "delta": 0.08937727516693728,
+            "percent": 8.620937647754696,
+            "unit": "mean_local_currency_per_unit",
+            "epoch": 1
+          },
+          "evidence_events": 64
+        },
+        {
+          "metric": "politics.legitimacy",
+          "subject": {
+            "id": "Egypt",
+            "type": "nation"
+          },
+          "turn": 3,
+          "values": {
+            "before": 0.9575577036615213,
+            "after": 0.9159788132215507,
+            "delta": -0.04157889043997054,
+            "percent": -4.3421811845887355,
+            "unit": "ratio",
+            "epoch": 1
+          },
+          "evidence_events": 2
+        },
+        {
+          "metric": "politics.protest_energy",
+          "subject": {
+            "id": "Egypt",
+            "type": "nation"
+          },
+          "turn": 3,
+          "values": {
+            "before": 1.959272470090348,
+            "after": 5.02595678503239,
+            "delta": 3.0666843149420417,
+            "percent": 156.52158450430468,
+            "unit": "mean_score",
+            "epoch": 1
+          },
+          "evidence_events": 12
+        }
+      ],
+      "reductions_percent": {
+        "event_records": 80.72585473810263,
+        "index_data_rows": 79.28051174388553,
+        "stored_bytes": 5.604583452657231,
+        "total_turn_time": 11.439286769889101,
+        "cold_catalog": 60.82105881513611
+      }
+    }
+  }
+}

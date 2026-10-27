@@ -9,8 +9,9 @@ import hashlib
 import json
 import os
 from pathlib import Path
-from trace_codec import CompactTraceWriter, iter_payloads, iter_records, PACKED_DIGEST
-from trace_packing import (PreparedEvent, RecentEvents, COVERAGE_RULE, PRICE_IDLE_RULE,
+from trace_codec import (CompactTraceWriter, iter_payloads, iter_records, iter_storage_records,
+                         PACKED_DIGEST, COVERAGE_DIGEST)
+from trace_packing import (PreparedEvent, RecentEvents, COVERAGE_RULE, BASELINE_RULE, PRICE_IDLE_RULE,
                            GINI_ZERO_RULE, GINI_RETAIN_RULE, DISEASE_EMPTY_RULE,
                            TAX_EMPTY_RULE, freeze, _same)
 
@@ -97,23 +98,29 @@ class RunTrace:
         if self.path.exists():
             raise FileExistsError(self.path)
         if storage_version is None:
-            storage_version = 3 if os.environ.get('COC_TRACE_STORAGE') == 'legacy' else 4
+            storage_version = (3 if os.environ.get('COC_TRACE_STORAGE') == 'legacy' else
+                               4 if os.environ.get('COC_TRACE_COVERAGE', '1') == '0' else 5)
         if sparse is None:
             sparse = os.environ.get('COC_TRACE_SPARSE', '1') != '0'
         self._compact_writer = CompactTraceWriter(self.path, version=storage_version, sparse=sparse)
         self._append({'schema_version': SCHEMA_VERSION, 'record_class': 'metadata',
                       'run_id': self.run_id, 'branch_id': self.branch_id,
                       'seed': seed, 'scenario': scenario,
-                      'storage_format': ('packed-coverage-v4' if storage_version == 4 else 'framed-deflate-blocks-v1'),
-                      **({'digest_scope': PACKED_DIGEST} if storage_version == 4 else {})})
+                      'storage_format': ({5:'grouped-state-coverage-v5',4:'packed-coverage-v4',3:'framed-deflate-blocks-v1'}[storage_version]),
+                      **({'digest_scope': self._compact_writer.digest_scope} if storage_version >= 4 else {})})
 
     @property
     def digest(self):
         writer = getattr(self, '_compact_writer', None)
-        if writer is not None and writer.version == 4:
+        if writer is not None and writer.version >= 4:
             if not writer._stream.closed: writer.flush_pending()
             return writer.digest
         return self.__dict__.get('_digest', self.__dict__.get('digest', '0' * 64))
+
+    @property
+    def event_count(self):
+        """Actual stored events/groups; count retains expanded-view compatibility."""
+        return self._compact_writer.event_count
 
     @property
     def identity_prefix(self):
@@ -146,7 +153,7 @@ class RunTrace:
         # No default=str: unsupported values are instrumentation errors.
         if self.write_error is not None:
             raise OSError(self.write_error)
-        if self._compact_writer.version == 4:
+        if self._compact_writer.version >= 4:
             self._compact_writer.append(row)
         else:
             payload = json.dumps(row, sort_keys=True, separators=(',', ':'), allow_nan=False)
@@ -155,11 +162,20 @@ class RunTrace:
         self.count += 1
 
     def _prepare(self, clock, sequence, rule, fields):
+        if self.write_error is not None: raise OSError(self.write_error)
         key = (self.branch_id, clock.get('turn', 0), clock.get('epoch', 0), clock.get('phase', 'unknown'))
         if key != getattr(self, '_prepared_context_key', None):
             self._prepared_context = freeze(dict(schema_version=SCHEMA_VERSION, run_id=self.run_id,
                 branch_id=self.branch_id, turn=key[1], epoch=key[2], phase=key[3]), [0])
             self._prepared_context_key = key
+        if self._compact_writer.version == 5:
+            try:
+                row = self._compact_writer.append_coverage(self._prepared_context,rule,{**fields,'sequence':sequence})
+            except OSError as error:
+                self.write_error = str(error)
+                raise
+            self.count += 1
+            return row
         return PreparedEvent(self._prepared_context, rule,
             {**fields, 'sequence': sequence, 'event_id': self.identity_prefix + ':' + str(sequence)})
 
@@ -169,11 +185,13 @@ class RunTrace:
         fields.update(fields_extra or {})
         if causes is not None: fields['cause_event_ids'] = causes
         row = self._prepare(clock, sequence, rule, fields)
-        event_id = row.stored['event_id']; key = (metric_id, _subject_key(subject))
-        try: self._append(row)
+        event_id = self.identity_prefix + ':' + str(sequence); key = (metric_id, _subject_key(subject))
+        try:
+            if self._compact_writer.version != 5: self._append(row)
         except OSError as error: self.write_error = str(error)
         else:
-            self._known_event_ids.add(event_id)
+            if self._compact_writer.version == 5: self._known_event_ids.add_virtual(event_id)
+            else: self._known_event_ids.add(event_id)
             self._latest_metric_event_ids[key] = event_id
             self._calculated_value_sources[key] = event_id
             if rule == PRICE_IDLE_RULE:
@@ -220,9 +238,9 @@ class RunTrace:
             self._turn_temporary_activity_events = {}
             self._turn_living_cost_events = {}
             self._latest_food_intake_events = {}
-        if (getattr(self, '_direct_templates', False) and self._compact_writer.version == 4
+        if (getattr(self, '_direct_templates', False) and self._compact_writer.version >= 4
                 and record_class == 'calculation' and not extra and constraints is None
-                and (phase is None or phase == clock.get('phase', 'unknown')) and subject is not None):
+                and (phase is None or phase == clock.get('phase', 'unknown')) and subject is not None and 'id' in subject):
             if (kind == 'closing_active_disease_census' and metric_id == 'health.active_disease_cases'
                     and unit == 'people' and before is None and type(after) is int and after == 0
                     and subject.get('type') == 'tile' and 'disease' in subject
@@ -239,11 +257,11 @@ class RunTrace:
                     and all(_same(value,0.0) for value in inputs['opening_components'].values())):
                 return self._append_certificate(clock, sequence, TAX_EMPTY_RULE, subject, metric_id, unit, after,
                     cause_event_ids, {'@tax_turn':inputs['turn'], '@tax_reason':inputs['reason']})
-        if (getattr(self, '_direct_templates', False) and self._compact_writer.version == 4
+        if (getattr(self, '_direct_templates', False) and self._compact_writer.version >= 4
                 and kind == 'gini_series_calculation' and record_class == 'calculation'
                 and phase is None and not extra and constraints is None
                 and type(before) in (int, float) and _same(before, after)
-                and subject is not None and subject.get('type') == 'tile' and subject.get('good') is not None
+                and subject is not None and 'id' in subject and subject.get('type') == 'tile' and subject.get('good') is not None
                 and metric_id == 'economy.gini' and unit == 'ratio'):
             good = subject['good']
             expected_zero = {'wilderness': True, 'sample_point': 'native_wilderness_history_write',
@@ -547,8 +565,9 @@ class RunTrace:
             explained = explained and verified and closing == after
         source_event_id = self._calculated_value_sources.get(key) if explained else None
         explained = explained and source_event_id is not None
-        if (self._compact_writer.version == 4 and self._active_turn == boundary(clock)
+        if (self._compact_writer.version >= 4 and self._active_turn == boundary(clock)
                 and subject.get('type') in ('tile', 'nation') and isinstance(metric_id, str)
+                and 'id' in subject
                 and metric_id != 'finance.treasury_flow'):
             # Closing observations cannot be trades/decisions/person events.
             # Avoid the general emitter's replay and lifecycle dispatch while
@@ -556,11 +575,13 @@ class RunTrace:
             sequence = clock['next']; clock['next'] += 1
             event_id = self.identity_prefix + ':' + str(sequence)
             prepared = (getattr(self, '_direct_templates', False) and self._compact_writer.sparse
-                        and type(before) in (str, int, float, bool) and _same(before, after))
+                        and ((type(before) in (str, int, float, bool) and _same(before, after))
+                             or (self._compact_writer.version == 5 and before is None
+                                 and type(after) in (str,int,float,bool))))
             if prepared:
                 fields = dict(subject=subject, metric_id=metric_id, value_after=after, **{'@source': source_event_id})
                 if unit is not None: fields['unit'] = unit
-                row = self._prepare(clock, sequence, COVERAGE_RULE, fields)
+                row = self._prepare(clock, sequence, BASELINE_RULE if before is None else COVERAGE_RULE, fields)
             else:
                 row = {'schema_version': SCHEMA_VERSION, 'run_id': self.run_id, 'branch_id': self.branch_id,
                    'event_id': event_id, 'sequence': sequence, 'turn': clock.get('turn', 0),
@@ -574,11 +595,13 @@ class RunTrace:
                 if after is not None: row['value_after'] = after
                 if unit is not None: row['unit'] = unit
                 if isinstance(before, (int, float)) and isinstance(after, (int, float)): row['delta'] = after - before
-            try: self._append(row)
+            try:
+                if not (prepared and self._compact_writer.version == 5): self._append(row)
             except OSError as error: self.write_error = str(error)
             else:
                 self._latest_metric_event_ids[key] = event_id
-                self._known_event_ids.add(event_id)
+                if prepared and self._compact_writer.version == 5: self._known_event_ids.add_virtual(event_id)
+                else: self._known_event_ids.add(event_id)
                 if metric_id == 'goods.price' and subject.get('type') == 'tile' and subject.get('good') is not None:
                     self._latest_reference_price_events[(str(subject.get('id')), str(subject['good']))] = event_id
                 if metric_id == 'living.cost_of_living' and subject.get('type') == 'tile':
@@ -602,7 +625,7 @@ class RunTrace:
     def price_bridge(self, clock, *, subject, before, after, unit):
         """Reconcile ordered displayed-price writes within the current turn."""
         mutations = self._price_mutations.get((subject['id'], subject['good']), ())
-        if (getattr(self, '_direct_templates', False) and self._compact_writer.version == 4
+        if (getattr(self, '_direct_templates', False) and self._compact_writer.version >= 4
                 and self._active_turn == boundary(clock) and not mutations and self.write_error is None
                 and type(before) in (int, float) and _same(before, after)):
             sequence = clock['next']; clock['next'] += 1
@@ -650,7 +673,8 @@ class RunTrace:
         event_id = self.emit(clock, kind='turn_checkpoint', record_class='audit',
                              phase='checkpoint', count_before=self.count,
                              sha256_before=self.digest,
-                             **({'digest_scope': PACKED_DIGEST} if self._compact_writer.version == 4 else {}))
+                             **({'digest_scope':self._compact_writer.digest_scope} if self._compact_writer.version >= 4 else {}),
+                             **({'event_count_before':self.event_count} if self._compact_writer.version == 5 else {}))
         self.publish()
         return event_id
 
@@ -672,16 +696,22 @@ def verify(path):
     digest = '0' * 64
     count = 0
     checkpoints = 0
-    for record in iter_records(path):
+    event_records = coverage_groups = virtual_samples = 0
+    from trace_state_coverage import expanded_count
+    for record in iter_storage_records(path):
         row = record.row if record.row is not None else json.loads(record.payload)
         if row.get('kind') == 'turn_checkpoint':
             if (row.get('count_before') != count or row.get('sha256_before') != record.digest_before
-                    or (record.digest_scope == PACKED_DIGEST and row.get('digest_scope') != PACKED_DIGEST)):
+                    or (record.digest_scope in (PACKED_DIGEST,COVERAGE_DIGEST) and row.get('digest_scope') != record.digest_scope)
+                    or (record.digest_scope == COVERAGE_DIGEST and row.get('event_count_before') != event_records)):
                 raise ValueError(f'broken checkpoint at line {count + 1}')
             checkpoints += 1
         digest = record.digest_after
-        count += 1
-    return {'rows': count, 'checkpoints': checkpoints, 'sha256': digest}
+        count += expanded_count(row); event_records += 1
+        if row.get('kind') == 'state_coverage':
+            coverage_groups += 1; virtual_samples += expanded_count(row)
+    return {'rows':count,'checkpoints':checkpoints,'sha256':digest,
+            'event_records':event_records,'coverage_groups':coverage_groups,'virtual_samples':virtual_samples}
 
 
 def emit(region, **kwargs):
