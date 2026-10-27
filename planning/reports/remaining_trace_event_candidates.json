@@ -1,0 +1,3130 @@
+{
+  "date": "2026-10-27",
+  "implementation_commit": "f1da6c8",
+  "scope": "Retained sequential native seed777 benchmarks; no new production policy changes.",
+  "limits": "Candidate membership is not a proof of safe removal. Group projections use existing cell count and exact context/base entity boundaries; ignore encoded bytes and explicit publication boundaries. Every original fact/reference must remain resolvable.",
+  "examples": "Illustrative excerpts only; long lists and nested maps truncated with explicit counts. Original records remain in the referenced trace.",
+  "scenarios": {
+    "default": {
+      "trace": "/Users/sli/Code/tmp/traces/desktop-f44388555d4f427d8546f2bb0e8864ef.ctr",
+      "turn": 2,
+      "actual_records": 40263,
+      "kinds": {
+        "state_coverage": 4442,
+        "market_buyer_order_submitted": 2285,
+        "local_buyer_bid": 2285,
+        "person_event_count": 2000,
+        "paid_market_sale": 1303,
+        "paid_market_unit_price": 1303,
+        "market_seller_receipt_posted": 1303,
+        "feudal_tribute_transfer": 1145,
+        "final_labor_member_count": 1075,
+        "effective_workday_cap_sample": 1000,
+        "trader_cash_total_calculation": 1000,
+        "trade_pipeline_depth_calculation": 1000,
+        "population_change_rate_calculation": 1000,
+        "trade_export_value_calculation": 1000,
+        "trade_import_value_calculation": 1000,
+        "trade_net_value_calculation": 1000,
+        "final_temporary_work_share_mean": 1000,
+        "living_person_count": 1000,
+        "wilderness_food_production": 988,
+        "wilderness_nominal_gdp": 988,
+        "wilderness_population_census": 988,
+        "market_seller_order_submitted": 848,
+        "metric_snapshot": 841,
+        "independent_production": 787,
+        "commons_foraging": 774,
+        "foraged_food_receipt": 774,
+        "local_seller_ask": 735,
+        "elite_operator_evaluation": 480,
+        "household_nonfood_consumption": 468,
+        "independent_production_zero": 279,
+        "obligation_assessed": 267,
+        "nation_chart_history_aggregate": 247,
+        "tile_production_total": 216,
+        "producer_inventory_total": 216,
+        "household_food_intake": 188,
+        "disease_onset_assessment": 186,
+        "faction_support_history_calculation": 168,
+        "faction_grievance_history_calculation": 168,
+        "public_account_write": 165,
+        "government_food_purchase": 132,
+        "fx_conversion_executed": 132,
+        "elite_planning_gate": 104,
+        "elite_luxury_purchase_evaluation": 104,
+        "elite_voyage_circuit_evaluation": 104,
+        "elite_spatial_trade_delegation": 104,
+        "elite_labor_legislation_evaluation": 104,
+        "corporation_ai_decision": 104,
+        "corporation_ai_outcome": 104,
+        "bank_balance_operation": 97,
+        "elite_inventory_liquidation_decision": 96,
+        "market_demand_supply_ratio": 75,
+        "price_bridge": 75,
+        "elite_capital_allocation_evaluation": 74,
+        "trader_route_decision": 72,
+        "social_class_population_calculation": 72,
+        "market_zero_order_summary": 63,
+        "market_demand_total": 63,
+        "market_supply_total": 63,
+        "market_price_update": 63,
+        "disease_cases_observed": 60,
+        "innovation_research_gate": 58,
+        "national_reference_price_aggregate": 57,
+        "tax_revenue_distribution_calculation": 48,
+        "bank_tile_closing_alias": 48,
+        "market_clearing_summary": 38,
+        "market_total_units_sold": 38,
+        "bank_loan_repayment": 37,
+        "market_transaction_vwap": 36,
+        "innovation_diffusion_gate": 36,
+        "bank_withdrawal_posted": 29,
+        "innovation_bottleneck_pressure": 29,
+        "innovation_breakthrough_evaluation": 29,
+        "market_no_trade": 25,
+        "elite_lord_transformation_evaluation": 24,
+        "fx_mid_update": 22,
+        "public_account_close": 22,
+        "bank_deposit_posted": 21,
+        "national_aggregate": 21,
+        "pollution_downstream_advection": 17,
+        "innovation_learning_calculation": 15,
+        "bank_closing_balance": 15,
+        "disease_health_attrition": 13,
+        "medical_care_payment": 13,
+        "medical_treatment": 13,
+        "cost_of_living_calculation": 12,
+        "elite_planner_phase_gate": 12,
+        "elite_market_novelty_scan": 12,
+        "labor_scheduler_gate": 12,
+        "labor_machinery_sabotage_calculation": 12,
+        "labor_broken_machinery_calculation": 12,
+        "labor_striker_count_calculation": 12,
+        "seasonal_water_allocation": 12,
+        "feudal_tribute_reference_valuation": 12,
+        "market_price_decay": 12,
+        "rent_collection_summary": 12,
+        "rent_arrears_summary": 12,
+        "pasture_fraction_calculation": 12,
+        "nominal_gdp_calculation": 12,
+        "labor_shift_hours_calculation": 12,
+        "labor_exploitation_rate_calculation": 12,
+        "labor_surplus_value_calculation": 12,
+        "civilian_food_consumption_total": 12,
+        "workhouse_forced_labor_calculation": 12,
+        "workhouse_inmate_census": 12,
+        "labor_average_alienation_calculation": 12,
+        "labor_average_class_consciousness_calculation": 12,
+        "health_average_bodily_wear_calculation": 12,
+        "labor_workplace_accidents_calculation": 12,
+        "society_entertainment_level_sample": 12,
+        "soil_fertility_update": 12,
+        "nutrition_density_update": 12,
+        "pollution_air_update": 12,
+        "pollution_water_update": 12,
+        "pollution_soil_update": 12,
+        "disease_fatalities_observed": 12,
+        "medical_care_summary": 12,
+        "disease_untreated_cases_observed": 12,
+        "pollution_health_assessment": 12,
+        "population_hunger_count_calculation": 12,
+        "infant_fatalities_turn_total": 12,
+        "grievance_sources": 12,
+        "protest_energy_update": 12,
+        "unrest_roll": 12,
+        "population_count_calculation": 12,
+        "commons_access_calculation": 12,
+        "foraged_food_total": 12,
+        "purchased_food_total": 12,
+        "bank_equity_calculation": 12,
+        "total_cash_calculation": 12,
+        "government_income_calculation": 12,
+        "migration_push_decision": 12,
+        "food_security_assessment": 9,
+        "nation_border_vulnerability": 9,
+        "elite_operator_execution": 8,
+        "enclosure_bailiff_force_decision": 6,
+        "bailiff_service": 6,
+        "enclosure_charter_fee": 6,
+        "enclosure_charter_fee_treasury_receipt": 6,
+        "enclosure_charter_granted": 6,
+        "welfare_payment_recipient_payment": 6,
+        "treasury_phase_delta": 5,
+        "government_reserve_deficit_calculation": 5,
+        "income_tax_assessment_calculation": 5,
+        "government_remaining_financing_gap": 5,
+        "government_tax_rate_decision": 5,
+        "bank_deposit_interest_payout": 5,
+        "mortality_assessment": 5,
+        "away_trader_food_purchase": 5,
+        "bank_closing_equity": 5,
+        "public_construction_cash_debit": 4,
+        "intent_execution": 4,
+        "government_deposit_interest_received": 4,
+        "charity_food_purchase": 4,
+        "charity_food_aid_recipient": 4,
+        "charity_food_aid": 4,
+        "resident_population_bridge": 4,
+        "construction_project_step": 3,
+        "takeover_attempt_failed": 3,
+        "corporate_payroll_funding_decision": 3,
+        "corporate_wage_decision": 3,
+        "labor_collective_organization_check": 3,
+        "labor_workforce_availability": 3,
+        "bank_loan_issued": 3,
+        "coup_check": 3,
+        "legitimacy_drift": 3,
+        "uprising_pressure_gate": 3,
+        "uprising_response_decision": 3,
+        "uprising_response_outcome": 3,
+        "diplomacy_relation_drift": 3,
+        "treasury_account_closure": 3,
+        "treasury_reconciliation": 3,
+        "treasury_components": 3,
+        "national_food_price_history_aggregate": 3,
+        "nation_diplomacy_evaluation": 2,
+        "nation_ai_decision": 2,
+        "construction_funding_plan": 2,
+        "public_construction_deposit_funding_debit": 2,
+        "construction_funding_decision": 2,
+        "person_role_conversion": 2,
+        "construction_contractor_payment": 2,
+        "construction_project_commissioned": 2,
+        "income_tax_collected": 2,
+        "government_bank_borrowing": 2,
+        "government_loan_service": 2,
+        "closing_active_disease_census": 2,
+        "government_automatic_bank_credit": 1,
+        "government_ordinary_loan_repayment": 1,
+        "government_food_aid_recipient": 1,
+        "government_food_aid": 1,
+        "welfare_distributed": 1,
+        "fx_order_match": 1,
+        "turn_checkpoint": 1,
+        "native_command_boundary": 1
+      },
+      "secondary_candidate_pools": {
+        "unchanged_workday_cap": 1000,
+        "trade_pipeline_depth_calculation": 1000,
+        "population_change_rate_calculation": 1000,
+        "wilderness_food_production": 988,
+        "wilderness_population_census": 988,
+        "trader_cash_total_calculation": 988,
+        "trade_export_value_calculation": 1000,
+        "trade_import_value_calculation": 988,
+        "empty_labor_rollups": 1976,
+        "zero_birth_death_counts": 2000,
+        "zero_living_person_counts": 988
+      },
+      "secondary_candidate_kinds": {
+        "effective_workday_cap_sample": 1000,
+        "trade_pipeline_depth_calculation": 1000,
+        "population_change_rate_calculation": 1000,
+        "wilderness_food_production": 988,
+        "wilderness_population_census": 988,
+        "trader_cash_total_calculation": 988,
+        "trade_export_value_calculation": 1000,
+        "trade_import_value_calculation": 988,
+        "final_labor_member_count": 988,
+        "final_temporary_work_share_mean": 988,
+        "person_event_count": 2000,
+        "living_person_count": 988
+      },
+      "secondary_candidate_total": 12916,
+      "secondary_percent_of_remaining": 32.07908004867993,
+      "existing_groups_only_count_projection": {
+        "actual_records": 40263,
+        "coverage_groups": 4442,
+        "net_records_saved": 0,
+        "percent_saved": 0.0
+      },
+      "secondary_count_only_projection": {
+        "actual_records": 31347,
+        "coverage_groups": 8442,
+        "net_records_saved": 8916,
+        "percent_saved": 22.14440056627673
+      },
+      "secondary_plus_derived_projection": {
+        "actual_records": 28383,
+        "coverage_groups": 7466,
+        "net_records_saved": 11880,
+        "percent_saved": 29.5059980627375
+      },
+      "additional_derived_pools": {
+        "wilderness_nominal_gdp_zero_with_sources": 988,
+        "trade_net_value_calculation_zero_with_sources": 1000,
+        "empty_temporary_work_means": 988
+      },
+      "coverage_group_cell_sizes": {
+        "1": 330,
+        "2": 32,
+        "3": 13,
+        "4": 1003,
+        "5": 1014,
+        "6": 1,
+        "7": 4,
+        "8": 8,
+        "9": 3,
+        "11": 3,
+        "14": 3,
+        "15": 19,
+        "16": 3,
+        "17": 1,
+        "18": 1,
+        "19": 1004,
+        "45": 5,
+        "47": 7,
+        "179": 6,
+        "199": 982
+      },
+      "coverage_group_phases": {
+        "local": 2204,
+        "snapshot": 2238
+      },
+      "source_bearing_records_by_kind": {
+        "local_buyer_bid": 2285,
+        "paid_market_sale": 1303,
+        "paid_market_unit_price": 1303,
+        "market_seller_receipt_posted": 1303,
+        "wilderness_nominal_gdp": 988,
+        "trade_import_value_calculation": 12,
+        "trade_net_value_calculation": 1000,
+        "final_labor_member_count": 16,
+        "final_temporary_work_share_mean": 9
+      },
+      "matched_parent_links": {
+        "local_buyer_bid": {
+          "children_with_one_matching_parent": 2285,
+          "unique_parent_events": 2285,
+          "parents_with_multiple_children": 0
+        },
+        "paid_market_unit_price": {
+          "children_with_one_matching_parent": 1303,
+          "unique_parent_events": 1303,
+          "parents_with_multiple_children": 0
+        },
+        "market_seller_receipt_posted": {
+          "children_with_one_matching_parent": 1303,
+          "unique_parent_events": 1303,
+          "parents_with_multiple_children": 0
+        }
+      },
+      "sales_with_price_and_receipt": 1303,
+      "examples": {
+        "market_buyer_order_submitted": {
+          "branch_id": "main",
+          "confidence": "exact",
+          "epoch": 1,
+          "run_id": "desktop-f44388555d4f427d8546f2bb0e8864ef",
+          "schema_version": 1,
+          "turn": 2,
+          "phase": "trade",
+          "kind": "market_buyer_order_submitted",
+          "record_class": "decision",
+          "subject": {
+            "buyer_id": 19,
+            "good": "food",
+            "id": "c935",
+            "type": "tile"
+          },
+          "metric_id": "goods.buyer_bid_quantity",
+          "value_after": 3,
+          "unit": "units",
+          "inputs": {
+            "buyer_id": 19,
+            "buyer_output": "food",
+            "cash_affordability_basis": "remainingCash",
+            "cash_affordability_formula_id": "market.cash_affordability_ceiling.v1",
+            "cash_affordable_units_at_bid": 59,
+            "cash_at_bid": 59.97578155340031,
+            "cash_before_funding": 59.97578155340031,
+            "cash_funding_event_ids": [],
+            "consumption_multiplier": 1.0,
+            "current_desired": 16,
+            "destination": null,
+            "employee_count": 0,
+            "good": "food",
+            "hungry_steps": 0.0,
+            "input_good": "none",
+            "input_units_per_output": 0,
+            "inventory_before_order": 1.0,
+            "is_corporation": false,
+            "is_employee": false,
+            "is_trader": false,
+            "order_rule": "grower_meal_reserve",
+            "output_units_per_turn": 5,
+            "quantity_calculated": 3,
+            "reference_price": 1.0,
+            "remaining_cash_at_bid": 59.97578155340031,
+            "remaining_cash_before_funding": 59.97578155340031,
+            "submitted_quantity": 3
+          },
+          "explanation_status": "submitted_order_inputs_recorded",
+          "sequence": 261547,
+          "event_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:261547"
+        },
+        "local_buyer_bid": {
+          "branch_id": "main",
+          "confidence": "exact",
+          "epoch": 1,
+          "record_class": "calculation",
+          "run_id": "desktop-f44388555d4f427d8546f2bb0e8864ef",
+          "schema_version": 1,
+          "turn": 2,
+          "phase": "local",
+          "kind": "local_buyer_bid",
+          "subject": {
+            "buyer_id": 19,
+            "good": "food",
+            "id": "c935",
+            "type": "tile"
+          },
+          "metric_id": "goods.buyer_bid",
+          "value_after": 1.4,
+          "unit": "local_currency_per_unit",
+          "inputs": {
+            "cash_limit": 19.99192718446677,
+            "currency": "USD",
+            "demand_premium": 0.4,
+            "demand_ratio": 4.77027027027027,
+            "input_value_ceiling": null,
+            "need_premium": 0.0,
+            "quantity": 3,
+            "quantity_event_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:261547",
+            "reference": 1.0,
+            "trader_net_value": null,
+            "trader_tariff_terms": null
+          },
+          "formula_id": "market.local_bid.v1",
+          "cause_event_ids": [
+            "desktop-f44388555d4f427d8546f2bb0e8864ef:261547"
+          ],
+          "formula_replay": {
+            "actual": 1.4,
+            "expected": 1.4,
+            "matches": true
+          },
+          "sequence": 261888,
+          "event_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:261888"
+        },
+        "paid_market_sale": {
+          "branch_id": "main",
+          "epoch": 1,
+          "run_id": "desktop-f44388555d4f427d8546f2bb0e8864ef",
+          "schema_version": 1,
+          "turn": 2,
+          "phase": "local",
+          "kind": "paid_market_sale",
+          "record_class": "transfer",
+          "confidence": "exact",
+          "subject": {
+            "good": "food",
+            "id": "c935",
+            "type": "tile"
+          },
+          "metric_id": "goods.sold",
+          "value_before": 0,
+          "value_after": 3,
+          "delta": 3,
+          "unit": "units",
+          "inputs": {
+            "buyer_cash_after": 37.88699541284404,
+            "buyer_cash_before": 41.48699541284404,
+            "buyer_id": 6,
+            "freight_per_unit": null,
+            "government_cash_delta": 0.0,
+            "imported": false,
+            "parked": false,
+            "route_history": [],
+            "seller_account_tile": "c935",
+            "seller_cash_delta": 3.6000000000000227,
+            "seller_id": 5,
+            "seller_local_wallet_delta": 0.0,
+            "shipment_id": null,
+            "source_acquisitions": [],
+            "source_cost_status": null,
+            "source_currency": null,
+            "source_region": null,
+            "source_shipment_id": null,
+            "source_unit_cost": null,
+            "total_paid": 3.5999999999999996,
+            "unit_price": 1.2
+          },
+          "cause_event_ids": [
+            "desktop-f44388555d4f427d8546f2bb0e8864ef:261677",
+            "desktop-f44388555d4f427d8546f2bb0e8864ef:261618"
+          ],
+          "sequence": 261987,
+          "event_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:261987"
+        },
+        "paid_market_unit_price": {
+          "branch_id": "main",
+          "epoch": 1,
+          "run_id": "desktop-f44388555d4f427d8546f2bb0e8864ef",
+          "schema_version": 1,
+          "turn": 2,
+          "phase": "local",
+          "kind": "paid_market_unit_price",
+          "record_class": "observation",
+          "confidence": "unknown",
+          "subject": {
+            "good": "food",
+            "id": "c935",
+            "type": "tile"
+          },
+          "metric_id": "goods.transaction_price",
+          "value_after": 1.2,
+          "unit": "local_currency_per_unit",
+          "inputs": {
+            "buyer_id": 6,
+            "currency": "USD",
+            "imported": false,
+            "quantity": 3,
+            "seller_id": 5,
+            "total_paid": 3.5999999999999996
+          },
+          "cause_event_ids": [
+            "desktop-f44388555d4f427d8546f2bb0e8864ef:261987"
+          ],
+          "sequence": 261988,
+          "event_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:261988"
+        },
+        "market_seller_receipt_posted": {
+          "branch_id": "main",
+          "epoch": 1,
+          "run_id": "desktop-f44388555d4f427d8546f2bb0e8864ef",
+          "schema_version": 1,
+          "turn": 2,
+          "phase": "trade",
+          "kind": "market_seller_receipt_posted",
+          "record_class": "transfer",
+          "confidence": "exact",
+          "subject": {
+            "id": 5,
+            "tile": "c935",
+            "type": "agent"
+          },
+          "metric_id": "trade.market_seller_settlement",
+          "unit": "USD",
+          "inputs": {
+            "buyer_id": 6,
+            "cash_receipt": 3.6000000000000227,
+            "currency": "USD",
+            "destination_tile": "c935",
+            "good": "food",
+            "quantity": 3,
+            "receipt_journal_refs": [],
+            "sale_event_id": 413,
+            "seller_account_tile": "c935",
+            "seller_id": 5,
+            "wallet_receipt": 0.0
+          },
+          "cause_event_ids": [
+            "desktop-f44388555d4f427d8546f2bb0e8864ef:261987"
+          ],
+          "sequence": 261989,
+          "event_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:261989"
+        },
+        "effective_workday_cap_sample": {
+          "branch_id": "main",
+          "confidence": "exact",
+          "epoch": 1,
+          "run_id": "desktop-f44388555d4f427d8546f2bb0e8864ef",
+          "schema_version": 1,
+          "turn": 2,
+          "phase": "local",
+          "kind": "effective_workday_cap_sample",
+          "record_class": "calculation",
+          "subject": {
+            "id": "c935",
+            "type": "tile"
+          },
+          "metric_id": "labor.statutory_workday",
+          "value_before": 16.0,
+          "value_after": 16.0,
+          "delta": 0.0,
+          "unit": "hours",
+          "inputs": {
+            "effective_workday_cap": 16.0,
+            "sample_point": "effective cap state recorded for this turn",
+            "statute_display_value": 16.0,
+            "workday_cap_field": "workday_cap"
+          },
+          "formula_id": "labor.effective_workday_cap_sample.v1",
+          "formula_replay": {
+            "actual": 16.0,
+            "expected": 16.0,
+            "matches": true
+          },
+          "sequence": 262526,
+          "event_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:262526"
+        },
+        "trader_cash_total_calculation": {
+          "branch_id": "main",
+          "epoch": 1,
+          "run_id": "desktop-f44388555d4f427d8546f2bb0e8864ef",
+          "schema_version": 1,
+          "turn": 2,
+          "event_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:262752",
+          "sequence": 262752,
+          "phase": "demographics",
+          "kind": "trader_cash_total_calculation",
+          "record_class": "calculation",
+          "confidence": "exact",
+          "subject": {
+            "id": "c935",
+            "type": "tile"
+          },
+          "metric_id": "trade.trader_cash",
+          "value_before": 594.0,
+          "value_after": 1200.0,
+          "delta": 606.0,
+          "unit": "USD",
+          "inputs": {
+            "currency": "USD",
+            "trader_count": 6,
+            "traders": [
+              {
+                "agent_id": 104,
+                "cash": 199.5
+              },
+              {
+                "agent_id": 102,
+                "cash": 198.0
+              },
+              {
+                "agent_id": 100,
+                "cash": 201.0
+              },
+              {
+                "agent_id": 103,
+                "cash": 202.5
+              },
+              {
+                "omitted_items": 2
+              }
+            ]
+          },
+          "formula_id": "trade.trader_cash_sum_wallets.v1",
+          "formula_replay": {
+            "actual": 1200.0,
+            "expected": 1200.0,
+            "matches": true
+          }
+        },
+        "trade_pipeline_depth_calculation": {
+          "branch_id": "main",
+          "epoch": 1,
+          "run_id": "desktop-f44388555d4f427d8546f2bb0e8864ef",
+          "schema_version": 1,
+          "turn": 2,
+          "event_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:262754",
+          "sequence": 262754,
+          "phase": "demographics",
+          "kind": "trade_pipeline_depth_calculation",
+          "record_class": "calculation",
+          "confidence": "exact",
+          "subject": {
+            "id": "c935",
+            "type": "tile"
+          },
+          "metric_id": "trade.pipeline_depth",
+          "value_before": 0,
+          "value_after": 0,
+          "delta": 0,
+          "unit": "goods_units",
+          "inputs": {
+            "aggregation_rule": "sum quantities across listed goods and routes",
+            "excluded_states": [
+              "pending",
+              "parked"
+            ],
+            "included_goods": [
+              "food",
+              "wood",
+              "furniture"
+            ],
+            "included_state": "in_transit",
+            "routes": [
+              {
+                "destination": "c230",
+                "goods_units": {
+                  "food": 0,
+                  "furniture": 0,
+                  "wood": 0
+                },
+                "route": "c935->c230",
+                "total_goods_units": 0
+              },
+              {
+                "destination": "c69",
+                "goods_units": {
+                  "food": 0,
+                  "furniture": 0,
+                  "wood": 0
+                },
+                "route": "c935->c69",
+                "total_goods_units": 0
+              },
+              {
+                "destination": "c55",
+                "goods_units": {
+                  "food": 0,
+                  "furniture": 0,
+                  "wood": 0
+                },
+                "route": "c935->c55",
+                "total_goods_units": 0
+              }
+            ],
+            "shipments": []
+          },
+          "formula_id": "trade.pipeline_depth_in_transit_goods.v1",
+          "formula_replay": {
+            "actual": 0,
+            "expected": 0,
+            "matches": true
+          }
+        },
+        "population_change_rate_calculation": {
+          "branch_id": "main",
+          "epoch": 1,
+          "run_id": "desktop-f44388555d4f427d8546f2bb0e8864ef",
+          "schema_version": 1,
+          "turn": 2,
+          "phase": "demographics",
+          "kind": "population_change_rate_calculation",
+          "record_class": "calculation",
+          "confidence": "exact",
+          "subject": {
+            "id": "c935",
+            "type": "tile"
+          },
+          "metric_id": "people.population_change_rate",
+          "value_before": 0,
+          "value_after": 0,
+          "delta": 0,
+          "unit": "percent_over_sample_window",
+          "inputs": {
+            "baseline_population": null,
+            "current_population": 99,
+            "formula": "(current - baseline) / baseline * 100; zero if fewer than ten samples or baseline is zero",
+            "population_basis": "total_population profession-count history",
+            "population_samples": [
+              99,
+              99
+            ],
+            "sample_count": 2,
+            "turn": 2,
+            "window_sample_count": 10,
+            "window_status": "insufficient_history"
+          },
+          "formula_id": "population.rate_from_last_ten_samples.v1",
+          "formula_replay": {
+            "actual": 0,
+            "expected": 0.0,
+            "matches": true
+          },
+          "sequence": 262794,
+          "event_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:262794"
+        },
+        "wilderness_food_production": {
+          "branch_id": "main",
+          "epoch": 1,
+          "run_id": "desktop-f44388555d4f427d8546f2bb0e8864ef",
+          "schema_version": 1,
+          "turn": 2,
+          "event_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:280529",
+          "sequence": 280529,
+          "phase": "local",
+          "kind": "wilderness_food_production",
+          "record_class": "calculation",
+          "confidence": "exact",
+          "subject": {
+            "good": "food",
+            "id": "c1",
+            "type": "tile"
+          },
+          "metric_id": "goods.production",
+          "value_after": 0,
+          "unit": "units",
+          "inputs": {
+            "granary_release_units": 0,
+            "producer_receipts": [],
+            "sample_point": "wilderness_history_write",
+            "wool_from_pasture": 0
+          },
+          "formula_id": "production.sum_receipts.v1",
+          "cause_event_ids": [],
+          "formula_replay": {
+            "actual": 0,
+            "expected": 0,
+            "matches": true
+          }
+        },
+        "wilderness_nominal_gdp": {
+          "branch_id": "main",
+          "epoch": 1,
+          "run_id": "desktop-f44388555d4f427d8546f2bb0e8864ef",
+          "schema_version": 1,
+          "turn": 2,
+          "event_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:280530",
+          "sequence": 280530,
+          "phase": "local",
+          "kind": "wilderness_nominal_gdp",
+          "record_class": "calculation",
+          "confidence": "exact",
+          "subject": {
+            "id": "c1",
+            "type": "tile"
+          },
+          "metric_id": "economy.gdp_nominal",
+          "value_after": 0,
+          "unit": "local_currency_per_turn",
+          "inputs": {
+            "goods": {
+              "food": {
+                "reference_price": 1,
+                "units": 0
+              }
+            },
+            "sample_point": "wilderness_history_write"
+          },
+          "formula_id": "gdp.sum_output_times_reference_price.v1",
+          "cause_event_ids": [
+            "desktop-f44388555d4f427d8546f2bb0e8864ef:280529"
+          ],
+          "formula_replay": {
+            "actual": 0,
+            "expected": 0,
+            "matches": true
+          }
+        },
+        "wilderness_population_census": {
+          "branch_id": "main",
+          "epoch": 1,
+          "run_id": "desktop-f44388555d4f427d8546f2bb0e8864ef",
+          "schema_version": 1,
+          "turn": 2,
+          "event_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:280531",
+          "sequence": 280531,
+          "phase": "local",
+          "kind": "wilderness_population_census",
+          "record_class": "calculation",
+          "confidence": "exact",
+          "subject": {
+            "id": "c1",
+            "type": "tile"
+          },
+          "metric_id": "people.population",
+          "value_after": 0,
+          "unit": "people",
+          "inputs": {
+            "resident_agent_ids": [],
+            "sample_point": "wilderness_history_write"
+          },
+          "formula_id": "population.resident_ids.v1",
+          "formula_replay": {
+            "actual": 0,
+            "expected": 0,
+            "matches": true
+          }
+        },
+        "trade_export_value_calculation": {
+          "branch_id": "main",
+          "epoch": 1,
+          "run_id": "desktop-f44388555d4f427d8546f2bb0e8864ef",
+          "schema_version": 1,
+          "turn": 2,
+          "phase": "trade",
+          "kind": "trade_export_value_calculation",
+          "record_class": "calculation",
+          "confidence": "exact",
+          "subject": {
+            "id": "c0",
+            "type": "tile"
+          },
+          "metric_id": "trade.export_value",
+          "value_before": 0.0,
+          "value_after": 0.0,
+          "delta": 0.0,
+          "unit": "USD_per_turn",
+          "inputs": {
+            "conversion_timing": "trade_settlement_current_fx_quote",
+            "formula_result": 0.0,
+            "home_currency": "USD",
+            "partner_settlements": [
+              {
+                "conversion_basis": "same_currency",
+                "conversion_rate_to_home": 1.0,
+                "goods": [
+                  {
+                    "good": "food",
+                    "quantity": 0,
+                    "sale_event_ids": [],
+                    "value": 0.0
+                  },
+                  {
+                    "good": "wood",
+                    "quantity": 0,
+                    "sale_event_ids": [],
+                    "value": 0.0
+                  },
+                  {
+                    "good": "furniture",
+                    "quantity": 0,
+                    "sale_event_ids": [],
+                    "value": 0.0
+                  }
+                ],
+                "home_currency": "USD",
+                "partner_currency": "USD",
+                "partner_tile": "c230",
+                "quantity": 0,
+                "source_sale_event_ids": [],
+                "_omitted_fields": 2
+              }
+            ]
+          },
+          "formula_id": "trade.sum_partner_values_in_home_currency.v1",
+          "formula_replay": {
+            "actual": 0.0,
+            "expected": 0.0,
+            "matches": true
+          },
+          "sequence": 310510,
+          "event_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:310510"
+        },
+        "trade_import_value_calculation": {
+          "branch_id": "main",
+          "epoch": 1,
+          "run_id": "desktop-f44388555d4f427d8546f2bb0e8864ef",
+          "schema_version": 1,
+          "turn": 2,
+          "phase": "trade",
+          "kind": "trade_import_value_calculation",
+          "record_class": "calculation",
+          "confidence": "exact",
+          "subject": {
+            "id": "c0",
+            "type": "tile"
+          },
+          "metric_id": "trade.import_value",
+          "value_before": 0.0,
+          "value_after": 0.0,
+          "delta": 0.0,
+          "unit": "USD_per_turn",
+          "inputs": {
+            "currency_conversion_applied": false,
+            "formula_result": 0.0,
+            "goods": [
+              {
+                "currency": "USD",
+                "good": "food",
+                "market_summary_event_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:263695",
+                "quantity": 0,
+                "source_breakdown": [],
+                "value": 0.0
+              },
+              {
+                "currency": "USD",
+                "good": "wood",
+                "market_summary_event_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:263988",
+                "quantity": 0,
+                "source_breakdown": [],
+                "value": 0.0
+              },
+              {
+                "currency": "USD",
+                "good": "furniture",
+                "market_summary_event_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:264117",
+                "quantity": 0,
+                "source_breakdown": [],
+                "value": 0.0
+              }
+            ],
+            "home_currency": "USD"
+          },
+          "formula_id": "trade.sum_market_import_values_in_home_currency.v1",
+          "cause_event_ids": [
+            "desktop-f44388555d4f427d8546f2bb0e8864ef:263695",
+            "desktop-f44388555d4f427d8546f2bb0e8864ef:263988",
+            "desktop-f44388555d4f427d8546f2bb0e8864ef:264117"
+          ],
+          "formula_replay": {
+            "actual": 0.0,
+            "expected": 0.0,
+            "matches": true
+          },
+          "sequence": 310511,
+          "event_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:310511"
+        },
+        "trade_net_value_calculation": {
+          "branch_id": "main",
+          "epoch": 1,
+          "run_id": "desktop-f44388555d4f427d8546f2bb0e8864ef",
+          "schema_version": 1,
+          "turn": 2,
+          "phase": "trade",
+          "kind": "trade_net_value_calculation",
+          "record_class": "calculation",
+          "confidence": "exact",
+          "subject": {
+            "id": "c0",
+            "type": "tile"
+          },
+          "metric_id": "trade.net_value",
+          "value_before": 0.0,
+          "value_after": 0.0,
+          "delta": 0.0,
+          "unit": "USD_per_turn",
+          "inputs": {
+            "export_value_home_currency": 0.0,
+            "formula_result": 0.0,
+            "import_value_home_currency": 0.0
+          },
+          "formula_id": "trade.export_minus_import_value.v1",
+          "cause_event_ids": [
+            "desktop-f44388555d4f427d8546f2bb0e8864ef:310510",
+            "desktop-f44388555d4f427d8546f2bb0e8864ef:310511"
+          ],
+          "formula_replay": {
+            "actual": 0.0,
+            "expected": 0.0,
+            "matches": true
+          },
+          "sequence": 310512,
+          "event_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:310512"
+        },
+        "final_labor_member_count": {
+          "branch_id": "main",
+          "confidence": "exact",
+          "epoch": 1,
+          "phase": "snapshot",
+          "record_class": "calculation",
+          "run_id": "desktop-f44388555d4f427d8546f2bb0e8864ef",
+          "schema_version": 1,
+          "turn": 2,
+          "kind": "final_labor_member_count",
+          "subject": {
+            "id": "c0",
+            "livelihood": "food",
+            "type": "tile"
+          },
+          "metric_id": "labor.primary_livelihood",
+          "value_before": 60,
+          "value_after": 60,
+          "delta": 0,
+          "unit": "adults",
+          "inputs": {
+            "adult_records": [
+              {
+                "age": null,
+                "employer_id": null,
+                "hungry_steps": 0.75,
+                "in_workhouse": false,
+                "is_trader": false,
+                "livelihood": "furniture",
+                "military_unit_id": null,
+                "native_child": false,
+                "_omitted_fields": 4
+              },
+              {
+                "age": null,
+                "employer_id": null,
+                "hungry_steps": 0.0,
+                "in_workhouse": false,
+                "is_trader": false,
+                "livelihood": "food",
+                "military_unit_id": null,
+                "native_child": false,
+                "_omitted_fields": 4
+              },
+              {
+                "age": null,
+                "employer_id": null,
+                "hungry_steps": 0.5,
+                "in_workhouse": false,
+                "is_trader": false,
+                "livelihood": "food",
+                "military_unit_id": null,
+                "native_child": false,
+                "_omitted_fields": 4
+              },
+              {
+                "age": null,
+                "employer_id": null,
+                "hungry_steps": 0.75,
+                "in_workhouse": false,
+                "is_trader": false,
+                "livelihood": "food",
+                "military_unit_id": null,
+                "native_child": false,
+                "_omitted_fields": 4
+              },
+              {
+                "omitted_items": 97
+              }
+            ],
+            "age_evaluation_turn": 2,
+            "eligibility_rule": "living non-corporate non-government agents, excluding native children younger than 14",
+            "excluded_records": [],
+            "person_event_links": {
+              "105": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264219"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "106": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264192"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "148": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264217"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "149": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264153"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "150": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264195"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "151": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264157"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "152": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264194"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "153": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264179"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "154": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264161"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "155": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264182"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "156": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264151"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "157": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264215"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "158": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264214"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "159": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264203"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "160": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264150"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "183": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264198"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "184": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264155"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "185": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264201"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "186": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264154"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "187": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264173"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "188": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264207"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "189": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264222"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "190": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264149"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "191": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264174"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "192": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264185"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "193": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264163"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "194": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264162"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "195": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264218"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "197": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264176"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "199": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264202"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "200": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264191"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "201": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264184"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "202": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264212"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "203": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264175"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "204": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264172"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "205": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264189"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              }
+            },
+            "previous_adult_records": [
+              {
+                "age": null,
+                "employer_id": null,
+                "hungry_steps": 0.0,
+                "in_workhouse": false,
+                "is_trader": false,
+                "livelihood": "wood",
+                "military_unit_id": null,
+                "native_child": false,
+                "_omitted_fields": 4
+              },
+              {
+                "age": null,
+                "employer_id": null,
+                "hungry_steps": 0.0,
+                "in_workhouse": false,
+                "is_trader": false,
+                "livelihood": "wood",
+                "military_unit_id": null,
+                "native_child": false,
+                "_omitted_fields": 4
+              },
+              {
+                "age": null,
+                "employer_id": null,
+                "hungry_steps": 0.0,
+                "in_workhouse": false,
+                "is_trader": false,
+                "livelihood": "food",
+                "military_unit_id": null,
+                "native_child": false,
+                "_omitted_fields": 4
+              },
+              {
+                "age": null,
+                "employer_id": null,
+                "hungry_steps": 0.0,
+                "in_workhouse": false,
+                "is_trader": false,
+                "livelihood": "furniture",
+                "military_unit_id": null,
+                "native_child": false,
+                "_omitted_fields": 4
+              },
+              {
+                "omitted_items": 97
+              }
+            ],
+            "previous_excluded_records": [],
+            "sample_point": "end of world turn, after migration and scenario operations",
+            "status_priority": [
+              "military",
+              "trader",
+              "constable",
+              "workhouse",
+              {
+                "omitted_items": 2
+              }
+            ],
+            "turn": 2,
+            "added_member_ids": [],
+            "category": "food",
+            "dimension": "livelihood",
+            "member_ids": [
+              "147",
+              "160",
+              "156",
+              "128",
+              {
+                "omitted_items": 56
+              }
+            ],
+            "previous_member_ids": [
+              "142",
+              "110",
+              "203",
+              "160",
+              {
+                "omitted_items": 56
+              }
+            ],
+            "removed_member_ids": []
+          },
+          "formula_id": "labor.final_member_count.v1",
+          "formula_replay": {
+            "actual": 60,
+            "expected": 60,
+            "matches": true
+          },
+          "sequence": 313603,
+          "event_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:313603"
+        },
+        "final_temporary_work_share_mean": {
+          "branch_id": "main",
+          "confidence": "exact",
+          "epoch": 1,
+          "phase": "snapshot",
+          "record_class": "calculation",
+          "run_id": "desktop-f44388555d4f427d8546f2bb0e8864ef",
+          "schema_version": 1,
+          "turn": 2,
+          "kind": "final_temporary_work_share_mean",
+          "subject": {
+            "id": "c0",
+            "type": "tile"
+          },
+          "metric_id": "labor.temporary_work_share",
+          "value_before": 0.2202970297029703,
+          "value_after": 0.0,
+          "delta": -0.2202970297029703,
+          "unit": "adult_turn_share",
+          "inputs": {
+            "adult_records": [
+              {
+                "age": null,
+                "employer_id": null,
+                "hungry_steps": 0.75,
+                "in_workhouse": false,
+                "is_trader": false,
+                "livelihood": "furniture",
+                "military_unit_id": null,
+                "native_child": false,
+                "_omitted_fields": 4
+              },
+              {
+                "age": null,
+                "employer_id": null,
+                "hungry_steps": 0.0,
+                "in_workhouse": false,
+                "is_trader": false,
+                "livelihood": "food",
+                "military_unit_id": null,
+                "native_child": false,
+                "_omitted_fields": 4
+              },
+              {
+                "age": null,
+                "employer_id": null,
+                "hungry_steps": 0.5,
+                "in_workhouse": false,
+                "is_trader": false,
+                "livelihood": "food",
+                "military_unit_id": null,
+                "native_child": false,
+                "_omitted_fields": 4
+              },
+              {
+                "age": null,
+                "employer_id": null,
+                "hungry_steps": 0.75,
+                "in_workhouse": false,
+                "is_trader": false,
+                "livelihood": "food",
+                "military_unit_id": null,
+                "native_child": false,
+                "_omitted_fields": 4
+              },
+              {
+                "omitted_items": 97
+              }
+            ],
+            "age_evaluation_turn": 2,
+            "eligibility_rule": "living non-corporate non-government agents, excluding native children younger than 14",
+            "excluded_records": [],
+            "person_event_links": {
+              "105": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264219"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "106": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264192"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "148": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264217"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "149": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264153"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "150": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264195"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "151": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264157"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "152": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264194"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "153": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264179"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "154": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264161"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "155": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264182"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "156": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264151"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "157": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264215"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "158": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264214"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "159": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264203"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "160": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264150"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "183": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264198"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "184": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264155"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "185": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264201"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "186": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264154"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "187": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264173"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "188": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264207"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "189": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264222"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "190": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264149"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "191": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264174"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "192": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264185"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "193": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264163"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "194": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264162"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "195": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264218"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "197": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264176"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "199": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264202"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "200": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264191"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "201": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264184"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "202": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264212"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "203": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264175"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "204": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264172"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              },
+              "205": {
+                "food_intake": [
+                  "desktop-f44388555d4f427d8546f2bb0e8864ef:264189"
+                ],
+                "occupation": [],
+                "resident": [],
+                "status": [],
+                "temporary_activity": []
+              }
+            },
+            "previous_adult_records": [
+              {
+                "age": null,
+                "employer_id": null,
+                "hungry_steps": 0.0,
+                "in_workhouse": false,
+                "is_trader": false,
+                "livelihood": "wood",
+                "military_unit_id": null,
+                "native_child": false,
+                "_omitted_fields": 4
+              },
+              {
+                "age": null,
+                "employer_id": null,
+                "hungry_steps": 0.0,
+                "in_workhouse": false,
+                "is_trader": false,
+                "livelihood": "wood",
+                "military_unit_id": null,
+                "native_child": false,
+                "_omitted_fields": 4
+              },
+              {
+                "age": null,
+                "employer_id": null,
+                "hungry_steps": 0.0,
+                "in_workhouse": false,
+                "is_trader": false,
+                "livelihood": "food",
+                "military_unit_id": null,
+                "native_child": false,
+                "_omitted_fields": 4
+              },
+              {
+                "age": null,
+                "employer_id": null,
+                "hungry_steps": 0.0,
+                "in_workhouse": false,
+                "is_trader": false,
+                "livelihood": "furniture",
+                "military_unit_id": null,
+                "native_child": false,
+                "_omitted_fields": 4
+              },
+              {
+                "omitted_items": 97
+              }
+            ],
+            "previous_excluded_records": [],
+            "sample_point": "end of world turn, after migration and scenario operations",
+            "status_priority": [
+              "military",
+              "trader",
+              "constable",
+              "workhouse",
+              {
+                "omitted_items": 2
+              }
+            ],
+            "turn": 2,
+            "denominator": 101,
+            "shares": [
+              {
+                "person_id": "190",
+                "share": 0.0
+              },
+              {
+                "person_id": "147",
+                "share": 0.0
+              },
+              {
+                "person_id": "160",
+                "share": 0.0
+              },
+              {
+                "person_id": "156",
+                "share": 0.0
+              },
+              {
+                "omitted_items": 97
+              }
+            ]
+          },
+          "formula_id": "labor.final_temporary_share_mean.v1",
+          "formula_replay": {
+            "actual": 0.0,
+            "expected": 0.0,
+            "matches": true
+          },
+          "sequence": 313610,
+          "event_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:313610"
+        },
+        "person_event_count": {
+          "branch_id": "main",
+          "epoch": 1,
+          "phase": "snapshot",
+          "run_id": "desktop-f44388555d4f427d8546f2bb0e8864ef",
+          "schema_version": 1,
+          "turn": 2,
+          "event_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:315687",
+          "sequence": 315687,
+          "kind": "person_event_count",
+          "record_class": "calculation",
+          "confidence": "exact",
+          "subject": {
+            "id": "c0",
+            "type": "tile"
+          },
+          "metric_id": "people.births",
+          "value_after": 0,
+          "unit": "people_per_turn",
+          "inputs": {},
+          "formula_id": "people.registered_births.v1"
+        },
+        "living_person_count": {
+          "branch_id": "main",
+          "epoch": 1,
+          "phase": "snapshot",
+          "run_id": "desktop-f44388555d4f427d8546f2bb0e8864ef",
+          "schema_version": 1,
+          "turn": 2,
+          "event_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:315689",
+          "sequence": 315689,
+          "kind": "living_person_count",
+          "record_class": "calculation",
+          "confidence": "exact",
+          "subject": {
+            "id": "c0",
+            "type": "tile"
+          },
+          "metric_id": "people.residents",
+          "value_after": 101,
+          "unit": "people",
+          "formula_id": "people.living_nonentity_agents.v1"
+        }
+      }
+    },
+    "egypt_1877": {
+      "trace": "/Users/sli/Code/tmp/traces/desktop-2a2964a3ab6b4fc0b6e84355e9e05e59.ctr",
+      "turn": 3,
+      "actual_records": 42475,
+      "kinds": {
+        "state_coverage": 4461,
+        "market_buyer_order_submitted": 2862,
+        "local_buyer_bid": 2862,
+        "person_event_count": 2000,
+        "paid_market_sale": 1337,
+        "paid_market_unit_price": 1337,
+        "market_seller_receipt_posted": 1337,
+        "final_labor_member_count": 1072,
+        "independent_production": 1011,
+        "effective_workday_cap_sample": 1000,
+        "trader_cash_total_calculation": 1000,
+        "trade_pipeline_depth_calculation": 1000,
+        "population_change_rate_calculation": 1000,
+        "trade_export_value_calculation": 1000,
+        "trade_import_value_calculation": 1000,
+        "trade_net_value_calculation": 1000,
+        "final_temporary_work_share_mean": 1000,
+        "living_person_count": 1000,
+        "wilderness_food_production": 988,
+        "wilderness_nominal_gdp": 988,
+        "wilderness_population_census": 988,
+        "metric_snapshot": 937,
+        "obligation_assessed": 933,
+        "elite_operator_evaluation": 675,
+        "household_food_intake": 624,
+        "disease_onset_assessment": 610,
+        "market_seller_order_submitted": 541,
+        "cadastral_tax_arrears_balance": 514,
+        "cadastral_foreclosure_risk_roll": 514,
+        "cadastral_tax_payment": 491,
+        "household_nonfood_consumption": 448,
+        "local_seller_ask": 392,
+        "tile_production_total": 216,
+        "producer_inventory_total": 216,
+        "commons_foraging": 188,
+        "foraged_food_receipt": 188,
+        "faction_support_history_calculation": 168,
+        "faction_grievance_history_calculation": 168,
+        "elite_planning_gate": 157,
+        "elite_luxury_purchase_evaluation": 157,
+        "elite_voyage_circuit_evaluation": 157,
+        "elite_spatial_trade_delegation": 157,
+        "elite_labor_legislation_evaluation": 157,
+        "corporation_ai_decision": 157,
+        "corporation_ai_outcome": 157,
+        "elite_inventory_liquidation_decision": 135,
+        "fx_conversion_executed": 132,
+        "elite_capital_allocation_evaluation": 122,
+        "independent_production_zero": 103,
+        "nation_chart_history_aggregate": 102,
+        "bank_balance_operation": 87,
+        "market_demand_supply_ratio": 84,
+        "price_bridge": 84,
+        "feudal_tribute_transfer": 73,
+        "trader_route_decision": 72,
+        "market_zero_order_summary": 72,
+        "market_demand_total": 72,
+        "market_supply_total": 72,
+        "market_price_update": 72,
+        "social_class_population_calculation": 72,
+        "public_account_write": 69,
+        "tax_revenue_distribution_calculation": 68,
+        "innovation_research_gate": 65,
+        "obligation_settlement": 62,
+        "disease_cases_observed": 60,
+        "cash_obligation_payment": 59,
+        "obligation_payment": 59,
+        "national_reference_price_aggregate": 57,
+        "bank_tile_closing_alias": 48,
+        "bank_loan_repayment": 42,
+        "disease_health_attrition": 38,
+        "market_transaction_vwap": 37,
+        "market_clearing_summary": 37,
+        "market_total_units_sold": 37,
+        "market_no_trade": 35,
+        "innovation_diffusion_gate": 35,
+        "mortality_assessment": 31,
+        "medical_care_payment": 29,
+        "medical_treatment": 29,
+        "elite_lord_transformation_evaluation": 28,
+        "national_aggregate": 23,
+        "elite_operator_execution": 22,
+        "bank_deposit_posted": 22,
+        "innovation_bottleneck_pressure": 22,
+        "innovation_breakthrough_evaluation": 22,
+        "fx_mid_update": 22,
+        "public_account_close": 22,
+        "enclosure_charter_fee": 20,
+        "enclosure_charter_fee_treasury_receipt": 20,
+        "enclosure_charter_granted": 20,
+        "labor_enforcement_case": 17,
+        "innovation_learning_calculation": 15,
+        "bank_closing_balance": 15,
+        "bank_withdrawal_posted": 14,
+        "cost_of_living_calculation": 12,
+        "elite_planner_phase_gate": 12,
+        "elite_market_novelty_scan": 12,
+        "labor_scheduler_gate": 12,
+        "labor_machinery_sabotage_calculation": 12,
+        "labor_broken_machinery_calculation": 12,
+        "labor_striker_count_calculation": 12,
+        "seasonal_water_allocation": 12,
+        "feudal_tribute_reference_valuation": 12,
+        "market_price_decay": 12,
+        "rent_collection_summary": 12,
+        "rent_arrears_summary": 12,
+        "pasture_fraction_calculation": 12,
+        "nominal_gdp_calculation": 12,
+        "labor_shift_hours_calculation": 12,
+        "labor_exploitation_rate_calculation": 12,
+        "labor_surplus_value_calculation": 12,
+        "civilian_food_consumption_total": 12,
+        "workhouse_forced_labor_calculation": 12,
+        "workhouse_inmate_census": 12,
+        "labor_average_alienation_calculation": 12,
+        "labor_average_class_consciousness_calculation": 12,
+        "health_average_bodily_wear_calculation": 12,
+        "labor_workplace_accidents_calculation": 12,
+        "society_entertainment_level_sample": 12,
+        "soil_fertility_update": 12,
+        "nutrition_density_update": 12,
+        "pollution_air_update": 12,
+        "pollution_water_update": 12,
+        "pollution_soil_update": 12,
+        "disease_fatalities_observed": 12,
+        "medical_care_summary": 12,
+        "disease_untreated_cases_observed": 12,
+        "pollution_health_assessment": 12,
+        "population_hunger_count_calculation": 12,
+        "infant_fatalities_turn_total": 12,
+        "grievance_sources": 12,
+        "protest_energy_update": 12,
+        "unrest_roll": 12,
+        "population_count_calculation": 12,
+        "commons_access_calculation": 12,
+        "foraged_food_total": 12,
+        "purchased_food_total": 12,
+        "bank_equity_calculation": 12,
+        "total_cash_calculation": 12,
+        "government_income_calculation": 12,
+        "migration_push_decision": 12,
+        "enclosure_bailiff_force_decision": 10,
+        "bailiff_service": 10,
+        "cadastral_tax_treasury_receipt": 10,
+        "occupation_revenue_assessment": 10,
+        "government_food_aid_recipient": 9,
+        "medical_treatment_unaffordable": 9,
+        "treasury_phase_delta": 5,
+        "government_reserve_deficit_calculation": 5,
+        "income_tax_assessment_calculation": 5,
+        "government_remaining_financing_gap": 5,
+        "government_tax_rate_decision": 5,
+        "government_food_aid": 5,
+        "pollution_downstream_advection": 5,
+        "government_deposit_interest_received": 5,
+        "bank_deposit_interest_payout": 5,
+        "bank_closing_equity": 5,
+        "bank_loan_issued": 4,
+        "estate_cash_allocated": 4,
+        "scenario_politics_metric_outcome": 4,
+        "resident_population_bridge": 4,
+        "closing_active_disease_census": 4,
+        "starvation_death_assessment": 3,
+        "person_died": 3,
+        "profession_population_count": 3,
+        "coup_check": 3,
+        "legitimacy_drift": 3,
+        "uprising_pressure_gate": 3,
+        "uprising_response_decision": 3,
+        "uprising_response_outcome": 3,
+        "diplomacy_relation_drift": 3,
+        "treasury_account_closure": 3,
+        "treasury_reconciliation": 3,
+        "treasury_components": 3,
+        "national_food_price_history_aggregate": 3,
+        "government_market_purchase": 2,
+        "fertilizer_stock_inflow": 2,
+        "government_estate_cash_receipt": 2,
+        "estate_decedent_cash_closed": 2,
+        "government_food_purchase": 2,
+        "scenario_political_crisis_gate_evaluation": 2,
+        "estate_inventory_allocated": 1,
+        "estate_decedent_inventory_closed": 1,
+        "charity_food_purchase": 1,
+        "charity_food_aid_recipient": 1,
+        "charity_food_aid": 1,
+        "army_payroll": 1,
+        "abstract_military_payroll_cash_sink": 1,
+        "army_ration_consumption": 1,
+        "army_upkeep_outcome": 1,
+        "scenario_politics_dynamics_calculation": 1,
+        "turn_checkpoint": 1,
+        "native_command_boundary": 1
+      },
+      "secondary_candidate_pools": {
+        "unchanged_workday_cap": 1000,
+        "trade_pipeline_depth_calculation": 1000,
+        "population_change_rate_calculation": 1000,
+        "wilderness_food_production": 988,
+        "wilderness_population_census": 988,
+        "trader_cash_total_calculation": 988,
+        "trade_export_value_calculation": 1000,
+        "trade_import_value_calculation": 988,
+        "empty_labor_rollups": 1976,
+        "zero_birth_death_counts": 1997,
+        "zero_living_person_counts": 988
+      },
+      "secondary_candidate_kinds": {
+        "effective_workday_cap_sample": 1000,
+        "trade_pipeline_depth_calculation": 1000,
+        "population_change_rate_calculation": 1000,
+        "wilderness_food_production": 988,
+        "wilderness_population_census": 988,
+        "trader_cash_total_calculation": 988,
+        "trade_export_value_calculation": 1000,
+        "trade_import_value_calculation": 988,
+        "final_labor_member_count": 988,
+        "final_temporary_work_share_mean": 988,
+        "person_event_count": 1997,
+        "living_person_count": 988
+      },
+      "secondary_candidate_total": 12913,
+      "secondary_percent_of_remaining": 30.401412595644498,
+      "existing_groups_only_count_projection": {
+        "actual_records": 42475,
+        "coverage_groups": 4461,
+        "net_records_saved": 0,
+        "percent_saved": 0.0
+      },
+      "secondary_count_only_projection": {
+        "actual_records": 33562,
+        "coverage_groups": 8461,
+        "net_records_saved": 8913,
+        "percent_saved": 20.984108298999413
+      },
+      "secondary_plus_derived_projection": {
+        "actual_records": 30598,
+        "coverage_groups": 7485,
+        "net_records_saved": 11877,
+        "percent_saved": 27.96233078281342
+      },
+      "additional_derived_pools": {
+        "wilderness_nominal_gdp_zero_with_sources": 988,
+        "trade_net_value_calculation_zero_with_sources": 1000,
+        "empty_temporary_work_means": 988
+      },
+      "coverage_group_cell_sizes": {
+        "1": 343,
+        "2": 36,
+        "3": 17,
+        "4": 1008,
+        "5": 1011,
+        "7": 6,
+        "8": 12,
+        "9": 5,
+        "11": 10,
+        "14": 9,
+        "18": 2,
+        "19": 1002,
+        "25": 3,
+        "45": 9,
+        "179": 1,
+        "199": 987
+      },
+      "coverage_group_phases": {
+        "local": 2204,
+        "snapshot": 2257
+      },
+      "source_bearing_records_by_kind": {
+        "local_buyer_bid": 2862,
+        "paid_market_sale": 1337,
+        "paid_market_unit_price": 1337,
+        "market_seller_receipt_posted": 1337,
+        "wilderness_nominal_gdp": 988,
+        "trade_net_value_calculation": 1000,
+        "trade_import_value_calculation": 12,
+        "final_labor_member_count": 18,
+        "final_temporary_work_share_mean": 3
+      },
+      "matched_parent_links": {
+        "local_buyer_bid": {
+          "children_with_one_matching_parent": 2862,
+          "unique_parent_events": 2862,
+          "parents_with_multiple_children": 0
+        },
+        "paid_market_unit_price": {
+          "children_with_one_matching_parent": 1337,
+          "unique_parent_events": 1337,
+          "parents_with_multiple_children": 0
+        },
+        "market_seller_receipt_posted": {
+          "children_with_one_matching_parent": 1337,
+          "unique_parent_events": 1337,
+          "parents_with_multiple_children": 0
+        }
+      },
+      "sales_with_price_and_receipt": 1337,
+      "examples": {
+        "market_buyer_order_submitted": {
+          "branch_id": "main",
+          "confidence": "exact",
+          "epoch": 1,
+          "run_id": "desktop-2a2964a3ab6b4fc0b6e84355e9e05e59",
+          "schema_version": 1,
+          "turn": 3,
+          "phase": "trade",
+          "kind": "market_buyer_order_submitted",
+          "record_class": "decision",
+          "subject": {
+            "buyer_id": 68,
+            "good": "food",
+            "id": "c242",
+            "type": "tile"
+          },
+          "metric_id": "goods.buyer_bid_quantity",
+          "value_after": 4,
+          "unit": "units",
+          "inputs": {
+            "buyer_id": 68,
+            "buyer_output": "wood",
+            "cash_affordability_basis": "remainingCash",
+            "cash_affordability_formula_id": "market.cash_affordability_ceiling.v1",
+            "cash_affordable_units_at_bid": 120,
+            "cash_at_bid": 120.04621621621621,
+            "cash_before_funding": 120.04621621621621,
+            "cash_funding_event_ids": [],
+            "consumption_multiplier": 1.0,
+            "current_desired": 16,
+            "destination": null,
+            "employee_count": 0,
+            "good": "food",
+            "hungry_steps": 0.0,
+            "input_good": "none",
+            "input_units_per_output": 0,
+            "inventory_before_order": 6.0,
+            "is_corporation": false,
+            "is_employee": false,
+            "is_trader": false,
+            "order_rule": "household_or_employer_inventory_need",
+            "output_units_per_turn": 3,
+            "quantity_calculated": 4,
+            "reference_price": 1.0,
+            "remaining_cash_at_bid": 120.04621621621621,
+            "remaining_cash_before_funding": 120.04621621621621,
+            "submitted_quantity": 4
+          },
+          "explanation_status": "submitted_order_inputs_recorded",
+          "sequence": 264013,
+          "event_id": "desktop-2a2964a3ab6b4fc0b6e84355e9e05e59:264013"
+        },
+        "local_buyer_bid": {
+          "branch_id": "main",
+          "confidence": "exact",
+          "epoch": 1,
+          "record_class": "calculation",
+          "run_id": "desktop-2a2964a3ab6b4fc0b6e84355e9e05e59",
+          "schema_version": 1,
+          "turn": 3,
+          "phase": "local",
+          "kind": "local_buyer_bid",
+          "subject": {
+            "buyer_id": 68,
+            "good": "food",
+            "id": "c242",
+            "type": "tile"
+          },
+          "metric_id": "goods.buyer_bid",
+          "value_after": 1.4,
+          "unit": "local_currency_per_unit",
+          "inputs": {
+            "cash_limit": 30.011554054054052,
+            "currency": "EGP",
+            "demand_premium": 0.4,
+            "demand_ratio": 5.0,
+            "input_value_ceiling": null,
+            "need_premium": 0.0,
+            "quantity": 4,
+            "quantity_event_id": "desktop-2a2964a3ab6b4fc0b6e84355e9e05e59:264013",
+            "reference": 1.0,
+            "trader_net_value": null,
+            "trader_tariff_terms": null
+          },
+          "formula_id": "market.local_bid.v1",
+          "cause_event_ids": [
+            "desktop-2a2964a3ab6b4fc0b6e84355e9e05e59:264013"
+          ],
+          "formula_replay": {
+            "actual": 1.4,
+            "expected": 1.4,
+            "matches": true
+          },
+          "sequence": 264313,
+          "event_id": "desktop-2a2964a3ab6b4fc0b6e84355e9e05e59:264313"
+        },
+        "paid_market_sale": {
+          "branch_id": "main",
+          "epoch": 1,
+          "run_id": "desktop-2a2964a3ab6b4fc0b6e84355e9e05e59",
+          "schema_version": 1,
+          "turn": 3,
+          "phase": "local",
+          "kind": "paid_market_sale",
+          "record_class": "transfer",
+          "confidence": "exact",
+          "subject": {
+            "good": "wood",
+            "id": "c242",
+            "type": "tile"
+          },
+          "metric_id": "goods.sold",
+          "value_before": 0,
+          "value_after": 2,
+          "delta": 2,
+          "unit": "units",
+          "inputs": {
+            "buyer_cash_after": 104.11021759672035,
+            "buyer_cash_before": 105.91021759672034,
+            "buyer_id": 2,
+            "freight_per_unit": null,
+            "government_cash_delta": -1.7999999999999972,
+            "imported": false,
+            "parked": false,
+            "route_history": [],
+            "seller_account_tile": "c242",
+            "seller_cash_delta": 1.7999999999999972,
+            "seller_id": 68,
+            "seller_local_wallet_delta": 0.0,
+            "shipment_id": null,
+            "source_acquisitions": [],
+            "source_cost_status": null,
+            "source_currency": null,
+            "source_region": null,
+            "source_shipment_id": null,
+            "source_unit_cost": null,
+            "total_paid": 1.8,
+            "unit_price": 0.9
+          },
+          "cause_event_ids": [
+            "desktop-2a2964a3ab6b4fc0b6e84355e9e05e59:264125",
+            "desktop-2a2964a3ab6b4fc0b6e84355e9e05e59:264014"
+          ],
+          "sequence": 264472,
+          "event_id": "desktop-2a2964a3ab6b4fc0b6e84355e9e05e59:264472"
+        },
+        "paid_market_unit_price": {
+          "branch_id": "main",
+          "epoch": 1,
+          "run_id": "desktop-2a2964a3ab6b4fc0b6e84355e9e05e59",
+          "schema_version": 1,
+          "turn": 3,
+          "phase": "local",
+          "kind": "paid_market_unit_price",
+          "record_class": "observation",
+          "confidence": "unknown",
+          "subject": {
+            "good": "wood",
+            "id": "c242",
+            "type": "tile"
+          },
+          "metric_id": "goods.transaction_price",
+          "value_after": 0.9,
+          "unit": "local_currency_per_unit",
+          "inputs": {
+            "buyer_id": 2,
+            "currency": "EGP",
+            "imported": false,
+            "quantity": 2,
+            "seller_id": 68,
+            "total_paid": 1.8
+          },
+          "cause_event_ids": [
+            "desktop-2a2964a3ab6b4fc0b6e84355e9e05e59:264472"
+          ],
+          "sequence": 264474,
+          "event_id": "desktop-2a2964a3ab6b4fc0b6e84355e9e05e59:264474"
+        },
+        "market_seller_receipt_posted": {
+          "branch_id": "main",
+          "epoch": 1,
+          "run_id": "desktop-2a2964a3ab6b4fc0b6e84355e9e05e59",
+          "schema_version": 1,
+          "turn": 3,
+          "phase": "trade",
+          "kind": "market_seller_receipt_posted",
+          "record_class": "transfer",
+          "confidence": "exact",
+          "subject": {
+            "id": 68,
+            "tile": "c242",
+            "type": "agent"
+          },
+          "metric_id": "trade.market_seller_settlement",
+          "unit": "EGP",
+          "inputs": {
+            "buyer_id": 2,
+            "cash_receipt": 1.7999999999999972,
+            "currency": "EGP",
+            "destination_tile": "c242",
+            "good": "wood",
+            "quantity": 2,
+            "receipt_journal_refs": [],
+            "sale_event_id": 336,
+            "seller_account_tile": "c242",
+            "seller_id": 68,
+            "wallet_receipt": 0.0
+          },
+          "cause_event_ids": [
+            "desktop-2a2964a3ab6b4fc0b6e84355e9e05e59:264472"
+          ],
+          "sequence": 264475,
+          "event_id": "desktop-2a2964a3ab6b4fc0b6e84355e9e05e59:264475"
+        },
+        "effective_workday_cap_sample": {
+          "branch_id": "main",
+          "epoch": 1,
+          "run_id": "desktop-2a2964a3ab6b4fc0b6e84355e9e05e59",
+          "schema_version": 1,
+          "turn": 3,
+          "phase": "local",
+          "kind": "effective_workday_cap_sample",
+          "record_class": "calculation",
+          "confidence": "exact",
+          "subject": {
+            "id": "c242",
+            "type": "tile"
+          },
+          "metric_id": "labor.statutory_workday",
+          "value_before": 16.0,
+          "value_after": 16.0,
+          "delta": 0.0,
+          "unit": "hours",
+          "inputs": {
+            "effective_workday_cap": 16.0,
+            "sample_point": "effective cap state recorded for this turn",
+            "statute_display_value": 16.0,
+            "workday_cap_field": "workday_cap"
+          },
+          "formula_id": "labor.effective_workday_cap_sample.v1",
+          "formula_replay": {
+            "actual": 16.0,
+            "expected": 16.0,
+            "matches": true
+          },
+          "sequence": 264782,
+          "event_id": "desktop-2a2964a3ab6b4fc0b6e84355e9e05e59:264782"
+        },
+        "trader_cash_total_calculation": {
+          "branch_id": "main",
+          "epoch": 1,
+          "run_id": "desktop-2a2964a3ab6b4fc0b6e84355e9e05e59",
+          "schema_version": 1,
+          "turn": 3,
+          "event_id": "desktop-2a2964a3ab6b4fc0b6e84355e9e05e59:265095",
+          "sequence": 265095,
+          "phase": "demographics",
+          "kind": "trader_cash_total_calculation",
+          "record_class": "calculation",
+          "confidence": "exact",
+          "subject": {
+            "id": "c242",
+            "type": "tile"
+          },
+          "metric_id": "trade.trader_cash",
+          "value_before": 594.0,
+          "value_after": 1215.3436,
+          "delta": 621.3435999999999,
+          "unit": "EGP",
+          "inputs": {
+            "currency": "EGP",
+            "trader_count": 6,
+            "traders": [
+              {
+                "agent_id": 103,
+                "cash": 202.5
+              },
+              {
+                "agent_id": 102,
+                "cash": 199.5
+              },
+              {
+                "agent_id": 101,
+                "cash": 201.0
+              },
+              {
+                "agent_id": 100,
+                "cash": 201.0
+              },
+              {
+                "omitted_items": 2
+              }
+            ]
+          },
+          "formula_id": "trade.trader_cash_sum_wallets.v1",
+          "formula_replay": {
+            "actual": 1215.3436,
+            "expected": 1215.3436,
+            "matches": true
+          }
+        },
+        "trade_pipeline_depth_calculation": {
+          "branch_id": "main",
+          "epoch": 1,
+          "run_id": "desktop-2a2964a3ab6b4fc0b6e84355e9e05e59",
+          "schema_version": 1,
+          "turn": 3,
+          "event_id": "desktop-2a2964a3ab6b4fc0b6e84355e9e05e59:265097",
+          "sequence": 265097,
+          "phase": "demographics",
+          "kind": "trade_pipeline_depth_calculation",
+          "record_class": "calculation",
+          "confidence": "exact",
+          "subject": {
+            "id": "c242",
+            "type": "tile"
+          },
+          "metric_id": "trade.pipeline_depth",
+          "value_before": 0,
+          "value_after": 0,
+          "delta": 0,
+          "unit": "goods_units",
+          "inputs": {
+            "aggregation_rule": "sum quantities across listed goods and routes",
+            "excluded_states": [
+              "pending",
+              "parked"
+            ],
+            "included_goods": [
+              "food",
+              "wood",
+              "furniture"
+            ],
+            "included_state": "in_transit",
+            "routes": [
+              {
+                "destination": "c547",
+                "goods_units": {
+                  "food": 0,
+                  "furniture": 0,
+                  "wood": 0
+                },
+                "route": "c242->c547",
+                "total_goods_units": 0
+              },
+              {
+                "destination": "c913",
+                "goods_units": {
+                  "food": 0,
+                  "furniture": 0,
+                  "wood": 0
+                },
+                "route": "c242->c913",
+                "total_goods_units": 0
+              },
+              {
+                "destination": "c134",
+                "goods_units": {
+                  "food": 0,
+                  "furniture": 0,
+                  "wood": 0
+                },
+                "route": "c242->c134",
+                "total_goods_units": 0
+              }
+            ],
+            "shipments": []
+          },
+          "formula_id": "trade.pipeline_depth_in_transit_goods.v1",
+          "formula_replay": {
+            "actual": 0,
+            "expected": 0,
+            "matches": true
+          }
+        },
+        "population_change_rate_calculation": {
+          "branch_id": "main",
+          "confidence": "exact",
+          "epoch": 1,
+          "run_id": "desktop-2a2964a3ab6b4fc0b6e84355e9e05e59",
+          "schema_version": 1,
+          "turn": 3,
+          "phase": "demographics",
+          "kind": "population_change_rate_calculation",
+          "record_class": "calculation",
+          "subject": {
+            "id": "c242",
+            "type": "tile"
+          },
+          "metric_id": "people.population_change_rate",
+          "value_before": 0,
+          "value_after": 0,
+          "delta": 0,
+          "unit": "percent_over_sample_window",
+          "inputs": {
+            "baseline_population": null,
+            "current_population": 99,
+            "formula": "(current - baseline) / baseline * 100; zero if fewer than ten samples or baseline is zero",
+            "population_basis": "total_population profession-count history",
+            "population_samples": [
+              99,
+              99
+            ],
+            "sample_count": 2,
+            "turn": 3,
+            "window_sample_count": 10,
+            "window_status": "insufficient_history"
+          },
+          "formula_id": "population.rate_from_last_ten_samples.v1",
+          "formula_replay": {
+            "actual": 0,
+            "expected": 0.0,
+            "matches": true
+          },
+          "sequence": 265136,
+          "event_id": "desktop-2a2964a3ab6b4fc0b6e84355e9e05e59:265136"
+        },
+        "wilderness_food_production": {
+          "branch_id": "main",
+          "epoch": 1,
+          "run_id": "desktop-2a2964a3ab6b4fc0b6e84355e9e05e59",
+          "schema_version": 1,
+          "turn": 3,
+          "event_id": "desktop-2a2964a3ab6b4fc0b6e84355e9e05e59:283674",
+          "sequence": 283674,
+          "phase": "local",
+          "kind": "wilderness_food_production",
+          "record_class": "calculation",
+          "confidence": "exact",
+          "subject": {
+            "good": "food",
+            "id": "c0",
+            "type": "tile"
+          },
+          "metric_id": "goods.production",
+          "value_after": 0,
+          "unit": "units",
+          "inputs": {
+            "granary_release_units": 0,
+            "producer_receipts": [],
+            "sample_point": "wilderness_history_write",
+            "wool_from_pasture": 0
+          },
+          "formula_id": "production.sum_receipts.v1",
+          "cause_event_ids": [],
+          "formula_replay": {
+            "actual": 0,
+            "expected": 0,
+            "matches": true
+          }
+        },
+        "wilderness_nominal_gdp": {
+          "branch_id": "main",
+          "epoch": 1,
+          "run_id": "desktop-2a2964a3ab6b4fc0b6e84355e9e05e59",
+          "schema_version": 1,
+          "turn": 3,
+          "event_id": "desktop-2a2964a3ab6b4fc0b6e84355e9e05e59:283675",
+          "sequence": 283675,
+          "phase": "local",
+          "kind": "wilderness_nominal_gdp",
+          "record_class": "calculation",
+          "confidence": "exact",
+          "subject": {
+            "id": "c0",
+            "type": "tile"
+          },
+          "metric_id": "economy.gdp_nominal",
+          "value_after": 0,
+          "unit": "local_currency_per_turn",
+          "inputs": {
+            "goods": {
+              "food": {
+                "reference_price": 1,
+                "units": 0
+              }
+            },
+            "sample_point": "wilderness_history_write"
+          },
+          "formula_id": "gdp.sum_output_times_reference_price.v1",
+          "cause_event_ids": [
+            "desktop-2a2964a3ab6b4fc0b6e84355e9e05e59:283674"
+          ],
+          "formula_replay": {
+            "actual": 0,
+            "expected": 0,
+            "matches": true
+          }
+        },
+        "wilderness_population_census": {
+          "branch_id": "main",
+          "epoch": 1,
+          "run_id": "desktop-2a2964a3ab6b4fc0b6e84355e9e05e59",
+          "schema_version": 1,
+          "turn": 3,
+          "event_id": "desktop-2a2964a3ab6b4fc0b6e84355e9e05e59:283676",
+          "sequence": 283676,
+          "phase": "local",
+          "kind": "wilderness_population_census",
+          "record_class": "calculation",
+          "confidence": "exact",
+          "subject": {
+            "id": "c0",
+            "type": "tile"
+          },
+          "metric_id": "people.population",
+          "value_after": 0,
+          "unit": "people",
+          "inputs": {
+            "resident_agent_ids": [],
+            "sample_point": "wilderness_history_write"
+          },
+          "formula_id": "population.resident_ids.v1",
+          "formula_replay": {
+            "actual": 0,
+            "expected": 0,
+            "matches": true
+          }
+        },
+        "trade_export_value_calculation": {
+          "branch_id": "main",
+          "epoch": 1,
+          "run_id": "desktop-2a2964a3ab6b4fc0b6e84355e9e05e59",
+          "schema_version": 1,
+          "turn": 3,
+          "phase": "trade",
+          "kind": "trade_export_value_calculation",
+          "record_class": "calculation",
+          "confidence": "exact",
+          "subject": {
+            "id": "c0",
+            "type": "tile"
+          },
+          "metric_id": "trade.export_value",
+          "value_before": 0,
+          "value_after": 0,
+          "delta": 0,
+          "unit": "local_currency_per_turn",
+          "inputs": {
+            "conversion_timing": "trade_settlement_current_fx_quote",
+            "formula_result": 0,
+            "home_currency": "local_currency",
+            "partner_settlements": []
+          },
+          "formula_id": "trade.sum_partner_values_in_home_currency.v1",
+          "formula_replay": {
+            "actual": 0,
+            "expected": 0,
+            "matches": true
+          },
+          "sequence": 313647,
+          "event_id": "desktop-2a2964a3ab6b4fc0b6e84355e9e05e59:313647"
+        },
+        "trade_import_value_calculation": {
+          "branch_id": "main",
+          "epoch": 1,
+          "run_id": "desktop-2a2964a3ab6b4fc0b6e84355e9e05e59",
+          "schema_version": 1,
+          "turn": 3,
+          "phase": "trade",
+          "kind": "trade_import_value_calculation",
+          "record_class": "calculation",
+          "confidence": "exact",
+          "subject": {
+            "id": "c0",
+            "type": "tile"
+          },
+          "metric_id": "trade.import_value",
+          "value_before": 0.0,
+          "value_after": 0.0,
+          "delta": 0.0,
+          "unit": "local_currency_per_turn",
+          "inputs": {
+            "currency_conversion_applied": false,
+            "formula_result": 0.0,
+            "goods": [
+              {
+                "currency": null,
+                "good": "food",
+                "market_summary_event_id": null,
+                "quantity": 0,
+                "source_breakdown": [],
+                "value": 0.0
+              },
+              {
+                "currency": null,
+                "good": "wood",
+                "market_summary_event_id": null,
+                "quantity": 0,
+                "source_breakdown": [],
+                "value": 0.0
+              },
+              {
+                "currency": null,
+                "good": "furniture",
+                "market_summary_event_id": null,
+                "quantity": 0,
+                "source_breakdown": [],
+                "value": 0.0
+              }
+            ],
+            "home_currency": "local_currency"
+          },
+          "formula_id": "trade.sum_market_import_values_in_home_currency.v1",
+          "formula_replay": {
+            "actual": 0.0,
+            "expected": 0.0,
+            "matches": true
+          },
+          "sequence": 313648,
+          "event_id": "desktop-2a2964a3ab6b4fc0b6e84355e9e05e59:313648"
+        },
+        "trade_net_value_calculation": {
+          "branch_id": "main",
+          "confidence": "exact",
+          "epoch": 1,
+          "phase": "trade",
+          "record_class": "calculation",
+          "run_id": "desktop-2a2964a3ab6b4fc0b6e84355e9e05e59",
+          "schema_version": 1,
+          "turn": 3,
+          "kind": "trade_net_value_calculation",
+          "subject": {
+            "id": "c0",
+            "type": "tile"
+          },
+          "metric_id": "trade.net_value",
+          "value_before": 0.0,
+          "value_after": 0.0,
+          "delta": 0.0,
+          "unit": "local_currency_per_turn",
+          "inputs": {
+            "export_value_home_currency": 0,
+            "formula_result": 0.0,
+            "import_value_home_currency": 0.0
+          },
+          "formula_id": "trade.export_minus_import_value.v1",
+          "cause_event_ids": [
+            "desktop-2a2964a3ab6b4fc0b6e84355e9e05e59:313647",
+            "desktop-2a2964a3ab6b4fc0b6e84355e9e05e59:313648"
+          ],
+          "formula_replay": {
+            "actual": 0.0,
+            "expected": 0.0,
+            "matches": true
+          },
+          "sequence": 313649,
+          "event_id": "desktop-2a2964a3ab6b4fc0b6e84355e9e05e59:313649"
+        },
+        "final_labor_member_count": {
+          "branch_id": "main",
+          "confidence": "exact",
+          "epoch": 1,
+          "phase": "snapshot",
+          "record_class": "calculation",
+          "run_id": "desktop-2a2964a3ab6b4fc0b6e84355e9e05e59",
+          "schema_version": 1,
+          "turn": 3,
+          "kind": "final_labor_member_count",
+          "subject": {
+            "id": "c0",
+            "type": "tile"
+          },
+          "metric_id": "labor.hungry_adults",
+          "value_before": 0,
+          "value_after": 0,
+          "delta": 0,
+          "unit": "adults",
+          "inputs": {
+            "adult_records": [],
+            "age_evaluation_turn": 0,
+            "eligibility_rule": "living non-corporate non-government agents, excluding native children younger than 14",
+            "excluded_records": [],
+            "person_event_links": {},
+            "previous_adult_records": [],
+            "previous_excluded_records": [],
+            "sample_point": "end of world turn, after migration and scenario operations",
+            "status_priority": [
+              "military",
+              "trader",
+              "constable",
+              "workhouse",
+              {
+                "omitted_items": 2
+              }
+            ],
+            "turn": 3,
+            "added_member_ids": [],
+            "category": "hungry",
+            "dimension": "hungry_steps",
+            "member_ids": [],
+            "previous_member_ids": [],
+            "removed_member_ids": []
+          },
+          "formula_id": "labor.final_member_count.v1",
+          "formula_replay": {
+            "actual": 0,
+            "expected": 0,
+            "matches": true
+          },
+          "sequence": 318316,
+          "event_id": "desktop-2a2964a3ab6b4fc0b6e84355e9e05e59:318316"
+        },
+        "final_temporary_work_share_mean": {
+          "branch_id": "main",
+          "confidence": "exact",
+          "epoch": 1,
+          "phase": "snapshot",
+          "record_class": "calculation",
+          "run_id": "desktop-2a2964a3ab6b4fc0b6e84355e9e05e59",
+          "schema_version": 1,
+          "turn": 3,
+          "kind": "final_temporary_work_share_mean",
+          "subject": {
+            "id": "c0",
+            "type": "tile"
+          },
+          "metric_id": "labor.temporary_work_share",
+          "value_before": 0.0,
+          "value_after": 0.0,
+          "delta": 0.0,
+          "unit": "adult_turn_share",
+          "inputs": {
+            "adult_records": [],
+            "age_evaluation_turn": 0,
+            "eligibility_rule": "living non-corporate non-government agents, excluding native children younger than 14",
+            "excluded_records": [],
+            "person_event_links": {},
+            "previous_adult_records": [],
+            "previous_excluded_records": [],
+            "sample_point": "end of world turn, after migration and scenario operations",
+            "status_priority": [
+              "military",
+              "trader",
+              "constable",
+              "workhouse",
+              {
+                "omitted_items": 2
+              }
+            ],
+            "turn": 3,
+            "denominator": 1,
+            "shares": []
+          },
+          "formula_id": "labor.final_temporary_share_mean.v1",
+          "formula_replay": {
+            "actual": 0.0,
+            "expected": 0.0,
+            "matches": true
+          },
+          "sequence": 318317,
+          "event_id": "desktop-2a2964a3ab6b4fc0b6e84355e9e05e59:318317"
+        },
+        "person_event_count": {
+          "branch_id": "main",
+          "epoch": 1,
+          "phase": "snapshot",
+          "run_id": "desktop-2a2964a3ab6b4fc0b6e84355e9e05e59",
+          "schema_version": 1,
+          "turn": 3,
+          "event_id": "desktop-2a2964a3ab6b4fc0b6e84355e9e05e59:320397",
+          "sequence": 320397,
+          "kind": "person_event_count",
+          "record_class": "calculation",
+          "confidence": "exact",
+          "subject": {
+            "id": "c0",
+            "type": "tile"
+          },
+          "metric_id": "people.births",
+          "value_after": 0,
+          "unit": "people_per_turn",
+          "inputs": {},
+          "formula_id": "people.registered_births.v1"
+        },
+        "living_person_count": {
+          "branch_id": "main",
+          "epoch": 1,
+          "phase": "snapshot",
+          "run_id": "desktop-2a2964a3ab6b4fc0b6e84355e9e05e59",
+          "schema_version": 1,
+          "turn": 3,
+          "event_id": "desktop-2a2964a3ab6b4fc0b6e84355e9e05e59:320399",
+          "sequence": 320399,
+          "kind": "living_person_count",
+          "record_class": "calculation",
+          "confidence": "exact",
+          "subject": {
+            "id": "c0",
+            "type": "tile"
+          },
+          "metric_id": "people.residents",
+          "value_after": 0,
+          "unit": "people",
+          "formula_id": "people.living_nonentity_agents.v1"
+        }
+      }
+    }
+  }
+}
