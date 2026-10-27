@@ -43,6 +43,7 @@ class TraceIndex:
                 raise IndexCacheError('incompatible index schema')
             for field in ('id','turn','kind','metric','good'):
                 db.execute(f'CREATE INDEX IF NOT EXISTS by_{field} ON events({field})')
+            db.execute("CREATE INDEX IF NOT EXISTS by_entity_turn ON events(json_extract(subject,'$.type'),json_extract(subject,'$.id'),turn)")
         except BaseException:
             db.close()
             raise
@@ -51,6 +52,24 @@ class TraceIndex:
     def query(self, **filters):
         with _path_lock(self.index_path):
             return self._query_or_rebuild(**filters)
+
+    def available_metrics(self, *, turn, subject, boundary=None):
+        """Recorded subject/metric variants, without decoding event bodies.
+
+        Callers freeze/publish the boundary on the simulation thread, then may
+        build this disposable index on a worker. This never creates model work.
+        """
+        with _path_lock(self.index_path):
+            indexed = self._query_or_rebuild(boundary=boundary, limit=0)
+            with closing(self._connect()) as db:
+                rows = db.execute("""SELECT metric,subject,count(*) FROM events
+                    WHERE json_extract(subject,'$.type') IS ?
+                    AND json_extract(subject,'$.id') IS ? AND turn = ?
+                    AND end <= ? AND class != 'metadata' AND metric IS NOT NULL
+                    GROUP BY metric,subject ORDER BY metric,subject""",
+                    (subject['type'], subject['id'], turn, indexed['boundary'])).fetchall()
+            return [{'metric_id': metric, 'subject': json.loads(encoded), 'count': count}
+                    for metric, encoded, count in rows]
 
     def _query_or_rebuild(self, **filters):
         try:
@@ -112,8 +131,12 @@ class TraceIndex:
             for column,value in [('turn',turn),('metric',metric_id),('kind',kind),('id',event_id)]:
                 if value is not None:clauses.append(column+' = ?');parameters.append(value)
             for key,value in (subject or {}).items():
-                clauses.append('json_extract(subject,?) IS ?')
-                parameters.extend(['$.'+json.dumps(key),json.dumps(value,sort_keys=True,separators=(',',':')) if isinstance(value,(dict,list)) else value])
+                if key in ('type', 'id'):
+                    clauses.append(f"json_extract(subject,'$.{key}') IS ?")
+                else:
+                    clauses.append('json_extract(subject,?) IS ?')
+                    parameters.append('$.'+json.dumps(key))
+                parameters.append(json.dumps(value,sort_keys=True,separators=(',',':')) if isinstance(value,(dict,list)) else value)
             where=' AND '.join(clauses)
             total=db.execute('SELECT count(*) FROM events WHERE '+where,parameters).fetchone()[0]
             selected=db.execute('SELECT block,position,sha FROM events WHERE '+where+' ORDER BY n LIMIT ? OFFSET ?',parameters+[limit,offset]).fetchall()

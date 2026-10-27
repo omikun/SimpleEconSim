@@ -11,6 +11,7 @@ from simulation_checkpoint import save, restore
 
 
 RENDER_RESOURCES = frozenset({
+    '_ai_explainer',  # Viewer state may own an in-flight local index Future.
     '_micropoly_gpu_renderer', '_terrain_renderer', '_ui_map_label_surface',
     '_map_label_target', '_ui_map_surface', '_cached_topo_surface',
     '_scaled_terrain_surface', '_cached_border_overlay',

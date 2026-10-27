@@ -9,6 +9,29 @@ from trace_report import report
 
 
 class TraceIndexTests(unittest.TestCase):
+    def test_available_metrics_has_exact_entity_turn_dimensions_and_boundary(self):
+        from trace_index import TraceIndex
+        with tempfile.TemporaryDirectory() as directory:
+            trace = RunTrace(Path(directory) / 'catalog.ctr', 'catalog')
+            self.addCleanup(trace._compact_writer.close)
+            clock = {'turn': 2, 'next': 1}
+            for kind, ident, good in [('tile', 'C0', 'food'), ('tile', 'C0', 'wood'),
+                                      ('nation', 'C0', 'food'), ('tile', 'C1', 'food')]:
+                trace.snapshot(clock, subject={'type': kind, 'id': ident, 'good': good},
+                               metric_id='goods.price', before=1, after=2, unit='C')
+            boundary = trace.publish()
+            trace.snapshot(clock, subject={'type': 'tile', 'id': 'C0'},
+                           metric_id='economy.gdp_nominal', before=2, after=3, unit='C')
+            index = TraceIndex(trace.path)
+            query = dict(turn=2, subject={'type': 'tile', 'id': 'C0'})
+            rows = index.available_metrics(**query, boundary=boundary)
+            self.assertEqual(['food', 'wood'], [r['subject']['good'] for r in rows])
+            for row in rows:
+                self.assertEqual(row['count'], trace.query(turn=2, subject=row['subject'],
+                    metric_id=row['metric_id'], boundary=boundary, limit=0)['total'])
+            self.assertEqual(3, len(index.available_metrics(**query)))
+            self.assertEqual([], index.available_metrics(**{**query, 'turn': 1}))
+
     def test_streamed_comparison_matches_materialized_latest_snapshots(self):
         from trace_report import diff_snapshots,iter_snapshot_differences
         base={'kind':'metric_snapshot','turn':1,'subject':{'type':'tile','id':'A'},'metric_id':'x'}

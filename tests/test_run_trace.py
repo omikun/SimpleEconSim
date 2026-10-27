@@ -17,6 +17,22 @@ from trace_report import report, render, diff_snapshots
 
 class RunTraceTests(unittest.TestCase):
 
+    def test_cached_subject_keys_preserve_exact_json_and_mutations(self):
+        import json
+        from run_trace import _subject_key
+        subjects = [None, {'type': 'tile', 'id': 'Delta'},
+                    {'id': 'Nile "Delta" \\ مصر', 'type': 'tile'},
+                    {'type': 'tile', 'id': 'Delta', 'good': 'food'},
+                    {'type': 'agent', 'id': True}, {'type': 'agent', 'id': 1},
+                    {'type': 'agent', 'id': 1.0},
+                    {'type': 'tile', 'id': 'Delta', 'details': {'good': 'food'}}]
+        for subject in subjects:
+            self.assertEqual(None if subject is None else json.dumps(subject, sort_keys=True), _subject_key(subject))
+        subject = {'type': 'tile', 'id': 'Delta', 'good': 'food'}
+        first = _subject_key(subject); subject['good'] = 'wood'
+        self.assertNotEqual(first, _subject_key(subject))
+        self.assertEqual(json.dumps(subject, sort_keys=True), _subject_key(subject))
+
     def test_current_turn_tile_production_event_index(self):
         with tempfile.TemporaryDirectory() as tmp:
             trace = RunTrace(Path(tmp) / 'production-index.ctr',

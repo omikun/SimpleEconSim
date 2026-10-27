@@ -1,5 +1,6 @@
 """Freeze the minimum live context at a player request, under the caller's lock."""
 from pathlib import Path
+import math
 
 from explanations import mechanics
 
@@ -38,6 +39,16 @@ def capture(world, request, client='desktop'):
     if type(boundary) is not int or not 0 < boundary <= published:
         raise ValueError('Invalid published evidence boundary.')
     subject = {'type': kind, 'id': name}
+    dimensions = request.get('dimensions', {})
+    if not isinstance(dimensions, dict) or len(dimensions) > 16:
+        raise ValueError('Invalid stat dimensions.')
+    for key, value in dimensions.items():
+        if (not isinstance(key, str) or not 1 <= len(key) <= 100
+                or key in ('type', 'id') or type(value) not in (str, int, float, bool, type(None))
+                or (type(value) is float and not math.isfinite(value))
+                or (isinstance(value, str) and len(value) > 100)):
+            raise ValueError('Invalid stat dimension.')
+        subject[key] = value
     for key in DIMENSIONS:
         if request.get(key) is not None:
             if not isinstance(request[key], str) or len(request[key]) > 100:

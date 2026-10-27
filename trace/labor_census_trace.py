@@ -50,6 +50,12 @@ def census_groups(census, field):
 
 def record_labor_censuses(trace, clock, current_censuses, prior_censuses, previous_values):
     sources_current = getattr(trace, '_active_turn', None) == boundary(clock)
+    # Group once, rather than scan the entire metric inventory for each tile
+    # and each census dimension (quadratic on the default 1,000-region map).
+    previous_categories = {}
+    for key in previous_values:
+        if key[0] in ('labor.primary_livelihood', 'labor.employment_status'):
+            previous_categories.setdefault((key[0], key[1]), set()).add(key[2])
     for tile_name, census in current_censuses.items():
         prior = prior_censuses.get(tile_name)
         current_people = {row['person_id']: row for row in census['adults']}
@@ -84,8 +90,7 @@ def record_labor_censuses(trace, clock, current_censuses, prior_censuses, previo
                 groups = census_groups(census, dimension)
                 old_groups = census_groups(prior, dimension) if prior else {}
                 categories = set(groups) | set(old_groups)
-                categories.update(key[2] for key in previous_values
-                                  if key[0] == metric_id and key[1] == tile_name)
+                categories.update(previous_categories.get((metric_id, tile_name), ()))
             else:
                 groups = {'hungry': [row['person_id'] for row in census['adults'] if row['hungry_steps'] > 0]}
                 old_groups = ({'hungry': [row['person_id'] for row in prior['adults']

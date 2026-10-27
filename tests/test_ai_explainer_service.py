@@ -87,6 +87,16 @@ class TraceFixture(unittest.TestCase):
 
 
 class ExplainerTests(TraceFixture):
+    def test_dimension_map_preserves_scalar_types_and_rejects_entity_overrides(self):
+        selected = capture(self.world, {**self.selection,
+            'dimensions': {'status': 'independent', 'agent_id': 42, 'eligible': True}})
+        self.assertEqual({**self.subject, 'status': 'independent', 'agent_id': 42, 'eligible': True},
+                         selected['selection']['subject'])
+        for dimensions in ({'id': 'elsewhere'}, {'type': 'nation'}, {'good': []},
+                           {'weight': float('nan')}, {'weight': float('inf')}, []):
+            with self.subTest(dimensions=dimensions), self.assertRaises(ValueError):
+                capture(self.world, {**self.selection, 'dimensions': dimensions})
+
     def test_packet_preserves_boundary_values_evidence_and_read_only_state(self):
         import random
         rng = random.getstate(); count = self.trace.count; digest = self.trace.digest

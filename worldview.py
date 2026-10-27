@@ -421,6 +421,7 @@ def select_tile(world, tile):
     Clicking a wilderness tile results in no left menu popup.
     """
     world['selected_region'] = tile
+    world.pop('_chart_trace_selection', None)
     if world.get('scenario_id') == 'egypt_1877' and world.get('ui_mode') == 'guided':
         if tile is not None and getattr(tile, 'owner_nation', None) is not None:
             if tile.owner_nation.name == world.get('player_nation_name'):

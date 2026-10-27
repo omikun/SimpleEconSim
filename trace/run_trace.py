@@ -4,6 +4,7 @@ from __future__ import annotations
 from trace_clock import boundary
 
 from collections import deque
+from functools import lru_cache
 import hashlib
 import json
 from pathlib import Path
@@ -11,6 +12,16 @@ from trace_codec import CompactTraceWriter, iter_payloads
 
 
 SCHEMA_VERSION = 1
+
+
+@lru_cache(maxsize=32768, typed=True)
+def _entity_subject_key(kind, ident):
+    return json.dumps({'type': kind, 'id': ident}, sort_keys=True)
+
+
+@lru_cache(maxsize=32768, typed=True)
+def _good_subject_key(kind, ident, good):
+    return json.dumps({'type': kind, 'id': ident, 'good': good}, sort_keys=True)
 
 
 def _subject_key(subject):
@@ -21,6 +32,14 @@ def _subject_key(subject):
         val_type = subject['type']
         if type(val_id) is int and type(val_type) is str and '"' not in val_type and '\\' not in val_type:
             return f'{{"id": {val_id}, "type": "{val_type}"}}'
+        if type(val_id) is str and type(val_type) is str:
+            return _entity_subject_key(val_type, val_id)
+    if (type(subject) is dict and len(subject) == 3 and 'good' in subject
+            and type(subject.get('type')) is str and type(subject.get('id')) is str
+            and type(subject['good']) is str):
+        # These two immutable shapes dominate snapshots; arbitrary subjects keep
+        # the general JSON path, including nested objects and typed scalars.
+        return _good_subject_key(subject['type'], subject['id'], subject['good'])
     return json.dumps(subject, sort_keys=True)
 
 

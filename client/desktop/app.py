@@ -340,6 +340,7 @@ def select_tile(world, tile):
     Clicking a wilderness tile results in no left menu popup.
     """
     world['selected_region'] = tile
+    world.pop('_chart_trace_selection', None)
     is_wilderness = (tile is None or getattr(tile, 'owner_nation', None) is None or getattr(tile, 'wilderness', False))
 
     if is_wilderness:

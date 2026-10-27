@@ -744,3 +744,31 @@ and visible persistence-error handling.
 
 Most importantly, a game that runs for many turns without a player requesting
 an AI explanation must make **zero explanation-generation model calls**.
+
+## 16. Desktop corrective follow-up (2026-10-26)
+
+Player reports exposed two gaps: the F12 picker offered the full metric catalog
+without checking entity/turn coverage or carrying required subject dimensions,
+and its entity selection stayed fixed when map selection changed. Default-map
+turn latency also required profiling before attributing it to AI generation.
+
+- [x] Replace the desktop catalog with exact recorded metric/subject variants
+  for the chosen entity, turn, and published evidence boundary.
+- [x] Carry all supported scalar subject dimensions into explanation requests.
+- [x] Build/read the local index on demand on a separate worker; display a
+  distinct local loading state without model generation or UI blocking.
+- [x] Add searchable tile/nation selection, follow uncovered-map tile clicks,
+  discard stale catalog results, and prevent empty selections from generating.
+- [x] Replace F11 when opening F12 and invalidate chart selections on map changes.
+- [x] Return a narrative to the new tile's picker on a map selection change,
+  preserving explicit generation and avoiding stale narrative relabeling.
+- [x] Profile the saved 1,000-region default map and remove repeated whole-map
+  census scans, per-Gini linear tile searches, and repeated common subject JSON
+  encoding. Keep the same trace records, formulas, and gameplay rules.
+- [x] Treat the picker worker's Future as transient native UI state during saves.
+
+Acceptance: compare identical seeded first turns before/after; verify trace
+integrity and retained evidence; test tile/turn changes while loading, absent
+records, dimensional stats, native save handling, and zero model calls from
+picker discovery. Record measured timings and any pre-existing validation
+failures in the corrective report under `planning/reports/`.

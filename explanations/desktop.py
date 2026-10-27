@@ -1,12 +1,65 @@
 """Pygame adapter. Only a deliberate gesture calls request(); workers never draw."""
 import json
 import webbrowser
+from concurrent.futures import ThreadPoolExecutor
 
 import pygame
 
 from explanations.context import capture
 from explanations.service import default_service, TERMINAL
 from metric_catalog import METRICS
+
+_catalog_executor = None
+_COMMON = ('people.population', 'people.residents', 'people.hungry',
+           'economy.gdp_nominal', 'finance.treasury', 'finance.total_cash',
+           'goods.price', 'politics.protest_energy', 'health.average_health')
+
+
+def _map_entity(world):
+    tile = world.get('selected_region')
+    return 'tile:' + tile.name if tile else None
+
+
+def _load_catalog(world, state):
+    """Freeze only local metadata on the UI thread. Indexing runs off-thread."""
+    global _catalog_executor
+    future = state.pop('catalog_future', None)
+    if future: future.cancel()
+    state.update(options=[], index=0, scroll=0, buttons=[], catalog_error=None)
+    trace = world.get('run_trace')
+    if trace is None or trace.write_error:
+        state['catalog_error'] = 'Causal recording is unavailable for this run.'
+        return
+    try:
+        boundary = trace.publish()
+        kind, _, name = state['entity'].partition(':')
+        from trace_index import TraceIndex
+        if _catalog_executor is None:
+            _catalog_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix='stat-picker')
+        state['catalog_future'] = _catalog_executor.submit(
+            TraceIndex(trace.path).available_metrics, turn=state['turn'],
+            subject={'type': kind, 'id': name}, boundary=boundary)
+    except (ValueError, OSError) as error:
+        state['catalog_error'] = str(error)
+
+
+def _set_entity(world, state, entity):
+    state.update(entity=entity, text='', choosing_entity=False, map_entity=_map_entity(world))
+    _load_catalog(world, state)
+
+
+def _entities(world):
+    return ['nation:' + n.name for n in world.get('nations', [])] + ['tile:' + t.name for t in world.get('tiles', [])]
+
+
+def _entity_matches(world, state):
+    query = state['text'].lower()
+    return [entity for entity in _entities(world) if query in entity.lower()]
+
+
+def _label(option):
+    dims = ', '.join(f'{key}={value}' for key, value in option['subject'].items() if key not in ('type', 'id'))
+    return option['metric_id'] + (' · ' + dims if dims else '')
 
 
 def _selection(world):
@@ -18,12 +71,12 @@ def _selection(world):
         return {'entity': subject.get('type', 'tile').split('/')[0] + ':' + str(subject.get('id', '')),
                 'turn': row['turn'], 'metric_id': row.get('metric_id'),
                 'boundary': panel['boundary'], 'epoch': row.get('epoch', 0),
-                **{key: subject[key] for key in ('good', 'disease', 'class_group') if key in subject}}
+                'dimensions': {key: value for key, value in subject.items() if key not in ('type', 'id')}}
     if chart:
         subject = (chart.get('events') or [{}])[0].get('subject') or {}
         selection = {'entity': ('nation:' + chart['nation'] if chart.get('nation') else 'tile:' + chart['tile']),
                      'turn': chart['turn'], 'metric_id': chart['metric_id'],
-                     **{key: subject[key] for key in ('good', 'disease', 'class_group') if key in subject}}
+                     'dimensions': {key: value for key, value in subject.items() if key not in ('type', 'id')}}
         if chart.get('plot_transform') or chart.get('source_window') or chart.get('component'):
             selection['display'] = str({'transform': chart.get('plot_transform'),
                 'component': chart.get('component'), 'window': (chart.get('source_window') or {}).get('window_turns')})[:300]
@@ -33,6 +86,8 @@ def _selection(world):
 
 def close(world):
     state = world.pop('_ai_explainer', None)
+    if state and state.get('catalog_future'):
+        state['catalog_future'].cancel()
     if state and state.get('job', {}).get('viewer'):
         job = state['job']; default_service().cancel(job['job_id'], job['viewer'])
 
@@ -40,6 +95,7 @@ def close(world):
 def request(world, selection, pinned=True):
     close(world)
     state = {'selection': selection, 'pinned': pinned, 'scroll': 0, 'last_poll': 0,
+             'map_entity': _map_entity(world),
              'run_id': getattr(world.get('run_trace'), 'run_id', None),
              'job': {'state': 'collecting_evidence', 'message': 'Reading recorded causes…'}}
     world['_ai_explainer'] = state
@@ -51,30 +107,38 @@ def request(world, selection, pinned=True):
 
 def chooser(world):
     close(world)
+    # F11 consumes map clicks while open; F12 replaces that inspector.
+    world['_causal_panel'] = None
     nation = world.get('selected_nation')
     tile = world.get('selected_region')
     if nation is None:
         nation = getattr(tile, 'owner_nation', None) or next(iter(world.get('nations', [])), None)
     entity = 'tile:' + tile.name if tile else 'nation:' + getattr(nation, 'name', '')
-    world['_ai_explainer'] = {'chooser': True, 'text': '', 'index': 0, 'entity': entity,
+    state = {'chooser': True, 'text': '', 'index': 0, 'entity': entity,
         'turn': world.get('turn', 0), 'scroll': 0, 'pinned': True,
+        'map_entity': _map_entity(world),
         'run_id': getattr(world.get('run_trace'), 'run_id', None)}
+    world['_ai_explainer'] = state
+    _load_catalog(world, state)
 
 
 def _matches(state):
-    query = state['text'].split(' ')[0].lower()
-    return [key for key in sorted(METRICS) if query in key.lower()]
+    query = state['text'].lower()
+    return [option for option in state.get('options', []) if query in _label(option).lower()]
 
 
-def _choose(world, metric=None):
+def _choose(world, option=None):
     state = world['_ai_explainer']
+    selected = _map_entity(world)
+    if selected and selected != state.get('map_entity'):
+        _set_entity(world, state, selected)
+        return
     matches = _matches(state)
-    metric = metric or (matches[min(state['index'], len(matches) - 1)] if matches else state['text'].split(' ')[0])
-    selection = {'entity': state['entity'], 'turn': state['turn'], 'metric_id': metric}
-    for part in state['text'].split(' ')[1:]:
-        key, sep, val = part.partition('=')
-        if sep and key in ('good', 'disease', 'class_group'):
-            selection[key] = val
+    option = option or (matches[min(state['index'], len(matches) - 1)] if matches else None)
+    if option is None or option not in state.get('options', []):
+        return
+    selection = {'entity': state['entity'], 'turn': state['turn'], 'metric_id': option['metric_id'],
+                 'dimensions': {key: value for key, value in option['subject'].items() if key not in ('type', 'id')}}
     request(world, selection)
 
 
@@ -103,18 +167,26 @@ def handle_event(event, world):
     if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
         close(world); return True
     if state.get('chooser') and event.type == pygame.KEYDOWN:
+        choosing_entity = state.get('choosing_entity')
         if event.key == pygame.K_RETURN:
-            _choose(world)
+            if choosing_entity:
+                matches = _entity_matches(world, state)
+                if matches: _set_entity(world, state, matches[min(state['index'], len(matches) - 1)])
+            else:
+                _choose(world)
         elif event.key == pygame.K_BACKSPACE:
             state['text'] = state['text'][:-1]; state['index'] = 0
         elif event.key in (pygame.K_UP, pygame.K_DOWN):
-            state['index'] = max(0, min(len(_matches(state)) - 1, state['index'] + (1 if event.key == pygame.K_DOWN else -1)))
+            matches = _entity_matches(world, state) if choosing_entity else _matches(state)
+            state['index'] = max(0, min(len(matches) - 1, state['index'] + (1 if event.key == pygame.K_DOWN else -1)))
         elif event.key in (pygame.K_LEFT, pygame.K_RIGHT):
             state['turn'] = max(0, min(world.get('turn', 0), state['turn'] + (1 if event.key == pygame.K_RIGHT else -1)))
+            _load_catalog(world, state)
         elif event.key == pygame.K_TAB:
-            entities = ['nation:' + n.name for n in world.get('nations', [])] + ['tile:' + t.name for t in world.get('tiles', [])]
+            entities = _entities(world)
             if entities:
-                state['entity'] = entities[(entities.index(state['entity']) + 1) % len(entities)] if state['entity'] in entities else entities[0]
+                direction = -1 if getattr(event, 'mod', 0) & pygame.KMOD_SHIFT else 1
+                _set_entity(world, state, entities[(entities.index(state['entity']) + direction) % len(entities)] if state['entity'] in entities else entities[0])
         elif event.unicode and event.unicode.isprintable() and len(state['text']) < 250:
             state['text'] += event.unicode; state['index'] = 0
         return True
@@ -131,6 +203,14 @@ def handle_event(event, world):
                 if action == 'close': close(world)
                 elif action == 'retry': request(world, state['selection'])
                 elif action == 'metric': _choose(world, value)
+                elif action == 'entities': state.update(choosing_entity=True, text='', index=0, scroll=0)
+                elif action == 'entity': _set_entity(world, state, value)
+                elif action == 'stats': state.update(choosing_entity=False, text='', index=0, scroll=0)
+                elif action == 'chooser': chooser(world)
+                elif action == 'turn':
+                    state['turn'] = max(0, min(world.get('turn', 0), state['turn'] + value))
+                    _load_catalog(world, state)
+                elif action == 'refresh': _load_catalog(world, state)
                 elif action == 'source': webbrowser.open(value)
                 elif action == 'log':
                     job = state['job']
@@ -172,6 +252,29 @@ def tick(world):
     if state:
         if state['run_id'] != getattr(world.get('run_trace'), 'run_id', None):
             close(world); return True
+        selected = _map_entity(world)
+        if not state.get('chooser') and selected and selected != state.get('map_entity'):
+            # A new map selection returns to its picker, never auto-generates
+            # another narrative or relabels the previous tile's answer.
+            chooser(world)
+            return True
+        if state.get('chooser'):
+            if selected != state.get('map_entity'):
+                state['map_entity'] = selected
+                if selected:
+                    _set_entity(world, state, selected)
+                    return True
+            future = state.get('catalog_future')
+            if future and future.done():
+                state.pop('catalog_future')
+                try:
+                    state['options'] = sorted((option for option in future.result()
+                        if option['metric_id'] in METRICS), key=lambda option:
+                        (_COMMON.index(option['metric_id']) if option['metric_id'] in _COMMON else len(_COMMON), _label(option)))
+                except Exception as error:
+                    state['catalog_error'] = 'Could not read recorded stats: ' + str(error)
+                return True
+            return False
         if not state.get('pinned'):
             pos = pygame.mouse.get_pos()
             inside = any(pygame.Rect(rect).collidepoint(pos) for rect in
@@ -241,17 +344,36 @@ def draw(surface, world):
             current = word
         y += 8
     if state.get('chooser'):
-        line('Choose a stat. Type to filter; Enter generates. Tab switches entity; Left/Right selects turn.')
-        line('Optional dimensions: good=food disease=cholera class_group=workers')
+        line('Click an uncovered map tile to select it, or search using Change tile / nation. Tab also switches entity.')
         line(f"{state['entity']} · Turn {state['turn']}", True)
+        button('Change tile / nation', clip.x, y, 180, 'entities')
+        button('Turn -', clip.x + 190, y, 82, 'turn', -1)
+        button('Turn +', clip.x + 282, y, 82, 'turn', 1)
+        button('Refresh', clip.x + 374, y, 88, 'refresh'); y += 42
+        line('Type to filter; Up/Down selects; Enter opens the selection.' if state.get('choosing_entity') else
+             'Only recorded stats are listed. Click a stat or press Enter to generate.')
         line('Search: ' + state['text'] + '_')
-        matches = _matches(state); start = max(0, state['index'] - 3)
-        for index, metric in enumerate(matches[start:start + 8], start):
-            button(('> ' if index == state['index'] else '') + metric, clip.x, y, clip.w, 'metric', metric); y += 38
+        if state.get('choosing_entity'):
+            matches = _entity_matches(world, state)
+            start = max(0, state['index'] - 3)
+            for index, entity in enumerate(matches[start:start + 8], start):
+                button(('> ' if index == state['index'] else '') + entity, clip.x, y, clip.w, 'entity', entity); y += 38
+            button('Back to stats', clip.x, y, 140, 'stats'); y += 38
+        else:
+            matches = _matches(state); start = max(0, state['index'] - 3)
+            if state.get('catalog_future'):
+                line('Reading recorded stats… You can keep selecting tiles.')
+            elif state.get('catalog_error'):
+                line(state['catalog_error'])
+            elif not matches:
+                line('No matching records for this entity and turn. Try another tile, turn, or search. Turn 0 may have no completed sample.')
+            for index, option in enumerate(matches[start:start + 8], start):
+                button(('> ' if index == state['index'] else '') + _label(option), clip.x, y, clip.w, 'metric', option); y += 38
         button('Hover: ' + ('off' if world.get('_ai_hover_disabled') else 'on'), clip.x, y, 140, 'hover'); y += 38
     else:
         selection = state['selection']; job = state['job']
         line(f"{selection['entity']} · Turn {selection['turn']} · {selection['metric_id']}", True)
+        button('Choose another stat / tile', clip.x, y, 240, 'chooser'); y += 42
         if job['state'] not in TERMINAL:
             line(job['message'] + ' ' + '·' * ((pygame.time.get_ticks() // 350) % 4))
             line('Working on this requested explanation. You can keep playing.')

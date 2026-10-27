@@ -39,11 +39,29 @@ also contains the hover preference.
 
 **Desktop:** Click a chart point or open an F11 evidence record, then use
 **Explain with AI** at the bottom right. F12 opens the general stat chooser.
-Type a metric name to filter, use Up/Down to select a match, Tab to switch
-entity, Left/Right to change turn, and Enter to request. Optional dimensions
-follow the metric search text, for example `goods.price good=food`. Escape
-closes the drawer. The chooser has a hover toggle. Scroll inside the drawer to
-read long explanations and source links.
+The chooser lists **only stats recorded for its selected entity and turn**,
+with goods, professions, diseases, and other dimensions included automatically.
+Type to filter (for example `goods.price` or `good=food`), use Up/Down to select,
+and click a stat or press Enter to request its explanation. The first local
+index build can take several seconds; **Reading recorded stats…** keeps the
+drawer usable without calling the model.
+
+Click an uncovered map tile to switch the chooser to that tile, or click
+**Change tile / nation**, type its name/number, and select a match. It is not
+limited to `c0`. Tab/Shift+Tab also cycle entities. Left/Right or the turn buttons
+change the selected turn; Refresh reads newly published records. Turn 0 and
+entities without matching records show an explicit empty state.
+
+Clicking a different map tile while a narrative is open returns to that tile's
+stat chooser; it never automatically generates another narrative. **Choose
+another stat / tile** also returns to the picker. F12 replaces an open F11
+inspector, so F11 cannot swallow map clicks behind it. Escape closes the drawer.
+The chooser has a hover toggle. Scroll inside the drawer to read long
+explanations and source links.
+
+The [desktop correction report](../planning/reports/ai_explainer_trace_selection_and_turn_performance.md)
+documents the missing-trace and tile-selection fixes, measured turn speedups,
+and remaining trace-recording costs on the default 1,000-region map.
 
 The loading screen remains visible through evidence collection, local history
 matching, model generation, and response validation. It shows the selected stat,

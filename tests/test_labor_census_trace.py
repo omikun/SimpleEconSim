@@ -9,7 +9,7 @@ import unittest
 
 from agent import Agent, initialize_agent
 from goods import Goods
-from labor_census_trace import capture_labor_censuses, census_groups
+from labor_census_trace import capture_labor_censuses, census_groups, record_labor_censuses
 from labor_choice import apply_career_switch, record_labor_status
 from region import Region
 from run_trace import RunTrace
@@ -71,6 +71,24 @@ def _world(trace):
 
 
 class LaborCensusTraceTests(unittest.TestCase):
+    def test_previous_inventory_is_scanned_once_and_removed_categories_survive(self):
+        class CountedInventory(dict):
+            scans = 0
+            def __iter__(self):
+                self.scans += 1
+                return super().__iter__()
+        previous = CountedInventory({('unrelated', str(i)): ({}, 'units', 0) for i in range(500)})
+        previous[('labor.primary_livelihood', 'A', 'wood')] = ({}, 'adults', 2)
+        censuses = {name: {'adults': [], 'excluded': [], 'age_evaluation_turn': 1}
+                    for name in ['A'] + [str(i) for i in range(30)]}
+        with tempfile.TemporaryDirectory() as directory:
+            trace = RunTrace(Path(directory) / 'linear-census.ctr', 'linear-census')
+            self.addCleanup(trace._compact_writer.close)
+            record_labor_censuses(trace, {'turn': 1, 'next': 1}, censuses, censuses, previous)
+            self.assertEqual(1, previous.scans)
+            row = trace.query(metric_id='labor.primary_livelihood', subject={'id': 'A', 'livelihood': 'wood'})['events'][0]
+            self.assertEqual((2, 0, -2), (row['value_before'], row['value_after'], row['delta']))
+
     def test_census_keeps_actual_age_and_status_priority_rules(self):
         with tempfile.TemporaryDirectory() as tmp:
             trace = RunTrace(Path(tmp) / 'classify.ctr', 'classify')

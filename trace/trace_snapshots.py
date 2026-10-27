@@ -901,6 +901,8 @@ def sample(tiles, nations, *, labor_censuses=None):
 
 def record(server):
     from labor_census_trace import capture_labor_censuses, record_labor_censuses
+    from run_trace import _subject_key
+    tiles_by_name = {tile.name: tile for tile in server.tiles}
     labor_censuses = capture_labor_censuses(server.tiles)
     current = sample(server.tiles, server.nations, labor_censuses=labor_censuses)
     previous = getattr(server, '_trace_previous', {})
@@ -1320,13 +1322,11 @@ def record(server):
             if key[0] == 'people.profession_population' and before == after:
                 continue
             if key[0] == 'economy.gini':
-                tile = next((row for row in server.tiles
-                             if row.name == subject['id']), None)
+                tile = tiles_by_name.get(subject['id'])
                 good = next((candidate for candidate in getattr(tile, 'gini_log', {})
                              if getattr(candidate, 'name', None) == subject.get('good')),
                             None)
-                import json
-                existing=server.run_trace._calculated_values.get((key[0],json.dumps(subject,sort_keys=True)))
+                existing=server.run_trace._calculated_values.get((key[0], _subject_key(subject)))
                 if tile is not None and good is not None and existing!=after:
                     from gini_trace import retained_sample
                     evidence = retained_sample(tile, good, after)
