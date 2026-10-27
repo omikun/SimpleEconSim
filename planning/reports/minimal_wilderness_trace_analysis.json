@@ -1,0 +1,695 @@
+{
+  "date": "2026-10-27",
+  "implementation_commit": "1cbb5fa",
+  "seed": 777,
+  "turn": 2,
+  "source_trace": "/Users/sli/Code/tmp/traces/desktop-f44388555d4f427d8546f2bb0e8864ef.ctr",
+  "actual_turn_records": 40263,
+  "wilderness_tiles": 988,
+  "wilderness_actual_records": 18791,
+  "wilderness_expanded_facts": 239103,
+  "wilderness_actual_kinds": {
+    "pollution_downstream_advection": 7,
+    "state_coverage": 3958,
+    "wilderness_food_production": 988,
+    "wilderness_nominal_gdp": 988,
+    "wilderness_population_census": 988,
+    "trader_cash_total_calculation": 988,
+    "trade_pipeline_depth_calculation": 988,
+    "population_change_rate_calculation": 988,
+    "effective_workday_cap_sample": 988,
+    "trade_export_value_calculation": 988,
+    "trade_import_value_calculation": 988,
+    "trade_net_value_calculation": 988,
+    "final_labor_member_count": 988,
+    "final_temporary_work_share_mean": 988,
+    "person_event_count": 1976,
+    "living_person_count": 988,
+    "metric_snapshot": 6
+  },
+  "nonroutine_direct_tile_records": [
+    {
+      "branch_id": "main",
+      "confidence": "exact",
+      "epoch": 1,
+      "run_id": "desktop-f44388555d4f427d8546f2bb0e8864ef",
+      "schema_version": 1,
+      "turn": 2,
+      "phase": "local",
+      "kind": "pollution_downstream_advection",
+      "record_class": "calculation",
+      "subject": {
+        "id": "c69",
+        "type": "tile"
+      },
+      "metric_id": "ecology.pollution_water",
+      "value_before": 0.22093749999999998,
+      "value_after": 0.585484375,
+      "delta": 0.36454687499999994,
+      "unit": "index",
+      "inputs": {
+        "advection_fraction": 0.35,
+        "downstream_tile_count": 3,
+        "source_emission": 1.8937499999999998,
+        "source_pollution_before_emission": 1.2309375,
+        "source_tile": "c935",
+        "source_total_advection": 1.093640625,
+        "tile_share": 0.364546875
+      },
+      "formula_id": "ecology.downstream_advection.v1",
+      "constraints": {
+        "active_cap": false,
+        "upper_cap": 100.0
+      },
+      "formula_replay": {
+        "actual": 0.585484375,
+        "expected": 0.585484375,
+        "matches": true
+      },
+      "sequence": 262636,
+      "event_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:262636"
+    },
+    {
+      "branch_id": "main",
+      "confidence": "exact",
+      "epoch": 1,
+      "run_id": "desktop-f44388555d4f427d8546f2bb0e8864ef",
+      "schema_version": 1,
+      "turn": 2,
+      "phase": "local",
+      "kind": "pollution_downstream_advection",
+      "record_class": "calculation",
+      "subject": {
+        "id": "c55",
+        "type": "tile"
+      },
+      "metric_id": "ecology.pollution_water",
+      "value_before": 0.22093749999999998,
+      "value_after": 0.585484375,
+      "delta": 0.36454687499999994,
+      "unit": "index",
+      "inputs": {
+        "advection_fraction": 0.35,
+        "downstream_tile_count": 3,
+        "source_emission": 1.8937499999999998,
+        "source_pollution_before_emission": 1.2309375,
+        "source_tile": "c935",
+        "source_total_advection": 1.093640625,
+        "tile_share": 0.364546875
+      },
+      "formula_id": "ecology.downstream_advection.v1",
+      "constraints": {
+        "active_cap": false,
+        "upper_cap": 100.0
+      },
+      "formula_replay": {
+        "actual": 0.585484375,
+        "expected": 0.585484375,
+        "matches": true
+      },
+      "sequence": 262637,
+      "event_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:262637"
+    },
+    {
+      "branch_id": "main",
+      "epoch": 1,
+      "run_id": "desktop-f44388555d4f427d8546f2bb0e8864ef",
+      "schema_version": 1,
+      "turn": 2,
+      "event_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:267517",
+      "sequence": 267517,
+      "phase": "local",
+      "kind": "pollution_downstream_advection",
+      "record_class": "calculation",
+      "confidence": "exact",
+      "subject": {
+        "id": "c450",
+        "type": "tile"
+      },
+      "metric_id": "ecology.pollution_water",
+      "value_before": 0.22093749999999998,
+      "value_after": 0.5832968749999999,
+      "delta": 0.36235937499999993,
+      "unit": "index",
+      "inputs": {
+        "advection_fraction": 0.35,
+        "downstream_tile_count": 3,
+        "source_emission": 1.875,
+        "source_pollution_before_emission": 1.2309375,
+        "source_tile": "c201",
+        "source_total_advection": 1.087078125,
+        "tile_share": 0.362359375
+      },
+      "formula_id": "ecology.downstream_advection.v1",
+      "constraints": {
+        "active_cap": false,
+        "upper_cap": 100.0
+      },
+      "formula_replay": {
+        "actual": 0.5832968749999999,
+        "expected": 0.5832968749999999,
+        "matches": true
+      }
+    },
+    {
+      "branch_id": "main",
+      "epoch": 1,
+      "run_id": "desktop-f44388555d4f427d8546f2bb0e8864ef",
+      "schema_version": 1,
+      "turn": 2,
+      "event_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:267518",
+      "sequence": 267518,
+      "phase": "local",
+      "kind": "pollution_downstream_advection",
+      "record_class": "calculation",
+      "confidence": "exact",
+      "subject": {
+        "id": "c828",
+        "type": "tile"
+      },
+      "metric_id": "ecology.pollution_water",
+      "value_before": 0.22093749999999998,
+      "value_after": 0.5832968749999999,
+      "delta": 0.36235937499999993,
+      "unit": "index",
+      "inputs": {
+        "advection_fraction": 0.35,
+        "downstream_tile_count": 3,
+        "source_emission": 1.875,
+        "source_pollution_before_emission": 1.2309375,
+        "source_tile": "c201",
+        "source_total_advection": 1.087078125,
+        "tile_share": 0.362359375
+      },
+      "formula_id": "ecology.downstream_advection.v1",
+      "constraints": {
+        "active_cap": false,
+        "upper_cap": 100.0
+      },
+      "formula_replay": {
+        "actual": 0.5832968749999999,
+        "expected": 0.5832968749999999,
+        "matches": true
+      }
+    },
+    {
+      "branch_id": "main",
+      "epoch": 1,
+      "run_id": "desktop-f44388555d4f427d8546f2bb0e8864ef",
+      "schema_version": 1,
+      "turn": 2,
+      "event_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:270699",
+      "sequence": 270699,
+      "phase": "local",
+      "kind": "pollution_downstream_advection",
+      "record_class": "calculation",
+      "confidence": "exact",
+      "subject": {
+        "id": "c888",
+        "type": "tile"
+      },
+      "metric_id": "ecology.pollution_water",
+      "value_before": 1.5846742187499996,
+      "value_after": 2.9677166914062494,
+      "delta": 1.3830424726562498,
+      "unit": "index",
+      "inputs": {
+        "advection_fraction": 0.35,
+        "downstream_tile_count": 1,
+        "source_emission": 1.8937499999999998,
+        "source_pollution_before_emission": 2.0577999218749996,
+        "source_tile": "c909",
+        "source_total_advection": 1.3830424726562498,
+        "tile_share": 1.3830424726562498
+      },
+      "formula_id": "ecology.downstream_advection.v1",
+      "constraints": {
+        "active_cap": false,
+        "upper_cap": 100.0
+      },
+      "formula_replay": {
+        "actual": 2.9677166914062494,
+        "expected": 2.9677166914062494,
+        "matches": true
+      }
+    },
+    {
+      "branch_id": "main",
+      "epoch": 1,
+      "run_id": "desktop-f44388555d4f427d8546f2bb0e8864ef",
+      "schema_version": 1,
+      "turn": 2,
+      "event_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:272330",
+      "sequence": 272330,
+      "phase": "local",
+      "kind": "pollution_downstream_advection",
+      "record_class": "calculation",
+      "confidence": "exact",
+      "subject": {
+        "id": "c888",
+        "type": "tile"
+      },
+      "metric_id": "ecology.pollution_water",
+      "value_before": 2.9677166914062494,
+      "value_after": 4.350759164062499,
+      "delta": 1.3830424726562494,
+      "unit": "index",
+      "inputs": {
+        "advection_fraction": 0.35,
+        "downstream_tile_count": 1,
+        "source_emission": 1.8937499999999998,
+        "source_pollution_before_emission": 2.0577999218749996,
+        "source_tile": "c651",
+        "source_total_advection": 1.3830424726562498,
+        "tile_share": 1.3830424726562498
+      },
+      "formula_id": "ecology.downstream_advection.v1",
+      "constraints": {
+        "active_cap": false,
+        "upper_cap": 100.0
+      },
+      "formula_replay": {
+        "actual": 4.350759164062499,
+        "expected": 4.350759164062499,
+        "matches": true
+      }
+    },
+    {
+      "branch_id": "main",
+      "epoch": 1,
+      "run_id": "desktop-f44388555d4f427d8546f2bb0e8864ef",
+      "schema_version": 1,
+      "turn": 2,
+      "event_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:278818",
+      "sequence": 278818,
+      "phase": "local",
+      "kind": "pollution_downstream_advection",
+      "record_class": "calculation",
+      "confidence": "exact",
+      "subject": {
+        "id": "c704",
+        "type": "tile"
+      },
+      "metric_id": "ecology.pollution_water",
+      "value_before": 0.458251171875,
+      "value_after": 1.2872113789062498,
+      "delta": 0.8289602070312498,
+      "unit": "index",
+      "inputs": {
+        "advection_fraction": 0.35,
+        "downstream_tile_count": 2,
+        "source_emission": 1.8937499999999998,
+        "source_pollution_before_emission": 2.8431654687499996,
+        "source_tile": "c31",
+        "source_total_advection": 1.6579204140624997,
+        "tile_share": 0.8289602070312498
+      },
+      "formula_id": "ecology.downstream_advection.v1",
+      "constraints": {
+        "active_cap": false,
+        "upper_cap": 100.0
+      },
+      "formula_replay": {
+        "actual": 1.2872113789062498,
+        "expected": 1.2872113789062498,
+        "matches": true
+      }
+    },
+    {
+      "branch_id": "main",
+      "epoch": 1,
+      "phase": "snapshot",
+      "run_id": "desktop-f44388555d4f427d8546f2bb0e8864ef",
+      "schema_version": 1,
+      "turn": 2,
+      "event_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:334908",
+      "sequence": 334908,
+      "kind": "metric_snapshot",
+      "record_class": "observation",
+      "subject": {
+        "id": "c55",
+        "type": "tile"
+      },
+      "metric_id": "ecology.pollution_water",
+      "inputs": {
+        "source_event_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:262637"
+      },
+      "cause_event_ids": [
+        "desktop-f44388555d4f427d8546f2bb0e8864ef:262637"
+      ],
+      "confidence": "exact",
+      "explanation_status": "calculation_recorded",
+      "value_before": 0.22093749999999998,
+      "value_after": 0.585484375,
+      "unit": "index",
+      "delta": 0.36454687499999994
+    },
+    {
+      "branch_id": "main",
+      "epoch": 1,
+      "phase": "snapshot",
+      "run_id": "desktop-f44388555d4f427d8546f2bb0e8864ef",
+      "schema_version": 1,
+      "turn": 2,
+      "event_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:337694",
+      "sequence": 337694,
+      "kind": "metric_snapshot",
+      "record_class": "observation",
+      "subject": {
+        "id": "c69",
+        "type": "tile"
+      },
+      "metric_id": "ecology.pollution_water",
+      "inputs": {
+        "source_event_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:262636"
+      },
+      "cause_event_ids": [
+        "desktop-f44388555d4f427d8546f2bb0e8864ef:262636"
+      ],
+      "confidence": "exact",
+      "explanation_status": "calculation_recorded",
+      "value_before": 0.22093749999999998,
+      "value_after": 0.585484375,
+      "unit": "index",
+      "delta": 0.36454687499999994
+    },
+    {
+      "branch_id": "main",
+      "epoch": 1,
+      "phase": "snapshot",
+      "run_id": "desktop-f44388555d4f427d8546f2bb0e8864ef",
+      "schema_version": 1,
+      "turn": 2,
+      "event_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:413531",
+      "sequence": 413531,
+      "kind": "metric_snapshot",
+      "record_class": "observation",
+      "subject": {
+        "id": "c450",
+        "type": "tile"
+      },
+      "metric_id": "ecology.pollution_water",
+      "inputs": {
+        "source_event_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:267517"
+      },
+      "cause_event_ids": [
+        "desktop-f44388555d4f427d8546f2bb0e8864ef:267517"
+      ],
+      "confidence": "exact",
+      "explanation_status": "calculation_recorded",
+      "value_before": 0.22093749999999998,
+      "value_after": 0.5832968749999999,
+      "unit": "index",
+      "delta": 0.36235937499999993
+    },
+    {
+      "branch_id": "main",
+      "epoch": 1,
+      "phase": "snapshot",
+      "run_id": "desktop-f44388555d4f427d8546f2bb0e8864ef",
+      "schema_version": 1,
+      "turn": 2,
+      "event_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:464080",
+      "sequence": 464080,
+      "kind": "metric_snapshot",
+      "record_class": "observation",
+      "subject": {
+        "id": "c704",
+        "type": "tile"
+      },
+      "metric_id": "ecology.pollution_water",
+      "inputs": {
+        "source_event_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:278818"
+      },
+      "cause_event_ids": [
+        "desktop-f44388555d4f427d8546f2bb0e8864ef:278818"
+      ],
+      "confidence": "exact",
+      "explanation_status": "calculation_recorded",
+      "value_before": 0.458251171875,
+      "value_after": 1.2872113789062498,
+      "unit": "index",
+      "delta": 0.8289602070312498
+    },
+    {
+      "branch_id": "main",
+      "epoch": 1,
+      "phase": "snapshot",
+      "run_id": "desktop-f44388555d4f427d8546f2bb0e8864ef",
+      "schema_version": 1,
+      "turn": 2,
+      "event_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:488759",
+      "sequence": 488759,
+      "kind": "metric_snapshot",
+      "record_class": "observation",
+      "subject": {
+        "id": "c828",
+        "type": "tile"
+      },
+      "metric_id": "ecology.pollution_water",
+      "inputs": {
+        "source_event_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:267518"
+      },
+      "cause_event_ids": [
+        "desktop-f44388555d4f427d8546f2bb0e8864ef:267518"
+      ],
+      "confidence": "exact",
+      "explanation_status": "calculation_recorded",
+      "value_before": 0.22093749999999998,
+      "value_after": 0.5832968749999999,
+      "unit": "index",
+      "delta": 0.36235937499999993
+    },
+    {
+      "branch_id": "main",
+      "epoch": 1,
+      "phase": "snapshot",
+      "run_id": "desktop-f44388555d4f427d8546f2bb0e8864ef",
+      "schema_version": 1,
+      "turn": 2,
+      "event_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:500699",
+      "sequence": 500699,
+      "kind": "metric_snapshot",
+      "record_class": "observation",
+      "subject": {
+        "id": "c888",
+        "type": "tile"
+      },
+      "metric_id": "ecology.pollution_water",
+      "inputs": {
+        "source_event_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:272330"
+      },
+      "cause_event_ids": [
+        "desktop-f44388555d4f427d8546f2bb0e8864ef:272330"
+      ],
+      "confidence": "exact",
+      "explanation_status": "calculation_recorded",
+      "value_before": 1.5846742187499996,
+      "value_after": 4.350759164062499,
+      "unit": "index",
+      "delta": 2.766084945312499
+    }
+  ],
+  "live_eligibility_census": [
+    {
+      "turn": 0,
+      "counts": {
+        "populated_tiles": 12,
+        "wilderness_tiles": 988,
+        "quiet_candidate_tiles": 988
+      },
+      "failed_gate_counts": {},
+      "scaffolding_and_background_population": {
+        "faction_system_objects": 988,
+        "tiles_with_route_objects": 281,
+        "tiles_with_background_native_population": 281,
+        "background_native_population_total": 23028
+      },
+      "examples": []
+    },
+    {
+      "turn": 1,
+      "counts": {
+        "populated_tiles": 12,
+        "wilderness_tiles": 988,
+        "quiet_candidate_tiles": 988
+      },
+      "failed_gate_counts": {},
+      "scaffolding_and_background_population": {
+        "faction_system_objects": 988,
+        "tiles_with_route_objects": 281,
+        "tiles_with_background_native_population": 281,
+        "background_native_population_total": 23028
+      },
+      "examples": []
+    },
+    {
+      "turn": 2,
+      "counts": {
+        "populated_tiles": 12,
+        "wilderness_tiles": 988,
+        "quiet_candidate_tiles": 988
+      },
+      "failed_gate_counts": {},
+      "scaffolding_and_background_population": {
+        "faction_system_objects": 988,
+        "tiles_with_route_objects": 281,
+        "tiles_with_background_native_population": 281,
+        "background_native_population_total": 23028
+      },
+      "examples": []
+    }
+  ],
+  "illustrative_record_counts": {
+    "one_record_per_wilderness_tile": 22460,
+    "one_cohort_record_and_keep_all_nonroutine_direct_tile_records": 21486
+  },
+  "limits": [
+    "Sizing uses the retained default turn2 trace; eligibility inspected in a fresh seeded two-turn native run.",
+    "Not proof that every routine-kind event is safe to omit. Nonzero activity, changes, gaps, membership and causal dependencies require guards.",
+    "Only directly tile-scoped wilderness rows counted here; other agent/account/global financial events remain protected.",
+    "Coverage record must be emitted after bounded live checks; missing turns never imply inactivity."
+  ],
+  "cross_scope_dependency_scan": {
+    "turns": [
+      1,
+      2,
+      3
+    ],
+    "candidate_source_ids": 698498,
+    "retained_storage_records_inspected": 81785,
+    "references_to_candidate_ids_by_kind": {
+      "trader_route_decision": 5712
+    },
+    "distinct_referenced_source_ids": 374,
+    "distinct_retained_referring_events": 108,
+    "distinct_source_tiles": 11,
+    "distinct_tile_good_metric_values": 187,
+    "referenced_source_metrics": {
+      "goods.price": 374
+    },
+    "examples": [
+      {
+        "retained_event_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:261210",
+        "kind": "trader_route_decision",
+        "subject": {
+          "id": 104,
+          "tile": "c935",
+          "type": "agent"
+        },
+        "candidate_source_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:72779"
+      },
+      {
+        "retained_event_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:261210",
+        "kind": "trader_route_decision",
+        "subject": {
+          "id": 104,
+          "tile": "c935",
+          "type": "agent"
+        },
+        "candidate_source_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:72772"
+      },
+      {
+        "retained_event_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:261210",
+        "kind": "trader_route_decision",
+        "subject": {
+          "id": 104,
+          "tile": "c935",
+          "type": "agent"
+        },
+        "candidate_source_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:72765"
+      },
+      {
+        "retained_event_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:261210",
+        "kind": "trader_route_decision",
+        "subject": {
+          "id": 104,
+          "tile": "c935",
+          "type": "agent"
+        },
+        "candidate_source_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:72758"
+      },
+      {
+        "retained_event_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:261210",
+        "kind": "trader_route_decision",
+        "subject": {
+          "id": 104,
+          "tile": "c935",
+          "type": "agent"
+        },
+        "candidate_source_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:72751"
+      },
+      {
+        "retained_event_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:261210",
+        "kind": "trader_route_decision",
+        "subject": {
+          "id": 104,
+          "tile": "c935",
+          "type": "agent"
+        },
+        "candidate_source_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:72744"
+      },
+      {
+        "retained_event_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:261210",
+        "kind": "trader_route_decision",
+        "subject": {
+          "id": 104,
+          "tile": "c935",
+          "type": "agent"
+        },
+        "candidate_source_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:72737"
+      },
+      {
+        "retained_event_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:261210",
+        "kind": "trader_route_decision",
+        "subject": {
+          "id": 104,
+          "tile": "c935",
+          "type": "agent"
+        },
+        "candidate_source_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:72730"
+      },
+      {
+        "retained_event_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:261210",
+        "kind": "trader_route_decision",
+        "subject": {
+          "id": 104,
+          "tile": "c935",
+          "type": "agent"
+        },
+        "candidate_source_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:72723"
+      },
+      {
+        "retained_event_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:261210",
+        "kind": "trader_route_decision",
+        "subject": {
+          "id": 104,
+          "tile": "c935",
+          "type": "agent"
+        },
+        "candidate_source_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:72716"
+      },
+      {
+        "retained_event_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:261210",
+        "kind": "trader_route_decision",
+        "subject": {
+          "id": 104,
+          "tile": "c935",
+          "type": "agent"
+        },
+        "candidate_source_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:72709"
+      },
+      {
+        "retained_event_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:261210",
+        "kind": "trader_route_decision",
+        "subject": {
+          "id": 104,
+          "tile": "c935",
+          "type": "agent"
+        },
+        "candidate_source_id": "desktop-f44388555d4f427d8546f2bb0e8864ef:72702"
+      }
+    ],
+    "limits": "Broad routine-kind sizing scan across the retained sample only; future claims/homesteaders/transitions and unseen code paths still need tests. Includes nested inputs and checked-cell sources."
+  }
+}
