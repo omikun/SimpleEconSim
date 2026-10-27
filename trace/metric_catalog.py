@@ -235,6 +235,7 @@ METRICS = {
     'finance.government_income': ('tile/nation', 'local_currency', 'government.trace_income_snapshot; retained tax, tariff and inheritance income; Nation chart counts each shared government snapshot once and performs no FX conversion'),
     'finance.sovereign_bond': ('nation', 'local_currency', 'sovereign_bonds.SovereignBondMarket'),
     'finance.treasury_flow': ('nation', 'signed_local_currency', 'sovereign_bonds.SovereignBondMarket and treasury operations'),
+    'finance.public_healthcare_spending': ('nation', 'signed_local_currency', 'disease.step_medical_care; regional gross public provider-spend summary; individual payment/receipt treasury-flow legs establish cash movement, so do not count this summary again'),
     'finance.policy_expenditure': ('tile/province/nation/service', 'signed_local_currency', 'worldview_policies and labor_politics policy actions; municipal, provincial, national, public-service, emergency food-aid, guano-subsidy, or entertainment treasury cost'),
     'finance.policy_payment_receipt': ('tile/agent', 'recipient_currency', 'worldview_policies._execute_national_guano_subsidy; merchant, local-agent, or treasury-refund allocation from a national subsidy'),
     'goods.city_emergency_food_creation': ('tile/agent', 'food_units', 'worldview_policies._execute_city_emergency_food; household food added by policy without a stock debit'),

@@ -124,12 +124,32 @@ def build_packet(capture, stage=lambda value: None):
         return bool(selected and row.get('turn') == selected.get('turn')
                     and int(row['event_id'].rsplit(':', 1)[-1]) > int(selected['event_id'].rsplit(':', 1)[-1]))
     roots = [row for row in roots if not beyond_selection(row)]
+    # Collect full arithmetic totals before compacting individual inputs. Rank
+    # linked regions by their contribution rather than territorial list order.
+    national_summaries = []
+    prioritized = {}
+    from national_contributions import for_packet
+    for row in roots:
+        summary = (row.get('inputs') or {}).get('national_contributions')
+        if summary and row.get('subject', {}).get('type') == 'nation':
+            if row.get('turn') != selection['turn']:
+                continue
+            if selected and row.get('epoch', 0) != selected.get('epoch', 0):
+                continue
+            if len(national_summaries) >= 4:
+                gaps.append('Additional national series summaries omitted from this bounded packet; inspect the aggregate records.')
+                continue
+            bounded = for_packet(summary)
+            national_summaries.append({'event_id': row['event_id'], **bounded})
+            prioritized[row['event_id']] = list(dict.fromkeys(
+                source for region in bounded['regions'] for source in
+                (region.get('source_event_id'), region.get('opening_source_event_id')) if source))
     found = {row['event_id']: row for row in roots}
     queue = deque((row, 0) for row in roots)
     missing = set()
     while queue:
         row, depth = queue.popleft()
-        all_causes = row.get('cause_event_ids') or ()
+        all_causes = list(dict.fromkeys(prioritized.get(row['event_id'], []) + list(row.get('cause_event_ids') or ())))
         if len(all_causes) > 24:
             gaps.append('A source list exceeds the request limit; upstream provenance is partial.')
         for ident in all_causes[:24]:
@@ -176,7 +196,8 @@ def build_packet(capture, stage=lambda value: None):
               'epoch': selected.get('epoch') if selected else None},
               'root_event_ids': [row['event_id'] for row in roots],
               'evidence': evidence, 'limitations': list(dict.fromkeys(gaps)),
-              'actions': capture['actions'], 'catalog_coverage': capture['catalog_coverage']}
+              'actions': capture['actions'], 'catalog_coverage': capture['catalog_coverage'],
+              'national_contributions': national_summaries}
     packet['action_context_turn'] = capture.get('action_context_turn')
     if len(json.dumps(packet)) > 100000:
         packet['limitations'].append('Large evidence packet: nested inputs and issue details were further summarized. Inspect original sources for the full records.')

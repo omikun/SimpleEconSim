@@ -622,9 +622,12 @@ def step_medical_care(region, t: int, rand_gen=None) -> dict:
                  'replay_matches': len(untreated_case_rows) == untreated_count},
          cause_event_ids=untreated_event_ids or None)
     if public_transfers and nation:
-        emit(region, kind='public_healthcare_spending', record_class='transfer',
+        # Individual medical_public_provider_payment/receipt legs already
+        # record the treasury flows. Retain this regional gross-spend summary
+        # as an observation so reconciliation does not debit those payments twice.
+        emit(region, kind='public_healthcare_spending', record_class='observation',
              subject={'type': 'nation', 'id': nation.name},
-             metric_id='finance.treasury_flow', unit=nation.currency,
+             metric_id='finance.public_healthcare_spending', unit=nation.currency,
              after=-public_transfers,
              inputs={'region': region.name, 'treated_cases': public_treated_count,
                      'provider_transfers': public_transfers},

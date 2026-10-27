@@ -13,7 +13,7 @@ import struct
 import threading
 import weakref
 import zlib
-from trace_packing import canonical, freeze, pack, unpack
+from trace_packing import canonical, freeze, pack, unpack, PreparedEvent, COVERAGE_RULE
 
 MAGIC = b'COCTRACE4\n'
 LEGACY_MAGIC = b'COCTRACE3\n'
@@ -127,6 +127,13 @@ class CompactTraceWriter:
         """Dicts take the packed path; strings retain the raw framing API."""
         with self._lock:
             self._check_open()
+            if isinstance(payload, PreparedEvent):
+                if self.version != 4:
+                    return self.append(canonical(payload.expand()))
+                if self._pending_size + payload.size > PACK_BYTES: self.flush_pending()
+                self._pending.append(payload); self._pending_size += payload.size
+                if len(self._pending) >= PACK_ROWS or self._pending_size >= PACK_BYTES: self.flush_pending()
+                return
             if isinstance(payload, dict):
                 if self.version == 3: return self.append(canonical(payload))
                 budget = [0]
@@ -168,7 +175,9 @@ class CompactTraceWriter:
         self.digest = hashlib.sha256(payload.encode()).hexdigest(); self.logical_count += len(rows)
         self.stats['logical_records'] += len(rows); self.stats['packed_frames'] += 1
         covered = packet['covered_observations']; self.stats['covered_snapshots'] += covered
-        self.stats['explicit_snapshots'] += sum(row.get('kind') == 'metric_snapshot' for row in rows) - covered
+        self.stats['explicit_snapshots'] += sum(
+            row.stored.get('@rule') == COVERAGE_RULE if isinstance(row, PreparedEvent)
+            else row.get('kind') == 'metric_snapshot' for row in rows) - covered
         self.compressor = None; self.in_block = 0
         self._publish_stream()
 

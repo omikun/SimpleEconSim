@@ -10,6 +10,9 @@ import json
 import os
 from pathlib import Path
 from trace_codec import CompactTraceWriter, iter_payloads, iter_records, PACKED_DIGEST
+from trace_packing import (PreparedEvent, RecentEvents, COVERAGE_RULE, PRICE_IDLE_RULE,
+                           GINI_ZERO_RULE, GINI_RETAIN_RULE, DISEASE_EMPTY_RULE,
+                           TAX_EMPTY_RULE, freeze, _same)
 
 
 SCHEMA_VERSION = 1
@@ -52,7 +55,10 @@ class RunTrace:
             raise ValueError('causal trace path must end in .ctr')
         self.run_id = str(run_id)
         self.branch_id = 'main'
-        self.recent = deque(maxlen=recent_limit)
+        self.recent = RecentEvents(maxlen=recent_limit)
+        self._prepared_context_key = None
+        self._prepared_context = None
+        self._direct_templates = os.environ.get('COC_TRACE_TEMPLATES', '1') != '0'
         self.write_error = None
         self.count = 0
         self._digest = '0' * 64
@@ -148,6 +154,37 @@ class RunTrace:
             self._digest = self._compact_writer.digest
         self.count += 1
 
+    def _prepare(self, clock, sequence, rule, fields):
+        key = (self.branch_id, clock.get('turn', 0), clock.get('epoch', 0), clock.get('phase', 'unknown'))
+        if key != getattr(self, '_prepared_context_key', None):
+            self._prepared_context = freeze(dict(schema_version=SCHEMA_VERSION, run_id=self.run_id,
+                branch_id=self.branch_id, turn=key[1], epoch=key[2], phase=key[3]), [0])
+            self._prepared_context_key = key
+        return PreparedEvent(self._prepared_context, rule,
+            {**fields, 'sequence': sequence, 'event_id': self.identity_prefix + ':' + str(sequence)})
+
+    def _append_certificate(self, clock, sequence, rule, subject, metric_id, unit, value, causes=None, fields_extra=None):
+        fields = dict(subject=subject, metric_id=metric_id, value_after=value)
+        if unit is not None: fields['unit'] = unit
+        fields.update(fields_extra or {})
+        if causes is not None: fields['cause_event_ids'] = causes
+        row = self._prepare(clock, sequence, rule, fields)
+        event_id = row.stored['event_id']; key = (metric_id, _subject_key(subject))
+        try: self._append(row)
+        except OSError as error: self.write_error = str(error)
+        else:
+            self._known_event_ids.add(event_id)
+            self._latest_metric_event_ids[key] = event_id
+            self._calculated_value_sources[key] = event_id
+            if rule == PRICE_IDLE_RULE:
+                self._stock_closures[key] = (True, value)
+                self._latest_reference_price_events[(str(subject['id']), str(subject['good']))] = event_id
+            else:
+                self._calculated.add(key); self._calculated_values[key] = value
+                self._latest_calculation_event_ids[key] = event_id
+        self.recent.append(row)
+        return event_id
+
     def publish(self):
         """Flush a complete trace prefix and retain delayed I/O failures."""
         try:
@@ -183,6 +220,42 @@ class RunTrace:
             self._turn_temporary_activity_events = {}
             self._turn_living_cost_events = {}
             self._latest_food_intake_events = {}
+        if (getattr(self, '_direct_templates', False) and self._compact_writer.version == 4
+                and record_class == 'calculation' and not extra and constraints is None
+                and (phase is None or phase == clock.get('phase', 'unknown')) and subject is not None):
+            if (kind == 'closing_active_disease_census' and metric_id == 'health.active_disease_cases'
+                    and unit == 'people' and before is None and type(after) is int and after == 0
+                    and subject.get('type') == 'tile' and 'disease' in subject
+                    and formula_id == 'disease.count_active_cases.v1' and cause_event_ids is None
+                    and inputs == {'sample_point':'closing_live_state','case_agent_ids':[], 'disease':subject['disease']}):
+                return self._append_certificate(clock, sequence, DISEASE_EMPTY_RULE, subject, metric_id, unit, after)
+            if (kind == 'tax_revenue_distribution_calculation' and metric_id == 'finance.tax_distribution'
+                    and formula_id == 'fiscal.tax_distribution.v1' and type(before) is float and _same(before, after)
+                    and _same(before, 0.0) and subject.get('type') == 'tile' and 'tax_tier' in subject
+                    and isinstance(inputs, dict) and set(inputs) == {'turn','reason','tax_tier','opening_components','receipts','aggregation_rule'}
+                    and inputs['receipts'] == [] and inputs['tax_tier'] == subject['tax_tier']
+                    and inputs['aggregation_rule'] == 'opening plus receipt allocations; total uses receipt amount'
+                    and set(inputs['opening_components']) == {'total','municipal','provincial','national'}
+                    and all(_same(value,0.0) for value in inputs['opening_components'].values())):
+                return self._append_certificate(clock, sequence, TAX_EMPTY_RULE, subject, metric_id, unit, after,
+                    cause_event_ids, {'@tax_turn':inputs['turn'], '@tax_reason':inputs['reason']})
+        if (getattr(self, '_direct_templates', False) and self._compact_writer.version == 4
+                and kind == 'gini_series_calculation' and record_class == 'calculation'
+                and phase is None and not extra and constraints is None
+                and type(before) in (int, float) and _same(before, after)
+                and subject is not None and subject.get('type') == 'tile' and subject.get('good') is not None
+                and metric_id == 'economy.gini' and unit == 'ratio'):
+            good = subject['good']
+            expected_zero = {'wilderness': True, 'sample_point': 'native_wilderness_history_write',
+                             'history_rule': 'wilderness writer stores zero', 'output_good': good}
+            expected_retain = {'previous_gini': before, 'sample_point': 'native_local_history_write',
+                               'recomputed_this_turn': False, 'refresh_interval_turns': 10,
+                               'initial_empty_series': False, 'output_good': good}
+            rule = (GINI_ZERO_RULE if formula_id == 'gini.wilderness_zero.v1' and after == 0
+                    and inputs == expected_zero else GINI_RETAIN_RULE
+                    if formula_id == 'gini.retain_previous_value.v1' and inputs == expected_retain else None)
+            if rule:
+                return self._append_certificate(clock, sequence, rule, subject, metric_id, unit, after, cause_event_ids)
         row = {'schema_version': SCHEMA_VERSION, 'run_id': self.run_id,
                'branch_id': self.branch_id, 'event_id': (f'{self.run_id}:{sequence}' if self.branch_id == 'main'
                             else f'{self.run_id}:{self.branch_id}:{sequence}'),
@@ -482,7 +555,14 @@ class RunTrace:
             # retaining its IDs, publication failures and source caches exactly.
             sequence = clock['next']; clock['next'] += 1
             event_id = self.identity_prefix + ':' + str(sequence)
-            row = {'schema_version': SCHEMA_VERSION, 'run_id': self.run_id, 'branch_id': self.branch_id,
+            prepared = (getattr(self, '_direct_templates', False) and self._compact_writer.sparse
+                        and type(before) in (str, int, float, bool) and _same(before, after))
+            if prepared:
+                fields = dict(subject=subject, metric_id=metric_id, value_after=after, **{'@source': source_event_id})
+                if unit is not None: fields['unit'] = unit
+                row = self._prepare(clock, sequence, COVERAGE_RULE, fields)
+            else:
+                row = {'schema_version': SCHEMA_VERSION, 'run_id': self.run_id, 'branch_id': self.branch_id,
                    'event_id': event_id, 'sequence': sequence, 'turn': clock.get('turn', 0),
                    'epoch': clock.get('epoch', 0), 'phase': clock.get('phase', 'unknown'),
                    'kind': 'metric_snapshot', 'record_class': 'observation', 'subject': subject,
@@ -490,10 +570,10 @@ class RunTrace:
                    'cause_event_ids': [source_event_id] if source_event_id else [],
                    'confidence': 'exact' if explained else 'unknown',
                    'explanation_status': 'calculation_recorded' if explained else 'source_missing'}
-            if before is not None: row['value_before'] = before
-            if after is not None: row['value_after'] = after
-            if unit is not None: row['unit'] = unit
-            if isinstance(before, (int, float)) and isinstance(after, (int, float)): row['delta'] = after - before
+                if before is not None: row['value_before'] = before
+                if after is not None: row['value_after'] = after
+                if unit is not None: row['unit'] = unit
+                if isinstance(before, (int, float)) and isinstance(after, (int, float)): row['delta'] = after - before
             try: self._append(row)
             except OSError as error: self.write_error = str(error)
             else:
@@ -522,6 +602,12 @@ class RunTrace:
     def price_bridge(self, clock, *, subject, before, after, unit):
         """Reconcile ordered displayed-price writes within the current turn."""
         mutations = self._price_mutations.get((subject['id'], subject['good']), ())
+        if (getattr(self, '_direct_templates', False) and self._compact_writer.version == 4
+                and self._active_turn == boundary(clock) and not mutations and self.write_error is None
+                and type(before) in (int, float) and _same(before, after)):
+            sequence = clock['next']; clock['next'] += 1
+            return self._append_certificate(clock, sequence, PRICE_IDLE_RULE, subject,
+                                            'goods.price', unit, after)
         steps = []
         current = before
         gaps = []

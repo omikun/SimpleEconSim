@@ -113,6 +113,8 @@ class MedicalCareTraceTests(unittest.TestCase):
 
         spending = next(row for row in rows
                         if row.get('kind') == 'public_healthcare_spending')
+        self.assertEqual(spending['metric_id'], 'finance.public_healthcare_spending')
+        self.assertEqual(spending['record_class'], 'observation')
         self.assertEqual(spending['cause_event_ids'], [payment['event_id']])
         summary = next(row for row in rows
                        if row.get('kind') == 'medical_care_summary')

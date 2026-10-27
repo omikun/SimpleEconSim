@@ -27,6 +27,39 @@ requiring an unbounded walk through earlier turns. It also preserves the
 difference between a known zero, an unknown baseline, and an observation whose
 calculation source is missing. Coverage does not upgrade explanatory certainty.
 
+The emitter now captures standard unchanged observations directly into compact
+templates, with turn/phase metadata frozen once and full rows expanded on read.
+Verified no-write price bridges, unchanged fixed/retained Gini samples, empty
+closing disease censuses, and empty tax-distribution calculations also use
+explicit rule certificates. Actual price writes, Gini refreshes, nonempty
+disease lists and tax receipts retain their full evidence. A zero net change
+with offsetting activity does not qualify as inactivity.
+
+Packet schema version 2 adds these certificates and shared labor-census inputs.
+Each bounded packet includes its own census table; independent seeks do not
+need an earlier packet. Full original census inputs are reconstructed before
+formula replay, indexing or inspection. Packet schema version 1 and V3 files
+remain readable. Old builds cannot read the new packet schema.
+
+Taxation, government spending, paid trades, transfers and all other previously
+recorded inflows/outflows remain individual events with their original IDs and
+ordered account writes. Treasury reconciliations additionally show gross
+inflows, gross outflows and both directions by kind. These describe recorded
+national fiscal flows; existing unattributed residuals still expose gaps.
+The regional `public_healthcare_spending` summary uses its own
+`finance.public_healthcare_spending` observation metric. Individual medical
+payment/receipt legs carry the treasury flows; adding the summary again would
+double-count the spending. The summary and its cash-transfer links remain.
+
+National stock and chart aggregates now carry regional contribution ledgers.
+They reconcile sums/means with territory entry/exit, missing-value coverage and
+changing mean weights. Opposing regional contributions remain visible at a
+zero national net change. These are arithmetic decompositions, not proof of
+upstream mechanisms; units, currency composition, absent baselines and residuals
+remain explicit. The AI packet keeps exact totals and bounded material changes
+from both directions, prioritizes their source links, and leaves the complete
+ledger in the aggregate event.
+
 ## Integrity and publication
 
 Each new packed batch is an independent compression/seek block, holds at most
@@ -76,7 +109,14 @@ The default is packed storage with coverage. For diagnostics on **new runs**,
 but disables checked-observation coverage. Existing restored files retain their
 storage version. These settings do not enable or request AI generation.
 
+For controlled comparisons, `COC_TRACE_TEMPLATES=0` disables direct template and
+certificate emission, `COC_TRACE_SHARED_INPUTS=0` disables shared labor inputs,
+and `COC_TRACE_NATIONAL_SUMMARIES=0` disables the added national/fiscal summaries.
+All default to enabled. They never disable underlying financial flow recording.
+
 The implementation checklist and acceptance requirements are in
 [the implementation plan](../planning/trace_storage_reduction_implementation.md).
 Measured savings and validation limits are in
 [the implementation report](../planning/reports/packed_trace_storage_implementation.md).
+The subsequent national trace optimization is tracked in
+[its plan](../planning/national_causal_trace_optimization.md).

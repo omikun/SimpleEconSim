@@ -1010,6 +1010,7 @@ def record(server):
                 by_kind = {}
                 for flow in flows:
                     by_kind[flow['kind']] = by_kind.get(flow['kind'], 0.0) + flow['amount']
+                from national_contributions import fiscal_totals
                 server.run_trace.emit(clock, kind='treasury_reconciliation',
                                       record_class='audit', phase='snapshot',
                                       subject={'type': 'nation', 'id': nation.name},
@@ -1019,7 +1020,8 @@ def record(server):
                                       else 'unknown',
                                       inputs={'known_flow_total': known_delta,
                                               'unattributed_residual': actual_delta - known_delta,
-                                              'flow_totals_by_kind': by_kind},
+                                              'flow_totals_by_kind': by_kind,
+                                              **fiscal_totals(flows)},
                                       cause_event_ids=[flow['event_id'] for flow in flows])
             server.run_trace.emit(clock, kind='treasury_components',
                                   record_class='observation', phase='snapshot',
@@ -1116,6 +1118,9 @@ def record(server):
                         current_tile_currencies,
                         previous_nation_currencies.get(nation.name),
                         getattr(nation, 'currency', None)))
+                from national_contributions import attach
+                attach(server.run_trace, clock, {'type': 'nation', 'id': nation.name},
+                       metric_id, unit, current[key][2], aggregate_inputs)
                 server.run_trace.emit(clock, kind='national_aggregate',
                                       record_class='calculation', phase='snapshot',
                                       subject={'type': 'nation', 'id': nation.name},
@@ -1203,6 +1208,13 @@ def record(server):
                         nation.name, ())))
                 aggregate_inputs['price_coverage_changed'] = (
                     set(covered_tiles) != set(prior_covered_tiles))
+                from national_contributions import attach
+                price_rows = {row['tile_id']: row for row in member_records}
+                attach(server.run_trace, clock, subject, 'goods.national_reference_price', unit, after,
+                       aggregate_inputs, contribution_rows=[
+                           {'tile_id':tile, 'value':price_rows.get(tile,{}).get('reference_price'),
+                            'source_event_id':price_rows.get(tile,{}).get('source_price_event_id')}
+                           for tile in members])
                 server.run_trace.emit(
                     clock, kind='national_reference_price_aggregate',
                     record_class='calculation', phase='snapshot',
@@ -1296,6 +1308,12 @@ def record(server):
                     current_tile_currencies,
                     previous_nation_currencies.get(nation.name),
                     getattr(nation, 'currency', None)))
+                from national_contributions import attach
+                attach(server.run_trace, clock, current[food_history_key][0], 'goods.national_food_price',
+                       current[food_history_key][1], current[food_history_key][2], food_inputs,
+                       contribution_rows=[{'tile_id':row['tile_id'], 'value':value,
+                                           'source_event_id':row.get('source_price_event_id')}
+                                          for row,value in zip(food_records,food_contributions)])
                 server.run_trace.emit(
                     clock, kind='national_food_price_history_aggregate',
                     record_class='calculation', phase='snapshot',
@@ -1319,6 +1337,11 @@ def record(server):
                 prior_member_values = [previous.get(
                     ('people.profession_population', tile, profession_name),
                     (None, 'people', 0.0))[2] for tile in members]
+                profession_inputs = {'member_tiles':members, 'member_values':member_values,
+                                     'profession':profession_name, 'denominator':None}
+                from national_contributions import attach
+                attach(server.run_trace, clock, subject, 'people.profession_population', unit, after,
+                       profession_inputs)
                 if member_values == prior_member_values:
                     continue
                 server.run_trace.emit(
@@ -1327,10 +1350,7 @@ def record(server):
                     subject=subject, metric_id='people.profession_population',
                     unit=unit, after=after,
                     formula_id='aggregate.sum.v1',
-                    inputs={'member_tiles': members,
-                            'member_values': member_values,
-                            'profession': profession_name,
-                            'denominator': None})
+                    inputs=profession_inputs)
         for key, (subject, unit, after) in current.items():
             before = previous[key][2] if key in previous else None
             if key[0] == 'people.profession_population' and before == after:
@@ -1379,6 +1399,10 @@ def record(server):
                 inputs = dict(aggregate['inputs'])
                 inputs.pop('source_metric_id', None)
                 inputs.pop('source_subject_filter', None)
+                from national_contributions import attach
+                attach(server.run_trace, clock, aggregate['subject'], aggregate['metric_id'],
+                       aggregate['unit'], aggregate['after'], inputs,
+                       series=(inputs['chart_family'], inputs['chart_series']))
                 server.run_trace.emit(
                     clock, kind='nation_chart_history_aggregate',
                     record_class='calculation', phase='snapshot',

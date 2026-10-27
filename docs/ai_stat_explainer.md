@@ -66,6 +66,11 @@ and remaining trace-recording costs on the default 1,000-region map.
 New traces use [packed storage and checked unchanged-stat coverage](trace_storage.md).
 Historical selections still expose the same observed values and causal source
 IDs, including unchanged stats; coverage does not silently fill missing turns.
+National requests additionally receive reconciled regional contribution totals
+and selected material sources from both directions. Opposing changes and gross
+fiscal inflows/outflows remain visible even at zero net change. These summaries
+do not establish missing upstream causes; full regional detail stays in the
+trace inspector.
 
 The loading screen remains visible through evidence collection, local history
 matching, model generation, and response validation. It shows the selected stat,

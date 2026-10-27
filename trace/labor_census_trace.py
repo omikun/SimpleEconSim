@@ -1,5 +1,7 @@
 """Read-only final labor census and evidence for its derived rollups."""
 from trace_clock import boundary
+from trace_packing import SharedEvidence, SharedInputs
+import os
 
 
 def tile_labor_census(tile):
@@ -82,6 +84,11 @@ def record_labor_censuses(trace, clock, current_censuses, prior_censuses, previo
                     'status_priority': ['military', 'trader', 'constable', 'workhouse', 'employed', 'independent'],
                     'sample_point': 'end of world turn, after migration and scenario operations',
                     'person_event_links': links}
+        shared = (trace._compact_writer.version == 4
+                  and os.environ.get('COC_TRACE_SHARED_INPUTS', '1') != '0')
+        evidence = SharedEvidence(evidence) if shared else evidence
+        def with_evidence(specific):
+            return SharedInputs(evidence, specific) if shared else {**evidence, **specific}
         for metric_id, dimension, unit in (
                 ('labor.primary_livelihood', 'livelihood', 'adults'),
                 ('labor.employment_status', 'status', 'adults'),
@@ -115,13 +122,13 @@ def record_labor_censuses(trace, clock, current_censuses, prior_censuses, previo
                     clock, kind='final_labor_member_count', record_class='calculation',
                     phase='snapshot', subject=subject, metric_id=metric_id, unit=unit,
                     before=before, after=len(members), formula_id='labor.final_member_count.v1',
-                    inputs={**evidence, 'category': category,
+                    inputs=with_evidence({'category': category,
                             'dimension': dimension or 'hungry_steps', 'member_ids': members,
                             'previous_member_ids': previous_members,
                             'added_member_ids': sorted(set(members) - set(previous_members))
                             if previous_members is not None else None,
                             'removed_member_ids': sorted(set(previous_members) - set(members))
-                            if previous_members is not None else None},
+                            if previous_members is not None else None}),
                     cause_event_ids=list(dict.fromkeys(causes)) or None)
         shares = [{'person_id': person['person_id'], 'share': person['temporary_work_share']}
                   for person in census['adults']]
@@ -134,7 +141,7 @@ def record_labor_censuses(trace, clock, current_censuses, prior_censuses, previo
             before=previous_values[key][2] if key in previous_values else None,
             after=sum(row['share'] for row in shares) / denominator,
             formula_id='labor.final_temporary_share_mean.v1',
-            inputs={**evidence, 'shares': shares, 'denominator': denominator},
+            inputs=with_evidence({'shares': shares, 'denominator': denominator}),
             cause_event_ids=list(dict.fromkeys(
                 event_id for grouped in links.values() for category in ('resident', 'temporary_activity')
                 for event_id in grouped.get(category, ()))) or None)
