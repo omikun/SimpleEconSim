@@ -286,6 +286,11 @@ Technological progress in the game is not a neutral civic tree; it is an instrum
 - **Crisis of Realization (Underconsumption):** Because capitalists depress wages to maximize profit, the working masses lack the purchasing power to buy the exploding volume of consumer goods.
 - **The Gluts:** Unsold grain rots in warehouses while starving families protest outside; textile stocks pile up while unclothed children freeze in tenements. The market solves this crisis not through redistribution, but through violent price collapses, bankruptcies, factory closures, and imperial wars to force open foreign markets.
 
+### 6.3 Emergent Multi-Avenue Discovery, Refinement Tiers & Tech Simulator Synchronization
+- **Multi-Avenue Emergence & Refinement (`macro/innovation.py`, `planning/emergent_tech_tree_integration_plan.md`):** Technologies emerge from local resource adjacency ($G_{\text{prox}}$), local crisis catalysts ($C_{\text{crisis}}$), and factor-price ratios ($E_{\text{ratio}}$: high wages vs. cheap energy), progressing through **4 Refinement Tiers (`0–100 XP`)** via commercial operation (`1.0x XP`), standard state subsidies (`1x cost -> 0.5x XP`), or crash state mandates (`4x cost -> 1.0x XP`).
+- **Espionage Ceilings & Incumbent Guild Blockades:** Tech theft advances by `+1 Tier` per operation up to an era complexity cap (`Class I: 85%` down to `Class IV Microchips: 30%`), after which nations refine the stolen tier locally. Entrenched legacy guilds use parliamentary clout to pass protectionist laws (e.g., *Red Flag Acts*) that throttle next-paradigm refinement until repealed, bought out, or bypassed—giving challenger nations a structural leapfrog window.
+- **Mandatory Tech Simulator Maintenance Rule:** Any changes to technologies, discovery avenues, refinement thresholds, espionage ceilings, or guild blockade mechanics in `macro/innovation.py` **must** also update the standalone **Tech Tree & Leapfrog Simulator** (`client/web/tech_sim_server.py` / `tech_sim_web.py`, managed via `client/web/manager_server.py`) so the interactive simulator remains 100% synchronized with the game's technology catalog and rules.
+
 ---
 
 ## 7. Politics: The State, Regimes, and Class Struggle

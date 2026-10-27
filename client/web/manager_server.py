@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """
-manager_server.py — Independent Web Control Panel for CoC Game Server & Mapgen2 Web Server.
+manager_server.py — Independent Web Control Panel for CoC Game Server, Mapgen2 & Tech Simulator.
 
 Provides a standalone web dashboard on port 8000 allowing users to:
   • Monitor live status (Running/Stopped, PID, port, uptime, memory)
   • Start / Stop / Restart the Call of Capital Game Web Server (:8081)
   • Start / Stop / Restart the Mapgen2 Explorer Web Server (:8080)
+  • Start / Stop / Restart the Tech Tree & Leapfrog Simulator Web Server (:8082)
   • Inspect live log tails in real time
-  • Quick-launch each service into a browser tab
+  • Quick-launch each service into a browser tab (locally or remotely)
 """
 
 import os
@@ -47,6 +48,15 @@ SERVICES = {
         "log_file": os.path.join(LOGS_DIR, "mapgen_server.log"),
         "icon": "🗺️",
         "accent": "#3b82f6",
+    },
+    "techsim": {
+        "name": "Tech Tree & Leapfrog Simulator",
+        "subtitle": "Emergent Multi-Avenue Discovery, Refinement & Guild Simulator",
+        "default_port": 8082,
+        "cmd": [PYTHON_BIN, "tech_sim_web.py", "--port", "8082", "--host", "0.0.0.0"],
+        "log_file": os.path.join(LOGS_DIR, "techsim_server.log"),
+        "icon": "🔬",
+        "accent": "#10b981",
     },
 }
 
@@ -506,11 +516,11 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     <header>
       <div class="title-group">
         <h1>⚙️ Server Control Center</h1>
-        <p>Monitor, restart, and launch Call of Capital & Mapgen2 web servers</p>
+        <p>Monitor, restart, and launch Call of Capital, Mapgen2 &amp; Tech Simulator web servers</p>
       </div>
       <div class="global-actions">
-        <button class="btn-primary" onclick="restartAll()">🔄 Restart Both</button>
-        <button class="btn-danger" onclick="stopAll()">🛑 Stop Both</button>
+        <button class="btn-primary" onclick="restartAll()">🔄 Restart All</button>
+        <button class="btn-danger" onclick="stopAll()">🛑 Stop All</button>
       </div>
     </header>
 
@@ -587,13 +597,15 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     }
 
     async function restartAll() {
-      await executeAction('restart', 'game');
-      await executeAction('restart', 'mapgen');
+      for (const key of Object.keys(statusData)) {
+        await executeAction('restart', key);
+      }
     }
 
     async function stopAll() {
-      await executeAction('stop', 'game');
-      await executeAction('stop', 'mapgen');
+      for (const key of Object.keys(statusData)) {
+        await executeAction('stop', key);
+      }
     }
 
     function formatUptime(seconds) {
@@ -605,12 +617,19 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       return `${h}h ${m % 60}m`;
     }
 
+    function resolveServiceUrl(svc) {
+      const host = (window.location && window.location.hostname) ? window.location.hostname : 'localhost';
+      const proto = (window.location && window.location.protocol) ? window.location.protocol : 'http:';
+      return `${proto}//${host}:${svc.port}`;
+    }
+
     function renderCards() {
       const container = document.getElementById('cardsGrid');
       const services = Object.values(statusData);
 
       container.innerHTML = services.map(svc => {
         const isOnline = svc.running;
+        const resolvedUrl = resolveServiceUrl(svc);
         const statusBadge = isOnline
           ? `<div class="status-badge online"><div class="status-dot"></div> Online</div>`
           : `<div class="status-badge offline"><div class="status-dot"></div> Stopped</div>`;
@@ -640,8 +659,8 @@ DASHBOARD_HTML = """<!DOCTYPE html>
               <button class="btn-secondary" onclick="refreshLog('${svc.key}')">📄 Reload Log</button>
               
               <div class="btn-launch-container">
-                <a href="${svc.url}" target="_blank" class="btn-launch" style="background: ${isOnline ? '' : '#475569; pointer-events: none; opacity: 0.6;'}">
-                  👉 Open in Browser (${svc.url})
+                <a href="${resolvedUrl}" target="_blank" class="btn-launch" style="background: ${isOnline ? '' : '#475569; pointer-events: none; opacity: 0.6;'}">
+                  👉 Open in Browser (${resolvedUrl})
                 </a>
               </div>
             </div>

@@ -66,13 +66,49 @@ Launch the full Pygame + 3D Voronoi/Hex desktop game with campaign selection, Gu
   - `P`: Open Citizen Roster & Biography Inspector
   - `L`: Open Land Cadastre & Parcel Map
 
-### B. Browser / Mobile Web Client & REST Server
+### B. Browser / Mobile Web Client, Server Control Center & Tech Simulator
+
+#### 1. Unified Server Control Center (`:8000`) — Remote Start / Stop / Restart
+Launch the standalone **Server Control Center** to remotely monitor, turn on/off, restart, and inspect live logs for **Call of Capital (`:8081`)**, **Mapgen2 Terrain Explorer (`:8080`)**, and the **Tech Tree & Leapfrog Simulator (`:8082`)** from any desktop or mobile browser:
+
+```bash
+./venv/bin/python client/web/manager_server.py --port 8000 --host 0.0.0.0
+```
+- Open `http://localhost:8000` (or `http://<your-lan-or-tailscale-ip>:8000` remotely).
+- Each service card (`👑 Call of Capital`, `🗺️ Mapgen2 Terrain Explorer`, `🔬 Tech Tree & Leapfrog Simulator`) provides **Launch**, **Stop**, **Restart**, **Reload Log**, and **Open in Browser** controls.
+
+#### 2. Standalone Tech Tree & Leapfrog Simulator (`tech_sim_web.py` on `:8082`)
+Launch the interactive **Emergent Multi-Avenue Discovery, Refinement & Guild Leapfrog Simulator** directly from the command line (or toggle it remotely via the `:8000` Control Center):
+
+```bash
+./venv/bin/python tech_sim_web.py --port 8082 --host 0.0.0.0
+# or via module:
+./venv/bin/python -m client.web.tech_sim_server --port 8082
+```
+- **How to Operate the Tech Simulator (`http://localhost:8082`)**:
+  1. **Select an Empire Archetype Preset**: Choose **Maritime Pioneer** (high wages, cheap fuel, ghost acres, high late-era incumbent guilds), **Agrarian Hegemon** (cheap labor, distant fuel, rich treasury for state subsidies), or **Latecomer Challenger** (0% legacy guild blockades, primed to steal Tier 1–2 and leapfrog).
+  2. **Pick a Target Technology**: Choose from the 4 flagship multi-avenue deep dives (**Gunpowder [Class I]**, **Steam Power [Class II]**, **Combustion [Class III]**, **Microchips [Class IV]**) or use the dropdown to select **any technology dynamically synced from [`macro/innovation.py`](file:///Users/sli/Code/macro/innovation.py) (`TECH_CATALOG`)**.
+  3. **Configure Discovery Avenues & Factor Prices**: Select the active local catalyst (e.g., *Flooded Pit Mine*, *Blast Furnace Bellows*, *Dutch Polder Drainage*, *Brine Pressure Boilers*, or *Upstream River Barge*), adjust **Resource Proximity ($G_{\text{prox}}$)**, toggle the **Local Bottleneck Crisis ($C_{\text{crisis}}$)**, and tune **Wage-to-Fuel Ratio ($E_{\text{ratio}}$)**, **Ghost Acres ($S_{\text{supply}}$)**, and **Scholar-Artisan Networks ($M_{\text{net}}$)**.
+  4. **Choose Prototype Operating & State Subsidy Mode**:
+     - **Commercially Competitive (`+Tax`, `1.0x XP`)**: Self-sustaining when wages are high and fuel is cheap; stalls if labor is too cheap.
+     - **Standard State Subsidy (`-25g/t`, `0.5x XP`)**: State arsenal funding that progresses at half speed regardless of low wages.
+     - **Crash State Mandate (`-100g/t`, `1.0x XP`)**: Pays `4x` upkeep to replicate the `4.0x` adjacency/commercial bonus out of the State Treasury.
+  5. **Test `+1 Tier` Espionage & Local Refinement**: Click **Launch Spy Mission (+1 Tier)** to steal blueprints one tier at a time up to the Era's **Complexity Ceiling** (`85%` Class I, `65%` Class II, `50%` Class III, `30%` Class IV), gated by physical input resources and prerequisite sibling techs. Once at the theft ceiling, click **+1 Turn / +5 Turns** to refine the stolen tier domestically all the way to **Tier 4**!
+  6. **Resolve Incumbent Guild Legislation**: When entrenched guilds enact protectionist laws (e.g., *The Locomotive 'Red Flag' Act of 1865*, throttling Refinement XP to `25%`), test **Parliamentary Repeal** (`-40 Pol`, `-15% Stability`), **Eminent Domain Buyout** (`-400g`), or **Greenfield / Colonial Bypass** (`Free`, `0.75x Artisan Net`).
+- **Programmatic REST API**:
+  - `GET /api/health` — Server status and live `TECH_CATALOG` sync count.
+  - `GET /api/catalog` — Full JSON specification of all multi-avenue and `macro/innovation.py` technologies.
+  - `POST /api/simulate` — Run headless multi-turn simulations via JSON payload (`{"tech_id": "steam_engines", "turns": 25, "subsidy_mode": "crash"}`).
+
+#### 3. Call of Capital Simulation Web Server (`sim_server` / `client/web/server.py`)
 Run the simulation server with a browser/mobile front-end (automatically prints a terminal QR code for LAN mobile/tablet connection):
 
 ```bash
 ./venv/bin/python -m sim_server.web_server
+# or via the Voronoi Web Server on port 8081:
+./venv/bin/python client/web/server.py --port 8081
 ```
-- Open `http://localhost:8080` in any desktop or mobile browser.
+- Open `http://localhost:8080` (or `:8081`) in any desktop or mobile browser.
 - Supports scenario selection, turn stepping, policy enactment, map inspection, and causal trace querying via JSON API endpoints.
 
 ### C. Standalone & Experimental Economic Runners
@@ -244,6 +280,7 @@ Based on active architectural and design roadmaps in [`planning/ARCHITECTURE_AND
 .
 ├── worldview.py              # Primary 3D/Voronoi Desktop Game Client entrypoint
 ├── econsim.py                # Standalone single-region economic simulator entrypoint
+├── tech_sim_web.py           # Standalone Emergent Tech Tree & Leapfrog Simulator server (:8082)
 ├── runworldview.sh           # Convenience launcher for Desktop Worldview
 ├── sitecustomize.py          # Automatic sys.path registration for all domain packages
 ├── core/                     # World loop, StateMutationHandler, WorldTopology, checkpoints, config

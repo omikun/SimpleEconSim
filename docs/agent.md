@@ -9,6 +9,7 @@ or free creation (except explicit design decisions, which must be documented).
 3. **Commit, never push.** Regenerate-and-revert test PNGs before committing
    (`git checkout -- region_a_output.png region_b_output.png wealth_stacked.png`).
 4. Short sanity runs ~15s (30 turns), full runs ~2-3 min (100 turns).
+5. **Keep Tech Simulator Synchronized**: Any new technology changes, discovery avenues, refinement thresholds, espionage ceilings, or incumbent guild mechanics in `macro/innovation.py` MUST also update the standalone Tech Tree & Leapfrog Simulator (`client/web/tech_sim_server.py` / `tech_sim_web.py`) and pass `tests/test_tech_sim_server.py`.
 
 ## Run & verify
 ```bash
