@@ -205,15 +205,24 @@ def draw_science_panel(surface: pygame.Surface, world: dict, font: pygame.font.F
         pygame.draw.rect(surface, CARD_BG, card_rect, border_radius=5)
         pygame.draw.rect(surface, CARD_BORDER, card_rect, 1, border_radius=5)
 
+        tier = inno.get_tech_tier(active_n.name, tech_id)
+        ref_xp = inno.get_refinement_xp(active_n.name, tech_id)
+        sub_mode = inno.get_subsidy_mode(active_n.name, tech_id)
+        g_block = inno.get_guild_blockade(active_n.name, tech_id)
+
         # Status badge
         if is_disc:
-            badge_txt = "MASTERED"
-            badge_col = GREEN
+            badge_txt = f"TIER {max(1, tier)}/4 ({int(ref_xp)} XP) • {sub_mode[:4].upper()}"
+            if g_block.get('active'):
+                badge_txt += " • GUILD BLOCK"
+                badge_col = (245, 130, 130)
+            else:
+                badge_col = GREEN
         elif diff_prog > 0:
-            badge_txt = f"DIFFUSING ({int(diff_prog*100)}%)"
+            badge_txt = f"DIFFUSING ({int(diff_prog*100)}%) • T{tier}"
             badge_col = (80, 200, 255)
         elif has_bounty:
-            badge_txt = "PRIZE ACTIVE"
+            badge_txt = f"PRIZE ACTIVE • {sub_mode[:4].upper()}"
             badge_col = (245, 205, 70)
         elif missing_techs or missing_res:
             reasons = []
@@ -231,6 +240,18 @@ def draw_science_panel(surface: pygame.Surface, world: dict, font: pygame.font.F
         dom_ico = get_icon(tech.domain.value, size=15)
         surface.blit(dom_ico, (x + 16, cur_y + 8))
         surface.blit(font_small.render(tech.name, True, (255, 255, 255) if is_disc else TEXT), (x + 36, cur_y + 7))
+
+        # Top-right compact Steal / Subsidy / Guild button
+        aux_rect = (x + w - 82, cur_y + 6, 66, 18)
+        if g_block.get('active'):
+            _draw_btn(surface, aux_rect, "Repeal", font_small, mx, my, enabled=True,
+                      color=(255, 180, 180), btn_id=f"sci_guild_{tech_id}", world=world, nation=active_n)
+        elif not is_disc or tier < 3:
+            _draw_btn(surface, aux_rect, "Steal +1T", font_small, mx, my, enabled=True,
+                      color=(255, 210, 110), btn_id=f"sci_steal_{tech_id}", world=world, nation=active_n)
+        else:
+            _draw_btn(surface, aux_rect, f"Sub:{sub_mode[:3]}", font_small, mx, my, enabled=True,
+                      color=ACCENT, btn_id=f"sci_sub_{tech_id}", world=world, nation=active_n)
 
         # Badge
         b_surf = font_small.render(f"[{badge_txt}]", True, badge_col)
@@ -250,7 +271,9 @@ def draw_science_panel(surface: pygame.Surface, world: dict, font: pygame.font.F
                 world['_hovered_left_tooltip'] = tdata
 
         if is_disc:
-            draw_progress_bar_button(surface, btn_rect, "Technology Mastered", 1.0, font_small, theme='complete', icon_kind='check')
+            ref_pct = min(1.0, max(0.05, ref_xp / 100.0))
+            lbl = f"Tier {max(1, tier)}/4 Refinement ({int(ref_xp)}%)"
+            draw_progress_bar_button(surface, btn_rect, lbl, ref_pct, font_small, theme='complete', icon_kind='check')
         elif has_bounty:
             cur_xp = inno.get_domain_xp(active_n.name, tech.domain)
             pct = min(1.0, max(0.0, cur_xp / max(1.0, tech.base_xp_required)))
@@ -297,6 +320,36 @@ def science_panel_hit(pos: tuple[int, int], world: dict) -> bool:
                         ok = inno.post_royal_bounty(active_n, tech_id, 300.0, turn)
                         if ok and tech:
                             ticker_push(world, turn, 'INNOVATION', f"{active_n.name} established a $300 Royal Innovation Prize for {tech.name}!", (80, 200, 255))
+                    return True
+                elif btn_id and btn_id.startswith('sci_steal_'):
+                    tech_id = btn_id.replace('sci_steal_', '')
+                    active_n = _get_active_nation(world)
+                    if active_n:
+                        inno = get_innovation_system()
+                        turn = world.get('turn', 0)
+                        ok, msg = inno.attempt_tech_espionage(active_n, tech_id, t=turn, nations=world.get('nations', []))
+                        ticker_push(world, turn, 'INNOVATION', msg, (255, 200, 90))
+                    return True
+                elif btn_id and btn_id.startswith('sci_guild_'):
+                    tech_id = btn_id.replace('sci_guild_', '')
+                    active_n = _get_active_nation(world)
+                    if active_n:
+                        inno = get_innovation_system()
+                        turn = world.get('turn', 0)
+                        ok, msg = inno.resolve_guild_blockade(active_n, tech_id, 'repeal', t=turn)
+                        ticker_push(world, turn, 'INNOVATION', msg, (120, 235, 160))
+                    return True
+                elif btn_id and btn_id.startswith('sci_sub_'):
+                    tech_id = btn_id.replace('sci_sub_', '')
+                    active_n = _get_active_nation(world)
+                    if active_n:
+                        inno = get_innovation_system()
+                        turn = world.get('turn', 0)
+                        cur_m = inno.get_subsidy_mode(active_n.name, tech_id)
+                        order = ['commercial', 'standard', 'crash']
+                        nxt_m = order[(order.index(cur_m) + 1) % len(order)] if cur_m in order else 'standard'
+                        inno.set_subsidy_mode(active_n, tech_id, nxt_m, t=turn)
+                        ticker_push(world, turn, 'INNOVATION', f"{active_n.name} switched {tech_id} R&D mode to {nxt_m}.", (120, 200, 255))
                     return True
 
     # Legacy fallback calculation

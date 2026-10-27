@@ -46,6 +46,84 @@ class TechDomain(str, Enum):
     MILITARY = "military"
 
 
+class ComplexityClass(int, Enum):
+    CLASS_I_LOW = 1       # Medieval / Early Modern: Steal up to Tier 3 (85 XP)
+    CLASS_II_MEDIUM = 2   # 1st Industrial Rev: Steal up to Tier 3 (65 XP)
+    CLASS_III_HIGH = 3    # 2nd Industrial / Machine Age: Steal up to Tier 2 (50 XP)
+    CLASS_IV_EXTREME = 4  # Information / Atomic Age: Steal up to Tier 2 (30 XP)
+
+
+# Complexity Class -> (max_steal_tier, max_steal_xp_cap)
+COMPLEXITY_STEAL_CAPS: dict[int, tuple[int, float]] = {
+    1: (3, 85.0),
+    2: (3, 65.0),
+    3: (2, 50.0),
+    4: (2, 30.0),
+}
+
+TIER_XP_THRESHOLDS: dict[int, float] = {
+    1: 1.0,
+    2: 25.0,
+    3: 60.0,
+    4: 90.0,
+}
+
+
+@dataclass
+class DiscoveryAvenue:
+    avenue_id: str
+    name: str
+    crisis_label: str
+    prototype_building: str
+    required_resources: list[TileResource] = field(default_factory=list)
+
+
+_HISTORICAL_AVENUE_OVERRIDES: dict[str, dict] = {
+    'gunpowder_blasting': {
+        'complexity_class': 1,
+        'incumbent_guild': 'Feudal Knight & Crossbow Guilds',
+        'protectionist_law': 'Chivalric Arms Monopoly Edict',
+        'avenues': [
+            DiscoveryAvenue('alchemy', 'Daoist Elixir & Kiln Alchemy', 'Court Mineral Calcination Patronage', 'alchemical_kiln', [TileResource.IRON_ORE]),
+            DiscoveryAvenue('siege', 'Frontier Siege Warfare', 'Stone Castle Fortification Stalemate', 'bronze_mortar', [TileResource.IRON_ORE]),
+            DiscoveryAvenue('mining', 'Hard-Rock Mining & Canal Blasting', 'Granite Mountain Pass Bottleneck', 'mountain_pass', [TileResource.IRON_ORE]),
+        ],
+    },
+    'steam_engines': {
+        'complexity_class': 2,
+        'incumbent_guild': 'Waterwheel Millers & Hand-Loom Guilds',
+        'protectionist_law': 'Guild Charter Urban Steam Ban',
+        'avenues': [
+            DiscoveryAvenue('pit', 'Deep Pit Mine Drainage (Newcomen Path)', 'Flooded Deep Coal/Iron Mine Shafts', 'pithead_pump', [TileResource.COAL_SEAM, TileResource.IRON_ORE]),
+            DiscoveryAvenue('bellows', 'Blast Furnace Bellows (Song/Ironworks Path)', 'Frozen / Low-Flow Rivers Halt Iron Smelting', 'steam_blast_furnace', [TileResource.COAL_SEAM, TileResource.IRON_ORE]),
+            DiscoveryAvenue('polder', 'Civic Polder & Drydock Pumping (Dutch Path)', 'Coastal Marsh Flooding & Drydock Sluicing', 'hydraulic_sluice_pump', [TileResource.COAL_SEAM]),
+            DiscoveryAvenue('brine', 'Brine & Sugar Pressure Boilers (Sichuan Path)', 'Evaporation Fuel Crisis in Salt/Sugar Vats', 'condensing_boiler', [TileResource.COAL_SEAM]),
+            DiscoveryAvenue('river', 'Upstream River Barge Hauling', 'Strong Downstream Current Blocks Heavy Freight', 'paddle_winch_barge', [TileResource.COAL_SEAM]),
+        ],
+    },
+    'petroleum_refining': {
+        'complexity_class': 3,
+        'incumbent_guild': 'Coal-Steam Railway & Turnpike Barons',
+        'protectionist_law': "The Locomotive 'Red Flag' Act of 1865",
+        'avenues': [
+            DiscoveryAvenue('kerosene', 'Kerosene Lighting Byproduct (US/Baku Path)', 'Whale-Oil Scarcity & Volatile Gasoline Surplus', 'stationary_petrol_engine', [TileResource.CRUDE_PETROLEUM]),
+            DiscoveryAvenue('tractor', 'Continental Steppe Farm Mechanization', 'Heavy Steam Tractors Sink in Farmland Mud', 'farm_tractor_works', [TileResource.CRUDE_PETROLEUM]),
+            DiscoveryAvenue('towngas', 'Municipal Town-Gas Workshop Engine (Otto Path)', 'Small Workshops Cannot Afford Steam Boilermen', 'four_stroke_workshop', [TileResource.CRUDE_PETROLEUM]),
+        ],
+    },
+    'microelectronics': {
+        'complexity_class': 4,
+        'incumbent_guild': 'Vacuum-Tube & Electromechanical Telecom Cartel',
+        'protectionist_law': 'Telecom Monopoly Procurement Mandate',
+        'avenues': [
+            DiscoveryAvenue('aerospace', 'Aerospace & Missile Guidance Miniaturization', 'Vacuum Tubes Too Heavy for High-Speed Guidance', 'planar_transistor_lab', [TileResource.RARE_MINERALS]),
+            DiscoveryAvenue('consumer', 'Precision Optics & Consumer Export Hub', 'Resource-Poor State Needs High-Margin Exports', 'solid_state_memory_fab', [TileResource.RARE_MINERALS]),
+            DiscoveryAvenue('robotics', 'Demographic Aging & Factory Robotics', 'Shrinking Workforce & Sky-High Factory Wages', 'nc_logic_fab', [TileResource.RARE_MINERALS]),
+        ],
+    },
+}
+
+
 @dataclass
 class Technology:
     tech_id: str
@@ -59,6 +137,42 @@ class Technology:
     unlocked_buildings: list[str] = field(default_factory=list)
     production_modifiers: dict[str, float] = field(default_factory=dict)
     bottleneck_evaluator: Callable[[Nation, list[Region]], float] | None = None
+    complexity_class: int = 0
+    discovery_avenues: list[DiscoveryAvenue] = field(default_factory=list)
+    tier_dependencies: dict[int, list[str]] = field(default_factory=dict)
+    incumbent_guild: str = ""
+    protectionist_law: str = ""
+
+    def __post_init__(self):
+        override = _HISTORICAL_AVENUE_OVERRIDES.get(self.tech_id, {})
+        if self.complexity_class <= 0:
+            self.complexity_class = int(override.get('complexity_class', min(4, max(1, int(self.era)))))
+        if not self.incumbent_guild:
+            self.incumbent_guild = str(override.get(
+                'incumbent_guild',
+                f"Legacy {self.domain.value.replace('_', ' ').title()} Guilds"
+            ))
+        if not self.protectionist_law:
+            self.protectionist_law = str(override.get(
+                'protectionist_law',
+                f"Incumbent {self.domain.value.replace('_', ' ').title()} Charter Restriction"
+            ))
+        if not self.discovery_avenues:
+            if 'avenues' in override:
+                self.discovery_avenues = list(override['avenues'])
+            else:
+                res_names = ", ".join(getattr(r, 'value', str(r)) for r in self.required_resources) or "Civic Inputs"
+                proto = self.unlocked_buildings[0] if self.unlocked_buildings else f"{self.tech_id}_prototype"
+                self.discovery_avenues = [
+                    DiscoveryAvenue(f"{self.tech_id}_primary", f"Local {res_names} Hub (Primary Path)",
+                                    f"Acute {self.domain.value.replace('_', ' ').title()} Bottleneck", proto, list(self.required_resources)),
+                    DiscoveryAvenue(f"{self.tech_id}_arsenal", "Sovereign Arsenal & Public Works Mandate",
+                                    "Strategic Fiscal / Military Modernization Pressure", f"state_{proto}", list(self.required_resources)),
+                    DiscoveryAvenue(f"{self.tech_id}_syndicate", "Merchant & Artisan Syndicate Venture",
+                                    "High Wage / Commercial Arbitrage Opportunity", f"commercial_{proto}", list(self.required_resources)),
+                ]
+        if self.required_techs and 3 not in self.tier_dependencies:
+            self.tier_dependencies[3] = list(self.required_techs)
 
 
 # -----------------------------------------------------------------------------
@@ -533,6 +647,14 @@ class InnovationSystem:
         self.active_bounties: list[RoyalBounty] = []
         # Event log for UI ticker and historical records
         self.discovery_log: list[dict] = []
+        # nation_name -> dict of tech_id -> refinement XP [0.0, 100.0] (Tiers 1..4)
+        self.tech_refinement_xp: dict[str, dict[str, float]] = {}
+        # nation_name -> dict of tech_id -> 'commercial' | 'standard' | 'crash'
+        self.tech_subsidy_mode: dict[str, dict[str, str]] = {}
+        # nation_name -> dict of tech_id -> {'active': bool, 'clout': float, 'frontier_bypass': bool, 'law_name': str}
+        self.guild_blockades: dict[str, dict[str, dict]] = {}
+        # nation_name -> dict of tech_id -> selected avenue_id
+        self.selected_avenues: dict[str, dict[str, str]] = {}
 
     def get_discovered_techs(self, nation_name: str) -> set[str]:
         return self.discovered_techs.setdefault(nation_name, set())
@@ -543,6 +665,303 @@ class InnovationSystem:
     def get_domain_xp(self, nation_name: str, domain: TechDomain) -> float:
         nat_xp = self.domain_experience.setdefault(nation_name, {d.value: 0.0 for d in TechDomain})
         return nat_xp.get(domain.value, 0.0)
+
+    def get_refinement_xp(self, nation_name: str, tech_id: str) -> float:
+        nat_ref = self.tech_refinement_xp.get(nation_name, {})
+        if tech_id in nat_ref:
+            return float(nat_ref[tech_id])
+        if self.has_tech(nation_name, tech_id):
+            return 1.0
+        return 0.0
+
+    def get_tech_tier(self, nation_name: str, tech_id: str) -> int:
+        xp = self.get_refinement_xp(nation_name, tech_id)
+        if not self.has_tech(nation_name, tech_id) and xp <= 0.0:
+            return 0
+        if xp < TIER_XP_THRESHOLDS[2]:
+            return 1
+        if xp < TIER_XP_THRESHOLDS[3]:
+            return 2
+        if xp < TIER_XP_THRESHOLDS[4]:
+            return 3
+        return 4
+
+    def get_subsidy_mode(self, nation_name: str, tech_id: str) -> str:
+        return self.tech_subsidy_mode.get(nation_name, {}).get(tech_id, 'commercial')
+
+    def get_guild_blockade(self, nation_or_name: Nation | str, tech_id: str) -> dict:
+        nat_name = nation_or_name if isinstance(nation_or_name, str) else getattr(nation_or_name, 'name', str(nation_or_name))
+        nat_blocks = self.guild_blockades.setdefault(nat_name, {})
+        if tech_id not in nat_blocks:
+            tech = TECH_CATALOG.get(tech_id)
+            era = getattr(tech, 'era', 1) if tech else 1
+            # Incumbent guilds from earlier eras exert parliamentary clout against Era 3-4 paradigm shifts
+            prior_era_mastered = sum(
+                1 for tid in self.get_discovered_techs(nat_name)
+                if tid in TECH_CATALOG and TECH_CATALOG[tid].era < era
+            )
+            clout = min(85.0, 20.0 + prior_era_mastered * 15.0) if era >= 3 else 15.0
+            nat_blocks[tech_id] = {
+                'active': bool(clout >= 50.0 and era >= 3),
+                'clout': float(clout),
+                'frontier_bypass': False,
+                'law_name': tech.protectionist_law if tech else 'Guild Charter Restriction',
+                'guild_name': tech.incumbent_guild if tech else 'Legacy Guilds',
+            }
+        return nat_blocks[tech_id]
+
+    def evaluate_avenue_factors(self, nation: Nation, tech_id: str) -> dict:
+        """Compute multi-avenue emergence and refinement multipliers from live tile conditions."""
+        tech = TECH_CATALOG.get(tech_id)
+        tiles = list(getattr(nation, 'tiles', ()))
+        if not tech or not tiles:
+            return {
+                'prox_mult': 1.0, 'crisis_mult': 1.0, 'wage_ratio': 1.0,
+                'supply_mult': 1.0, 'net_mult': 1.0, 'active_avenue': None,
+            }
+
+        nat_res = get_nation_resources(nation, tiles)
+        req_res = list(tech.required_resources)
+        if not req_res:
+            prox_mult = 2.5
+        elif all(r in nat_res for r in req_res):
+            # Check if any single tile or adjacent pair co-locates the required inputs
+            single_tile_match = any(
+                all(r in getattr(tile, 'natural_resources', ()) for r in req_res)
+                for tile in tiles
+            )
+            prox_mult = 4.0 if (single_tile_match or len(tiles) <= 2) else 1.5
+        else:
+            prox_mult = 0.2
+
+        raw_pressure = tech.bottleneck_evaluator(nation, tiles) if tech.bottleneck_evaluator else 1.0
+        crisis_mult = 2.5 if raw_pressure >= 1.8 else (1.4 if raw_pressure > 1.1 else 0.8)
+
+        wages = [a.wage for r in tiles for a in getattr(r, 'agents', ()) if getattr(a, 'wage', 0.0) > 0.0]
+        avg_wage = (sum(wages) / len(wages)) if wages else 1.0
+        fuel_prices = [
+            r.recipes.get(Goods.wood, {}).get('price', r.recipes.get(Goods.food, {}).get('price', 1.0))
+            for r in tiles if hasattr(r, 'recipes')
+        ]
+        avg_fuel = (sum(fuel_prices) / len(fuel_prices)) if fuel_prices else 1.0
+        wage_ratio = max(0.2, min(4.0, avg_wage / max(0.5, avg_fuel)))
+
+        trade_vol = sum(
+             (r.export_vol[g][-1] if r.export_vol.get(g) else 0)
+            for r in tiles for g in getattr(r, 'export_vol', {})
+        )
+        supply_mult = max(0.8, min(3.0, 1.0 + trade_vol * 0.02))
+
+        blockade = self.get_guild_blockade(nation, tech_id)
+        net_mult = 1.5 * (0.75 if blockade.get('frontier_bypass') else 1.0)
+
+        sel_id = self.selected_avenues.get(nation.name, {}).get(tech_id)
+        active_av = next((av for av in tech.discovery_avenues if av.avenue_id == sel_id), None)
+        if active_av is None and tech.discovery_avenues:
+            active_av = tech.discovery_avenues[0]
+
+        return {
+            'prox_mult': prox_mult,
+            'crisis_mult': crisis_mult,
+            'wage_ratio': wage_ratio,
+            'supply_mult': supply_mult,
+            'net_mult': net_mult,
+            'active_avenue': active_av.avenue_id if active_av else None,
+            'avenue_name': active_av.name if active_av else tech.name,
+            'prototype_building': active_av.prototype_building if active_av else '',
+        }
+
+    def set_subsidy_mode(self, nation: Nation, tech_id: str, mode: str, t: int = 0) -> tuple[bool, str]:
+        """Switch prototype operating mode between 'commercial' (0x cost), 'standard' (1x -> 0.5x XP), and 'crash' (4x -> 1.0x XP)."""
+        if tech_id not in TECH_CATALOG or mode not in ('commercial', 'standard', 'crash'):
+            return False, f"Invalid tech '{tech_id}' or subsidy mode '{mode}'."
+        tech = TECH_CATALOG[tech_id]
+        if mode in ('standard', 'crash') and not self.has_tech(nation.name, tech_id):
+            bounty_amt = 75.0 if mode == 'standard' else 300.0
+            has_bounty = any(b.nation_name == nation.name and b.tech_id == tech_id for b in self.active_bounties)
+            if not has_bounty and hasattr(nation, 'treasury'):
+                self.post_royal_bounty(nation, tech_id, bounty_amt, t)
+        self.tech_subsidy_mode.setdefault(nation.name, {})[tech_id] = mode
+        label = {'commercial': 'Commercial (1.0x ROI)', 'standard': 'Standard 1x Subsidy (0.5x XP)', 'crash': 'Crash 4x Mandate (1.0x XP)'}[mode]
+        return True, f"{nation.name} set '{tech.name}' operating mode to {label}."
+
+    def attempt_tech_espionage(self, stealer: Nation, tech_id: str, t: int = 0,
+                               target_nation: Nation | None = None,
+                               nations: list[Nation] | None = None) -> tuple[bool, str]:
+        """
+        Incremental +1 Tier espionage action:
+          - Requires physical input resources and dependent prerequisite sibling techs.
+          - Capped by ComplexityClass (I: 85 XP, II: 65 XP, III: 50 XP, IV: 30 XP) and strictly below source tier.
+          - Once stolen up to the ceiling, the nation can refine the technology locally all the way to Tier 4.
+        """
+        from innovation_trace import record_espionage_attempt, record_technology
+
+        if tech_id not in TECH_CATALOG:
+            return False, f"Unknown technology '{tech_id}'."
+        tech = TECH_CATALOG[tech_id]
+        before_xp = self.get_refinement_xp(stealer.name, tech_id)
+        current_tier = self.get_tech_tier(stealer.name, tech_id)
+
+        # 1. Input resource check
+        nat_res = get_nation_resources(stealer, getattr(stealer, 'tiles', ()))
+        missing_res = [r for r in tech.required_resources if r not in nat_res]
+        if missing_res:
+            record_espionage_attempt(
+                stealer, tech_id, t, False, 'missing_input_resources', before_xp, before_xp,
+                missing_resources=[getattr(r, 'value', str(r)) for r in missing_res])
+            return False, f"Espionage blocked: {stealer.name} lacks physical input resources for '{tech.name}'."
+
+        # 2. Determine source leader tier/XP
+        source_tier = 4
+        source_xp = 100.0
+        source_name = target_nation.name if target_nation else 'Foreign Tech Leader'
+        if target_nation is not None:
+            source_tier = self.get_tech_tier(target_nation.name, tech_id)
+            source_xp = self.get_refinement_xp(target_nation.name, tech_id)
+        elif nations:
+            peers = [other for other in nations if other.name != stealer.name and self.has_tech(other.name, tech_id)]
+            if peers:
+                best_peer = max(peers, key=lambda o: self.get_refinement_xp(o.name, tech_id))
+                source_name = best_peer.name
+                source_tier = max(2, self.get_tech_tier(best_peer.name, tech_id))
+                source_xp = max(50.0, self.get_refinement_xp(best_peer.name, tech_id))
+
+        max_steal_tier, max_steal_xp = COMPLEXITY_STEAL_CAPS.get(tech.complexity_class, (3, 65.0))
+        effective_tier_cap = min(max_steal_tier, max(1, source_tier - 1) if source_tier < 4 else max_steal_tier)
+        effective_xp_cap = min(max_steal_xp, source_xp * (max_steal_xp / 100.0))
+
+        if current_tier >= effective_tier_cap or before_xp >= effective_xp_cap:
+            record_espionage_attempt(
+                stealer, tech_id, t, False, 'espionage_ceiling_reached', before_xp, before_xp,
+                current_tier=current_tier, max_steal_tier=effective_tier_cap, max_steal_xp=effective_xp_cap)
+            return (
+                False,
+                f"Espionage Ceiling reached for '{tech.name}' (Max Stolen: Tier {effective_tier_cap} / {effective_xp_cap:.0f} XP). "
+                f"Refine your Tier {current_tier} prototypes domestically to reach Tier 4!"
+            )
+
+        target_tier = current_tier + 1
+        # 3. Prerequisite sibling tech check
+        discovered = self.get_discovered_techs(stealer.name)
+        missing_prereqs = [req for req in tech.required_techs if req not in discovered]
+        tier_deps = tech.tier_dependencies.get(target_tier, [])
+        missing_tier_deps = [dep for dep in tier_deps if self.get_tech_tier(stealer.name, dep) < 2 and dep not in discovered]
+        all_missing = list(dict.fromkeys(missing_prereqs + missing_tier_deps))
+        if all_missing and (target_tier >= 2 or missing_prereqs):
+            record_espionage_attempt(
+                stealer, tech_id, t, False, 'missing_dependent_technology', before_xp, before_xp,
+                target_tier=target_tier, missing_dependencies=all_missing)
+            return False, f"Dependency Lock: Must steal or develop prerequisite {all_missing} before stealing Tier {target_tier} '{tech.name}'!"
+
+        # 4. Advance by +1 Tier up to ceiling
+        tier_floor_xp = {1: 5.0, 2: 28.0, 3: 62.0}
+        after_xp = min(effective_xp_cap, max(before_xp + 15.0, tier_floor_xp.get(target_tier, 28.0)))
+        self.tech_refinement_xp.setdefault(stealer.name, {})[tech_id] = after_xp
+
+        was_known = tech_id in discovered
+        if not was_known:
+            discovered.add(tech_id)
+            record_technology(
+                stealer, tech_id, t, 'espionage_theft', source_nation=source_name,
+                declared_unlocked_buildings=list(tech.unlocked_buildings),
+                declared_production_modifiers={
+                    getattr(Goods._value2member_map_.get(good), 'name', str(good)): value
+                    for good, value in tech.production_modifiers.items()},
+                modifier_basis='technology_catalog_declaration')
+
+        new_tier = self.get_tech_tier(stealer.name, tech_id)
+        record_espionage_attempt(
+            stealer, tech_id, t, True, 'stolen_plus_one_tier', before_xp, after_xp,
+            source_nation=source_name, tier_before=current_tier, tier_after=new_tier,
+            max_steal_xp=effective_xp_cap)
+        msg = f"ESPIONAGE (+1 Tier): {stealer.name} stole Tier {new_tier} '{tech.name}' blueprints ({after_xp:.0f} XP) from {source_name}!"
+        self.discovery_log.append({'t': t, 'nation': stealer.name, 'tech_id': tech_id, 'tech_name': tech.name, 'event': 'ESPIONAGE', 'message': msg})
+        return True, msg
+
+    def resolve_guild_blockade(self, nation: Nation, tech_id: str, action: str, t: int = 0) -> tuple[bool, str]:
+        """Resolve an incumbent guild legislative blockade via 'repeal', 'buyout', or 'frontier' bypass."""
+        from innovation_trace import record_guild_legislation
+
+        if tech_id not in TECH_CATALOG or action not in ('repeal', 'buyout', 'frontier'):
+            return False, f"Unknown technology '{tech_id}' or guild action '{action}'."
+        blockade = self.get_guild_blockade(nation, tech_id)
+        tech = TECH_CATALOG[tech_id]
+
+        if action == 'repeal':
+            if hasattr(nation, 'legitimacy'):
+                nation.legitimacy = max(0.05, float(nation.legitimacy) - 0.08)
+            blockade['active'] = False
+            msg = f"PARLIAMENTARY REPEAL: {nation.name} repealed '{blockade['law_name']}', unblocking '{tech.name}' refinement!"
+        elif action == 'buyout':
+            if hasattr(nation, 'treasury') and not self.has_tech(nation.name, tech_id):
+                self.post_royal_bounty(nation, tech_id, 300.0, t)
+            blockade['active'] = False
+            blockade['clout'] = 10.0
+            msg = f"EMINENT DOMAIN BUYOUT: {nation.name} bought out {blockade['guild_name']} charters, unblocking '{tech.name}'!"
+        else:  # frontier
+            blockade['active'] = False
+            blockade['frontier_bypass'] = True
+            msg = f"GREENFIELD BYPASS: {nation.name} deployed '{tech.name}' prototypes in frontier districts outside guild jurisdiction!"
+
+        record_guild_legislation(
+            nation, tech_id, t, action, blockade['active'],
+            guild_name=blockade['guild_name'], law_name=blockade['law_name'],
+            frontier_bypass=blockade['frontier_bypass'])
+        self.discovery_log.append({'t': t, 'nation': nation.name, 'tech_id': tech_id, 'tech_name': tech.name, 'event': 'GUILD_RESOLVED', 'message': msg})
+        return True, msg
+
+    def step_refinement(self, nations: list[Nation], t: int) -> list[dict]:
+        """Advance domestic Tinkering/Refinement XP (0..100, Tiers 1..4) for discovered technologies."""
+        from innovation_trace import record_refinement_progress
+
+        events = []
+        for n in nations:
+            discovered = self.get_discovered_techs(n.name)
+            if not discovered or not getattr(n, 'tiles', ()):
+                continue
+            nat_ref = self.tech_refinement_xp.setdefault(n.name, {})
+            for tech_id in sorted(discovered):
+                tech = TECH_CATALOG.get(tech_id)
+                if not tech:
+                    continue
+                before_xp = float(nat_ref.get(tech_id, 1.0))
+                if before_xp >= 100.0:
+                    continue
+                prev_tier = self.get_tech_tier(n.name, tech_id)
+                factors = self.evaluate_avenue_factors(n, tech_id)
+                mode = self.get_subsidy_mode(n.name, tech_id)
+
+                if mode == 'commercial':
+                    roi = factors['wage_ratio'] * (factors['prox_mult'] / 2.0)
+                    base_ref = 0.8 if roi < 1.2 else 2.5 * (factors['wage_ratio'] / 2.0) * (factors['prox_mult'] / 2.0)
+                elif mode == 'standard':
+                    base_ref = 3.2 * 0.5
+                else:  # crash (4x cost -> full 1.0x adjacency speed)
+                    base_ref = 3.2 * 1.35
+
+                increment = base_ref * (factors['supply_mult'] / 1.5) * (factors['net_mult'] / 1.2)
+                blockade = self.get_guild_blockade(n, tech_id)
+                if blockade.get('active'):
+                    increment *= 0.25
+
+                # Check Tier 3 prerequisite sibling tech gate (60 XP threshold)
+                tier3_deps = tech.tier_dependencies.get(3, [])
+                missing_tier3 = [dep for dep in tier3_deps if dep not in discovered]
+                cap_xp = 59.0 if missing_tier3 else 100.0
+
+                after_xp = min(cap_xp, before_xp + max(0.0, increment))
+                nat_ref[tech_id] = after_xp
+                record_refinement_progress(
+                    n, tech_id, t, before_xp, after_xp, increment, cap_xp=cap_xp,
+                    subsidy_mode=mode, guild_blockade_active=bool(blockade.get('active')),
+                    avenue_id=factors.get('active_avenue'))
+
+                new_tier = self.get_tech_tier(n.name, tech_id)
+                if new_tier > prev_tier:
+                    msg = f"REFINEMENT TIER {new_tier}: {n.name} refined '{tech.name}' to Tier {new_tier} ({after_xp:.0f} XP)!"
+                    ev = {'t': t, 'nation': n.name, 'tech_id': tech_id, 'tech_name': tech.name, 'tier': new_tier, 'event': 'REFINEMENT', 'message': msg}
+                    events.append(ev)
+        return events
 
     def post_royal_bounty(self, nation: Nation, tech_id: str, bounty_amount: float, t: int) -> bool:
         """Sovereign posts a cash prize from treasury to incentivize a breakthrough."""
@@ -903,11 +1322,12 @@ class InnovationSystem:
         return events
 
     def step(self, tiles: list[Region], nations: list[Nation], pair_orders: list, t: int) -> list[dict]:
-        """Advance one turn of learning-by-doing, induced breakthroughs, and trade diffusion."""
+        """Advance one turn of learning-by-doing, induced breakthroughs, trade diffusion, and domestic refinement."""
         self.accumulate_learning_by_doing(tiles, nations, t)
         discovery_events = self.evaluate_breakthroughs(nations, t)
         diffusion_events = self.diffuse_technologies_along_trade(pair_orders, nations, t)
-        return discovery_events + diffusion_events
+        refinement_events = self.step_refinement(nations, t)
+        return discovery_events + diffusion_events + refinement_events
 
 
 _INNOVATION_SYSTEM: InnovationSystem | None = None

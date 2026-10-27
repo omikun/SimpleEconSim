@@ -2572,29 +2572,73 @@
     techs.forEach(tech => {
       const card = document.createElement('div');
       card.className = 'item-card';
-      const isMastered = (tech.status === 'MASTERED');
+      const statusStr = String(tech.status || 'LOCKED').toUpperCase();
+      const isMastered = (statusStr === 'MASTERED');
+      const tier = Number(tech.tier || 0);
+      const refXp = Number(tech.refinement_xp || 0);
+      const subMode = String(tech.subsidy_mode || 'commercial');
+      const gBlock = tech.guild_blockade || {};
+      const prereqList = tech.prerequisites || tech.prereqs || [];
+      const avenuesList = (tech.avenues || []).map(a => a.name).join(' • ');
 
       card.innerHTML = `
         <div class="card-top">
-          <span class="card-title">🔬 ${escapeHtml(tech.name)}</span>
-          <span class="card-badge ${safeClassToken(tech.status ? tech.status.toLowerCase() : 'locked', 'locked')}">${escapeHtml(tech.status || 'LOCKED')}</span>
+          <span class="card-title">🔬 ${escapeHtml(tech.name)} <small style="opacity:0.8;">(Tier ${tier}/4 • ${refXp.toFixed(0)} XP)</small></span>
+          <span class="card-badge ${safeClassToken(statusStr.toLowerCase(), 'locked')}">${escapeHtml(statusStr)}</span>
         </div>
         <div class="card-desc">${escapeHtml(tech.description || 'Scientific discovery expanding industrial production.')}</div>
+        ${avenuesList ? `<div class="card-meta-row" style="font-size:11px;opacity:0.85;"><span>Avenues: ${escapeHtml(avenuesList)}</span></div>` : ''}
         <div class="card-meta-row">
-          <span>Prerequisites: ${escapeHtml(tech.prereqs ? tech.prereqs.join(', ') : 'None')}</span>
-          <span>Diffusing: ${Math.round((tech.diffusion || 0) * 100)}%</span>
+          <span>Prerequisites: ${escapeHtml(prereqList.length ? prereqList.join(', ') : 'None')}</span>
+          <span>Steal Cap: Tier ${Number(tech.max_steal_tier || 3)} (${Number(tech.max_steal_xp || 65)} XP)</span>
         </div>
-        ${!isMastered ? `
-          <button class="btn btn-secondary btn-sm mt-2 btn-pledge-prize" data-tech="${escapeHtml(tech.id)}">
-            🏆 Pledge Royal Bounty ($300)
-          </button>
+        <div class="card-meta-row" style="gap:6px;flex-wrap:wrap;margin-top:6px;">
+          <button class="btn btn-secondary btn-sm btn-sub-mode" data-mode="commercial" style="${subMode === 'commercial' ? 'border-color:#38bdf8;' : ''}">🏪 Commercial (1x ROI)</button>
+          <button class="btn btn-secondary btn-sm btn-sub-mode" data-mode="standard" style="${subMode === 'standard' ? 'border-color:#fbbf24;' : ''}">🏛️ 1x State (0.5x XP)</button>
+          <button class="btn btn-secondary btn-sm btn-sub-mode" data-mode="crash" style="${subMode === 'crash' ? 'border-color:#c084fc;' : ''}">🚀 4x Crash (1.0x XP)</button>
+          <button class="btn btn-secondary btn-sm btn-steal-tech">🕵️ Steal +1 Tier</button>
+          ${!isMastered ? `
+            <button class="btn btn-secondary btn-sm btn-pledge-prize" data-tech="${escapeHtml(tech.id)}">
+              🏆 Royal Bounty ($300)
+            </button>
+          ` : ''}
+        </div>
+        ${gBlock.active ? `
+          <div class="card-meta-row" style="margin-top:6px;padding:6px;background:rgba(244,63,94,0.12);border-radius:6px;flex-wrap:wrap;gap:6px;">
+            <span style="color:#fda4af;font-size:11px;">⚠️ Guild Blockade (${escapeHtml(tech.protectionist_law || '0.25x XP')}):</span>
+            <button class="btn btn-secondary btn-sm btn-guild-res" data-gaction="repeal">⚖️ Repeal</button>
+            <button class="btn btn-secondary btn-sm btn-guild-res" data-gaction="buyout">💰 Buyout</button>
+            <button class="btn btn-secondary btn-sm btn-guild-res" data-gaction="frontier">🗺️ Frontier SEZ</button>
+          </div>
         ` : ''}
       `;
 
-      if (!isMastered) {
-        card.querySelector('.btn-pledge-prize').addEventListener('click', () => {
-          sendCommand('RESEARCH_TECH', { action: 'pledge_prize', tech_id: tech.id, amount: 300 });
+      card.querySelectorAll('.btn-sub-mode').forEach(btn => {
+        btn.addEventListener('click', () => {
+          sendCommand('RESEARCH_TECH', { action: 'set_subsidy', tech_id: tech.id, mode: btn.getAttribute('data-mode') });
         });
+      });
+
+      const stealBtn = card.querySelector('.btn-steal-tech');
+      if (stealBtn) {
+        stealBtn.addEventListener('click', () => {
+          sendCommand('RESEARCH_TECH', { action: 'steal_tech', tech_id: tech.id });
+        });
+      }
+
+      card.querySelectorAll('.btn-guild-res').forEach(btn => {
+        btn.addEventListener('click', () => {
+          sendCommand('RESEARCH_TECH', { action: 'resolve_guild', tech_id: tech.id, guild_action: btn.getAttribute('data-gaction') });
+        });
+      });
+
+      if (!isMastered) {
+        const prizeBtn = card.querySelector('.btn-pledge-prize');
+        if (prizeBtn) {
+          prizeBtn.addEventListener('click', () => {
+            sendCommand('RESEARCH_TECH', { action: 'pledge_prize', tech_id: tech.id, amount: 300 });
+          });
+        }
       }
 
       tList.appendChild(card);

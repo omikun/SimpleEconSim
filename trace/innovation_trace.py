@@ -222,7 +222,43 @@ def record_learning(nation, domain, before, after, terms, *, turn, fixed_increme
         cause_event_ids=list(dict.fromkeys(causes)) or None)
 
 
+def record_refinement_progress(nation, tech_id, turn, before_xp, after_xp, increment,
+                               *, cap_xp=100.0, **inputs):
+    prev_id = latest_innovation_event(nation, 'innovation.refinement_xp', tech_id=tech_id)
+    known_id = known_technology_event(nation, tech_id)
+    causes = [eid for eid in (prev_id, known_id) if eid is not None]
+    return emit_innovation(
+        nation, kind='innovation_refinement_xp_update', record_class='calculation',
+        subject_fields={'tech_id': tech_id}, metric_id='innovation.refinement_xp',
+        unit='refinement_xp', before=float(before_xp), after=float(after_xp),
+        formula_id='innovation.refinement_xp.v1',
+        inputs={'turn': int(turn), 'prior_xp': float(before_xp),
+                'increment': float(increment), 'cap_xp': float(cap_xp), **inputs},
+        cause_event_ids=causes or None)
+
+
+def record_espionage_attempt(nation, tech_id, turn, accepted, reason,
+                             before_xp, after_xp, **inputs):
+    return emit_innovation(
+        nation, kind='innovation_espionage_step', record_class='decision',
+        subject_fields={'tech_id': tech_id}, metric_id='innovation.espionage_step',
+        unit='refinement_xp', before=float(before_xp), after=float(after_xp),
+        inputs={'turn': int(turn), 'accepted': bool(accepted), 'reason': reason,
+                'before_xp': float(before_xp), 'after_xp': float(after_xp), **inputs})
+
+
+def record_guild_legislation(nation, tech_id, turn, action, blockade_active, **inputs):
+    return emit_innovation(
+        nation, kind='innovation_guild_blockade', record_class='decision',
+        subject_fields={'tech_id': tech_id}, metric_id='innovation.guild_blockade',
+        unit='boolean', after=int(bool(blockade_active)),
+        inputs={'turn': int(turn), 'action': action,
+                'blockade_active': bool(blockade_active), **inputs})
+
+
 def replay_formula(formula, inputs):
+    if formula == 'innovation.refinement_xp.v1':
+        return min(float(inputs['cap_xp']), float(inputs['prior_xp']) + max(0.0, float(inputs['increment'])))
     if formula == 'innovation.learning_by_doing.v1':
         return (inputs['prior_experience']
                 + sum(term['quantity'] * term['coefficient'] for term in inputs['terms'])

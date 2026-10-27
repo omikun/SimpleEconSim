@@ -19,7 +19,7 @@ from goods import Goods
 from buildings import BUILDING_RECIPES
 from diplomacy import get_diplomacy, TreatyType
 from sovereign_bonds import get_bond_market
-from innovation import get_innovation_system, TECH_CATALOG
+from innovation import get_innovation_system, TECH_CATALOG, COMPLEXITY_STEAL_CAPS
 from client.desktop.map.map_renderer import NATION_COLORS, get_nation_color
 from world_names import assign_world_identities
 from sim_server.protocol import CommandType, CommandMessage, ServerEvent
@@ -834,6 +834,26 @@ class SimServer:
                     if ok:
                         self.push_ticker(self.turn, 'SCIENCE', msg, (180, 140, 255))
                     return {'success': ok, 'message': msg}
+
+                elif action == 'set_subsidy':
+                    mode = str(p.get('mode', 'commercial'))
+                    ok, msg = innov.set_subsidy_mode(nation, tech_id, mode, t=self.turn)
+                    if ok:
+                        self.push_ticker(self.turn, 'SCIENCE', msg, (120, 200, 255))
+                    return {'success': ok, 'message': msg, 'subsidy_mode': innov.get_subsidy_mode(nation.name, tech_id)}
+
+                elif action == 'steal_tech':
+                    ok, msg = innov.attempt_tech_espionage(nation, tech_id, t=self.turn, nations=self.nations)
+                    if ok:
+                        self.push_ticker(self.turn, 'SCIENCE', msg, (255, 190, 90))
+                    return {'success': ok, 'message': msg, 'tier': innov.get_tech_tier(nation.name, tech_id), 'refinement_xp': innov.get_refinement_xp(nation.name, tech_id)}
+
+                elif action == 'resolve_guild':
+                    guild_action = str(p.get('guild_action', 'repeal'))
+                    ok, msg = innov.resolve_guild_blockade(nation, tech_id, guild_action, t=self.turn)
+                    if ok:
+                        self.push_ticker(self.turn, 'SCIENCE', msg, (110, 230, 160))
+                    return {'success': ok, 'message': msg, 'guild_blockade': innov.get_guild_blockade(nation, tech_id)}
 
                 return {'success': False, 'error': f"Unknown science action '{action}'."}
 
@@ -2110,11 +2130,34 @@ class SimServer:
                     elif has_bounty: st = "bounty_active"
                     elif can_research: st = "unlocked"
 
+                    c_class = getattr(tech, 'complexity_class', getattr(tech, 'era', 1))
+                    max_s_tier, max_s_xp = COMPLEXITY_STEAL_CAPS.get(c_class, (3, 65.0))
+                    g_block = innov.get_guild_blockade(player_nat_name, tid)
+                    avenues_list = [
+                        {
+                            'id': av.avenue_id,
+                            'name': av.name,
+                            'crisis': av.crisis_label,
+                            'prototype': av.prototype_building,
+                        }
+                        for av in getattr(tech, 'discovery_avenues', [])
+                    ]
+
                     science_tree.append({
                         'id': tech.tech_id,
                         'name': tech.name,
                         'domain': tech.domain.value if hasattr(tech.domain, 'value') else str(tech.domain),
                         'era': getattr(tech, 'era', 1),
+                        'complexity_class': int(c_class),
+                        'max_steal_tier': int(max_s_tier),
+                        'max_steal_xp': float(max_s_xp),
+                        'tier': innov.get_tech_tier(player_nat_name, tid),
+                        'refinement_xp': round(innov.get_refinement_xp(player_nat_name, tid), 1),
+                        'subsidy_mode': innov.get_subsidy_mode(player_nat_name, tid),
+                        'guild_blockade': g_block,
+                        'incumbent_guild': getattr(tech, 'incumbent_guild', ''),
+                        'protectionist_law': getattr(tech, 'protectionist_law', ''),
+                        'avenues': avenues_list,
                         'description': tech.description,
                         'base_xp': float(tech.base_xp_required),
                         'status': st,

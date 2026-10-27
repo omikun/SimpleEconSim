@@ -165,49 +165,53 @@ def build_dynamic_catalog() -> dict:
             continue
 
         era = getattr(tech, "era", 1)
-        comp = COMPLEXITY_DEFAULTS.get(era, COMPLEXITY_DEFAULTS[2])
+        c_class = int(getattr(tech, "complexity_class", era))
+        comp = COMPLEXITY_DEFAULTS.get(c_class, COMPLEXITY_DEFAULTS[2])
         req_res = [r.value for r in tech.required_resources]
         req_techs = list(tech.required_techs)
         prereq_str = ", ".join(req_techs) if req_techs else f"Domain Practice ({tech.domain.value})"
         res_str = ", ".join(req_res) if req_res else "General Civic Inputs"
-
-        catalog[tech_id] = {
-            "tech_id": tech_id,
-            "name": tech.name,
-            "era": era,
-            "complexity_class": era,
-            "max_steal_tier": comp["max_steal_tier"],
-            "max_steal_xp": comp["max_steal_xp"],
-            "steal_gap_text": f"{comp['class_name']} (Era {era}): {comp['gap_label']}",
-            "prereq_name": f"Prerequisite: {prereq_str}",
-            "incumbent_guild": f"Legacy {tech.domain.value.replace('_', ' ').title()} Guilds",
-            "law_name": f"Incumbent {tech.domain.value.replace('_', ' ').title()} Charter Restriction",
-            "law_desc": f"Entrenched {tech.domain.value.replace('_', ' ')} interests lobby to restrict {tech.name} prototypes in core cities (0.25x XP).",
-            "live_base_xp_required": tech.base_xp_required,
-            "live_domain": tech.domain.value,
-            "live_required_resources": req_res,
-            "live_required_techs": req_techs,
-            "live_unlocked_buildings": list(tech.unlocked_buildings),
-            "avenues": [
+        inc_guild = getattr(tech, "incumbent_guild", "") or f"Legacy {tech.domain.value.replace('_', ' ').title()} Guilds"
+        prot_law = getattr(tech, "protectionist_law", "") or f"Incumbent {tech.domain.value.replace('_', ' ').title()} Charter Restriction"
+        live_avenues = getattr(tech, "discovery_avenues", [])
+        if live_avenues:
+            avenues_payload = [
+                {
+                    "id": av.avenue_id,
+                    "name": av.name,
+                    "crisis": av.crisis_label,
+                    "prototype": av.prototype_building,
+                }
+                for av in live_avenues
+            ]
+        else:
+            avenues_payload = [
                 {
                     "id": f"{tech_id}_primary",
                     "name": f"Local {res_str} Hub (Primary Path)",
                     "crisis": f"Acute {tech.domain.value.replace('_', ' ').title()} Scarcity Bottleneck",
                     "prototype": (tech.unlocked_buildings[0] if tech.unlocked_buildings else f"{tech.name} Prototype"),
-                },
-                {
-                    "id": f"{tech_id}_state",
-                    "name": "Sovereign Arsenal & Public Works Mandate",
-                    "crisis": "Strategic Fiscal / Military Modernization Pressure",
-                    "prototype": f"State {tech.name} Works",
-                },
-                {
-                    "id": f"{tech_id}_guild",
-                    "name": "Merchant & Artisan Syndicate Venture",
-                    "crisis": "High Wage / Commercial Arbitrage Opportunity",
-                    "prototype": f"Commercial {tech.name} Mill",
-                },
-            ],
+                }
+            ]
+
+        catalog[tech_id] = {
+            "tech_id": tech_id,
+            "name": tech.name,
+            "era": era,
+            "complexity_class": c_class,
+            "max_steal_tier": comp["max_steal_tier"],
+            "max_steal_xp": comp["max_steal_xp"],
+            "steal_gap_text": f"{comp['class_name']} (Era {era}): {comp['gap_label']}",
+            "prereq_name": f"Prerequisite: {prereq_str}",
+            "incumbent_guild": inc_guild,
+            "law_name": prot_law,
+            "law_desc": f"{inc_guild} enforce '{prot_law}' to restrict {tech.name} deployment (0.25x XP).",
+            "live_base_xp_required": tech.base_xp_required,
+            "live_domain": tech.domain.value,
+            "live_required_resources": req_res,
+            "live_required_techs": req_techs,
+            "live_unlocked_buildings": list(tech.unlocked_buildings),
+            "avenues": avenues_payload,
             "downstream": [
                 {"name": f"Tier 1: Crude {tech.name} Prototype", "reqTier": 1, "reqXP": 1, "desc": f"Initial deployment unlocked at {res_str} sites."},
                 {"name": f"Tier 2: Standardized {tech.name}", "reqTier": 2, "reqXP": 25, "desc": tech.description},
