@@ -63,6 +63,10 @@ The [desktop correction report](../planning/reports/ai_explainer_trace_selection
 documents the missing-trace and tile-selection fixes, measured turn speedups,
 and remaining trace-recording costs on the default 1,000-region map.
 
+New traces use [packed storage and checked unchanged-stat coverage](trace_storage.md).
+Historical selections still expose the same observed values and causal source
+IDs, including unchanged stats; coverage does not silently fill missing turns.
+
 The loading screen remains visible through evidence collection, local history
 matching, model generation, and response validation. It shows the selected stat,
 entity, and turn, and allows cancellation. Playing can continue while it works.

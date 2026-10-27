@@ -899,6 +899,20 @@ def sample(tiles, nations, *, labor_censuses=None):
 
 
 
+def samples_match(previous, current):
+    """Ignore only zero category keys deliberately retained by record().
+
+    The sampler omits empty profession/labor categories. Their zero baselines
+    must survive for later returns, without inventing a between-turn command
+    whenever the native client compares a fresh sample to that retained state.
+    """
+    if any(previous.get(key) != value for key, value in current.items()):
+        return False
+    retained = ('people.profession_population', 'labor.primary_livelihood', 'labor.employment_status')
+    return all(key in current or (key[0] in retained and value[2] == 0)
+               for key, value in previous.items())
+
+
 def record(server):
     from labor_census_trace import capture_labor_censuses, record_labor_censuses
     from run_trace import _subject_key

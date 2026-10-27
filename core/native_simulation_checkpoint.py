@@ -53,13 +53,13 @@ class NativeSimulation:
 
 def save_world(world, directory, *, engine_module='worldview_engine'):
     """Save the native graph after closing any pending between-turn actions."""
-    from trace_snapshots import sample, record
+    from trace_snapshots import sample, record, samples_match
     simulation = NativeSimulation(world, engine_module)
     session = world.get('_trace_session')
     if simulation.run_trace is None or session is None:
         raise ValueError('a native causal checkpoint requires an enabled recorder')
     if (session.run_trace.count != session.pending_start
-            or sample(session.tiles, session.nations) != session._trace_previous):
+            or not samples_match(session._trace_previous, sample(session.tiles, session.nations))):
         record(session)
     # Scenario debt objects also reference this exact world dictionary. Keep its
     # identity so those aliases survive; copying only the outer dictionary would

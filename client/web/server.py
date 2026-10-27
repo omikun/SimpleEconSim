@@ -148,7 +148,7 @@ class CoCHTTPRequestHandler(BaseHTTPRequestHandler):
                     if trace is None:
                         self._send_error_json(404, 'Causal recording is disabled for this run')
                         return
-                    published = trace._compact_writer.end_offset
+                    published = trace.publish()
                 selected_boundary = int(query['boundary'][0]) if 'boundary' in query else published
                 if selected_boundary > published:
                     raise ValueError('trace boundary exceeds published data')

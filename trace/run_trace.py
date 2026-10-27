@@ -7,8 +7,9 @@ from collections import deque
 from functools import lru_cache
 import hashlib
 import json
+import os
 from pathlib import Path
-from trace_codec import CompactTraceWriter, iter_payloads
+from trace_codec import CompactTraceWriter, iter_payloads, iter_records, PACKED_DIGEST
 
 
 SCHEMA_VERSION = 1
@@ -44,7 +45,8 @@ def _subject_key(subject):
 
 
 class RunTrace:
-    def __init__(self, path, run_id, *, seed=None, scenario=None, recent_limit=256):
+    def __init__(self, path, run_id, *, seed=None, scenario=None, recent_limit=256,
+                 storage_version=None, sparse=None):
         self.path = Path(path)
         if self.path.suffix != '.ctr':
             raise ValueError('causal trace path must end in .ctr')
@@ -53,7 +55,7 @@ class RunTrace:
         self.recent = deque(maxlen=recent_limit)
         self.write_error = None
         self.count = 0
-        self.digest = '0' * 64
+        self._digest = '0' * 64
         from bank_trace import BankTraceBook
         self.bank_book = BankTraceBook(self)
         from treasury_trace import TreasuryTraceBook
@@ -88,11 +90,24 @@ class RunTrace:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         if self.path.exists():
             raise FileExistsError(self.path)
-        self._compact_writer = CompactTraceWriter(self.path)
+        if storage_version is None:
+            storage_version = 3 if os.environ.get('COC_TRACE_STORAGE') == 'legacy' else 4
+        if sparse is None:
+            sparse = os.environ.get('COC_TRACE_SPARSE', '1') != '0'
+        self._compact_writer = CompactTraceWriter(self.path, version=storage_version, sparse=sparse)
         self._append({'schema_version': SCHEMA_VERSION, 'record_class': 'metadata',
                       'run_id': self.run_id, 'branch_id': self.branch_id,
                       'seed': seed, 'scenario': scenario,
-                      'storage_format': 'framed-deflate-blocks-v1'})
+                      'storage_format': ('packed-coverage-v4' if storage_version == 4 else 'framed-deflate-blocks-v1'),
+                      **({'digest_scope': PACKED_DIGEST} if storage_version == 4 else {})})
+
+    @property
+    def digest(self):
+        writer = getattr(self, '_compact_writer', None)
+        if writer is not None and writer.version == 4:
+            if not writer._stream.closed: writer.flush_pending()
+            return writer.digest
+        return self.__dict__.get('_digest', self.__dict__.get('digest', '0' * 64))
 
     @property
     def identity_prefix(self):
@@ -100,6 +115,7 @@ class RunTrace:
 
     def __getstate__(self):
         state = dict(self.__dict__)
+        state['_digest'] = self.digest
         state.pop('_compact_writer', None)
         return state
 
@@ -124,10 +140,13 @@ class RunTrace:
         # No default=str: unsupported values are instrumentation errors.
         if self.write_error is not None:
             raise OSError(self.write_error)
-        payload = json.dumps(row, sort_keys=True, separators=(',', ':'), allow_nan=False)
-        self._compact_writer.append(payload)
+        if self._compact_writer.version == 4:
+            self._compact_writer.append(row)
+        else:
+            payload = json.dumps(row, sort_keys=True, separators=(',', ':'), allow_nan=False)
+            self._compact_writer.append(payload)
+            self._digest = self._compact_writer.digest
         self.count += 1
-        self.digest = hashlib.sha256((self.digest + payload).encode('utf-8')).hexdigest()
 
     def publish(self):
         """Flush a complete trace prefix and retain delayed I/O failures."""
@@ -455,7 +474,38 @@ class RunTrace:
             explained = explained and verified and closing == after
         source_event_id = self._calculated_value_sources.get(key) if explained else None
         explained = explained and source_event_id is not None
-        event_id = self.emit(clock, kind='metric_snapshot', record_class='observation',
+        if (self._compact_writer.version == 4 and self._active_turn == boundary(clock)
+                and subject.get('type') in ('tile', 'nation') and isinstance(metric_id, str)
+                and metric_id != 'finance.treasury_flow'):
+            # Closing observations cannot be trades/decisions/person events.
+            # Avoid the general emitter's replay and lifecycle dispatch while
+            # retaining its IDs, publication failures and source caches exactly.
+            sequence = clock['next']; clock['next'] += 1
+            event_id = self.identity_prefix + ':' + str(sequence)
+            row = {'schema_version': SCHEMA_VERSION, 'run_id': self.run_id, 'branch_id': self.branch_id,
+                   'event_id': event_id, 'sequence': sequence, 'turn': clock.get('turn', 0),
+                   'epoch': clock.get('epoch', 0), 'phase': clock.get('phase', 'unknown'),
+                   'kind': 'metric_snapshot', 'record_class': 'observation', 'subject': subject,
+                   'metric_id': metric_id, 'inputs': {'source_event_id': source_event_id},
+                   'cause_event_ids': [source_event_id] if source_event_id else [],
+                   'confidence': 'exact' if explained else 'unknown',
+                   'explanation_status': 'calculation_recorded' if explained else 'source_missing'}
+            if before is not None: row['value_before'] = before
+            if after is not None: row['value_after'] = after
+            if unit is not None: row['unit'] = unit
+            if isinstance(before, (int, float)) and isinstance(after, (int, float)): row['delta'] = after - before
+            try: self._append(row)
+            except OSError as error: self.write_error = str(error)
+            else:
+                self._latest_metric_event_ids[key] = event_id
+                self._known_event_ids.add(event_id)
+                if metric_id == 'goods.price' and subject.get('type') == 'tile' and subject.get('good') is not None:
+                    self._latest_reference_price_events[(str(subject.get('id')), str(subject['good']))] = event_id
+                if metric_id == 'living.cost_of_living' and subject.get('type') == 'tile':
+                    self._turn_living_cost_events[str(subject.get('id'))] = event_id
+            self.recent.append(row)
+        else:
+            event_id = self.emit(clock, kind='metric_snapshot', record_class='observation',
                              subject=subject, metric_id=metric_id, unit=unit,
                              before=before, after=after,
                              inputs={'source_event_id': source_event_id},
@@ -509,10 +559,12 @@ class RunTrace:
         return bridge_id
 
     def checkpoint(self, clock):
-        """End a turn with a count and hash of every preceding decoded row."""
+        """Close the complete prefix with its versioned digest and logical count."""
+        self.publish()
         event_id = self.emit(clock, kind='turn_checkpoint', record_class='audit',
                              phase='checkpoint', count_before=self.count,
-                             sha256_before=self.digest)
+                             sha256_before=self.digest,
+                             **({'digest_scope': PACKED_DIGEST} if self._compact_writer.version == 4 else {}))
         self.publish()
         return event_id
 
@@ -534,13 +586,14 @@ def verify(path):
     digest = '0' * 64
     count = 0
     checkpoints = 0
-    for number, payload in enumerate(iter_payloads(path), 1):
-        row = json.loads(payload)
+    for record in iter_records(path):
+        row = record.row if record.row is not None else json.loads(record.payload)
         if row.get('kind') == 'turn_checkpoint':
-            if row.get('count_before') != count or row.get('sha256_before') != digest:
-                raise ValueError(f'broken checkpoint at line {number}')
+            if (row.get('count_before') != count or row.get('sha256_before') != record.digest_before
+                    or (record.digest_scope == PACKED_DIGEST and row.get('digest_scope') != PACKED_DIGEST)):
+                raise ValueError(f'broken checkpoint at line {count + 1}')
             checkpoints += 1
-        digest = hashlib.sha256((digest + payload).encode('utf-8')).hexdigest()
+        digest = record.digest_after
         count += 1
     return {'rows': count, 'checkpoints': checkpoints, 'sha256': digest}
 

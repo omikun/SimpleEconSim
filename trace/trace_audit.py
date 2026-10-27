@@ -14,7 +14,7 @@ import tempfile
 
 from price_trace import replay_event
 from causal_contracts import validate as validate_sources
-from trace_codec import iter_payloads
+from trace_codec import iter_records, PACKED_DIGEST
 
 
 def audit(path):
@@ -27,13 +27,15 @@ def audit(path):
             def lookup(source_id):
                 found=database.execute('SELECT row FROM events WHERE id=?',(source_id,)).fetchone()
                 return json.loads(found[0]) if found else None
-            for payload in iter_payloads(path):
+            for record in iter_records(path):
+                payload=record.payload
                 encoded=payload.encode('utf-8');decoded_bytes+=len(encoded)+1
                 row=json.loads(payload);counters['rows']+=1
                 if row.get('kind')=='turn_checkpoint':
-                    valid=row.get('count_before')==rows and row.get('sha256_before')==digest
+                    valid=(row.get('count_before')==rows and row.get('sha256_before')==record.digest_before
+                           and (record.digest_scope!=PACKED_DIGEST or row.get('digest_scope')==PACKED_DIGEST))
                     counters['checkpoints_verified' if valid else 'checkpoint_failures']+=1
-                digest=hashlib.sha256(digest.encode('ascii')+encoded).hexdigest();rows+=1
+                digest=record.digest_after;rows+=1
                 ident=row.get('event_id')
                 if ident is None:
                     if row.get('record_class')!='metadata':counters['missing_event_ids']+=1

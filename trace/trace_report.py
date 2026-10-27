@@ -12,7 +12,7 @@ import sqlite3
 import tempfile
 from contextlib import closing
 
-from trace_codec import decoded_size, iter_payloads
+from trace_codec import decoded_size, iter_payloads, storage_stats
 
 
 def iter_report(path, *, turn=None, entity=None, metric=None, kind=None,
@@ -140,11 +140,13 @@ def main():
                         help='compare matched snapshots in another run (in-game counterfactual)')
     args = parser.parse_args()
     if args.storage_stats:
+        stats = storage_stats(args.run)
         stored = args.run.stat().st_size
         decoded = decoded_size(args.run)
         print(f'Stored: {stored} bytes; decoded JSONL: {decoded} bytes; '
               f'ratio: {stored / decoded:.3f}' if decoded else
               f'Stored: {stored} bytes; decoded JSONL: 0 bytes')
+        print(json.dumps(stats, sort_keys=True))
         return
     if args.decode_jsonl:
         if args.decode_jsonl != '-' and Path(args.decode_jsonl).resolve() == args.run.resolve():

@@ -48,6 +48,7 @@ def load(world):
 
 def open_panel(world):
     trace=world.get('run_trace')
+    if trace: trace.publish()
     world['_causal_panel']={'tab':0,'turn':world.get('turn',0),'offset':0,'event_id':None,
                             'boundary':trace._compact_writer.end_offset if trace else None,'history':[]}
     load(world)
@@ -73,6 +74,7 @@ def handle_event(event,world):
             elif action=='turn':state.update(turn=max(0,min(world.get('turn',0),state['turn']+value)),offset=0,event_id=None)
             elif action=='page':state['offset']=max(0,min(max(0,state.get('total',0)-1),state['offset']+value))
             elif action=='refresh':
+                world['run_trace'].publish()
                 state['boundary']=world['run_trace']._compact_writer.end_offset
             elif action=='good':
                 goods=('food','wood','furniture','cotton','cloth')

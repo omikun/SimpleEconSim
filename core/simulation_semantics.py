@@ -31,6 +31,7 @@ OBSERVATIONAL_FIELDS = frozenset({
     'offer_event_id','planner_decision_event_ids','petition_event_id',
     'trace_event_id','trace_event_ids','cause_event_ids','formula_replay','_cached_wealth',
     'source_link_status',
+    'assessment_event_id',  # Pollution assessment receipt; IDs differ on forks.
 })
 
 
@@ -89,7 +90,7 @@ def canonical_state(tiles,nations,*,extra=None):
     def encode(value):
         if isinstance(value,Enum):return {'enum':type(value).__module__+'.'+type(value).__qualname__,'name':value.name}
         if value is None or isinstance(value,(bool,int)):return value
-        if isinstance(value,float):return value if math.isfinite(value) else {'float':str(value)}
+        if isinstance(value,float):return float(value) if math.isfinite(value) else {'float':str(value)}
         if isinstance(value,str):return text(value)
         if isinstance(value,np.generic):return encode(value.item())
         if isinstance(value,bytes):return {'bytes_sha256':hashlib.sha256(value).hexdigest(),'length':len(value)}

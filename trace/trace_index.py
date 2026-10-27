@@ -115,12 +115,13 @@ class TraceIndex:
                 number=int(meta.get('count','0'))
                 last_block=start
                 for record in iter_records(self.path,start_offset=start,end_offset=boundary):
-                    sha=hashlib.sha256(record.payload.encode()).hexdigest()
+                    sha=record.checksum
                     if record.end_offset<=previous:
                         old=db.execute('SELECT sha FROM events WHERE block=? AND position=?',(record.block_offset,record.record_in_block)).fetchone()
                         if old is None or old[0]!=sha:raise IndexCacheError('cached prefix differs from source')
                         continue
-                    row=json.loads(record.payload);subject_json=json.dumps(row.get('subject',{}),sort_keys=True,separators=(',',':'))
+                    row=record.row if record.row is not None else json.loads(record.payload)
+                    subject_json=json.dumps(row.get('subject',{}),sort_keys=True,separators=(',',':'))
                     db.execute('INSERT INTO events VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
                                (number,row.get('event_id'),row.get('turn'),row.get('kind'),row.get('metric_id'),subject_json,
                                 row.get('subject',{}).get('good'),record.block_offset,record.record_in_block,record.end_offset,sha,row.get('record_class')))
@@ -147,9 +148,9 @@ class TraceIndex:
             for record in iter_records(self.path,start_offset=block,end_offset=boundary):
                 if record.block_offset!=block:break
                 if record.record_in_block in positions:
-                    if hashlib.sha256(record.payload.encode()).hexdigest()!=positions[record.record_in_block]:
+                    if record.checksum!=positions[record.record_in_block]:
                         raise IndexCacheError('cached record differs from source')
-                    decoded[block,record.record_in_block]=json.loads(record.payload)
+                    decoded[block,record.record_in_block]=record.row if record.row is not None else json.loads(record.payload)
                 if record.record_in_block>=max(positions):break
         for block,position,_ in selected:events.append(decoded[block,position])
         return {'events':events,'total':total,'offset':offset,'limit':limit,'boundary':boundary}

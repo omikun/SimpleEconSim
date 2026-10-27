@@ -1,0 +1,276 @@
+{
+  "completed": "2026-10-27",
+  "seed": 777,
+  "tiles": 1000,
+  "method": "Sequential separate processes, PYTHONHASHSEED=0; timings cover step_world only. Single local sample per mode.",
+  "three_turn_comparison": [
+    {
+      "mode": "legacy",
+      "seed": 777,
+      "turns": [
+        4.631975292228162,
+        5.188377582933754,
+        5.1223468338139355
+      ],
+      "tiles": 1000,
+      "stats": {
+        "packed_frames": 0,
+        "raw_frames": 785108,
+        "covered_snapshots": 0,
+        "explicit_snapshots": 540539,
+        "logical_records": 785108,
+        "stored_bytes": 36987350,
+        "version": 3,
+        "physical_frames": 785108
+      },
+      "trace": "/Users/sli/Code/tmp/traces/desktop-248f8c14ce5c49ea8ee6143578739b95.ctr",
+      "integrity": {
+        "rows": 785108,
+        "checkpoints": 3,
+        "sha256": "d774e1bfdbdb3a8989f70ffbccb53757ad505907eb106115e769731b5b7a3006"
+      },
+      "metrics_digest": "0981a125fae60b7f427388f785f0556895577628689e7e14a822955ce4e9da15",
+      "evidence_digest": "4f8b084c4a9a959f220a4001314908ca3da1c1ed19bddf011ec078746a4d0634",
+      "python_rng_digest": "8ef15db2cb468ada13b6cc6c0047dc67fb11a0183c03db347ffb40035fe16cce",
+      "numpy_rng_digest": "b4587759d63d8a810c3b5f8017d8a75a76ab15258462948f43893ca7ad8faca4",
+      "catalog_cold_seconds": 13.631671708077192,
+      "catalog_warm_seconds": 0.06917012529447675,
+      "catalog_options": 973,
+      "normalization": "Run/operation identities and format-specific checkpoint digest metadata only.",
+      "scenario": "default native world"
+    },
+    {
+      "mode": "packed",
+      "seed": 777,
+      "turns": [
+        4.050306875258684,
+        4.5215729172341526,
+        4.382624082732946
+      ],
+      "tiles": 1000,
+      "stats": {
+        "packed_frames": 6889,
+        "raw_frames": 0,
+        "covered_snapshots": 0,
+        "explicit_snapshots": 540539,
+        "logical_records": 785108,
+        "stored_bytes": 16743058,
+        "version": 4,
+        "physical_frames": 6889
+      },
+      "trace": "/Users/sli/Code/tmp/traces/desktop-246b54881a41443ebf25f7beed973e21.ctr",
+      "integrity": {
+        "rows": 785108,
+        "checkpoints": 3,
+        "sha256": "d8f70d4aa12dd07b273d7b88fd147f11dc2ecc382274ef44c0dd316a1330f74a"
+      },
+      "metrics_digest": "0981a125fae60b7f427388f785f0556895577628689e7e14a822955ce4e9da15",
+      "evidence_digest": "4f8b084c4a9a959f220a4001314908ca3da1c1ed19bddf011ec078746a4d0634",
+      "python_rng_digest": "8ef15db2cb468ada13b6cc6c0047dc67fb11a0183c03db347ffb40035fe16cce",
+      "numpy_rng_digest": "b4587759d63d8a810c3b5f8017d8a75a76ab15258462948f43893ca7ad8faca4",
+      "catalog_cold_seconds": 10.16442145826295,
+      "catalog_warm_seconds": 0.06827862514182925,
+      "catalog_options": 973,
+      "normalization": "Run/operation identities and format-specific checkpoint digest metadata only.",
+      "scenario": "default native world"
+    },
+    {
+      "mode": "coverage",
+      "seed": 777,
+      "turns": [
+        4.071768417023122,
+        4.520180083811283,
+        4.402189792133868
+      ],
+      "tiles": 1000,
+      "stats": {
+        "packed_frames": 6889,
+        "raw_frames": 0,
+        "covered_snapshots": 395711,
+        "explicit_snapshots": 144828,
+        "logical_records": 785108,
+        "stored_bytes": 15780108,
+        "version": 4,
+        "physical_frames": 6889
+      },
+      "trace": "/Users/sli/Code/tmp/traces/desktop-4434bfd06eea4dd39f80773eb78abd07.ctr",
+      "integrity": {
+        "rows": 785108,
+        "checkpoints": 3,
+        "sha256": "a0e2a4a77a1394e37745e0dca4e3b2d6337c4ddc8cc0152584d0b119baba0544"
+      },
+      "metrics_digest": "0981a125fae60b7f427388f785f0556895577628689e7e14a822955ce4e9da15",
+      "evidence_digest": "4f8b084c4a9a959f220a4001314908ca3da1c1ed19bddf011ec078746a4d0634",
+      "python_rng_digest": "8ef15db2cb468ada13b6cc6c0047dc67fb11a0183c03db347ffb40035fe16cce",
+      "numpy_rng_digest": "b4587759d63d8a810c3b5f8017d8a75a76ab15258462948f43893ca7ad8faca4",
+      "catalog_cold_seconds": 10.016660375054926,
+      "catalog_warm_seconds": 0.07000983320176601,
+      "catalog_options": 973,
+      "normalization": "Run/operation identities and format-specific checkpoint digest metadata only.",
+      "scenario": "default native world"
+    }
+  ],
+  "twelve_turn_comparison": [
+    {
+      "mode": "legacy",
+      "seed": 777,
+      "turns": [
+        4.790406041778624,
+        5.344533832743764,
+        5.254278082866222,
+        5.2717954171821475,
+        5.371523708105087,
+        9.031592583283782,
+        5.47188924998045,
+        9.008980665821582,
+        9.368779542390257,
+        9.423737958073616,
+        9.472049582749605,
+        9.30287962500006
+      ],
+      "tiles": 1000,
+      "stats": {
+        "packed_frames": 0,
+        "raw_frames": 4517212,
+        "covered_snapshots": 0,
+        "explicit_snapshots": 3243850,
+        "logical_records": 4517212,
+        "stored_bytes": 212083387,
+        "version": 3,
+        "physical_frames": 4517212
+      },
+      "trace": "/Users/sli/Code/tmp/traces/desktop-7468ccb082b3497385eff9de116f1fd4.ctr",
+      "integrity": {
+        "rows": 4517212,
+        "checkpoints": 18,
+        "sha256": "ee8cb06f954c6bc783460a161153348d085662bdc32b57744ba9ca431c90dc2a"
+      },
+      "metrics_digest": "29d37741fe6ba9edbcc83a4f493262d1dbab4fdf1548e58bf29f412bf92f768d",
+      "evidence_digest": "4d39a8554ae95adfde29312437a52ddc558e63436c6f431321c8e864bc3ed6df",
+      "python_rng_digest": "229e6789f936ee61d2b621394cc895c0de6eede5445f7f195987284af5ae03a1",
+      "numpy_rng_digest": "b4587759d63d8a810c3b5f8017d8a75a76ab15258462948f43893ca7ad8faca4",
+      "catalog_cold_seconds": 81.60292979190126,
+      "catalog_warm_seconds": 0.3949464582838118,
+      "catalog_options": 1020,
+      "normalization": "Run/operation identities and format-specific checkpoint digest metadata only.",
+      "scenario": "default native world"
+    },
+    {
+      "mode": "coverage",
+      "seed": 777,
+      "turns": [
+        4.108667334076017,
+        4.535131792072207,
+        4.451719000004232,
+        4.485202332958579,
+        4.634257707744837,
+        4.526429499965161,
+        4.493275208864361,
+        4.739208000246435,
+        4.722659166902304,
+        5.057594290934503,
+        4.848271332681179,
+        4.8759565418586135
+      ],
+      "tiles": 1000,
+      "stats": {
+        "packed_frames": 27984,
+        "raw_frames": 0,
+        "covered_snapshots": 2009483,
+        "explicit_snapshots": 153159,
+        "logical_records": 3150830,
+        "stored_bytes": 67212180,
+        "version": 4,
+        "physical_frames": 27984
+      },
+      "trace": "/Users/sli/Code/tmp/traces/desktop-1d14a2761e6d4cc191d606b59f4d1744.ctr",
+      "integrity": {
+        "rows": 3150830,
+        "checkpoints": 12,
+        "sha256": "9570b17d5a90407d0ed2d011984f3565be7a2142874e8277de2cabfd40b2c52e"
+      },
+      "metrics_digest": "29d37741fe6ba9edbcc83a4f493262d1dbab4fdf1548e58bf29f412bf92f768d",
+      "evidence_digest": "dfb5e2237fa6637bae4971a70f00e370ed864978d1d4805ea9fb6383132f2667",
+      "python_rng_digest": "229e6789f936ee61d2b621394cc895c0de6eede5445f7f195987284af5ae03a1",
+      "numpy_rng_digest": "b4587759d63d8a810c3b5f8017d8a75a76ab15258462948f43893ca7ad8faca4",
+      "catalog_cold_seconds": 41.57998212473467,
+      "catalog_warm_seconds": 0.28290104074403644,
+      "catalog_options": 1020,
+      "normalization": "Run/operation identities and format-specific checkpoint digest metadata only.",
+      "scenario": "default native world"
+    }
+  ],
+  "twelve_turn_caveats": [
+    "Legacy has the previous quiet-boundary precheck; coverage has the retained-zero fix. Event hashes differ because six unnecessary closures are removed.",
+    "Both are default native worlds. The old benchmark accepted an unsupported labor-frontier-rivalry argument that the native builder ignored; trace metadata confirms scenario=null. The committed CLI now rejects unsupported scenarios.",
+    "Twelve-turn catalog timings overlapped independent validation work and are diagnostic only; three-turn catalog timings were isolated."
+  ],
+  "assertions": {
+    "three_format_evidence_metrics_rng_and_counts_equal": true,
+    "twelve_turn_metrics_and_both_rng_states_equal": true,
+    "all_prefix_integrity_checks_passed": true,
+    "three_format_strict_numeric_evidence_equivalence": true
+  },
+  "historical_gini_source_lookups": [
+    {
+      "turn": 2,
+      "metric_id": "economy.gini",
+      "value": 0.0,
+      "source_kinds": [
+        "gini_series_calculation"
+      ],
+      "source_turns": [
+        2
+      ],
+      "status": "calculation_recorded"
+    },
+    {
+      "turn": 10,
+      "metric_id": "economy.gini",
+      "value": 0.7745647521074475,
+      "source_kinds": [
+        "gini_series_calculation"
+      ],
+      "source_turns": [
+        10
+      ],
+      "status": "calculation_recorded"
+    },
+    {
+      "turn": 11,
+      "metric_id": "economy.gini",
+      "value": 0.7745647521074475,
+      "source_kinds": [
+        "gini_series_calculation"
+      ],
+      "source_turns": [
+        11
+      ],
+      "status": "calculation_recorded"
+    },
+    {
+      "turn": 12,
+      "metric_id": "economy.gini",
+      "value": 0.7745647521074475,
+      "source_kinds": [
+        "gini_series_calculation"
+      ],
+      "source_turns": [
+        12
+      ],
+      "status": "calculation_recorded"
+    }
+  ],
+  "summary": {
+    "three_turn_storage_reduction_percent": 57.336,
+    "three_turn_time_reduction_percent": 13.04,
+    "three_turn_cold_catalog_reduction_percent": 26.519,
+    "twelve_turn_storage_reduction_percent": 68.309,
+    "twelve_turn_time_reduction_percent": 36.314,
+    "turn_twelve_time_reduction_percent": 47.587,
+    "twelve_turn_logical_record_reduction_percent": 30.248
+  },
+  "strict_numeric_evidence_digest": "9e0d97e49201e5e0cabdec6eb9f920f9d789a128ac8f2c9f6c4046289aa63eb2",
+  "strict_numeric_evidence_rows": 785107,
+  "strict_numeric_normalization": "Normalize run/operation identity strings only, preserve all numeric scalars, omit format-specific checkpoint hash and scope."
+}

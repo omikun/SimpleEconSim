@@ -51,13 +51,14 @@ def traced_world_step(function):
     @wraps(function)
     def wrapped(world,*args,**kwargs):
         if not world.get('_trace_enabled',True):return function(world,*args,**kwargs)
-        from trace_snapshots import record, sample
+        from trace_snapshots import record, sample, samples_match
         session=attach(world);trace=session.run_trace
         clock=session.tiles[0]._collective_trace_clock if session.tiles else None
         if clock is None:return function(world,*args,**kwargs)
         # Native player actions occur between ticks. Close their pending stock
         # boundary before step_turn starts a fresh gameplay turn.
-        if trace.count!=session.pending_start or sample(session.tiles,session.nations)!=session._trace_previous:
+        if trace.count!=session.pending_start or not samples_match(
+                session._trace_previous, sample(session.tiles,session.nations)):
             record(session);trace.checkpoint(clock)
         turn_before=world.get('turn',0)
         result=function(world,*args,**kwargs)

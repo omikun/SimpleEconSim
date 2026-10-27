@@ -6,6 +6,21 @@ from simulation_semantics import canonical_state
 
 
 class SemanticStateTests(unittest.TestCase):
+    def test_pollution_assessment_receipt_is_observational_but_rates_are_retained(self):
+        tile = SimpleNamespace(pollution_response_state={'assessment_event_id': 'run:1', 'rate': .1,
+                                                        'affected_count': 3})
+        before = self.state([tile])
+        tile.pollution_response_state['assessment_event_id'] = 'run:fork:2'
+        self.assertEqual(before, self.state([tile]))
+        tile.pollution_response_state['rate'] = .2
+        self.assertNotEqual(before, self.state([tile]))
+
+    def test_numpy_float_normalizes_to_json_float_without_losing_value(self):
+        import numpy as np
+        before = self.state([SimpleNamespace(total_light=np.float64(1.6556325843007307))])
+        self.assertEqual(before, self.state([SimpleNamespace(total_light=1.6556325843007307)]))
+        self.assertNotEqual(before, self.state([SimpleNamespace(total_light=1.6556325843007308)]))
+
     def test_settled_sale_receipt_ids_are_observational_but_values_are_retained(self):
         sale = {'quantity': 2, 'value': 43.18, 'event_ids': ['trace:1']}
         tile = SimpleNamespace(sale=sale)

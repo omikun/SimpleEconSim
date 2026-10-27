@@ -53,7 +53,7 @@ def _graph_recursion_budget(limit=20000):
 def _modules():
     for name, module in sorted(tuple(sys.modules.items())):
         filename = getattr(module, '__file__', None)
-        if (name in ('__main__', 'tests', 'scripts', 'benchmarks', 'sitecustomize')
+        if (name in ('__main__', '__mp_main__', 'tests', 'scripts', 'benchmarks', 'sitecustomize')
                 or name.startswith(('test_', 'tests.', 'scripts.', 'benchmarks.'))
                 or not filename or not filename.endswith('.py')):
             continue
@@ -319,7 +319,7 @@ def recover(manifest_path, damaged_trace, branch_directory):
         for record in iter_records(damaged_trace):
             complete_end = record.end_offset
             if record.end_offset <= boundary:
-                prefix_digest = hashlib.sha256((prefix_digest + record.payload).encode()).hexdigest()
+                prefix_digest = record.digest_after
                 prefix_rows += 1
     except TornTraceTail as error:
         torn = str(error)

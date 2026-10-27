@@ -1,191 +1,279 @@
-"""Framed compact trace with independently decodable compressed blocks.
+"""Bounded packed causal storage. V3 remains readable and resumable.
 
-Every record is checksummed. A new block resets the DEFLATE dictionary,
-providing safe seek/resume boundaries without pickling a compressor. Writers
-publish at block, query and checkpoint boundaries. JSONL is a decoded export;
-legacy trace input is not supported.
+V4 hashes encoded packets with their previous digest and logical count. Checked
+unchanged coverage expands to stable historical observations and source IDs.
 """
 from __future__ import annotations
 from dataclasses import dataclass
+from functools import cached_property
+import hashlib
+import json
 from pathlib import Path
 import struct
 import threading
 import weakref
 import zlib
+from trace_packing import canonical, freeze, pack, unpack
 
-MAGIC = b'COCTRACE3\n'
+MAGIC = b'COCTRACE4\n'
+LEGACY_MAGIC = b'COCTRACE3\n'
 SYNC_MARKER = b'\x00\x00\xff\xff'
 HEADER = struct.Struct('>cII')
 BLOCK_RECORDS = 256
 MAX_FRAME = 64 * 1024 * 1024
-
+PACK_ROWS = 128
+PACK_BYTES = 512 * 1024
+PACKED_DIGEST = 'packed-payload-chain-sha256.v1'
+LEGACY_DIGEST = 'canonical-json-chain-sha256.v1'
 _OPEN_WRITERS = weakref.WeakValueDictionary()
-# Weak-reference cleanup can run a writer's finalizer while the registry is
-# being accessed. Its close() re-enters this same lock on the current thread.
 _OPEN_WRITERS_LOCK = threading.RLock()
 
-
-class TornTraceTail(ValueError):
-    pass
-
-
-class CorruptTrace(ValueError):
-    pass
-
+class TornTraceTail(ValueError): pass
+class CorruptTrace(ValueError): pass
 
 @dataclass(frozen=True)
 class TraceRecord:
-    payload: str
+    raw_payload: str | None
     block_offset: int
     record_in_block: int
     end_offset: int
+    row: dict | None = None
+    digest_before: str | None = None
+    digest_after: str | None = None
+    count_before: int | None = None
+    digest_scope: str = LEGACY_DIGEST
 
+    @cached_property
+    def payload(self):
+        return self.raw_payload if self.raw_payload is not None else canonical(self.row)
+
+    @cached_property
+    def checksum(self):
+        if self.digest_scope == PACKED_DIGEST:
+            return hashlib.sha256((self.digest_after + ':' + str(self.record_in_block)).encode()).hexdigest()
+        return hashlib.sha256(self.payload.encode()).hexdigest()
 
 class CompactTraceWriter:
-    def __init__(self, path, *, level=6, resume=False, block_records=BLOCK_RECORDS):
+    def __init__(self, path, *, level=6, resume=False, block_records=BLOCK_RECORDS, version=4, sparse=True):
         self.path = Path(path)
         self.level, self.block_records = level, block_records
-        self.compressor = None
-        self.in_block = 0
-        self.end_offset = None
+        self.compressor = None; self.in_block = 0
+        self._pending = []; self._pending_size = 0; self._failure = None
+        self.digest = '0' * 64; self.logical_count = 0
+        self.version = version; self.sparse = sparse
+        self.stats = {'packed_frames': 0, 'raw_frames': 0, 'covered_snapshots': 0,
+                      'explicit_snapshots': 0, 'logical_records': 0}
+        self._lock = threading.RLock()
         if resume:
-            # Verify complete framing first. RunTrace separately checks decoded
-            # checkpoint/identity invariants before reopening for append.
-            for _ in iter_records(self.path):
-                pass
+            with self.path.open('rb') as stream: magic = stream.read(len(MAGIC))
+            self.version = 3 if magic == LEGACY_MAGIC else 4 if magic == MAGIC else 0
+            if not self.version: raise ValueError('unsupported causal trace format')
+            for record in iter_records(self.path):
+                self.digest = record.digest_after; self.logical_count += 1
             self.end_offset = self.path.stat().st_size
         else:
-            with self.path.open('xb') as stream:
-                stream.write(MAGIC)
+            if version not in (3, 4): raise ValueError('unsupported causal trace version')
+            with self.path.open('xb') as stream: stream.write(LEGACY_MAGIC if version == 3 else MAGIC)
             self.end_offset = len(MAGIC)
-        # Frames are independently decodable, but publishing every small frame
-        # forces a filesystem write for every causal event. Buffer bytes until a
-        # block boundary or an explicit reader/checkpoint publication.
-        self._stream=self.path.open('ab',buffering=1024 * 1024)
-        self._lock = threading.RLock()
-        self._published_file_size = self.path.stat().st_size
+        self.stats['logical_records'] = self.logical_count
+        self._stream = self.path.open('ab', buffering=1024 * 1024)
+        self._published_file_size = self.path.stat().st_size; self._published_offset = self.end_offset
+        with _OPEN_WRITERS_LOCK: _OPEN_WRITERS[str(self.path.resolve())] = self
+
+    @property
+    def digest_scope(self):
+        return PACKED_DIGEST if self.version == 4 else LEGACY_DIGEST
+
+    def _check_open(self):
+        if self._stream.closed: raise OSError('compact trace writer is closed')
+        if self._failure: raise OSError(self._failure)
+
+    def _publish_stream(self):
+        self._stream.flush()
+        self._published_file_size += self.end_offset - self._published_offset
         self._published_offset = self.end_offset
-        with _OPEN_WRITERS_LOCK:
-            _OPEN_WRITERS[str(self.path.resolve())] = self
 
     def close(self):
-        stream=getattr(self,'_stream',None)
+        stream = getattr(self, '_stream', None)
         if stream is not None and not stream.closed:
-            with getattr(self, '_lock', threading.RLock()):
-                if not stream.closed:
-                    stream.flush()
-                    stream.close()
+            with self._lock:
+                try:
+                    if not self._failure: self.flush_pending()
+                finally:
+                    stream.flush(); stream.close()
         with _OPEN_WRITERS_LOCK:
-            if _OPEN_WRITERS.get(str(self.path.resolve())) is self:
-                _OPEN_WRITERS.pop(str(self.path.resolve()), None)
+            if _OPEN_WRITERS.get(str(self.path.resolve())) is self: _OPEN_WRITERS.pop(str(self.path.resolve()), None)
 
     def publish(self):
-        """Make all complete frames visible to readers and return their boundary."""
         with self._lock:
-            if self._stream.closed:
-                raise OSError('compact trace writer is closed')
-            if self.path.stat().st_size != self._published_file_size:
-                raise OSError('compact trace changed outside its active writer')
-            self._stream.flush()
-            self._published_file_size += self.end_offset - self._published_offset
-            self._published_offset = self.end_offset
+            self._check_open()
+            if self.path.stat().st_size != self._published_file_size: raise OSError('compact trace changed outside its active writer')
+            self.flush_pending(); self._publish_stream()
             return self.end_offset
 
     def __del__(self):
-        self.close()
+        try: self.close()
+        except (OSError, ValueError, TypeError): pass
+
+    def _write(self, frame):
+        try:
+            written = self._stream.write(frame)
+            if written != len(frame): raise OSError('incomplete compact trace frame write')
+        except OSError as error:
+            self._failure = str(error); raise
+        self.end_offset += written
 
     def append(self, payload):
-        if '\n' in payload:
-            raise ValueError('trace payload must be one canonical JSON line')
-        encoded = (payload+'\n').encode()
-        if len(encoded) > MAX_FRAME:
-            raise ValueError('decoded trace record exceeds configured size limit')
-        start = self.compressor is None or self.in_block >= self.block_records
-        if start:
-            self.compressor = zlib.compressobj(self.level, zlib.DEFLATED, -15)
-            self.in_block = 0
-        chunk = self.compressor.compress(encoded) + self.compressor.flush(zlib.Z_SYNC_FLUSH)
-        if len(chunk) > MAX_FRAME:
-            raise ValueError('trace frame exceeds configured size limit')
-        frame = HEADER.pack(b'D', len(chunk), zlib.crc32(chunk)) + chunk
-        if start:frame=HEADER.pack(b'S',0,0)+frame
+        """Dicts take the packed path; strings retain the raw framing API."""
         with self._lock:
-            if self._stream.closed:raise OSError('compact trace writer is closed')
-            written=self._stream.write(frame)
-            if written!=len(frame):raise OSError('incomplete compact trace frame write')
-            self.end_offset += written
+            self._check_open()
+            if isinstance(payload, dict):
+                if self.version == 3: return self.append(canonical(payload))
+                budget = [0]
+                try: row = freeze(payload, budget)
+                except RecursionError as error: raise ValueError('Circular or excessively nested JSON data') from error
+                boundary = row.get('kind') == 'turn_checkpoint' or row.get('record_class') == 'metadata'
+                if boundary or self._pending_size + budget[0] > PACK_BYTES: self.flush_pending()
+                self._pending.append(row); self._pending_size += budget[0]
+                if boundary or len(self._pending) >= PACK_ROWS or self._pending_size >= PACK_BYTES: self.flush_pending()
+                return
+            if not isinstance(payload, str) or '\n' in payload: raise ValueError('trace payload must be one canonical JSON line')
+            self.flush_pending()
+            encoded = (payload + '\n').encode()
+            if len(encoded) > MAX_FRAME: raise ValueError('decoded trace record exceeds configured size limit')
+            start = self.compressor is None or self.in_block >= self.block_records
+            if start:
+                self.compressor = zlib.compressobj(self.level, zlib.DEFLATED, -15); self.in_block = 0
+            chunk = self.compressor.compress(encoded) + self.compressor.flush(zlib.Z_SYNC_FLUSH)
+            if len(chunk) > MAX_FRAME: raise ValueError('trace frame exceeds configured size limit')
+            frame = HEADER.pack(b'D', len(chunk), zlib.crc32(chunk)) + chunk
+            if start: frame = HEADER.pack(b'S', 0, 0) + frame
+            self._write(frame)
+            self.digest = hashlib.sha256((self.digest + payload).encode()).hexdigest()
+            self.logical_count += 1; self.stats['logical_records'] += 1; self.stats['raw_frames'] += 1
             self.in_block += 1
-            if self.in_block >= self.block_records:
-                self._stream.flush()
-                self._published_file_size += self.end_offset - self._published_offset
-                self._published_offset = self.end_offset
+            if self.in_block >= self.block_records: self._publish_stream()
 
+    def _batch(self, rows):
+        packet = pack(rows, sparse=self.sparse)
+        payload = canonical({'previous_digest': self.digest, 'count_before': self.logical_count, 'packet': packet})
+        encoded = (payload + '\n').encode()
+        if len(encoded) > PACK_BYTES and len(rows) > 1:
+            mid = len(rows) // 2; self._batch(rows[:mid]); self._batch(rows[mid:]); return
+        if len(encoded) > MAX_FRAME: raise ValueError('decoded packed trace exceeds configured size limit')
+        compressor = zlib.compressobj(self.level, zlib.DEFLATED, -15)
+        chunk = compressor.compress(encoded) + compressor.flush(zlib.Z_SYNC_FLUSH)
+        if len(chunk) > MAX_FRAME: raise ValueError('packed trace frame exceeds configured size limit')
+        self._write(HEADER.pack(b'S', 0, 0) + HEADER.pack(b'P', len(chunk), zlib.crc32(chunk)) + chunk)
+        self.digest = hashlib.sha256(payload.encode()).hexdigest(); self.logical_count += len(rows)
+        self.stats['logical_records'] += len(rows); self.stats['packed_frames'] += 1
+        covered = packet['covered_observations']; self.stats['covered_snapshots'] += covered
+        self.stats['explicit_snapshots'] += sum(row.get('kind') == 'metric_snapshot' for row in rows) - covered
+        self.compressor = None; self.in_block = 0
+        self._publish_stream()
 
-def iter_records(path, *, start_offset=None, end_offset=None):
-    """Yield payload and rebuildable block coordinates within a fixed boundary."""
+    def flush_pending(self):
+        with self._lock:
+            self._check_open()
+            if not self._pending: return
+            try: self._batch(self._pending)
+            except (OSError, ValueError, TypeError) as error:
+                self._failure = str(error); raise
+            self._pending = []; self._pending_size = 0
+
+def _frames(path, *, start_offset=None, end_offset=None):
     path = Path(path)
-    # Same-process readers (inspection, verification, checkpoints) see the
-    # writer's complete published prefix even when it has buffered a partial
-    # block. Other processes see completed blocks and explicit checkpoints.
-    with _OPEN_WRITERS_LOCK:
-        writer = _OPEN_WRITERS.get(str(path.resolve()))
+    with _OPEN_WRITERS_LOCK: writer = _OPEN_WRITERS.get(str(path.resolve()))
     if writer is not None and not writer._stream.closed:
-        try:
-            writer.publish()
+        try: writer.publish()
         except OSError as error:
-            if 'changed outside its active writer' not in str(error):
-                raise
+            if writer._failure:
+                # Inspection/recovery must still read a complete prefix after
+                # a failed append, and distinguish its damaged tail from it.
+                writer._stream.flush()
+            elif 'changed outside its active writer' not in str(error): raise
     with path.open('rb') as stream:
-        if stream.read(len(MAGIC)) != MAGIC:
-            raise ValueError('unsupported causal trace format; expected current compact .ctr blocks')
+        magic = stream.read(len(MAGIC)); version = 3 if magic == LEGACY_MAGIC else 4 if magic == MAGIC else 0
+        if not version: raise ValueError('unsupported causal trace format; expected compact .ctr blocks')
         size = path.stat().st_size if end_offset is None else end_offset
-        if size > path.stat().st_size or size < len(MAGIC):
-            raise TornTraceTail('truncated compact trace boundary')
+        if size > path.stat().st_size or size < len(MAGIC): raise TornTraceTail('truncated compact trace boundary')
         if start_offset is not None:
-            if start_offset < len(MAGIC) or start_offset > size:
-                raise ValueError('invalid trace block offset')
+            if start_offset < len(MAGIC) or start_offset > size: raise ValueError('invalid trace block offset')
             stream.seek(start_offset)
-        decoder = None
-        block_offset, number, last = None, 0, None
+        decoder = None; block_offset = None; number = 0; last = None
         while stream.tell() < size:
-            offset = stream.tell()
-            raw = stream.read(min(HEADER.size, size-offset))
-            if len(raw) != HEADER.size:
-                raise TornTraceTail(f'truncated compact trace frame header at {offset}')
+            offset = stream.tell(); raw = stream.read(min(HEADER.size, size - offset))
+            if len(raw) != HEADER.size: raise TornTraceTail(f'truncated compact trace frame header at {offset}')
             kind, length, checksum = HEADER.unpack(raw)
             if kind == b'S':
-                if length or checksum:
-                    raise CorruptTrace(f'corrupt compact trace block header at {offset}')
-                decoder = zlib.decompressobj(-15)
-                block_offset, number, last = offset, 0, kind
-                continue
-            if kind != b'D' or decoder is None or length > MAX_FRAME:
+                if length or checksum: raise CorruptTrace(f'corrupt compact trace block header at {offset}')
+                decoder = zlib.decompressobj(-15); block_offset = offset; number = 0; last = kind; continue
+            if kind not in ((b'D', b'P') if version == 4 else (b'D',)) or decoder is None or length > MAX_FRAME:
                 raise CorruptTrace(f'corrupt compact trace frame at {offset}')
-            if stream.tell()+length > size:
-                raise TornTraceTail(f'truncated compact trace payload at {offset}')
+            if stream.tell() + length > size: raise TornTraceTail(f'truncated compact trace payload at {offset}')
             chunk = stream.read(length)
-            if zlib.crc32(chunk) != checksum:
-                raise CorruptTrace(f'corrupt compact trace checksum at {offset}')
+            if zlib.crc32(chunk) != checksum: raise CorruptTrace(f'corrupt compact trace checksum at {offset}')
             try:
-                decoded = decoder.decompress(chunk, MAX_FRAME+1)
-                if len(decoded)>MAX_FRAME or decoder.unconsumed_tail:
-                    raise CorruptTrace(f'oversized compact trace record at {offset}')
+                decoded = decoder.decompress(chunk, MAX_FRAME + 1)
+                if len(decoded) > MAX_FRAME or decoder.unconsumed_tail: raise CorruptTrace(f'oversized compact trace record at {offset}')
                 if not chunk.endswith(SYNC_MARKER) or not decoded.endswith(b'\n') or decoded.count(b'\n') != 1:
                     raise CorruptTrace(f'incomplete compact trace record at {offset}')
                 payload = decoded[:-1].decode('utf-8')
             except (zlib.error, UnicodeDecodeError) as error:
                 raise CorruptTrace(f'corrupt compact trace record at {offset}') from error
+            if kind == b'P' and number: raise CorruptTrace('packed batch must start a seek block')
             last = kind
-            yield TraceRecord(payload, block_offset, number, stream.tell())
+            yield version, kind, payload, block_offset, number, stream.tell()
             number += 1
-        if last != b'D':
-            raise TornTraceTail('truncated compact trace after block header')
+        if last not in (b'D', b'P'): raise TornTraceTail('truncated compact trace after block header')
 
+def iter_records(path, *, start_offset=None, end_offset=None):
+    digest = '0' * 64 if start_offset in (None, len(MAGIC)) else None
+    count = 0 if digest is not None else None
+    for version, kind, payload, block, position, end in _frames(path, start_offset=start_offset, end_offset=end_offset):
+        if kind == b'D':
+            # A seek into a legacy/raw block has no preceding chain digest.
+            # Keep it unknown until a packed envelope supplies its prefix.
+            after = hashlib.sha256((digest + payload).encode()).hexdigest() if digest is not None else None
+            yield TraceRecord(payload, block, position, end, digest_before=digest, digest_after=after, count_before=count)
+            digest = after
+            if count is not None: count += 1
+            continue
+        try:
+            envelope = json.loads(payload); previous = envelope['previous_digest']; prior_count = envelope['count_before']
+            if (type(previous) is not str or len(previous) != 64 or any(c not in '0123456789abcdef' for c in previous)
+                    or type(prior_count) is not int or prior_count < 0): raise ValueError('invalid packed prefix')
+            if digest is not None and digest != previous: raise ValueError('packed digest chain mismatch')
+            if count is not None and count != prior_count: raise ValueError('packed logical count mismatch')
+            after = hashlib.sha256(payload.encode()).hexdigest(); rows = list(unpack(envelope['packet']))
+            if any(row.get('kind') == 'turn_checkpoint' for row in rows) and len(rows) != 1:
+                raise ValueError('checkpoint must have its own packed frame')
+        except (KeyError, TypeError, ValueError, IndexError, OverflowError) as error:
+            raise CorruptTrace(f'corrupt packed trace batch at {block}: {error}') from error
+        for i, row in enumerate(rows):
+            yield TraceRecord(None, block, i, end, row, previous, after, prior_count + i, PACKED_DIGEST)
+        digest = after; count = prior_count + len(rows)
 
 def iter_payloads(path, *, end_offset=None):
-    for record in iter_records(path, end_offset=end_offset):
-        yield record.payload
-
+    for record in iter_records(path, end_offset=end_offset): yield record.payload
 
 def decoded_size(path, *, end_offset=None):
-    return sum(len(payload.encode())+1 for payload in iter_payloads(path,end_offset=end_offset))
+    return sum(len(payload.encode()) + 1 for payload in iter_payloads(path, end_offset=end_offset))
+
+def storage_stats(path):
+    stats = {'packed_frames': 0, 'raw_frames': 0, 'covered_snapshots': 0, 'explicit_snapshots': 0,
+             'logical_records': 0, 'stored_bytes': Path(path).stat().st_size}
+    for version, kind, payload, *_ in _frames(path):
+        stats['version'] = version
+        if kind == b'P':
+            packet = json.loads(payload)['packet']; expanded = list(unpack(packet)); covered = packet['covered_observations']
+            stats['packed_frames'] += 1; stats['logical_records'] += len(expanded); stats['covered_snapshots'] += covered
+            stats['explicit_snapshots'] += sum(row.get('kind') == 'metric_snapshot' for row in expanded) - covered
+        else:
+            stats['raw_frames'] += 1; stats['logical_records'] += 1
+            try: row = json.loads(payload)
+            except json.JSONDecodeError: row = None
+            if isinstance(row, dict) and row.get('kind') == 'metric_snapshot': stats['explicit_snapshots'] += 1
+    stats['physical_frames'] = stats['packed_frames'] + stats['raw_frames']
+    stats['stored_bytes'] = Path(path).stat().st_size
+    return stats
