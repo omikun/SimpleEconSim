@@ -251,6 +251,11 @@ def accumulate_grievances(region, t):
                       0.5 if f.name == 'Peasantry' else 0.25)
         f.add_grievance('grain_levy', levy_score * owner_levy)
         n_add += levy_score * owner_levy
+        pollution = getattr(region, 'pollution_health_state', {})
+        pollution_score = (5.0 * pollution.get('rate', 0.0)
+                           if pollution.get('stage', 'quiet') != 'quiet' else 0.0)
+        f.add_grievance('pollution_illness', pollution_score)
+        n_add += pollution_score
         adds[f.name] = n_add
 
     if grievance_scale != 1.0:
@@ -262,6 +267,8 @@ def accumulate_grievances(region, t):
 
     # Record isolated grievance breakdown for analytical comparison
     sources = {
+        'pollution_illness': 5.0 * getattr(region, 'pollution_health_state', {}).get('rate', 0.0)
+        if getattr(region, 'pollution_health_state', {}).get('stage', 'quiet') != 'quiet' else 0.0,
         'overworked': float(shift_score),
         'rent_enclosure': float(eviction_score * 1.5),
         'hunger': float(hunger_score),

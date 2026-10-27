@@ -11,7 +11,7 @@ _recipes_init = {
         'maxtotalprod': 2000, 'maxinv': 20,
     },
     Goods.wood: {
-        'commodity': Goods.wood, 'production': 2, 'price': 1, 'numInput': 0,
+        'commodity': Goods.wood, 'production': 3, 'price': 1, 'numInput': 0,
         'maxtotalprod': 3000, 'maxinv': 10,
     },
     Goods.furniture: {

@@ -157,9 +157,11 @@ class TestFertilizerSupplyAndBlockade(unittest.TestCase):
         self.nation.unlocked_techs = {'synthetic_fertilizers'}
         ind_corp = Agent(10)
         ind_corp.is_corporation = True
-        ind_corp.output = Goods.wood
+        ind_corp.output = Goods.nitrates
         self.tile.agents = [ind_corp]
 
+        self.tile.emission_production_turn = 5
+        self.tile.emission_production = {Goods.nitrates: 4}
         step_tile_externalities(self.tile, 5)
 
         # Even under blockade, domestic synthesis generates +4.0 tons/turn!

@@ -837,4 +837,6 @@ def step_tile_diseases(region, t: int, rand_gen=None) -> dict:
 
     # Re-count active pestilence after treatments
     region.active_pestilence_count = sum(1 for a in agents if getattr(a, 'alive', True) and DIS_PESTILENCE in getattr(a, 'diseases', []))
+    from pollution_response import assess_pollution_health
+    assess_pollution_health(region, t)
     return res

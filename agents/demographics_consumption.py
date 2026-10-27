@@ -56,8 +56,14 @@ def consume_goods(ctx, agent, number_food_consumed, number_wood_consumed, number
             if luxury_good == Goods.transport:
                 continue
             if agent.inv_get(luxury_good, 0) > 0 and get_output_commodity(agent) != luxury_good:
-                consume_qty = min(max(1, int(mult * 0.5)),
-                                  agent.inv_get(luxury_good, 0), 5)
+                recipes = getattr(ctx, 'recipes', getattr(getattr(ctx, 'source_region', None), 'recipes', {}))
+                recipe = recipes.get(get_output_commodity(agent), {})
+                # Keep two batches of working inputs; discretionary use gets the excess.
+                reserve = (2 * int(recipe.get('numInput', 0))
+                           * max(1, len(getattr(agent, 'employees', ())) if getattr(agent, 'is_corporation', False) else 1)
+                           if get_input_commodity(agent) == luxury_good else 0)
+                available = max(0, agent.inv_get(luxury_good, 0) - reserve)
+                consume_qty = min(max(1, int(mult * 0.5)), available, 5)
                 if consume_qty > 0:
                     stock_before = int(agent.inv_get(luxury_good, 0))
                     inventory_before.setdefault(luxury_good, stock_before)
@@ -67,7 +73,7 @@ def consume_goods(ctx, agent, number_food_consumed, number_wood_consumed, number
                         consumption_multiplier=float(mult),
                         stock_before=stock_before,
                         requested_quantity=max(1, int(mult * 0.5)),
-                        maximum_quantity=5)
+                        maximum_quantity=5, protected_input_units=reserve)
                     if luxury_good == Goods.furniture:
                         number_furniture_consumed += consume_qty
                     elif luxury_good == Goods.wood:

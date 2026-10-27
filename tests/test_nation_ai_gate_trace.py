@@ -278,6 +278,22 @@ class NationAIGateTraceTests(unittest.TestCase):
         self.assertEqual({row['candidate'] for row in food_blocked}, {
             'contractor_subsidy', 'public_works', 'enclose_commons'})
 
+    def test_pollution_petition_can_fund_control_during_food_emergency(self):
+        nation = Nation('Alpha', cash=500.0)
+        tile = Tile('Capital', nation)
+        tile.pollution_health_state = {
+            'stage': 'petition', 'rate': .10,
+            'disease_counts': {'respiratory': 10}}
+        intents, trace = _run_turn(
+            nation, [tile], [nation], DiplomacySystem(), 4, traced=True,
+            food_responses=[{'emergency': True, 'tile': tile.name}])
+        self.assertTrue(any(getattr(i, 'building_type', None) == 'smoke_scrubber'
+                            for i in intents))
+        decision = next(row for row in trace.rows if row.get('kind') == 'nation_ai_decision')
+        response = next(row for row in decision['inputs']['considered']
+                        if row.get('candidate') == 'pollution_control')
+        self.assertEqual(response['reason_code'], 'illness_petition_response')
+
     def test_final_nation_decision_links_to_war_ai_choice(self):
         alpha, beta = Nation('Alpha', cash=100.0, soldiers=30), Nation(
             'Beta', cash=100.0, soldiers=5)

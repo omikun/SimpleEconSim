@@ -241,7 +241,8 @@ def record_workforce_availability(region, t: int):
         employees = list(getattr(firm, 'employees', ()))
         working = [employee for employee in employees
                    if not getattr(employee, 'is_striking', False)
-                   and not getattr(employee, 'in_revolt', False)]
+                   and not getattr(employee, 'in_revolt', False)
+                   and employee.id not in getattr(region, 'pollution_revolt_ids', set())]
 
         def scheduled_hours(employee):
             agreement = getattr(employee, 'labor_agreement', None)
@@ -257,7 +258,8 @@ def record_workforce_availability(region, t: int):
         for employee in employees:
             hours = scheduled_hours(employee)
             status = ('striking' if getattr(employee, 'is_striking', False) else
-                      'in_revolt' if getattr(employee, 'in_revolt', False) else
+                      'in_revolt' if (getattr(employee, 'in_revolt', False)
+                                     or employee.id in getattr(region, 'pollution_revolt_ids', set())) else
                       'available')
             worker_rows.append({'agent_id': employee.id, 'status': status,
                                 'scheduled_hours': hours,
@@ -283,7 +285,8 @@ def record_workforce_availability(region, t: int):
                     'striking_employee_ids': [employee.id for employee in employees
                                               if getattr(employee, 'is_striking', False)],
                     'revolting_employee_ids': [employee.id for employee in employees
-                                               if getattr(employee, 'in_revolt', False)],
+                                               if (getattr(employee, 'in_revolt', False)
+                                                   or employee.id in getattr(region, 'pollution_revolt_ids', set()))],
                     'worker_hours': worker_rows,
                     'scheduled_worker_hours': scheduled_total,
                     'legally_capped_scheduled_worker_hours': capped_schedule_total,

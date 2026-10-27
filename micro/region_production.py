@@ -174,7 +174,8 @@ def produce_corporation(region, agent, recipe, output, num_agents_per_good,
                         local_total_production, receipt_ids=None, turn=None):
     """Run production logic for a corporate employer."""
     # P2.3: Striking or revolting workers withhold living labor power
-    working_employees = [e for e in agent.employees if not getattr(e, 'is_striking', False) and not getattr(e, 'in_revolt', False)]
+    working_employees = [e for e in agent.employees if not getattr(e, 'is_striking', False) and not getattr(e, 'in_revolt', False)
+                         and e.id not in getattr(region, 'pollution_revolt_ids', set())]
     num_employees = len(working_employees)
     workforce_event_id = getattr(region, '_labor_workforce_event_ids', {}).get(agent.id)
     workforce_causes = ([workforce_event_id]
@@ -191,7 +192,8 @@ def produce_corporation(region, agent, recipe, output, num_agents_per_good,
                     'striking_employee_ids': [employee.id for employee in agent.employees
                                               if getattr(employee, 'is_striking', False)],
                     'revolting_employee_ids': [employee.id for employee in agent.employees
-                                               if getattr(employee, 'in_revolt', False)],
+                                               if (getattr(employee, 'in_revolt', False)
+                                                               or employee.id in getattr(region, 'pollution_revolt_ids', set()))],
                     'workforce_event_id': workforce_event_id})
         return
     max_inventory = recipe['maxinv'] * (1 + len(agent.employees))
@@ -284,7 +286,8 @@ def produce_corporation(region, agent, recipe, output, num_agents_per_good,
                                                           if getattr(employee, 'is_striking', False)],
                                 'revolting_employee_ids': [employee.id
                                                            for employee in agent.employees
-                                                           if getattr(employee, 'in_revolt', False)],
+                                                           if (getattr(employee, 'in_revolt', False)
+                                                               or employee.id in getattr(region, 'pollution_revolt_ids', set()))],
                                 'active_slots': active_slots, 'successful_slots': successful_slots,
                                 'slot_draws': list(vals), 'success_probability': chance,
                                 'base_production': base_production, 'synergy': synergy,
@@ -352,10 +355,6 @@ def compute_and_record_firm_footprint(agent, region, output, num_output, inputs_
             cur_turn = getattr(region, '_last_turn', 0) or 0
 
         phys = {}
-        b_names = [getattr(b, 'name', '') for b in getattr(region, 'buildings', [])]
-        has_scrubber = 'smoke_scrubber' in b_names
-        has_sewer = 'trunk_sewer' in b_names
-        has_filtration = 'water_filtration_plant' in b_names
 
         regime = getattr(region, 'farming_regime', 'rotation')
         use_fert = (regime == 'intensive' or getattr(region, 'use_fertilizer', False) or
@@ -377,23 +376,13 @@ def compute_and_record_firm_footprint(agent, region, output, num_output, inputs_
                 if getattr(agent, 'employees', []):
                     phys['labor_health_wear'] = len(agent.employees) * 0.040
 
-        # 2. Industrial emissions
-        else:
-            raw_air = 1.8
-            nation = getattr(region, 'owner_nation', None)
-            unlocked = getattr(nation, 'unlocked_techs', set()) if nation else set()
-            if 'coal_coking' in unlocked or 'steam_engines' in unlocked:
-                raw_air *= 1.6
-            if has_scrubber:
-                phys['air_smog_emitted'] = raw_air * 0.30
-                phys['soil_toxins_generated'] = raw_air * 0.35  # sludge
-            else:
-                phys['air_smog_emitted'] = raw_air
-
-            raw_water = 1.2
-            if has_sewer or has_filtration:
-                raw_water *= 0.30
-            phys['water_effluent_discharged'] = raw_water
+        # Use the same output-based flows as regional ecology, for every producer.
+        from production_emissions import output_emissions, pollution_controls
+        flows = output_emissions(region, output, num_output)
+        scrubber, water_factor = pollution_controls(region)
+        phys['air_smog_emitted'] = flows['air'] * (0.3 if scrubber else 1.0)
+        phys['water_effluent_discharged'] = (flows['industrial_water'] + flows['fertilizer_runoff']) * water_factor
+        phys['soil_toxins_generated'] = flows['pesticide_soil'] + (flows['air'] * 0.35 if scrubber else 0.0)
 
         # 3. Labor contract conditions
         shift_h = getattr(agent, 'shift_hours', 8.0)
@@ -425,6 +414,12 @@ def produce_independent(region, agent, recipe, output, num_agents_per_good,
     activity_event_id = (getattr(trace, '_turn_temporary_activity_events', {}).get(
         str(agent.id)) if trace is not None else None)
     activity_causes = ([activity_event_id] if activity_event_id is not None else None)
+    if agent.id in getattr(region, 'pollution_revolt_ids', set()):
+        _record_zero_production(region, agent, output, kind='independent_production_zero',
+                                formula_id='production.independent_zero.v1',
+                                reason='pollution_illness_revolt', receipt_ids=receipt_ids,
+                                inputs={'pollution_health_state': region.pollution_health_state})
+        return
     max_inventory = recipe['maxinv']
     if agent.inv_get(output, 0) / max_inventory >= 1:
         return
@@ -774,6 +769,9 @@ def produce(region, t):
     # Phase 3: Granary buffer stock management across 10-turn agricultural year
     from game_time import seasonal_cycle_phase
     year_turn = seasonal_cycle_phase(t)
+    # Ecology consumes only this turn's completed production, before storage releases.
+    region.emission_production_turn = t
+    region.emission_production = dict(local_total_production)
     food_made = local_total_production.get(Goods.food, 0)
     granary_release_units = 0
     if not hasattr(region, 'granary_stock'):

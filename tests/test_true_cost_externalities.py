@@ -12,6 +12,7 @@ Covers:
 """
 
 import unittest
+from unittest.mock import patch
 import os
 import json
 import time
@@ -46,6 +47,11 @@ class DummyBuilding:
 class TestTrueCostExternalities(unittest.TestCase):
 
     def setUp(self):
+        # These checks compare footprints conditional on production; random
+        # harvest failure is covered by production tests, not this ledger test.
+        draws = patch('region_production.rand.random_n', side_effect=lambda n: [0.0] * n)
+        draws.start()
+        self.addCleanup(draws.stop)
         self.ledger = get_true_cost_ledger()
         self.ledger.reset()
         self.nation = Nation("Kingdom", initial_cash=1000.0)
@@ -55,10 +61,10 @@ class TestTrueCostExternalities(unittest.TestCase):
     def test_01_industrial_mill_smog_and_health_wear(self):
         """Verify that an industrial steam mill running 14h shifts reports positive nominal profit
         but negative True Net Social Profit due to smog and worker health attrition."""
-        # Create industrial furniture firm
-        firm = make_agent(901, Goods.furniture, 200.0)
+        # Create industrial iron smelter
+        firm = make_agent(901, Goods.iron, 200.0)
         firm.is_corporation = True
-        firm.output = Goods.furniture
+        firm.output = Goods.iron
         firm.shift_hours = 14.0  # Excessive shift
         firm.safety_investment = 0.0  # Zero safety
         self.tile.agents.append(firm)
@@ -70,9 +76,9 @@ class TestTrueCostExternalities(unittest.TestCase):
             firm.employees.append(w)
             self.tile.agents.append(w)
 
-        # Produce furniture
-        self.tile.recipes[Goods.furniture] = {
-            'commodity': Goods.furniture, 'production': 2, 'input': Goods.wood,
+        # Produce iron
+        self.tile.recipes[Goods.iron] = {
+            'commodity': Goods.iron, 'production': 2, 'input': Goods.wood,
             'numInput': 1, 'price': 15.0, 'maxinv': 20, 'maxtotalprod': 100
         }
         self.tile.recipes[Goods.wood] = {
@@ -81,15 +87,15 @@ class TestTrueCostExternalities(unittest.TestCase):
         firm.inv_add(Goods.wood, 10)
 
         # Run corporation production
-        produce_corporation(self.tile, firm, self.tile.recipes[Goods.furniture], Goods.furniture,
-                            {Goods.furniture: 1}, {})
+        produce_corporation(self.tile, firm, self.tile.recipes[Goods.iron], Goods.iron,
+                            {Goods.iron: 1}, {})
 
         # Seal turn 1
         self.ledger.seal_turn(1, scenario_id="empire_of_cotton")
         rec = self.ledger.get_record(firm.id, turn=1)
         self.assertIsNotNone(rec)
 
-        # Nominal profit should be positive (furniture value > wood input + wages)
+        # Nominal profit should be positive (iron value > wood input + wages)
         self.assertGreater(rec.financials.nominal_profit, 0)
 
         # Externalized costs: smog emitted + labor health wear from 14h shift
@@ -209,9 +215,9 @@ class TestTrueCostExternalities(unittest.TestCase):
         clean_tile.buildings.append(DummyBuilding('smoke_scrubber'))
         clean_tile.buildings.append(DummyBuilding('trunk_sewer'))
 
-        clean_firm = make_agent(501, Goods.furniture, 200.0)
+        clean_firm = make_agent(501, Goods.iron, 200.0)
         clean_firm.is_corporation = True
-        clean_firm.output = Goods.furniture
+        clean_firm.output = Goods.iron
         clean_firm.shift_hours = 8.0  # Compliant 8-hour shift
         clean_firm.safety_investment = 1.0  # Full safety standards
         clean_tile.agents.append(clean_firm)
@@ -222,8 +228,8 @@ class TestTrueCostExternalities(unittest.TestCase):
             clean_firm.employees.append(w)
             clean_tile.agents.append(w)
 
-        clean_tile.recipes[Goods.furniture] = {
-            'commodity': Goods.furniture, 'production': 3, 'input': Goods.wood,
+        clean_tile.recipes[Goods.iron] = {
+            'commodity': Goods.iron, 'production': 3, 'input': Goods.wood,
             'numInput': 1, 'price': 20.0, 'maxinv': 30, 'maxtotalprod': 100
         }
         clean_tile.recipes[Goods.wood] = {
@@ -231,8 +237,8 @@ class TestTrueCostExternalities(unittest.TestCase):
         }
         clean_firm.inv_add(Goods.wood, 15)
 
-        produce_corporation(clean_tile, clean_firm, clean_tile.recipes[Goods.furniture], Goods.furniture,
-                            {Goods.furniture: 1}, {})
+        produce_corporation(clean_tile, clean_firm, clean_tile.recipes[Goods.iron], Goods.iron,
+                            {Goods.iron: 1}, {})
 
         self.ledger.seal_turn(1)
         rec = self.ledger.get_record(clean_firm.id, turn=1)
@@ -301,7 +307,7 @@ class TestTrueCostExternalities(unittest.TestCase):
     def test_08_national_corporate_externalities_rollup(self):
         """Verify national corporate externalities rollup aggregates all country corps'
         profits, damages, and maps them to societal victim groups."""
-        firm_a = make_agent(301, Goods.furniture, 200.0)
+        firm_a = make_agent(301, Goods.iron, 200.0)
         firm_a.is_corporation = True
         firm_a.shift_hours = 12.0
         self.tile.agents.append(firm_a)
@@ -309,8 +315,8 @@ class TestTrueCostExternalities(unittest.TestCase):
         firm_a.employees.append(w_a)
         self.tile.agents.append(w_a)
 
-        self.tile.recipes[Goods.furniture] = {
-            'commodity': Goods.furniture, 'production': 2, 'input': Goods.wood,
+        self.tile.recipes[Goods.iron] = {
+            'commodity': Goods.iron, 'production': 2, 'input': Goods.wood,
             'numInput': 1, 'price': 15.0, 'maxinv': 20, 'maxtotalprod': 100
         }
         self.tile.recipes[Goods.wood] = {
@@ -318,8 +324,8 @@ class TestTrueCostExternalities(unittest.TestCase):
         }
         firm_a.inv_add(Goods.wood, 5)
 
-        produce_corporation(self.tile, firm_a, self.tile.recipes[Goods.furniture], Goods.furniture,
-                            {Goods.furniture: 1}, {})
+        produce_corporation(self.tile, firm_a, self.tile.recipes[Goods.iron], Goods.iron,
+                            {Goods.iron: 1}, {})
         self.ledger.seal_turn(1)
 
         world = {'tiles': [self.tile]}

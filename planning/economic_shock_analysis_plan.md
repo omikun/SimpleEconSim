@@ -1,5 +1,42 @@
 # Economic response to supply and demand shocks
 
+## Pollution, illness petitions and timber follow-up (2026-10-26)
+
+Implemented the user-authorized correction after the Japan causal review:
+actual-output emissions from appropriate industries, no generic logging or
+carpentry smog/effluent, illness petitions and local revolt thresholds,
+AI-funded control construction during food emergencies, protected working
+inputs, and a default wood recipe increase from two to three.
+
+The implementation uses configurable 5% petition and 20% revolt thresholds
+for unique living residents with active pollution-associated illness after
+medical treatment. These are prevalence thresholds, not incidence or medical
+standards. Production withholding clears when the assessment recovers.
+Normal construction funding, inputs, labor and approval delays apply.
+
+The complete report, numerical rollup, trace paths and fingerprints are
+`planning/reports/pollution_and_timber_response.md` and `.json`. The earlier
+national outcomes and Japan causal reports describe the pre-change mechanics.
+All 209 focused tests pass. The comparison includes the pre-change archive,
+new mechanisms with the old timber recipe, and the final timber recipe.
+
+The final seed-4242 run substantially increases furniture output and removes
+artificial default-economy smog. Japan responds to water illness by commissioning
+Tokyo filtration. Food outcomes are mixed: Japan and U.S. underfed resident-turns
+increase on the final path. The wood-two ablation has less furniture and better
+food outcomes in this seed. Do not claim universal welfare improvement.
+
+Additional work:
+
+- Calibrate timber yield, household discretionary timber consumption and labor
+  allocation over multiple seeds and longer recovery windows.
+- Evaluate pollution thresholds and their effect on food production, labor,
+  unrest and public budgets using fixed household cohorts.
+- Audit industrial-scenario emission coefficients, upstream contamination and
+  fertilizer/energy physical flows. Current filtration reduces local new
+  emissions; clinics treat chemical illness without removing its source.
+- Preserve the open food/furniture material-balance reconciliation work.
+
 ## Policy-response follow-up (2026-10-25)
 
 The repository has been refactored into domain directories. Implementation and

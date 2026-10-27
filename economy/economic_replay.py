@@ -82,7 +82,8 @@ def replay(row):
         for component in i['consumption_components']:
             mechanism=component['mechanism'];stock=component['stock_before']
             if mechanism=='wealth_multiplier':
-                consumed=min(max(1,int(component['consumption_multiplier']*.5)),stock,5)
+                consumed=min(max(1,int(component['consumption_multiplier']*.5)),
+                             max(0, stock-component.get('protected_input_units',0)),5)
             elif mechanism=='wood_stockpile_drawdown':consumed=int(stock>component['threshold_units'])
             elif mechanism=='furniture_stochastic_wear':
                 consumed=int(stock>0 and component['random_draw']<component['consumption_threshold'])

@@ -82,6 +82,12 @@ def step_tile_externalities(region, t: int) -> dict:
     if not hasattr(region, 'is_nitrate_depleted'):
         region.is_nitrate_depleted = False
 
+    from production_emissions import output_emissions
+    production = (getattr(region, 'emission_production', {})
+                  if getattr(region, 'emission_production_turn', None) == t else {})
+    emission_sources = {good.name: {'quantity': quantity, **output_emissions(region, good, quantity)}
+                        for good, quantity in production.items() if quantity > 0}
+
     before_ecology = {
         'soil_fertility': region.soil_fertility,
         'nutrition_density': region.nutrition_density,
@@ -127,11 +133,8 @@ def step_tile_externalities(region, t: int) -> dict:
 
     # Domestic Haber-Bosch Synthetic Nitrogen Fixation
     if 'synthetic_fertilizers' in unlocked_techs:
-        industrial_count = sum(1 for a in getattr(region, 'agents', [])
-                               if getattr(a, 'output', None) in (Goods.wood, Goods.furniture)
-                               and getattr(a, 'is_corporation', False))
-        if industrial_count > 0:
-            fert_inflow += 4.0  # Domestic synthesis immune to naval blockade
+        # Domestic chemical production must actually operate this turn.
+        fert_inflow += min(4.0, max(0.0, production.get(Goods.nitrates, 0)))
 
     fertilizer_stock_before = float(region.fertilizer_stock)
     region.fertilizer_stock = max(
@@ -216,12 +219,7 @@ def step_tile_externalities(region, t: int) -> dict:
     # -------------------------------------------------------------------------
     # 3. Atmospheric Smog & Air Pollution (Coal, Smelters, Mills)
     # -------------------------------------------------------------------------
-    industrial_producers = sum(1 for a in getattr(region, 'agents', [])
-                               if getattr(a, 'output', None) in (Goods.wood, Goods.furniture)
-                               and getattr(a, 'is_corporation', False))
-    raw_air_emission = industrial_producers * 1.8
-    if 'coal_coking' in unlocked_techs or 'steam_engines' in unlocked_techs:
-        raw_air_emission *= 1.6  # Coal burning generates intense sulfur smog
+    raw_air_emission = sum(row['air'] for row in emission_sources.values())
 
     # Wet smoke scrubber cuts smog by 70%, but generates toxic sludge
     sludge_generated = 0.0
@@ -236,10 +234,12 @@ def step_tile_externalities(region, t: int) -> dict:
     # -------------------------------------------------------------------------
     # 4. Water Effluent & Hydrological Downstream River Advection
     # -------------------------------------------------------------------------
-    pop_count = len([a for a in getattr(region, 'agents', []) if getattr(a, 'alive', True)])
+    pop_count = sum(1 for a in getattr(region, 'agents', []) if getattr(a, 'alive', True)
+                    and not getattr(a, 'is_corporation', False)
+                    and not getattr(a, 'is_government', False))
     urban_waste = (pop_count / 80.0) * 1.5
-    ind_water_waste = industrial_producers * 1.2
-    fert_runoff = 3.5 if use_fert else 0.0
+    ind_water_waste = sum(row['industrial_water'] for row in emission_sources.values())
+    fert_runoff = sum(row['fertilizer_runoff'] for row in emission_sources.values())
 
     raw_water_emission = urban_waste + ind_water_waste + fert_runoff
 
@@ -308,7 +308,7 @@ def step_tile_externalities(region, t: int) -> dict:
     # -------------------------------------------------------------------------
     # 5. Soil Toxicity & Chemical Sludge
     # -------------------------------------------------------------------------
-    pesticide_runoff = 4.0 if (use_pest and not has_clean_pest) else 0.0
+    pesticide_runoff = sum(row['pesticide_soil'] for row in emission_sources.values())
     raw_soil_emission = pesticide_runoff + sludge_generated
 
     # Biodegradation of soil toxins (8% per turn)
@@ -363,17 +363,17 @@ def step_tile_externalities(region, t: int) -> dict:
          subject=subject, metric_id='ecology.pollution_air', unit='index',
          before=before_ecology['pollution_air'], after=region.pollution_air,
          formula_id='ecology.air_emissions_dispersion.v1',
-         inputs={'industrial_producers': industrial_producers,
+         inputs={'production_sources': emission_sources, 'production_turn': t,
                  'raw_emission_after_controls': raw_air_emission,
-                 'smoke_scrubber': has_scrubber, 'coal_intensifier':
-                 ('coal_coking' in unlocked_techs or 'steam_engines' in unlocked_techs),
+                 'smoke_scrubber': has_scrubber,
                  'dispersion_fraction': 0.15},
          constraints={'lower_bound': 0.0, 'upper_bound': 100.0})
     emit(region, kind='pollution_water_update', record_class='calculation',
          subject=subject, metric_id='ecology.pollution_water', unit='index',
          before=before_ecology['pollution_water'], after=region.pollution_water,
          formula_id='ecology.water_emissions_advection.v1',
-         inputs={'urban_emission': urban_waste, 'industrial_emission': ind_water_waste,
+         inputs={'production_sources': emission_sources, 'resident_count': pop_count,
+                 'urban_emission': urban_waste, 'industrial_emission': ind_water_waste,
                  'fertilizer_runoff': fert_runoff, 'raw_emission': raw_water_emission,
                  'downstream_advection': advected_downstream,
                  'dispersion_fraction': 0.12, 'sewer': has_sewer,

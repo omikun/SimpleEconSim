@@ -35,6 +35,13 @@ class Actor:
         self.company_owned = None
         self.employer = None
 
+    @property
+    def inventory(self):
+        # The untraced planner uses the production Agent's indexed inventory
+        # protocol; keep this view consistent with the fixture's dictionary.
+        return [self._inventory.get(Goods(i), 0) if i else 0
+                for i in range(max(g.value for g in Goods) + 1)]
+
     def inv_get(self, good, default=0):
         return self._inventory.get(good, default)
 

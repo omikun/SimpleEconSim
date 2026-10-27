@@ -1163,6 +1163,15 @@ class NationPolicyAI:
                                        'contractor_cash': contractor_cash,
                                        'contractor_cash_threshold': 5.0})
 
+        # Illness petitions can fund environmental works during a food emergency.
+        if not submitted:
+            from pollution_response import pollution_investment
+            remedy, evaluations = pollution_investment(self.nation, t, treasury['total'])
+            considered.extend(evaluations)
+            if remedy is not None:
+                self.nation.submit_intent(remedy, t)
+                submitted.append(remedy)
+
         # 4. Public Works Infrastructure Procurement (Respond to Contractor Lobbying & Bottlenecks)
         if treasury['total'] < 320.0 or submitted or food_emergency:
             considered.append({'candidate': 'public_works', 'feasible': False,

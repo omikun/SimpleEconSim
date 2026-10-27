@@ -318,6 +318,22 @@ def step_unrest(region, t):
     elif roll < intensity['unrest']:
         events['stage'] = 'unrest'
 
+    # Severe pollution illness guarantees a local revolt, but regime replacement
+    # still uses the existing legitimacy and defense gates above.
+    pollution = getattr(region, 'pollution_health_state', {})
+    if pollution.get('stage') == 'revolt' and pollution.get('revolt_participant_ids'):
+        if events['stage'] not in ('mob', 'takeover'):
+            events['stage'] = 'mob'
+        events['pollution_revolt'] = True
+        events['pollution_participants'] = len(pollution['revolt_participant_ids'])
+        from run_trace import emit
+        cause = pollution.get('assessment_event_id')
+        emit(region, kind='pollution_illness_revolt', record_class='outcome',
+             subject={'type': 'tile', 'id': region.name},
+             metric_id='politics.pollution_revolt', unit='participants',
+             after=len(pollution['revolt_participant_ids']), inputs=pollution,
+             cause_event_ids=[cause] if cause else [])
+
     # Record in a log for the viewer (pure state).
     region.unrest_log.append(events)
     from run_trace import emit

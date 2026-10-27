@@ -254,14 +254,12 @@ class TestMetabolicRiftAndRiparianEcology(unittest.TestCase):
             'ticker': []
         }
         self.nation_a.legitimacy = 0.80
-        # Add industrial polluters in capital to generate massive water effluent
-        factories = []
-        for i in range(25):
-            f_ag = Agent(1)
-            initialize_agent(f_ag, Goods.wood, 0, 10, 50.0)
-            f_ag.is_corporation = True
-            factories.append(f_ag)
-        self.tile_up.agents = factories
+        # A polluted basin retains enough historical contamination to trigger
+        # the catalyst; idle wood firms no longer invent industrial effluent.
+        self.tile_up.agents = []
+        self.tile_up.neighbors = {}
+        self.tile_down.neighbors = {}
+        reset_edge_manager(self.tiles, self.layout)
         self.tile_up.pollution_water = 85.0
 
         step_world(world)

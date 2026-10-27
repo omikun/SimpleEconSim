@@ -1383,6 +1383,15 @@ class EliteCapitalistPlanner:
 
         def record_operator_execution(operator, *, stage, evaluation_event_id,
                                       execution_result, cash_before, state_before):
+            crop = {'corvee_cotton_plantation': Goods.cotton,
+                    'corvee_sugar_plantation': Goods.sugar}.get(operator.id)
+            if crop is not None and execution_result and execution_result.get('success'):
+                quantity = max(0.0, float(execution_result.get(
+                    'yield', execution_result.get('yield_received', 0.0)) or 0.0))
+                if getattr(region, 'emission_production_turn', None) != t:
+                    region.emission_production_turn = t
+                    region.emission_production = {}
+                region.emission_production[crop] = region.emission_production.get(crop, 0) + quantity
             if not trace_enabled:
                 return None
             cash_after = float(agent.cash)

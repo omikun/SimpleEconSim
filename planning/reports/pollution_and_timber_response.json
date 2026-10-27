@@ -1,0 +1,460 @@
+{
+  "baseline_archive_commit": "fcdb04777f652b00b321542d24311714d3b244c2",
+  "seed": 4242,
+  "turns": 20,
+  "configuration": {
+    "default_wood_output": 3,
+    "ablation_wood_output": 2,
+    "petition_illness_prevalence": 0.05,
+    "revolt_illness_prevalence": 0.2,
+    "protected_input_batches": 2
+  },
+  "source_files_sha256": {
+    "agents/demographics_consumption.py": "db6bfd70ab20f89e9b7e049f1692707db3280e702f08b06d2fb91ff949189e78",
+    "agents/unrest.py": "39f51cd3efa4a94c18da98cf9b531f85342cef808771793e023035359d2aa781",
+    "economy/capitalist_planner.py": "0c8abebd8f311eebb26aba76c57914591852cb39be61675d52a9e0ee93047460",
+    "economy/economic_replay.py": "70e2959c5ff286b1d8c453f93fe610000b57d48f5a1023ac432fb93efe6b6c43",
+    "macro/ai_nation.py": "d4b473350e78d73d667fb8391b01226821ea4b8a0001ed379e41ac7c99206454",
+    "micro/disease.py": "d8d37c0e89d0992d8b16a373eac9863f628a0a5289181be9f9997caafff5c940",
+    "micro/externalities.py": "00f5252a5eae8fe1dc75fd93571516c096f96244d61cec9f6c679d2cb12e8876",
+    "micro/labor_resistance.py": "755848efcbbe0b150504f0f95f16abc1afe7219cb2dbb0b6dfe4d2517465db39",
+    "micro/region/helpers.py": "e9027b9e2984fda7192bfec56584a1c9d5855bb70d6c6bd98eeccefcd14419bb",
+    "micro/region_factions.py": "033bd725905fa2cf4b89476080d0ab8fda1625cb3eab88979acf9ec90df1780a",
+    "micro/region_production.py": "68f90e17df413e97314d7a55f94158139f4787199d90976ac84ff891eb3250d9",
+    "micro/pollution_response.py": "17e3ce5770118bed22e0f4321177796575d300e77229eefb690d57e3718d7874",
+    "micro/production_emissions.py": "d492c133d737ddb894d785ee0cf0116af6b928a9b39a7f76143499de81342e2d"
+  },
+  "focused_tests": {
+    "count": 209,
+    "passed": true,
+    "log": "tmp/pollution-tests-final.log"
+  },
+  "runs": {
+    "before": {
+      "trace": "/Users/sli/Code/tmp/pollution-baseline-source/tmp/traces/cd7a0381be4540d2a865ba2222486a58-1.ctr",
+      "initial_digest": "818cd75bba6562beff01d5a17d53f6cf99523d68d970f015906dff9cac00acde",
+      "metrics_t20": {
+        "United States:finance.treasury:": 384.95636808668513,
+        "United States:politics.legitimacy:": 0.2586800068971358,
+        "China:finance.treasury:": 401.1564061291657,
+        "China:politics.legitimacy:": 0.0006212824728400693,
+        "Japan:finance.treasury:": 237.58303689790344,
+        "Japan:politics.legitimacy:": 0.00046799913922701666,
+        "United States:ecology.pollution_air:": 15.348332837741543,
+        "United States:ecology.pollution_water:": 21.44527715244006,
+        "United States:health.disease_cases:malnutrition": 2.0,
+        "United States:health.disease_cases:waterborne": 56.0,
+        "United States:health.disease_cases:respiratory": 8.0,
+        "United States:health.disease_cases:chemical": 0.0,
+        "United States:health.untreated_cases:": 49.0,
+        "China:ecology.pollution_air:": 3.218551453125,
+        "China:ecology.pollution_water:": 18.46577384842861,
+        "China:health.disease_cases:malnutrition": 10.0,
+        "China:health.disease_cases:waterborne": 36.0,
+        "China:health.disease_cases:respiratory": 0.0,
+        "China:health.disease_cases:chemical": 0.0,
+        "China:health.untreated_cases:": 35.0,
+        "Japan:ecology.pollution_air:": 22.791149974668922,
+        "Japan:ecology.pollution_water:": 25.091310513277698,
+        "Japan:health.disease_cases:malnutrition": 32.0,
+        "Japan:health.disease_cases:waterborne": 108.0,
+        "Japan:health.disease_cases:respiratory": 99.0,
+        "Japan:health.disease_cases:chemical": 0.0,
+        "Japan:health.untreated_cases:": 212.0
+      },
+      "events": {},
+      "projects": [
+        {
+          "nation": "China",
+          "turn": 1,
+          "building": "turnpike_road",
+          "tile": "c50"
+        },
+        {
+          "nation": "Japan",
+          "turn": 1,
+          "building": "turnpike_road",
+          "tile": "c10"
+        },
+        {
+          "nation": "United States",
+          "turn": 2,
+          "building": "turnpike_road",
+          "tile": "c59"
+        },
+        {
+          "nation": "China",
+          "turn": 6,
+          "building": "barge_canal",
+          "tile": "c50"
+        },
+        {
+          "nation": "United States",
+          "turn": 8,
+          "building": "barge_canal",
+          "tile": "c59"
+        }
+      ],
+      "input_producer_wood_discretionary_use": 314,
+      "supported_formula_checks": {
+        "matched": 7785
+      },
+      "bad_events": [],
+      "verification": {
+        "checkpoints": 20,
+        "rows": 872509,
+        "sha256": "5d62266039f3c696e06b4a65a32ef96e4599f947ee56756e18a31345d78307d0"
+      },
+      "nation_results": {
+        "China": {
+          "underfed_resident_turns": 199,
+          "resident_turns": 10335,
+          "deaths": 0,
+          "production": {
+            "food": 28895,
+            "wood": 2100,
+            "furniture": 143
+          },
+          "missing_wood_events": 850
+        },
+        "Japan": {
+          "underfed_resident_turns": 555,
+          "resident_turns": 11204,
+          "deaths": 2,
+          "production": {
+            "food": 26691,
+            "wood": 2488,
+            "furniture": 214
+          },
+          "missing_wood_events": 904
+        },
+        "United States": {
+          "underfed_resident_turns": 31,
+          "resident_turns": 9209,
+          "deaths": 1,
+          "production": {
+            "food": 49123,
+            "wood": 1516,
+            "furniture": 125
+          },
+          "missing_wood_events": 475
+        }
+      },
+      "stock_balances": {
+        "food": {
+          "balanced_interval_count": 15,
+          "interval_count": 20,
+          "max_absolute_residual": 5.0
+        },
+        "furniture": {
+          "balanced_interval_count": 19,
+          "interval_count": 20,
+          "max_absolute_residual": 1.0
+        },
+        "wood": {
+          "balanced_interval_count": 20,
+          "interval_count": 20,
+          "max_absolute_residual": 0.0
+        }
+      }
+    },
+    "base2": {
+      "trace": "/Users/sli/Code/tmp/traces/6b90dfbc95f84ccf9332ced1eff99c53-1.ctr",
+      "initial_digest": "fb7cca3d292066951d9414404073cc2c05426c15dfaa1f81f47b73e68f489767",
+      "metrics_t20": {
+        "United States:finance.treasury:": 169.00037666299997,
+        "United States:politics.legitimacy:": 0.26041950487140686,
+        "China:finance.treasury:": 386.0879420338556,
+        "China:politics.legitimacy:": 0.0004126992920485404,
+        "Japan:finance.treasury:": 356.7957091092274,
+        "Japan:politics.legitimacy:": 0.0006256310926145317,
+        "United States:ecology.pollution_air:": 0.0,
+        "United States:ecology.pollution_water:": 14.132287750839248,
+        "United States:health.disease_cases:malnutrition": 0.0,
+        "United States:health.disease_cases:waterborne": 22.0,
+        "United States:health.disease_cases:respiratory": 0.0,
+        "United States:health.disease_cases:chemical": 0.0,
+        "United States:health.untreated_cases:": 20.0,
+        "China:ecology.pollution_air:": 0.0,
+        "China:ecology.pollution_water:": 16.937251637515764,
+        "China:health.disease_cases:malnutrition": 22.0,
+        "China:health.disease_cases:waterborne": 44.0,
+        "China:health.disease_cases:respiratory": 0.0,
+        "China:health.disease_cases:chemical": 0.0,
+        "China:health.untreated_cases:": 51.0,
+        "Japan:ecology.pollution_air:": 0.0,
+        "Japan:ecology.pollution_water:": 15.982530755057027,
+        "Japan:health.disease_cases:malnutrition": 13.0,
+        "Japan:health.disease_cases:waterborne": 82.0,
+        "Japan:health.disease_cases:respiratory": 0.0,
+        "Japan:health.disease_cases:chemical": 0.0,
+        "Japan:health.untreated_cases:": 80.0
+      },
+      "events": {
+        "Japan:pollution_control_petition": 3,
+        "China:pollution_control_petition": 3,
+        "Japan:pollution_illness_revolt": 7,
+        "China:pollution_petition_resolved": 1,
+        "United States:pollution_control_petition": 1
+      },
+      "projects": [
+        {
+          "nation": "China",
+          "turn": 1,
+          "building": "turnpike_road",
+          "tile": "c50"
+        },
+        {
+          "nation": "Japan",
+          "turn": 1,
+          "building": "turnpike_road",
+          "tile": "c10"
+        },
+        {
+          "nation": "United States",
+          "turn": 2,
+          "building": "turnpike_road",
+          "tile": "c59"
+        },
+        {
+          "nation": "China",
+          "turn": 6,
+          "building": "barge_canal",
+          "tile": "c50"
+        },
+        {
+          "nation": "United States",
+          "turn": 8,
+          "building": "barge_canal",
+          "tile": "c59"
+        },
+        {
+          "nation": "Japan",
+          "turn": 10,
+          "building": "water_filtration_plant",
+          "tile": "c10"
+        },
+        {
+          "nation": "China",
+          "turn": 19,
+          "building": "water_filtration_plant",
+          "tile": "c37"
+        },
+        {
+          "nation": "United States",
+          "turn": 20,
+          "building": "water_filtration_plant",
+          "tile": "c46"
+        }
+      ],
+      "input_producer_wood_discretionary_use": 160,
+      "supported_formula_checks": {
+        "matched": 7729
+      },
+      "bad_events": [],
+      "verification": {
+        "checkpoints": 20,
+        "rows": 874222,
+        "sha256": "235a10dbfea7c1876475562d6eee8c4ed01f54adbed442d3e443cffb3ca56bc3"
+      },
+      "nation_results": {
+        "China": {
+          "underfed_resident_turns": 319,
+          "resident_turns": 10440,
+          "deaths": 0,
+          "production": {
+            "food": 28019,
+            "wood": 2248,
+            "furniture": 147
+          },
+          "missing_wood_events": 783
+        },
+        "Japan": {
+          "underfed_resident_turns": 346,
+          "resident_turns": 11304,
+          "deaths": 2,
+          "production": {
+            "food": 27642,
+            "wood": 2302,
+            "furniture": 220
+          },
+          "missing_wood_events": 924
+        },
+        "United States": {
+          "underfed_resident_turns": 7,
+          "resident_turns": 9252,
+          "deaths": 1,
+          "production": {
+            "food": 50501,
+            "wood": 1522,
+            "furniture": 120
+          },
+          "missing_wood_events": 469
+        }
+      },
+      "stock_balances": {
+        "food": {
+          "balanced_interval_count": 14,
+          "interval_count": 20,
+          "max_absolute_residual": 3.0
+        },
+        "furniture": {
+          "balanced_interval_count": 19,
+          "interval_count": 20,
+          "max_absolute_residual": 1.0
+        },
+        "wood": {
+          "balanced_interval_count": 20,
+          "interval_count": 20,
+          "max_absolute_residual": 0.0
+        }
+      }
+    },
+    "final": {
+      "trace": "/Users/sli/Code/tmp/traces/22b43c70f7914aae83b9d4a34cfe91fd-1.ctr",
+      "initial_digest": "e45fbfc040805030ee2bd6a7c0e6c0135acbf083a3b430cac30261abd54b545b",
+      "metrics_t20": {
+        "United States:finance.treasury:": 218.09255006303204,
+        "United States:politics.legitimacy:": 0.15032378540739616,
+        "China:finance.treasury:": 338.48358868467994,
+        "China:politics.legitimacy:": 0.22758624860663132,
+        "Japan:finance.treasury:": 402.14798543503326,
+        "Japan:politics.legitimacy:": 0.0007148159874402673,
+        "United States:ecology.pollution_air:": 0.0,
+        "United States:ecology.pollution_water:": 13.734016897456534,
+        "United States:health.disease_cases:malnutrition": 25.0,
+        "United States:health.disease_cases:waterborne": 20.0,
+        "United States:health.disease_cases:respiratory": 0.0,
+        "United States:health.disease_cases:chemical": 0.0,
+        "United States:health.untreated_cases:": 34.0,
+        "China:ecology.pollution_air:": 0.0,
+        "China:ecology.pollution_water:": 16.92371079140497,
+        "China:health.disease_cases:malnutrition": 0.0,
+        "China:health.disease_cases:waterborne": 48.0,
+        "China:health.disease_cases:respiratory": 0.0,
+        "China:health.disease_cases:chemical": 0.0,
+        "China:health.untreated_cases:": 43.0,
+        "Japan:ecology.pollution_air:": 0.0,
+        "Japan:ecology.pollution_water:": 16.03341147505078,
+        "Japan:health.disease_cases:malnutrition": 62.0,
+        "Japan:health.disease_cases:waterborne": 89.0,
+        "Japan:health.disease_cases:respiratory": 0.0,
+        "Japan:health.disease_cases:chemical": 0.0,
+        "Japan:health.untreated_cases:": 122.0
+      },
+      "events": {
+        "Japan:pollution_control_petition": 3,
+        "China:pollution_control_petition": 4,
+        "Japan:pollution_illness_revolt": 7,
+        "United States:pollution_control_petition": 1,
+        "China:pollution_illness_revolt": 1
+      },
+      "projects": [
+        {
+          "nation": "China",
+          "turn": 1,
+          "building": "turnpike_road",
+          "tile": "c50"
+        },
+        {
+          "nation": "Japan",
+          "turn": 1,
+          "building": "turnpike_road",
+          "tile": "c10"
+        },
+        {
+          "nation": "United States",
+          "turn": 2,
+          "building": "turnpike_road",
+          "tile": "c59"
+        },
+        {
+          "nation": "Japan",
+          "turn": 6,
+          "building": "barge_canal",
+          "tile": "c10"
+        },
+        {
+          "nation": "United States",
+          "turn": 7,
+          "building": "barge_canal",
+          "tile": "c59"
+        },
+        {
+          "nation": "Japan",
+          "turn": 11,
+          "building": "water_filtration_plant",
+          "tile": "c10"
+        },
+        {
+          "nation": "China",
+          "turn": 19,
+          "building": "water_filtration_plant",
+          "tile": "c37"
+        }
+      ],
+      "input_producer_wood_discretionary_use": 513,
+      "supported_formula_checks": {
+        "matched": 10844
+      },
+      "bad_events": [],
+      "verification": {
+        "checkpoints": 20,
+        "rows": 883881,
+        "sha256": "2f99d740b6b8994a7a82adb7bf15775afd2e57c9522f8bae669d3940d5508e89"
+      },
+      "nation_results": {
+        "China": {
+          "underfed_resident_turns": 10,
+          "resident_turns": 10457,
+          "deaths": 1,
+          "production": {
+            "food": 28568,
+            "wood": 4208,
+            "furniture": 269
+          },
+          "missing_wood_events": 755
+        },
+        "Japan": {
+          "underfed_resident_turns": 926,
+          "resident_turns": 11311,
+          "deaths": 1,
+          "production": {
+            "food": 23206,
+            "wood": 4707,
+            "furniture": 411
+          },
+          "missing_wood_events": 1138
+        },
+        "United States": {
+          "underfed_resident_turns": 294,
+          "resident_turns": 9118,
+          "deaths": 0,
+          "production": {
+            "food": 49874,
+            "wood": 2879,
+            "furniture": 235
+          },
+          "missing_wood_events": 599
+        }
+      },
+      "stock_balances": {
+        "food": {
+          "balanced_interval_count": 14,
+          "interval_count": 20,
+          "max_absolute_residual": 20.0
+        },
+        "furniture": {
+          "balanced_interval_count": 19,
+          "interval_count": 20,
+          "max_absolute_residual": 2.0
+        },
+        "wood": {
+          "balanced_interval_count": 20,
+          "interval_count": 20,
+          "max_absolute_residual": 0.0
+        }
+      }
+    }
+  }
+}
