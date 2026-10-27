@@ -1,0 +1,6267 @@
+{
+  "source": "tmp/traces/desktop-fe540ef3f39846748a2e197d55558ddc.ctr",
+  "turn": 2,
+  "source_stored_bytes": 36985986,
+  "run_records_by_turn": {
+    "metadata": 1,
+    "0": 136,
+    "1": 261010,
+    "2": 262026,
+    "3": 261935
+  },
+  "run_decoded_bytes_by_turn": {
+    "metadata": 189,
+    "0": 156112,
+    "1": 166443115,
+    "2": 177512576,
+    "3": 176375193
+  },
+  "run_stored_frame_bytes_by_turn": {
+    "metadata": 168,
+    "0": 8933,
+    "1": 11916702,
+    "2": 12595409,
+    "3": 12464764
+  },
+  "selected": {
+    "records": 262026,
+    "decoded_bytes": 177512576,
+    "stored_frame_bytes": 12595409,
+    "unchanged": 231281,
+    "unchanged_zero": 185798,
+    "changed": 6164,
+    "baseline_missing": 23271
+  },
+  "groups": {
+    "kind": [
+      {
+        "name": "metric_snapshot",
+        "records": 180159,
+        "decoded_bytes": 99979528,
+        "stored_frame_bytes": 7426806,
+        "unchanged": 179316,
+        "unchanged_zero": 154190,
+        "changed": 833,
+        "baseline_missing": 10
+      },
+      {
+        "name": "gini_series_calculation",
+        "records": 19012,
+        "decoded_bytes": 14290394,
+        "stored_frame_bytes": 798712,
+        "unchanged": 19012,
+        "unchanged_zero": 19012,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "price_bridge",
+        "records": 19000,
+        "decoded_bytes": 11100728,
+        "stored_frame_bytes": 1043258,
+        "unchanged": 18951,
+        "unchanged_zero": 0,
+        "changed": 49,
+        "baseline_missing": 0
+      },
+      {
+        "name": "closing_active_disease_census",
+        "records": 5000,
+        "decoded_bytes": 3131455,
+        "stored_frame_bytes": 184643,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 5000
+      },
+      {
+        "name": "tax_revenue_distribution_calculation",
+        "records": 4000,
+        "decoded_bytes": 3360574,
+        "stored_frame_bytes": 176141,
+        "unchanged": 3994,
+        "unchanged_zero": 3994,
+        "changed": 6,
+        "baseline_missing": 0
+      },
+      {
+        "name": "market_buyer_order_submitted",
+        "records": 2285,
+        "decoded_bytes": 2847652,
+        "stored_frame_bytes": 164060,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 2285
+      },
+      {
+        "name": "local_buyer_bid",
+        "records": 2285,
+        "decoded_bytes": 2111369,
+        "stored_frame_bytes": 120898,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 2285
+      },
+      {
+        "name": "person_event_count",
+        "records": 2000,
+        "decoded_bytes": 917780,
+        "stored_frame_bytes": 65281,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 2000
+      },
+      {
+        "name": "paid_market_sale",
+        "records": 1303,
+        "decoded_bytes": 1374732,
+        "stored_frame_bytes": 92048,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 1303,
+        "baseline_missing": 0
+      },
+      {
+        "name": "paid_market_unit_price",
+        "records": 1303,
+        "decoded_bytes": 812493,
+        "stored_frame_bytes": 59513,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 1303
+      },
+      {
+        "name": "market_seller_receipt_posted",
+        "records": 1303,
+        "decoded_bytes": 921412,
+        "stored_frame_bytes": 66133,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "feudal_tribute_transfer",
+        "records": 1145,
+        "decoded_bytes": 1582544,
+        "stored_frame_bytes": 77677,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 1145,
+        "baseline_missing": 0
+      },
+      {
+        "name": "final_labor_member_count",
+        "records": 1075,
+        "decoded_bytes": 6468774,
+        "stored_frame_bytes": 243318,
+        "unchanged": 1057,
+        "unchanged_zero": 988,
+        "changed": 18,
+        "baseline_missing": 0
+      },
+      {
+        "name": "effective_workday_cap_sample",
+        "records": 1000,
+        "decoded_bytes": 715890,
+        "stored_frame_bytes": 51800,
+        "unchanged": 1000,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "trader_cash_total_calculation",
+        "records": 1000,
+        "decoded_bytes": 655479,
+        "stored_frame_bytes": 55948,
+        "unchanged": 988,
+        "unchanged_zero": 988,
+        "changed": 12,
+        "baseline_missing": 0
+      },
+      {
+        "name": "trade_pipeline_depth_calculation",
+        "records": 1000,
+        "decoded_bytes": 836250,
+        "stored_frame_bytes": 62918,
+        "unchanged": 1000,
+        "unchanged_zero": 1000,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "population_change_rate_calculation",
+        "records": 1000,
+        "decoded_bytes": 816270,
+        "stored_frame_bytes": 57542,
+        "unchanged": 1000,
+        "unchanged_zero": 1000,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "trade_export_value_calculation",
+        "records": 1000,
+        "decoded_bytes": 720765,
+        "stored_frame_bytes": 38526,
+        "unchanged": 1000,
+        "unchanged_zero": 1000,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "trade_import_value_calculation",
+        "records": 1000,
+        "decoded_bytes": 1026322,
+        "stored_frame_bytes": 41731,
+        "unchanged": 1000,
+        "unchanged_zero": 1000,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "trade_net_value_calculation",
+        "records": 1000,
+        "decoded_bytes": 770804,
+        "stored_frame_bytes": 42886,
+        "unchanged": 1000,
+        "unchanged_zero": 1000,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "final_temporary_work_share_mean",
+        "records": 1000,
+        "decoded_bytes": 1837460,
+        "stored_frame_bytes": 72002,
+        "unchanged": 995,
+        "unchanged_zero": 988,
+        "changed": 5,
+        "baseline_missing": 0
+      },
+      {
+        "name": "living_person_count",
+        "records": 1000,
+        "decoded_bytes": 437913,
+        "stored_frame_bytes": 30560,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 1000
+      },
+      {
+        "name": "wilderness_food_production",
+        "records": 988,
+        "decoded_bytes": 643082,
+        "stored_frame_bytes": 48956,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 988
+      },
+      {
+        "name": "wilderness_nominal_gdp",
+        "records": 988,
+        "decoded_bytes": 685566,
+        "stored_frame_bytes": 56315,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 988
+      },
+      {
+        "name": "wilderness_population_census",
+        "records": 988,
+        "decoded_bytes": 566018,
+        "stored_frame_bytes": 41123,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 988
+      },
+      {
+        "name": "market_seller_order_submitted",
+        "records": 848,
+        "decoded_bytes": 851960,
+        "stored_frame_bytes": 58015,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 848
+      },
+      {
+        "name": "independent_production",
+        "records": 787,
+        "decoded_bytes": 739335,
+        "stored_frame_bytes": 52819,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 787,
+        "baseline_missing": 0
+      },
+      {
+        "name": "commons_foraging",
+        "records": 774,
+        "decoded_bytes": 486868,
+        "stored_frame_bytes": 27408,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 774
+      },
+      {
+        "name": "foraged_food_receipt",
+        "records": 774,
+        "decoded_bytes": 391666,
+        "stored_frame_bytes": 28439,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 774
+      },
+      {
+        "name": "local_seller_ask",
+        "records": 735,
+        "decoded_bytes": 674237,
+        "stored_frame_bytes": 44971,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 735
+      },
+      {
+        "name": "elite_operator_evaluation",
+        "records": 480,
+        "decoded_bytes": 764692,
+        "stored_frame_bytes": 88591,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 480
+      },
+      {
+        "name": "household_nonfood_consumption",
+        "records": 468,
+        "decoded_bytes": 418199,
+        "stored_frame_bytes": 24964,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 468,
+        "baseline_missing": 0
+      },
+      {
+        "name": "independent_production_zero",
+        "records": 279,
+        "decoded_bytes": 276623,
+        "stored_frame_bytes": 21956,
+        "unchanged": 279,
+        "unchanged_zero": 279,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "obligation_assessed",
+        "records": 267,
+        "decoded_bytes": 168268,
+        "stored_frame_bytes": 10863,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 267
+      },
+      {
+        "name": "nation_chart_history_aggregate",
+        "records": 247,
+        "decoded_bytes": 440656,
+        "stored_frame_bytes": 29104,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 247
+      },
+      {
+        "name": "tile_production_total",
+        "records": 216,
+        "decoded_bytes": 272766,
+        "stored_frame_bytes": 18759,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 216
+      },
+      {
+        "name": "producer_inventory_total",
+        "records": 216,
+        "decoded_bytes": 148781,
+        "stored_frame_bytes": 12023,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 216
+      },
+      {
+        "name": "household_food_intake",
+        "records": 188,
+        "decoded_bytes": 310694,
+        "stored_frame_bytes": 18181,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 188,
+        "baseline_missing": 0
+      },
+      {
+        "name": "disease_onset_assessment",
+        "records": 186,
+        "decoded_bytes": 170530,
+        "stored_frame_bytes": 13253,
+        "unchanged": 173,
+        "unchanged_zero": 173,
+        "changed": 13,
+        "baseline_missing": 0
+      },
+      {
+        "name": "faction_support_history_calculation",
+        "records": 168,
+        "decoded_bytes": 430916,
+        "stored_frame_bytes": 35417,
+        "unchanged": 8,
+        "unchanged_zero": 8,
+        "changed": 160,
+        "baseline_missing": 0
+      },
+      {
+        "name": "faction_grievance_history_calculation",
+        "records": 168,
+        "decoded_bytes": 233748,
+        "stored_frame_bytes": 12857,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 168,
+        "baseline_missing": 0
+      },
+      {
+        "name": "public_account_write",
+        "records": 165,
+        "decoded_bytes": 131086,
+        "stored_frame_bytes": 12806,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 165,
+        "baseline_missing": 0
+      },
+      {
+        "name": "government_food_purchase",
+        "records": 132,
+        "decoded_bytes": 147484,
+        "stored_frame_bytes": 11842,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 66,
+        "baseline_missing": 66
+      },
+      {
+        "name": "fx_conversion_executed",
+        "records": 132,
+        "decoded_bytes": 138332,
+        "stored_frame_bytes": 10618,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 132,
+        "baseline_missing": 0
+      },
+      {
+        "name": "elite_planning_gate",
+        "records": 104,
+        "decoded_bytes": 94141,
+        "stored_frame_bytes": 25337,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 104
+      },
+      {
+        "name": "elite_luxury_purchase_evaluation",
+        "records": 104,
+        "decoded_bytes": 86440,
+        "stored_frame_bytes": 19815,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 104
+      },
+      {
+        "name": "elite_voyage_circuit_evaluation",
+        "records": 104,
+        "decoded_bytes": 61547,
+        "stored_frame_bytes": 9952,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 104
+      },
+      {
+        "name": "elite_spatial_trade_delegation",
+        "records": 104,
+        "decoded_bytes": 84118,
+        "stored_frame_bytes": 20696,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 104
+      },
+      {
+        "name": "elite_labor_legislation_evaluation",
+        "records": 104,
+        "decoded_bytes": 99715,
+        "stored_frame_bytes": 19698,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 104
+      },
+      {
+        "name": "corporation_ai_decision",
+        "records": 104,
+        "decoded_bytes": 161045,
+        "stored_frame_bytes": 34924,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 104
+      },
+      {
+        "name": "corporation_ai_outcome",
+        "records": 104,
+        "decoded_bytes": 127956,
+        "stored_frame_bytes": 15802,
+        "unchanged": 74,
+        "unchanged_zero": 0,
+        "changed": 30,
+        "baseline_missing": 0
+      },
+      {
+        "name": "bank_balance_operation",
+        "records": 97,
+        "decoded_bytes": 78168,
+        "stored_frame_bytes": 9039,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 97,
+        "baseline_missing": 0
+      },
+      {
+        "name": "elite_inventory_liquidation_decision",
+        "records": 96,
+        "decoded_bytes": 158964,
+        "stored_frame_bytes": 28041,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 96
+      },
+      {
+        "name": "market_demand_supply_ratio",
+        "records": 75,
+        "decoded_bytes": 61870,
+        "stored_frame_bytes": 9044,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 75
+      },
+      {
+        "name": "elite_capital_allocation_evaluation",
+        "records": 74,
+        "decoded_bytes": 1975344,
+        "stored_frame_bytes": 107548,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 74
+      },
+      {
+        "name": "trader_route_decision",
+        "records": 72,
+        "decoded_bytes": 2787619,
+        "stored_frame_bytes": 154120,
+        "unchanged": 72,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "social_class_population_calculation",
+        "records": 72,
+        "decoded_bytes": 53519,
+        "stored_frame_bytes": 6818,
+        "unchanged": 61,
+        "unchanged_zero": 29,
+        "changed": 11,
+        "baseline_missing": 0
+      },
+      {
+        "name": "market_zero_order_summary",
+        "records": 63,
+        "decoded_bytes": 3015910,
+        "stored_frame_bytes": 122294,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 63
+      },
+      {
+        "name": "market_demand_total",
+        "records": 63,
+        "decoded_bytes": 223592,
+        "stored_frame_bytes": 22275,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 63
+      },
+      {
+        "name": "market_supply_total",
+        "records": 63,
+        "decoded_bytes": 84275,
+        "stored_frame_bytes": 8857,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 63
+      },
+      {
+        "name": "market_price_update",
+        "records": 63,
+        "decoded_bytes": 95286,
+        "stored_frame_bytes": 21983,
+        "unchanged": 14,
+        "unchanged_zero": 0,
+        "changed": 49,
+        "baseline_missing": 0
+      },
+      {
+        "name": "disease_cases_observed",
+        "records": 60,
+        "decoded_bytes": 38688,
+        "stored_frame_bytes": 3406,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 60
+      },
+      {
+        "name": "innovation_research_gate",
+        "records": 58,
+        "decoded_bytes": 35559,
+        "stored_frame_bytes": 2908,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 58
+      },
+      {
+        "name": "national_reference_price_aggregate",
+        "records": 57,
+        "decoded_bytes": 194280,
+        "stored_frame_bytes": 9311,
+        "unchanged": 42,
+        "unchanged_zero": 0,
+        "changed": 15,
+        "baseline_missing": 0
+      },
+      {
+        "name": "bank_tile_closing_alias",
+        "records": 48,
+        "decoded_bytes": 44581,
+        "stored_frame_bytes": 2458,
+        "unchanged": 4,
+        "unchanged_zero": 2,
+        "changed": 44,
+        "baseline_missing": 0
+      },
+      {
+        "name": "market_clearing_summary",
+        "records": 38,
+        "decoded_bytes": 191659,
+        "stored_frame_bytes": 12436,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 38
+      },
+      {
+        "name": "market_total_units_sold",
+        "records": 38,
+        "decoded_bytes": 22010,
+        "stored_frame_bytes": 3639,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 38
+      },
+      {
+        "name": "bank_loan_repayment",
+        "records": 37,
+        "decoded_bytes": 20756,
+        "stored_frame_bytes": 1845,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 37
+      },
+      {
+        "name": "market_transaction_vwap",
+        "records": 36,
+        "decoded_bytes": 88796,
+        "stored_frame_bytes": 9141,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 36
+      },
+      {
+        "name": "innovation_diffusion_gate",
+        "records": 36,
+        "decoded_bytes": 18464,
+        "stored_frame_bytes": 1350,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 36
+      },
+      {
+        "name": "bank_withdrawal_posted",
+        "records": 29,
+        "decoded_bytes": 28539,
+        "stored_frame_bytes": 5711,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 29,
+        "baseline_missing": 0
+      },
+      {
+        "name": "innovation_bottleneck_pressure",
+        "records": 29,
+        "decoded_bytes": 49918,
+        "stored_frame_bytes": 2884,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 29
+      },
+      {
+        "name": "innovation_breakthrough_evaluation",
+        "records": 29,
+        "decoded_bytes": 31813,
+        "stored_frame_bytes": 1887,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 29
+      },
+      {
+        "name": "market_no_trade",
+        "records": 25,
+        "decoded_bytes": 13696,
+        "stored_frame_bytes": 1532,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 25
+      },
+      {
+        "name": "elite_lord_transformation_evaluation",
+        "records": 24,
+        "decoded_bytes": 407583,
+        "stored_frame_bytes": 46234,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 24
+      },
+      {
+        "name": "fx_mid_update",
+        "records": 22,
+        "decoded_bytes": 23509,
+        "stored_frame_bytes": 2194,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 22,
+        "baseline_missing": 0
+      },
+      {
+        "name": "public_account_close",
+        "records": 22,
+        "decoded_bytes": 56975,
+        "stored_frame_bytes": 5244,
+        "unchanged": 11,
+        "unchanged_zero": 10,
+        "changed": 11,
+        "baseline_missing": 0
+      },
+      {
+        "name": "bank_deposit_posted",
+        "records": 21,
+        "decoded_bytes": 20720,
+        "stored_frame_bytes": 2609,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 21,
+        "baseline_missing": 0
+      },
+      {
+        "name": "national_aggregate",
+        "records": 21,
+        "decoded_bytes": 20306,
+        "stored_frame_bytes": 3133,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 3,
+        "baseline_missing": 18
+      },
+      {
+        "name": "pollution_downstream_advection",
+        "records": 17,
+        "decoded_bytes": 15286,
+        "stored_frame_bytes": 2862,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 17,
+        "baseline_missing": 0
+      },
+      {
+        "name": "innovation_learning_calculation",
+        "records": 15,
+        "decoded_bytes": 59512,
+        "stored_frame_bytes": 3237,
+        "unchanged": 3,
+        "unchanged_zero": 3,
+        "changed": 12,
+        "baseline_missing": 0
+      },
+      {
+        "name": "bank_closing_balance",
+        "records": 15,
+        "decoded_bytes": 69414,
+        "stored_frame_bytes": 4992,
+        "unchanged": 2,
+        "unchanged_zero": 1,
+        "changed": 13,
+        "baseline_missing": 0
+      },
+      {
+        "name": "disease_health_attrition",
+        "records": 13,
+        "decoded_bytes": 8691,
+        "stored_frame_bytes": 1012,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 13,
+        "baseline_missing": 0
+      },
+      {
+        "name": "medical_care_payment",
+        "records": 13,
+        "decoded_bytes": 20213,
+        "stored_frame_bytes": 3073,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 13
+      },
+      {
+        "name": "medical_treatment",
+        "records": 13,
+        "decoded_bytes": 12668,
+        "stored_frame_bytes": 1569,
+        "unchanged": 2,
+        "unchanged_zero": 0,
+        "changed": 11,
+        "baseline_missing": 0
+      },
+      {
+        "name": "cost_of_living_calculation",
+        "records": 12,
+        "decoded_bytes": 18040,
+        "stored_frame_bytes": 4175,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 12,
+        "baseline_missing": 0
+      },
+      {
+        "name": "elite_planner_phase_gate",
+        "records": 12,
+        "decoded_bytes": 6704,
+        "stored_frame_bytes": 2254,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 12
+      },
+      {
+        "name": "elite_market_novelty_scan",
+        "records": 12,
+        "decoded_bytes": 7616,
+        "stored_frame_bytes": 2233,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 12
+      },
+      {
+        "name": "labor_scheduler_gate",
+        "records": 12,
+        "decoded_bytes": 21821,
+        "stored_frame_bytes": 5015,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 12,
+        "baseline_missing": 0
+      },
+      {
+        "name": "labor_machinery_sabotage_calculation",
+        "records": 12,
+        "decoded_bytes": 8639,
+        "stored_frame_bytes": 2170,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 12
+      },
+      {
+        "name": "labor_broken_machinery_calculation",
+        "records": 12,
+        "decoded_bytes": 11585,
+        "stored_frame_bytes": 1981,
+        "unchanged": 12,
+        "unchanged_zero": 12,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "labor_striker_count_calculation",
+        "records": 12,
+        "decoded_bytes": 7844,
+        "stored_frame_bytes": 1289,
+        "unchanged": 12,
+        "unchanged_zero": 12,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "seasonal_water_allocation",
+        "records": 12,
+        "decoded_bytes": 8760,
+        "stored_frame_bytes": 2620,
+        "unchanged": 12,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "feudal_tribute_reference_valuation",
+        "records": 12,
+        "decoded_bytes": 69275,
+        "stored_frame_bytes": 6396,
+        "unchanged": 3,
+        "unchanged_zero": 3,
+        "changed": 9,
+        "baseline_missing": 0
+      },
+      {
+        "name": "market_price_decay",
+        "records": 12,
+        "decoded_bytes": 11024,
+        "stored_frame_bytes": 1860,
+        "unchanged": 12,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "rent_collection_summary",
+        "records": 12,
+        "decoded_bytes": 7040,
+        "stored_frame_bytes": 1276,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 12
+      },
+      {
+        "name": "rent_arrears_summary",
+        "records": 12,
+        "decoded_bytes": 6404,
+        "stored_frame_bytes": 634,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 12
+      },
+      {
+        "name": "pasture_fraction_calculation",
+        "records": 12,
+        "decoded_bytes": 9683,
+        "stored_frame_bytes": 2222,
+        "unchanged": 9,
+        "unchanged_zero": 9,
+        "changed": 3,
+        "baseline_missing": 0
+      },
+      {
+        "name": "nominal_gdp_calculation",
+        "records": 12,
+        "decoded_bytes": 20797,
+        "stored_frame_bytes": 4504,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 12,
+        "baseline_missing": 0
+      },
+      {
+        "name": "labor_shift_hours_calculation",
+        "records": 12,
+        "decoded_bytes": 7865,
+        "stored_frame_bytes": 1421,
+        "unchanged": 12,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "labor_exploitation_rate_calculation",
+        "records": 12,
+        "decoded_bytes": 8411,
+        "stored_frame_bytes": 1473,
+        "unchanged": 12,
+        "unchanged_zero": 12,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "labor_surplus_value_calculation",
+        "records": 12,
+        "decoded_bytes": 8963,
+        "stored_frame_bytes": 1482,
+        "unchanged": 12,
+        "unchanged_zero": 12,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "civilian_food_consumption_total",
+        "records": 12,
+        "decoded_bytes": 7075,
+        "stored_frame_bytes": 1242,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 12,
+        "baseline_missing": 0
+      },
+      {
+        "name": "workhouse_forced_labor_calculation",
+        "records": 12,
+        "decoded_bytes": 9800,
+        "stored_frame_bytes": 2487,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 12
+      },
+      {
+        "name": "workhouse_inmate_census",
+        "records": 12,
+        "decoded_bytes": 9260,
+        "stored_frame_bytes": 1363,
+        "unchanged": 12,
+        "unchanged_zero": 12,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "labor_average_alienation_calculation",
+        "records": 12,
+        "decoded_bytes": 36245,
+        "stored_frame_bytes": 14421,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 12,
+        "baseline_missing": 0
+      },
+      {
+        "name": "labor_average_class_consciousness_calculation",
+        "records": 12,
+        "decoded_bytes": 17923,
+        "stored_frame_bytes": 1045,
+        "unchanged": 9,
+        "unchanged_zero": 9,
+        "changed": 3,
+        "baseline_missing": 0
+      },
+      {
+        "name": "health_average_bodily_wear_calculation",
+        "records": 12,
+        "decoded_bytes": 18217,
+        "stored_frame_bytes": 1622,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 12,
+        "baseline_missing": 0
+      },
+      {
+        "name": "labor_workplace_accidents_calculation",
+        "records": 12,
+        "decoded_bytes": 8965,
+        "stored_frame_bytes": 1689,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 12
+      },
+      {
+        "name": "society_entertainment_level_sample",
+        "records": 12,
+        "decoded_bytes": 7592,
+        "stored_frame_bytes": 1325,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 12
+      },
+      {
+        "name": "soil_fertility_update",
+        "records": 12,
+        "decoded_bytes": 10505,
+        "stored_frame_bytes": 3003,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 12,
+        "baseline_missing": 0
+      },
+      {
+        "name": "nutrition_density_update",
+        "records": 12,
+        "decoded_bytes": 8027,
+        "stored_frame_bytes": 1204,
+        "unchanged": 12,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "pollution_air_update",
+        "records": 12,
+        "decoded_bytes": 12744,
+        "stored_frame_bytes": 2428,
+        "unchanged": 12,
+        "unchanged_zero": 12,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "pollution_water_update",
+        "records": 12,
+        "decoded_bytes": 15640,
+        "stored_frame_bytes": 2633,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 12,
+        "baseline_missing": 0
+      },
+      {
+        "name": "pollution_soil_update",
+        "records": 12,
+        "decoded_bytes": 8468,
+        "stored_frame_bytes": 1200,
+        "unchanged": 12,
+        "unchanged_zero": 12,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "disease_fatalities_observed",
+        "records": 12,
+        "decoded_bytes": 8552,
+        "stored_frame_bytes": 2252,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 12
+      },
+      {
+        "name": "medical_care_summary",
+        "records": 12,
+        "decoded_bytes": 13102,
+        "stored_frame_bytes": 3126,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 12
+      },
+      {
+        "name": "disease_untreated_cases_observed",
+        "records": 12,
+        "decoded_bytes": 7925,
+        "stored_frame_bytes": 1164,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 12
+      },
+      {
+        "name": "pollution_health_assessment",
+        "records": 12,
+        "decoded_bytes": 8491,
+        "stored_frame_bytes": 2277,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 12
+      },
+      {
+        "name": "population_hunger_count_calculation",
+        "records": 12,
+        "decoded_bytes": 9122,
+        "stored_frame_bytes": 2633,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 12
+      },
+      {
+        "name": "infant_fatalities_turn_total",
+        "records": 12,
+        "decoded_bytes": 6500,
+        "stored_frame_bytes": 1196,
+        "unchanged": 12,
+        "unchanged_zero": 12,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "grievance_sources",
+        "records": 12,
+        "decoded_bytes": 18500,
+        "stored_frame_bytes": 6073,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 12
+      },
+      {
+        "name": "protest_energy_update",
+        "records": 12,
+        "decoded_bytes": 13170,
+        "stored_frame_bytes": 3530,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 12,
+        "baseline_missing": 0
+      },
+      {
+        "name": "unrest_roll",
+        "records": 12,
+        "decoded_bytes": 9789,
+        "stored_frame_bytes": 2703,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 12
+      },
+      {
+        "name": "population_count_calculation",
+        "records": 12,
+        "decoded_bytes": 9500,
+        "stored_frame_bytes": 2938,
+        "unchanged": 12,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "commons_access_calculation",
+        "records": 12,
+        "decoded_bytes": 9675,
+        "stored_frame_bytes": 2320,
+        "unchanged": 9,
+        "unchanged_zero": 0,
+        "changed": 3,
+        "baseline_missing": 0
+      },
+      {
+        "name": "foraged_food_total",
+        "records": 12,
+        "decoded_bytes": 33528,
+        "stored_frame_bytes": 3613,
+        "unchanged": 7,
+        "unchanged_zero": 0,
+        "changed": 5,
+        "baseline_missing": 0
+      },
+      {
+        "name": "purchased_food_total",
+        "records": 12,
+        "decoded_bytes": 18459,
+        "stored_frame_bytes": 2101,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 12,
+        "baseline_missing": 0
+      },
+      {
+        "name": "bank_equity_calculation",
+        "records": 12,
+        "decoded_bytes": 9179,
+        "stored_frame_bytes": 2570,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 12,
+        "baseline_missing": 0
+      },
+      {
+        "name": "total_cash_calculation",
+        "records": 12,
+        "decoded_bytes": 10553,
+        "stored_frame_bytes": 2709,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 12,
+        "baseline_missing": 0
+      },
+      {
+        "name": "government_income_calculation",
+        "records": 12,
+        "decoded_bytes": 10110,
+        "stored_frame_bytes": 1255,
+        "unchanged": 7,
+        "unchanged_zero": 7,
+        "changed": 5,
+        "baseline_missing": 0
+      },
+      {
+        "name": "migration_push_decision",
+        "records": 12,
+        "decoded_bytes": 10399,
+        "stored_frame_bytes": 1097,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 12
+      },
+      {
+        "name": "food_security_assessment",
+        "records": 9,
+        "decoded_bytes": 10599,
+        "stored_frame_bytes": 1093,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 9
+      },
+      {
+        "name": "nation_border_vulnerability",
+        "records": 9,
+        "decoded_bytes": 12401,
+        "stored_frame_bytes": 900,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 9
+      },
+      {
+        "name": "elite_operator_execution",
+        "records": 8,
+        "decoded_bytes": 69025,
+        "stored_frame_bytes": 8174,
+        "unchanged": 2,
+        "unchanged_zero": 0,
+        "changed": 6,
+        "baseline_missing": 0
+      },
+      {
+        "name": "enclosure_bailiff_force_decision",
+        "records": 6,
+        "decoded_bytes": 5169,
+        "stored_frame_bytes": 1462,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 6,
+        "baseline_missing": 0
+      },
+      {
+        "name": "bailiff_service",
+        "records": 6,
+        "decoded_bytes": 9340,
+        "stored_frame_bytes": 2512,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 6
+      },
+      {
+        "name": "enclosure_charter_fee",
+        "records": 6,
+        "decoded_bytes": 9127,
+        "stored_frame_bytes": 746,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 6
+      },
+      {
+        "name": "enclosure_charter_fee_treasury_receipt",
+        "records": 6,
+        "decoded_bytes": 4516,
+        "stored_frame_bytes": 860,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 6
+      },
+      {
+        "name": "enclosure_charter_granted",
+        "records": 6,
+        "decoded_bytes": 6881,
+        "stored_frame_bytes": 1997,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 6,
+        "baseline_missing": 0
+      },
+      {
+        "name": "welfare_payment_recipient_payment",
+        "records": 6,
+        "decoded_bytes": 10471,
+        "stored_frame_bytes": 679,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 6
+      },
+      {
+        "name": "treasury_phase_delta",
+        "records": 5,
+        "decoded_bytes": 2936,
+        "stored_frame_bytes": 590,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 5,
+        "baseline_missing": 0
+      },
+      {
+        "name": "government_reserve_deficit_calculation",
+        "records": 5,
+        "decoded_bytes": 4509,
+        "stored_frame_bytes": 1248,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 5
+      },
+      {
+        "name": "income_tax_assessment_calculation",
+        "records": 5,
+        "decoded_bytes": 20482,
+        "stored_frame_bytes": 3496,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 5
+      },
+      {
+        "name": "government_remaining_financing_gap",
+        "records": 5,
+        "decoded_bytes": 4567,
+        "stored_frame_bytes": 833,
+        "unchanged": 3,
+        "unchanged_zero": 3,
+        "changed": 2,
+        "baseline_missing": 0
+      },
+      {
+        "name": "government_tax_rate_decision",
+        "records": 5,
+        "decoded_bytes": 5851,
+        "stored_frame_bytes": 1372,
+        "unchanged": 5,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "bank_deposit_interest_payout",
+        "records": 5,
+        "decoded_bytes": 3615,
+        "stored_frame_bytes": 950,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 5
+      },
+      {
+        "name": "mortality_assessment",
+        "records": 5,
+        "decoded_bytes": 5284,
+        "stored_frame_bytes": 784,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 5,
+        "baseline_missing": 0
+      },
+      {
+        "name": "away_trader_food_purchase",
+        "records": 5,
+        "decoded_bytes": 5735,
+        "stored_frame_bytes": 720,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 5,
+        "baseline_missing": 0
+      },
+      {
+        "name": "bank_closing_equity",
+        "records": 5,
+        "decoded_bytes": 4382,
+        "stored_frame_bytes": 494,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 5
+      },
+      {
+        "name": "public_construction_cash_debit",
+        "records": 4,
+        "decoded_bytes": 2596,
+        "stored_frame_bytes": 300,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 4
+      },
+      {
+        "name": "intent_execution",
+        "records": 4,
+        "decoded_bytes": 3217,
+        "stored_frame_bytes": 461,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 4
+      },
+      {
+        "name": "government_deposit_interest_received",
+        "records": 4,
+        "decoded_bytes": 2708,
+        "stored_frame_bytes": 823,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 4
+      },
+      {
+        "name": "charity_food_purchase",
+        "records": 4,
+        "decoded_bytes": 1968,
+        "stored_frame_bytes": 239,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 4,
+        "baseline_missing": 0
+      },
+      {
+        "name": "charity_food_aid_recipient",
+        "records": 4,
+        "decoded_bytes": 3661,
+        "stored_frame_bytes": 926,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 4,
+        "baseline_missing": 0
+      },
+      {
+        "name": "charity_food_aid",
+        "records": 4,
+        "decoded_bytes": 3962,
+        "stored_frame_bytes": 767,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 4,
+        "baseline_missing": 0
+      },
+      {
+        "name": "resident_population_bridge",
+        "records": 4,
+        "decoded_bytes": 4123,
+        "stored_frame_bytes": 502,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 4,
+        "baseline_missing": 0
+      },
+      {
+        "name": "construction_project_step",
+        "records": 3,
+        "decoded_bytes": 3838,
+        "stored_frame_bytes": 551,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 3,
+        "baseline_missing": 0
+      },
+      {
+        "name": "takeover_attempt_failed",
+        "records": 3,
+        "decoded_bytes": 2378,
+        "stored_frame_bytes": 827,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 3
+      },
+      {
+        "name": "corporate_payroll_funding_decision",
+        "records": 3,
+        "decoded_bytes": 1783,
+        "stored_frame_bytes": 686,
+        "unchanged": 3,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "corporate_wage_decision",
+        "records": 3,
+        "decoded_bytes": 2469,
+        "stored_frame_bytes": 726,
+        "unchanged": 3,
+        "unchanged_zero": 3,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "labor_collective_organization_check",
+        "records": 3,
+        "decoded_bytes": 2537,
+        "stored_frame_bytes": 852,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 3
+      },
+      {
+        "name": "labor_workforce_availability",
+        "records": 3,
+        "decoded_bytes": 3908,
+        "stored_frame_bytes": 763,
+        "unchanged": 3,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "bank_loan_issued",
+        "records": 3,
+        "decoded_bytes": 2139,
+        "stored_frame_bytes": 635,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 3
+      },
+      {
+        "name": "coup_check",
+        "records": 3,
+        "decoded_bytes": 2006,
+        "stored_frame_bytes": 399,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 3
+      },
+      {
+        "name": "legitimacy_drift",
+        "records": 3,
+        "decoded_bytes": 2256,
+        "stored_frame_bytes": 386,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 3,
+        "baseline_missing": 0
+      },
+      {
+        "name": "uprising_pressure_gate",
+        "records": 3,
+        "decoded_bytes": 3747,
+        "stored_frame_bytes": 475,
+        "unchanged": 3,
+        "unchanged_zero": 3,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "uprising_response_decision",
+        "records": 3,
+        "decoded_bytes": 1912,
+        "stored_frame_bytes": 188,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 3
+      },
+      {
+        "name": "uprising_response_outcome",
+        "records": 3,
+        "decoded_bytes": 1873,
+        "stored_frame_bytes": 170,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 3
+      },
+      {
+        "name": "diplomacy_relation_drift",
+        "records": 3,
+        "decoded_bytes": 2532,
+        "stored_frame_bytes": 326,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 3,
+        "baseline_missing": 0
+      },
+      {
+        "name": "treasury_account_closure",
+        "records": 3,
+        "decoded_bytes": 14896,
+        "stored_frame_bytes": 1371,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 3,
+        "baseline_missing": 0
+      },
+      {
+        "name": "treasury_reconciliation",
+        "records": 3,
+        "decoded_bytes": 7186,
+        "stored_frame_bytes": 1453,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 3,
+        "baseline_missing": 0
+      },
+      {
+        "name": "treasury_components",
+        "records": 3,
+        "decoded_bytes": 3573,
+        "stored_frame_bytes": 989,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 3
+      },
+      {
+        "name": "national_food_price_history_aggregate",
+        "records": 3,
+        "decoded_bytes": 13476,
+        "stored_frame_bytes": 1239,
+        "unchanged": 1,
+        "unchanged_zero": 0,
+        "changed": 2,
+        "baseline_missing": 0
+      },
+      {
+        "name": "nation_diplomacy_evaluation",
+        "records": 2,
+        "decoded_bytes": 4812,
+        "stored_frame_bytes": 518,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "nation_ai_decision",
+        "records": 2,
+        "decoded_bytes": 22101,
+        "stored_frame_bytes": 998,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 2
+      },
+      {
+        "name": "construction_funding_plan",
+        "records": 2,
+        "decoded_bytes": 1599,
+        "stored_frame_bytes": 306,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "public_construction_deposit_funding_debit",
+        "records": 2,
+        "decoded_bytes": 1512,
+        "stored_frame_bytes": 105,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 2
+      },
+      {
+        "name": "construction_funding_decision",
+        "records": 2,
+        "decoded_bytes": 4938,
+        "stored_frame_bytes": 676,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 2
+      },
+      {
+        "name": "person_role_conversion",
+        "records": 2,
+        "decoded_bytes": 1017,
+        "stored_frame_bytes": 164,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 2,
+        "baseline_missing": 0
+      },
+      {
+        "name": "construction_contractor_payment",
+        "records": 2,
+        "decoded_bytes": 5123,
+        "stored_frame_bytes": 447,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 2,
+        "baseline_missing": 0
+      },
+      {
+        "name": "construction_project_commissioned",
+        "records": 2,
+        "decoded_bytes": 2321,
+        "stored_frame_bytes": 260,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 2,
+        "baseline_missing": 0
+      },
+      {
+        "name": "income_tax_collected",
+        "records": 2,
+        "decoded_bytes": 1287,
+        "stored_frame_bytes": 223,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 2
+      },
+      {
+        "name": "government_bank_borrowing",
+        "records": 2,
+        "decoded_bytes": 1221,
+        "stored_frame_bytes": 144,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 2
+      },
+      {
+        "name": "government_loan_service",
+        "records": 2,
+        "decoded_bytes": 1179,
+        "stored_frame_bytes": 150,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 2
+      },
+      {
+        "name": "government_automatic_bank_credit",
+        "records": 1,
+        "decoded_bytes": 728,
+        "stored_frame_bytes": 152,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 1
+      },
+      {
+        "name": "government_ordinary_loan_repayment",
+        "records": 1,
+        "decoded_bytes": 655,
+        "stored_frame_bytes": 63,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 1
+      },
+      {
+        "name": "government_food_aid_recipient",
+        "records": 1,
+        "decoded_bytes": 1532,
+        "stored_frame_bytes": 390,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 1,
+        "baseline_missing": 0
+      },
+      {
+        "name": "government_food_aid",
+        "records": 1,
+        "decoded_bytes": 823,
+        "stored_frame_bytes": 108,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 1,
+        "baseline_missing": 0
+      },
+      {
+        "name": "welfare_distributed",
+        "records": 1,
+        "decoded_bytes": 1622,
+        "stored_frame_bytes": 462,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 1
+      },
+      {
+        "name": "fx_order_match",
+        "records": 1,
+        "decoded_bytes": 1066,
+        "stored_frame_bytes": 249,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "turn_checkpoint",
+        "records": 1,
+        "decoded_bytes": 387,
+        "stored_frame_bytes": 152,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "native_command_boundary",
+        "records": 1,
+        "decoded_bytes": 293,
+        "stored_frame_bytes": 63,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 0
+      }
+    ],
+    "metric": [
+      {
+        "name": "goods.price",
+        "records": 38075,
+        "decoded_bytes": 21519103,
+        "stored_frame_bytes": 1716349,
+        "unchanged": 37928,
+        "unchanged_zero": 0,
+        "changed": 147,
+        "baseline_missing": 0
+      },
+      {
+        "name": "economy.gini",
+        "records": 37027,
+        "decoded_bytes": 25510082,
+        "stored_frame_bytes": 1626620,
+        "unchanged": 37024,
+        "unchanged_zero": 37024,
+        "changed": 0,
+        "baseline_missing": 3
+      },
+      {
+        "name": "goods.production",
+        "records": 20324,
+        "decoded_bytes": 11822450,
+        "stored_frame_bytes": 818367,
+        "unchanged": 18243,
+        "unchanged_zero": 18240,
+        "changed": 823,
+        "baseline_missing": 1258
+      },
+      {
+        "name": "goods.sold",
+        "records": 19317,
+        "decoded_bytes": 10977530,
+        "stored_frame_bytes": 753351,
+        "unchanged": 17807,
+        "unchanged_zero": 17784,
+        "changed": 1409,
+        "baseline_missing": 101
+      },
+      {
+        "name": "goods.producer_inventory",
+        "records": 18270,
+        "decoded_bytes": 9924356,
+        "stored_frame_bytes": 637232,
+        "unchanged": 17976,
+        "unchanged_zero": 17976,
+        "changed": 24,
+        "baseline_missing": 270
+      },
+      {
+        "name": "goods.demand",
+        "records": 17910,
+        "decoded_bytes": 9735341,
+        "stored_frame_bytes": 686597,
+        "unchanged": 17790,
+        "unchanged_zero": 17784,
+        "changed": 54,
+        "baseline_missing": 66
+      },
+      {
+        "name": "goods.supply",
+        "records": 17910,
+        "decoded_bytes": 9596043,
+        "stored_frame_bytes": 614203,
+        "unchanged": 17808,
+        "unchanged_zero": 17784,
+        "changed": 36,
+        "baseline_missing": 66
+      },
+      {
+        "name": "health.active_disease_cases",
+        "records": 10000,
+        "decoded_bytes": 6326905,
+        "stored_frame_bytes": 466559,
+        "unchanged": 4998,
+        "unchanged_zero": 4998,
+        "changed": 2,
+        "baseline_missing": 5000
+      },
+      {
+        "name": "finance.tax_distribution",
+        "records": 8000,
+        "decoded_bytes": 5955803,
+        "stored_frame_bytes": 395452,
+        "unchanged": 7988,
+        "unchanged_zero": 7988,
+        "changed": 12,
+        "baseline_missing": 0
+      },
+      {
+        "name": "health.disease_cases",
+        "records": 5072,
+        "decoded_bytes": 2736228,
+        "stored_frame_bytes": 165605,
+        "unchanged": 4994,
+        "unchanged_zero": 4994,
+        "changed": 6,
+        "baseline_missing": 72
+      },
+      {
+        "name": "goods.buyer_bid_quantity",
+        "records": 2285,
+        "decoded_bytes": 2847652,
+        "stored_frame_bytes": 164060,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 2285
+      },
+      {
+        "name": "goods.buyer_bid",
+        "records": 2285,
+        "decoded_bytes": 2111369,
+        "stored_frame_bytes": 120898,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 2285
+      },
+      {
+        "name": "people.residents",
+        "records": 2010,
+        "decoded_bytes": 1050611,
+        "stored_frame_bytes": 84558,
+        "unchanged": 999,
+        "unchanged_zero": 988,
+        "changed": 8,
+        "baseline_missing": 1003
+      },
+      {
+        "name": "economy.gdp_nominal",
+        "records": 2006,
+        "decoded_bytes": 1341774,
+        "stored_frame_bytes": 120221,
+        "unchanged": 988,
+        "unchanged_zero": 988,
+        "changed": 27,
+        "baseline_missing": 991
+      },
+      {
+        "name": "people.population",
+        "records": 2006,
+        "decoded_bytes": 1185062,
+        "stored_frame_bytes": 109972,
+        "unchanged": 1015,
+        "unchanged_zero": 988,
+        "changed": 0,
+        "baseline_missing": 991
+      },
+      {
+        "name": "people.births",
+        "records": 2006,
+        "decoded_bytes": 1063398,
+        "stored_frame_bytes": 78345,
+        "unchanged": 1003,
+        "unchanged_zero": 1003,
+        "changed": 0,
+        "baseline_missing": 1003
+      },
+      {
+        "name": "people.deaths",
+        "records": 2006,
+        "decoded_bytes": 1083461,
+        "stored_frame_bytes": 89065,
+        "unchanged": 1003,
+        "unchanged_zero": 1003,
+        "changed": 0,
+        "baseline_missing": 1003
+      },
+      {
+        "name": "labor.statutory_workday",
+        "records": 2003,
+        "decoded_bytes": 1340048,
+        "stored_frame_bytes": 118331,
+        "unchanged": 2000,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 3
+      },
+      {
+        "name": "trade.export_value",
+        "records": 2003,
+        "decoded_bytes": 1346923,
+        "stored_frame_bytes": 93755,
+        "unchanged": 2000,
+        "unchanged_zero": 2000,
+        "changed": 0,
+        "baseline_missing": 3
+      },
+      {
+        "name": "trade.import_value",
+        "records": 2003,
+        "decoded_bytes": 1652480,
+        "stored_frame_bytes": 83634,
+        "unchanged": 2000,
+        "unchanged_zero": 2000,
+        "changed": 0,
+        "baseline_missing": 3
+      },
+      {
+        "name": "trade.net_value",
+        "records": 2003,
+        "decoded_bytes": 1393941,
+        "stored_frame_bytes": 87020,
+        "unchanged": 2000,
+        "unchanged_zero": 2000,
+        "changed": 0,
+        "baseline_missing": 3
+      },
+      {
+        "name": "trade.trader_cash",
+        "records": 2000,
+        "decoded_bytes": 1275501,
+        "stored_frame_bytes": 114684,
+        "unchanged": 1976,
+        "unchanged_zero": 1976,
+        "changed": 24,
+        "baseline_missing": 0
+      },
+      {
+        "name": "trade.pipeline_depth",
+        "records": 2000,
+        "decoded_bytes": 1456140,
+        "stored_frame_bytes": 122555,
+        "unchanged": 2000,
+        "unchanged_zero": 2000,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "people.population_change_rate",
+        "records": 2000,
+        "decoded_bytes": 1460160,
+        "stored_frame_bytes": 126419,
+        "unchanged": 2000,
+        "unchanged_zero": 2000,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "labor.hungry_adults",
+        "records": 2000,
+        "decoded_bytes": 2442698,
+        "stored_frame_bytes": 128221,
+        "unchanged": 1976,
+        "unchanged_zero": 1976,
+        "changed": 24,
+        "baseline_missing": 0
+      },
+      {
+        "name": "labor.temporary_work_share",
+        "records": 2000,
+        "decoded_bytes": 2468703,
+        "stored_frame_bytes": 137149,
+        "unchanged": 1990,
+        "unchanged_zero": 1976,
+        "changed": 10,
+        "baseline_missing": 0
+      },
+      {
+        "name": "goods.transaction_price",
+        "records": 1303,
+        "decoded_bytes": 812493,
+        "stored_frame_bytes": 59513,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 1303
+      },
+      {
+        "name": "trade.market_seller_settlement",
+        "records": 1303,
+        "decoded_bytes": 921412,
+        "stored_frame_bytes": 66133,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "goods.feudal_tribute",
+        "records": 1145,
+        "decoded_bytes": 1582544,
+        "stored_frame_bytes": 77677,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 1145,
+        "baseline_missing": 0
+      },
+      {
+        "name": "ai.elite_economic_decision",
+        "records": 1098,
+        "decoded_bytes": 3806926,
+        "stored_frame_bytes": 373721,
+        "unchanged": 2,
+        "unchanged_zero": 0,
+        "changed": 6,
+        "baseline_missing": 1090
+      },
+      {
+        "name": "ecology.pollution_water",
+        "records": 1032,
+        "decoded_bytes": 557891,
+        "stored_frame_bytes": 45629,
+        "unchanged": 982,
+        "unchanged_zero": 982,
+        "changed": 47,
+        "baseline_missing": 3
+      },
+      {
+        "name": "living.cost_of_living",
+        "records": 1018,
+        "decoded_bytes": 571235,
+        "stored_frame_bytes": 75768,
+        "unchanged": 988,
+        "unchanged_zero": 0,
+        "changed": 30,
+        "baseline_missing": 0
+      },
+      {
+        "name": "politics.protest_energy",
+        "records": 1018,
+        "decoded_bytes": 537770,
+        "stored_frame_bytes": 61282,
+        "unchanged": 988,
+        "unchanged_zero": 988,
+        "changed": 27,
+        "baseline_missing": 3
+      },
+      {
+        "name": "labor.machinery_sabotaged",
+        "records": 1015,
+        "decoded_bytes": 544982,
+        "stored_frame_bytes": 57258,
+        "unchanged": 1000,
+        "unchanged_zero": 1000,
+        "changed": 0,
+        "baseline_missing": 15
+      },
+      {
+        "name": "labor.broken_machinery",
+        "records": 1015,
+        "decoded_bytes": 535871,
+        "stored_frame_bytes": 44647,
+        "unchanged": 1012,
+        "unchanged_zero": 1012,
+        "changed": 0,
+        "baseline_missing": 3
+      },
+      {
+        "name": "labor.strikers",
+        "records": 1015,
+        "decoded_bytes": 525097,
+        "stored_frame_bytes": 41827,
+        "unchanged": 1012,
+        "unchanged_zero": 1012,
+        "changed": 0,
+        "baseline_missing": 3
+      },
+      {
+        "name": "finance.rent_collected",
+        "records": 1015,
+        "decoded_bytes": 540500,
+        "stored_frame_bytes": 48253,
+        "unchanged": 1000,
+        "unchanged_zero": 1000,
+        "changed": 0,
+        "baseline_missing": 15
+      },
+      {
+        "name": "finance.rent_arrears",
+        "records": 1015,
+        "decoded_bytes": 537867,
+        "stored_frame_bytes": 41117,
+        "unchanged": 1000,
+        "unchanged_zero": 1000,
+        "changed": 0,
+        "baseline_missing": 15
+      },
+      {
+        "name": "labor.average_shift_hours",
+        "records": 1015,
+        "decoded_bytes": 535160,
+        "stored_frame_bytes": 70637,
+        "unchanged": 1012,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 3
+      },
+      {
+        "name": "labor.exploitation_rate",
+        "records": 1015,
+        "decoded_bytes": 533709,
+        "stored_frame_bytes": 45704,
+        "unchanged": 1012,
+        "unchanged_zero": 1012,
+        "changed": 0,
+        "baseline_missing": 3
+      },
+      {
+        "name": "labor.average_alienation",
+        "records": 1015,
+        "decoded_bytes": 563660,
+        "stored_frame_bytes": 59262,
+        "unchanged": 988,
+        "unchanged_zero": 988,
+        "changed": 24,
+        "baseline_missing": 3
+      },
+      {
+        "name": "labor.average_class_consciousness",
+        "records": 1015,
+        "decoded_bytes": 553506,
+        "stored_frame_bytes": 52398,
+        "unchanged": 1006,
+        "unchanged_zero": 1006,
+        "changed": 6,
+        "baseline_missing": 3
+      },
+      {
+        "name": "health.average_bodily_wear",
+        "records": 1015,
+        "decoded_bytes": 558585,
+        "stored_frame_bytes": 64952,
+        "unchanged": 988,
+        "unchanged_zero": 988,
+        "changed": 24,
+        "baseline_missing": 3
+      },
+      {
+        "name": "labor.workplace_accidents",
+        "records": 1015,
+        "decoded_bytes": 540263,
+        "stored_frame_bytes": 55071,
+        "unchanged": 1000,
+        "unchanged_zero": 1000,
+        "changed": 0,
+        "baseline_missing": 15
+      },
+      {
+        "name": "society.entertainment_level",
+        "records": 1015,
+        "decoded_bytes": 536914,
+        "stored_frame_bytes": 57161,
+        "unchanged": 1000,
+        "unchanged_zero": 1000,
+        "changed": 0,
+        "baseline_missing": 15
+      },
+      {
+        "name": "ecology.soil_fertility",
+        "records": 1015,
+        "decoded_bytes": 535043,
+        "stored_frame_bytes": 60661,
+        "unchanged": 988,
+        "unchanged_zero": 0,
+        "changed": 24,
+        "baseline_missing": 3
+      },
+      {
+        "name": "ecology.nutrition_density",
+        "records": 1015,
+        "decoded_bytes": 535316,
+        "stored_frame_bytes": 45385,
+        "unchanged": 1012,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 3
+      },
+      {
+        "name": "ecology.pollution_air",
+        "records": 1015,
+        "decoded_bytes": 536006,
+        "stored_frame_bytes": 52571,
+        "unchanged": 1012,
+        "unchanged_zero": 1012,
+        "changed": 0,
+        "baseline_missing": 3
+      },
+      {
+        "name": "ecology.pollution_soil",
+        "records": 1015,
+        "decoded_bytes": 532760,
+        "stored_frame_bytes": 38576,
+        "unchanged": 1012,
+        "unchanged_zero": 1012,
+        "changed": 0,
+        "baseline_missing": 3
+      },
+      {
+        "name": "health.fatalities",
+        "records": 1015,
+        "decoded_bytes": 528823,
+        "stored_frame_bytes": 44992,
+        "unchanged": 1000,
+        "unchanged_zero": 1000,
+        "changed": 0,
+        "baseline_missing": 15
+      },
+      {
+        "name": "health.medical_spending",
+        "records": 1015,
+        "decoded_bytes": 547595,
+        "stored_frame_bytes": 57351,
+        "unchanged": 994,
+        "unchanged_zero": 994,
+        "changed": 6,
+        "baseline_missing": 15
+      },
+      {
+        "name": "health.untreated_cases",
+        "records": 1015,
+        "decoded_bytes": 532205,
+        "stored_frame_bytes": 46095,
+        "unchanged": 1000,
+        "unchanged_zero": 1000,
+        "changed": 0,
+        "baseline_missing": 15
+      },
+      {
+        "name": "people.hungry",
+        "records": 1015,
+        "decoded_bytes": 519432,
+        "stored_frame_bytes": 47339,
+        "unchanged": 988,
+        "unchanged_zero": 988,
+        "changed": 12,
+        "baseline_missing": 15
+      },
+      {
+        "name": "labor.surplus_value",
+        "records": 1012,
+        "decoded_bytes": 543029,
+        "stored_frame_bytes": 48507,
+        "unchanged": 1012,
+        "unchanged_zero": 1012,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "politics.unrest_event",
+        "records": 1012,
+        "decoded_bytes": 521892,
+        "stored_frame_bytes": 61729,
+        "unchanged": 991,
+        "unchanged_zero": 0,
+        "changed": 9,
+        "baseline_missing": 12
+      },
+      {
+        "name": "goods.seller_offer_quantity",
+        "records": 848,
+        "decoded_bytes": 851960,
+        "stored_frame_bytes": 58015,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 848
+      },
+      {
+        "name": "labor.temporary_activity",
+        "records": 774,
+        "decoded_bytes": 486868,
+        "stored_frame_bytes": 27408,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 774
+      },
+      {
+        "name": "goods.foraged_receipt",
+        "records": 774,
+        "decoded_bytes": 391666,
+        "stored_frame_bytes": 28439,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 774
+      },
+      {
+        "name": "goods.seller_ask",
+        "records": 735,
+        "decoded_bytes": 674237,
+        "stored_frame_bytes": 44971,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 735
+      },
+      {
+        "name": "goods.household_consumption",
+        "records": 468,
+        "decoded_bytes": 418199,
+        "stored_frame_bytes": 24964,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 468,
+        "baseline_missing": 0
+      },
+      {
+        "name": "politics.faction_support",
+        "records": 336,
+        "decoded_bytes": 553090,
+        "stored_frame_bytes": 52072,
+        "unchanged": 16,
+        "unchanged_zero": 16,
+        "changed": 320,
+        "baseline_missing": 0
+      },
+      {
+        "name": "politics.faction_grievance",
+        "records": 336,
+        "decoded_bytes": 355997,
+        "stored_frame_bytes": 21713,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 336,
+        "baseline_missing": 0
+      },
+      {
+        "name": "finance.obligation_balance",
+        "records": 267,
+        "decoded_bytes": 168268,
+        "stored_frame_bytes": 10863,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 267
+      },
+      {
+        "name": "health.calorie_deficit",
+        "records": 188,
+        "decoded_bytes": 310694,
+        "stored_frame_bytes": 18181,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 188,
+        "baseline_missing": 0
+      },
+      {
+        "name": "finance.public_account_balance",
+        "records": 187,
+        "decoded_bytes": 188061,
+        "stored_frame_bytes": 18050,
+        "unchanged": 11,
+        "unchanged_zero": 10,
+        "changed": 176,
+        "baseline_missing": 0
+      },
+      {
+        "name": "health.disease_incidence",
+        "records": 186,
+        "decoded_bytes": 170530,
+        "stored_frame_bytes": 13253,
+        "unchanged": 173,
+        "unchanged_zero": 173,
+        "changed": 13,
+        "baseline_missing": 0
+      },
+      {
+        "name": "trade.fx_conversion",
+        "records": 132,
+        "decoded_bytes": 138332,
+        "stored_frame_bytes": 10618,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 132,
+        "baseline_missing": 0
+      },
+      {
+        "name": "goods.national_reference_price",
+        "records": 114,
+        "decoded_bytes": 233044,
+        "stored_frame_bytes": 12463,
+        "unchanged": 84,
+        "unchanged_zero": 0,
+        "changed": 30,
+        "baseline_missing": 0
+      },
+      {
+        "name": "market.elite_planning_gate",
+        "records": 104,
+        "decoded_bytes": 94141,
+        "stored_frame_bytes": 25337,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 104
+      },
+      {
+        "name": "trade.triangular_voyage_decision",
+        "records": 104,
+        "decoded_bytes": 61547,
+        "stored_frame_bytes": 9952,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 104
+      },
+      {
+        "name": "economy.cash",
+        "records": 104,
+        "decoded_bytes": 127956,
+        "stored_frame_bytes": 15802,
+        "unchanged": 74,
+        "unchanged_zero": 0,
+        "changed": 30,
+        "baseline_missing": 0
+      },
+      {
+        "name": "finance.bank_balance_operation",
+        "records": 97,
+        "decoded_bytes": 78168,
+        "stored_frame_bytes": 9039,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 97,
+        "baseline_missing": 0
+      },
+      {
+        "name": "labor.primary_livelihood",
+        "records": 96,
+        "decoded_bytes": 2995458,
+        "stored_frame_bytes": 111332,
+        "unchanged": 92,
+        "unchanged_zero": 0,
+        "changed": 4,
+        "baseline_missing": 0
+      },
+      {
+        "name": "goods.demand_ratio",
+        "records": 94,
+        "decoded_bytes": 96587,
+        "stored_frame_bytes": 11756,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 94
+      },
+      {
+        "name": "finance.treasury_flow",
+        "records": 91,
+        "decoded_bytes": 120839,
+        "stored_frame_bytes": 11989,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 91
+      },
+      {
+        "name": "society.class_population",
+        "records": 90,
+        "decoded_bytes": 85304,
+        "stored_frame_bytes": 9989,
+        "unchanged": 61,
+        "unchanged_zero": 29,
+        "changed": 11,
+        "baseline_missing": 18
+      },
+      {
+        "name": "trade.route_destination_decision",
+        "records": 72,
+        "decoded_bytes": 2787619,
+        "stored_frame_bytes": 154120,
+        "unchanged": 72,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "goods.zero_order_count",
+        "records": 63,
+        "decoded_bytes": 3015910,
+        "stored_frame_bytes": 122294,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 63
+      },
+      {
+        "name": "innovation.research_gate",
+        "records": 58,
+        "decoded_bytes": 35559,
+        "stored_frame_bytes": 2908,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 58
+      },
+      {
+        "name": "labor.employment_status",
+        "records": 54,
+        "decoded_bytes": 1686055,
+        "stored_frame_bytes": 64769,
+        "unchanged": 46,
+        "unchanged_zero": 0,
+        "changed": 6,
+        "baseline_missing": 2
+      },
+      {
+        "name": "finance.bank_equity",
+        "records": 41,
+        "decoded_bytes": 32755,
+        "stored_frame_bytes": 4778,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 36,
+        "baseline_missing": 5
+      },
+      {
+        "name": "finance.bank_loan_repayment",
+        "records": 37,
+        "decoded_bytes": 20756,
+        "stored_frame_bytes": 1845,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 37
+      },
+      {
+        "name": "goods.transaction_vwap",
+        "records": 36,
+        "decoded_bytes": 88796,
+        "stored_frame_bytes": 9141,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 36
+      },
+      {
+        "name": "innovation.diffusion_gate",
+        "records": 36,
+        "decoded_bytes": 18464,
+        "stored_frame_bytes": 1350,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 36
+      },
+      {
+        "name": "finance.cash_transfer",
+        "records": 33,
+        "decoded_bytes": 54274,
+        "stored_frame_bytes": 7457,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 2,
+        "baseline_missing": 31
+      },
+      {
+        "name": "innovation.domain_experience",
+        "records": 30,
+        "decoded_bytes": 69653,
+        "stored_frame_bytes": 4176,
+        "unchanged": 6,
+        "unchanged_zero": 6,
+        "changed": 24,
+        "baseline_missing": 0
+      },
+      {
+        "name": "finance.bank_withdrawal",
+        "records": 29,
+        "decoded_bytes": 28539,
+        "stored_frame_bytes": 5711,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 29,
+        "baseline_missing": 0
+      },
+      {
+        "name": "innovation.bottleneck_pressure",
+        "records": 29,
+        "decoded_bytes": 49918,
+        "stored_frame_bytes": 2884,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 29
+      },
+      {
+        "name": "innovation.breakthrough",
+        "records": 29,
+        "decoded_bytes": 31813,
+        "stored_frame_bytes": 1887,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 29
+      },
+      {
+        "name": "finance.bank_capital",
+        "records": 29,
+        "decoded_bytes": 42692,
+        "stored_frame_bytes": 4189,
+        "unchanged": 5,
+        "unchanged_zero": 0,
+        "changed": 24,
+        "baseline_missing": 0
+      },
+      {
+        "name": "finance.bank_deposits",
+        "records": 29,
+        "decoded_bytes": 42427,
+        "stored_frame_bytes": 2929,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 29,
+        "baseline_missing": 0
+      },
+      {
+        "name": "finance.bank_liabilities",
+        "records": 29,
+        "decoded_bytes": 41042,
+        "stored_frame_bytes": 2761,
+        "unchanged": 5,
+        "unchanged_zero": 5,
+        "changed": 24,
+        "baseline_missing": 0
+      },
+      {
+        "name": "finance.government_income",
+        "records": 27,
+        "decoded_bytes": 25380,
+        "stored_frame_bytes": 3088,
+        "unchanged": 14,
+        "unchanged_zero": 14,
+        "changed": 10,
+        "baseline_missing": 3
+      },
+      {
+        "name": "land.pasture_fraction",
+        "records": 24,
+        "decoded_bytes": 17191,
+        "stored_frame_bytes": 3036,
+        "unchanged": 18,
+        "unchanged_zero": 18,
+        "changed": 6,
+        "baseline_missing": 0
+      },
+      {
+        "name": "fx.bilateral_mid",
+        "records": 22,
+        "decoded_bytes": 23509,
+        "stored_frame_bytes": 2194,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 22,
+        "baseline_missing": 0
+      },
+      {
+        "name": "finance.bank_deposit",
+        "records": 21,
+        "decoded_bytes": 20720,
+        "stored_frame_bytes": 2609,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 21,
+        "baseline_missing": 0
+      },
+      {
+        "name": "finance.treasury",
+        "records": 17,
+        "decoded_bytes": 30547,
+        "stored_frame_bytes": 4686,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 14,
+        "baseline_missing": 3
+      },
+      {
+        "name": "land.commons_access",
+        "records": 15,
+        "decoded_bytes": 14892,
+        "stored_frame_bytes": 2741,
+        "unchanged": 9,
+        "unchanged_zero": 0,
+        "changed": 3,
+        "baseline_missing": 3
+      },
+      {
+        "name": "food.foraged",
+        "records": 15,
+        "decoded_bytes": 38778,
+        "stored_frame_bytes": 4030,
+        "unchanged": 7,
+        "unchanged_zero": 0,
+        "changed": 5,
+        "baseline_missing": 3
+      },
+      {
+        "name": "food.purchased",
+        "records": 15,
+        "decoded_bytes": 23719,
+        "stored_frame_bytes": 2506,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 12,
+        "baseline_missing": 3
+      },
+      {
+        "name": "health.attrition",
+        "records": 13,
+        "decoded_bytes": 8691,
+        "stored_frame_bytes": 1012,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 13,
+        "baseline_missing": 0
+      },
+      {
+        "name": "health.medical_treatment",
+        "records": 13,
+        "decoded_bytes": 12668,
+        "stored_frame_bytes": 1569,
+        "unchanged": 2,
+        "unchanged_zero": 0,
+        "changed": 11,
+        "baseline_missing": 0
+      },
+      {
+        "name": "market.elite_planner_phase_gate",
+        "records": 12,
+        "decoded_bytes": 6704,
+        "stored_frame_bytes": 2254,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 12
+      },
+      {
+        "name": "market.elite_market_novelty",
+        "records": 12,
+        "decoded_bytes": 7616,
+        "stored_frame_bytes": 2233,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 12
+      },
+      {
+        "name": "labor.cohort_schedule",
+        "records": 12,
+        "decoded_bytes": 21821,
+        "stored_frame_bytes": 5015,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 12,
+        "baseline_missing": 0
+      },
+      {
+        "name": "water.seasonal_supply",
+        "records": 12,
+        "decoded_bytes": 8760,
+        "stored_frame_bytes": 2620,
+        "unchanged": 12,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "finance.tribute_value",
+        "records": 12,
+        "decoded_bytes": 69275,
+        "stored_frame_bytes": 6396,
+        "unchanged": 3,
+        "unchanged_zero": 3,
+        "changed": 9,
+        "baseline_missing": 0
+      },
+      {
+        "name": "goods.civilian_food_consumption",
+        "records": 12,
+        "decoded_bytes": 7075,
+        "stored_frame_bytes": 1242,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 12,
+        "baseline_missing": 0
+      },
+      {
+        "name": "labor.forced_labor_hours",
+        "records": 12,
+        "decoded_bytes": 9800,
+        "stored_frame_bytes": 2487,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 12
+      },
+      {
+        "name": "labor.workhouse_inmates",
+        "records": 12,
+        "decoded_bytes": 9260,
+        "stored_frame_bytes": 1363,
+        "unchanged": 12,
+        "unchanged_zero": 12,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "politics.pollution_illness_rate",
+        "records": 12,
+        "decoded_bytes": 8491,
+        "stored_frame_bytes": 2277,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 12
+      },
+      {
+        "name": "health.infant_fatalities",
+        "records": 12,
+        "decoded_bytes": 6500,
+        "stored_frame_bytes": 1196,
+        "unchanged": 12,
+        "unchanged_zero": 12,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "politics.grievance",
+        "records": 12,
+        "decoded_bytes": 18500,
+        "stored_frame_bytes": 6073,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 12
+      },
+      {
+        "name": "finance.total_cash",
+        "records": 12,
+        "decoded_bytes": 10553,
+        "stored_frame_bytes": 2709,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 12,
+        "baseline_missing": 0
+      },
+      {
+        "name": "people.migration_pressure",
+        "records": 12,
+        "decoded_bytes": 10399,
+        "stored_frame_bytes": 1097,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 12
+      },
+      {
+        "name": "finance.bank_cumulative_writedowns",
+        "records": 12,
+        "decoded_bytes": 6464,
+        "stored_frame_bytes": 661,
+        "unchanged": 12,
+        "unchanged_zero": 12,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "finance.fiscal_gap",
+        "records": 10,
+        "decoded_bytes": 7673,
+        "stored_frame_bytes": 1165,
+        "unchanged": 6,
+        "unchanged_zero": 6,
+        "changed": 4,
+        "baseline_missing": 0
+      },
+      {
+        "name": "finance.tax_rate",
+        "records": 10,
+        "decoded_bytes": 8910,
+        "stored_frame_bytes": 1686,
+        "unchanged": 10,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "people.food_security",
+        "records": 9,
+        "decoded_bytes": 10599,
+        "stored_frame_bytes": 1093,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 9
+      },
+      {
+        "name": "military.border_vulnerability",
+        "records": 9,
+        "decoded_bytes": 12401,
+        "stored_frame_bytes": 900,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 9
+      },
+      {
+        "name": "construction.progress",
+        "records": 6,
+        "decoded_bytes": 5746,
+        "stored_frame_bytes": 837,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 4,
+        "baseline_missing": 2
+      },
+      {
+        "name": "land.enclosure_force_decision",
+        "records": 6,
+        "decoded_bytes": 5169,
+        "stored_frame_bytes": 1462,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 6,
+        "baseline_missing": 0
+      },
+      {
+        "name": "land.enclosure_transition",
+        "records": 6,
+        "decoded_bytes": 6881,
+        "stored_frame_bytes": 1997,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 6,
+        "baseline_missing": 0
+      },
+      {
+        "name": "politics.legitimacy",
+        "records": 6,
+        "decoded_bytes": 4254,
+        "stored_frame_bytes": 676,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 6,
+        "baseline_missing": 0
+      },
+      {
+        "name": "goods.national_food_price",
+        "records": 6,
+        "decoded_bytes": 15526,
+        "stored_frame_bytes": 1373,
+        "unchanged": 2,
+        "unchanged_zero": 0,
+        "changed": 4,
+        "baseline_missing": 0
+      },
+      {
+        "name": "finance.fiscal_deficit",
+        "records": 5,
+        "decoded_bytes": 4509,
+        "stored_frame_bytes": 1248,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 5
+      },
+      {
+        "name": "finance.tax_assessment",
+        "records": 5,
+        "decoded_bytes": 20482,
+        "stored_frame_bytes": 3496,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 5
+      },
+      {
+        "name": "finance.bank_deposit_interest",
+        "records": 5,
+        "decoded_bytes": 3615,
+        "stored_frame_bytes": 950,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 5
+      },
+      {
+        "name": "health.mortality_risk",
+        "records": 5,
+        "decoded_bytes": 5284,
+        "stored_frame_bytes": 784,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 5,
+        "baseline_missing": 0
+      },
+      {
+        "name": "trade.away_trader_food_purchase",
+        "records": 5,
+        "decoded_bytes": 5735,
+        "stored_frame_bytes": 720,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 5,
+        "baseline_missing": 0
+      },
+      {
+        "name": "(none)",
+        "records": 4,
+        "decoded_bytes": 2279,
+        "stored_frame_bytes": 521,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "ai.intent_execution",
+        "records": 4,
+        "decoded_bytes": 3217,
+        "stored_frame_bytes": 461,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 4
+      },
+      {
+        "name": "goods.charity_food_distribution",
+        "records": 4,
+        "decoded_bytes": 3661,
+        "stored_frame_bytes": 926,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 4,
+        "baseline_missing": 0
+      },
+      {
+        "name": "goods.charity_food_aid",
+        "records": 4,
+        "decoded_bytes": 3962,
+        "stored_frame_bytes": 767,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 4,
+        "baseline_missing": 0
+      },
+      {
+        "name": "politics.takeover_decision",
+        "records": 3,
+        "decoded_bytes": 2378,
+        "stored_frame_bytes": 827,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 3
+      },
+      {
+        "name": "labor.payroll_funding",
+        "records": 3,
+        "decoded_bytes": 1783,
+        "stored_frame_bytes": 686,
+        "unchanged": 3,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "labor.corporate_wage",
+        "records": 3,
+        "decoded_bytes": 2469,
+        "stored_frame_bytes": 726,
+        "unchanged": 3,
+        "unchanged_zero": 3,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "labor.collective_action",
+        "records": 3,
+        "decoded_bytes": 2537,
+        "stored_frame_bytes": 852,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 3
+      },
+      {
+        "name": "labor.available_worker_hours",
+        "records": 3,
+        "decoded_bytes": 3908,
+        "stored_frame_bytes": 763,
+        "unchanged": 3,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "finance.bank_loan",
+        "records": 3,
+        "decoded_bytes": 2139,
+        "stored_frame_bytes": 635,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 3
+      },
+      {
+        "name": "politics.coup_decision",
+        "records": 3,
+        "decoded_bytes": 2006,
+        "stored_frame_bytes": 399,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 3
+      },
+      {
+        "name": "scenario.uprising_gate",
+        "records": 3,
+        "decoded_bytes": 3747,
+        "stored_frame_bytes": 475,
+        "unchanged": 3,
+        "unchanged_zero": 3,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "scenario.uprising_response",
+        "records": 3,
+        "decoded_bytes": 1912,
+        "stored_frame_bytes": 188,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 3
+      },
+      {
+        "name": "scenario.uprising_outcome",
+        "records": 3,
+        "decoded_bytes": 1873,
+        "stored_frame_bytes": 170,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 3
+      },
+      {
+        "name": "diplomacy.relation",
+        "records": 3,
+        "decoded_bytes": 2532,
+        "stored_frame_bytes": 326,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 3,
+        "baseline_missing": 0
+      },
+      {
+        "name": "diplomacy.ai_candidates",
+        "records": 2,
+        "decoded_bytes": 4812,
+        "stored_frame_bytes": 518,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "ai.nation_decision",
+        "records": 2,
+        "decoded_bytes": 22101,
+        "stored_frame_bytes": 998,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 2
+      },
+      {
+        "name": "construction.funding_decision",
+        "records": 2,
+        "decoded_bytes": 4938,
+        "stored_frame_bytes": 676,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 2
+      },
+      {
+        "name": "people.role",
+        "records": 2,
+        "decoded_bytes": 1017,
+        "stored_frame_bytes": 164,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 2,
+        "baseline_missing": 0
+      },
+      {
+        "name": "construction.project_commission",
+        "records": 2,
+        "decoded_bytes": 2321,
+        "stored_frame_bytes": 260,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 2,
+        "baseline_missing": 0
+      },
+      {
+        "name": "goods.food_aid_recipient",
+        "records": 1,
+        "decoded_bytes": 1532,
+        "stored_frame_bytes": 390,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 1,
+        "baseline_missing": 0
+      },
+      {
+        "name": "goods.food_aid",
+        "records": 1,
+        "decoded_bytes": 823,
+        "stored_frame_bytes": 108,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 1,
+        "baseline_missing": 0
+      },
+      {
+        "name": "trade.fx_order_match",
+        "records": 1,
+        "decoded_bytes": 1066,
+        "stored_frame_bytes": 249,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 0
+      }
+    ],
+    "class": [
+      {
+        "name": "observation",
+        "records": 181498,
+        "decoded_bytes": 100814763,
+        "stored_frame_bytes": 7490282,
+        "unchanged": 179316,
+        "unchanged_zero": 154190,
+        "changed": 838,
+        "baseline_missing": 1344
+      },
+      {
+        "name": "calculation",
+        "records": 48704,
+        "decoded_bytes": 47621517,
+        "stored_frame_bytes": 2744434,
+        "unchanged": 32406,
+        "unchanged_zero": 31153,
+        "changed": 931,
+        "baseline_missing": 15367
+      },
+      {
+        "name": "audit",
+        "records": 19009,
+        "decoded_bytes": 11112717,
+        "stored_frame_bytes": 1045428,
+        "unchanged": 18951,
+        "unchanged_zero": 0,
+        "changed": 56,
+        "baseline_missing": 0
+      },
+      {
+        "name": "decision",
+        "records": 4648,
+        "decoded_bytes": 10513307,
+        "stored_frame_bytes": 793598,
+        "unchanged": 75,
+        "unchanged_zero": 3,
+        "changed": 18,
+        "baseline_missing": 4551
+      },
+      {
+        "name": "transfer",
+        "records": 4184,
+        "decoded_bytes": 4327356,
+        "stored_frame_bytes": 283439,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 2713,
+        "baseline_missing": 167
+      },
+      {
+        "name": "outcome",
+        "records": 3983,
+        "decoded_bytes": 3122916,
+        "stored_frame_bytes": 238228,
+        "unchanged": 533,
+        "unchanged_zero": 452,
+        "changed": 1608,
+        "baseline_missing": 1842
+      }
+    ],
+    "phase": [
+      {
+        "name": "snapshot",
+        "records": 209665,
+        "decoded_bytes": 124747486,
+        "stored_frame_bytes": 9126158,
+        "unchanged": 200379,
+        "unchanged_zero": 156179,
+        "changed": 1003,
+        "baseline_missing": 8283
+      },
+      {
+        "name": "local",
+        "records": 38628,
+        "decoded_bytes": 33377041,
+        "stored_frame_bytes": 2308611,
+        "unchanged": 24751,
+        "unchanged_zero": 23545,
+        "changed": 2434,
+        "baseline_missing": 11443
+      },
+      {
+        "name": "trade",
+        "records": 7721,
+        "decoded_bytes": 13097976,
+        "stored_frame_bytes": 700449,
+        "unchanged": 3072,
+        "unchanged_zero": 3000,
+        "changed": 137,
+        "baseline_missing": 3208
+      },
+      {
+        "name": "demographics",
+        "records": 3692,
+        "decoded_bytes": 3059589,
+        "stored_frame_bytes": 224624,
+        "unchanged": 3000,
+        "unchanged_zero": 3000,
+        "changed": 680,
+        "baseline_missing": 12
+      },
+      {
+        "name": "economy",
+        "records": 1157,
+        "decoded_bytes": 1651819,
+        "stored_frame_bytes": 84073,
+        "unchanged": 3,
+        "unchanged_zero": 3,
+        "changed": 1154,
+        "baseline_missing": 0
+      },
+      {
+        "name": "finance",
+        "records": 422,
+        "decoded_bytes": 391399,
+        "stored_frame_bytes": 49438,
+        "unchanged": 50,
+        "unchanged_zero": 45,
+        "changed": 344,
+        "baseline_missing": 28
+      },
+      {
+        "name": "politics",
+        "records": 336,
+        "decoded_bytes": 664664,
+        "stored_frame_bytes": 48274,
+        "unchanged": 8,
+        "unchanged_zero": 8,
+        "changed": 328,
+        "baseline_missing": 0
+      },
+      {
+        "name": "innovation",
+        "records": 167,
+        "decoded_bytes": 195266,
+        "stored_frame_bytes": 12266,
+        "unchanged": 3,
+        "unchanged_zero": 3,
+        "changed": 12,
+        "baseline_missing": 152
+      },
+      {
+        "name": "market",
+        "records": 66,
+        "decoded_bytes": 102815,
+        "stored_frame_bytes": 8707,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 66
+      },
+      {
+        "name": "strategy",
+        "records": 40,
+        "decoded_bytes": 73481,
+        "stored_frame_bytes": 6536,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 10,
+        "baseline_missing": 26
+      },
+      {
+        "name": "policy_action",
+        "records": 33,
+        "decoded_bytes": 38049,
+        "stored_frame_bytes": 7550,
+        "unchanged": 3,
+        "unchanged_zero": 3,
+        "changed": 12,
+        "baseline_missing": 18
+      },
+      {
+        "name": "labor_enforcement",
+        "records": 24,
+        "decoded_bytes": 19060,
+        "stored_frame_bytes": 3850,
+        "unchanged": 12,
+        "unchanged_zero": 12,
+        "changed": 0,
+        "baseline_missing": 12
+      },
+      {
+        "name": "forex",
+        "records": 22,
+        "decoded_bytes": 23509,
+        "stored_frame_bytes": 2194,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 22,
+        "baseline_missing": 0
+      },
+      {
+        "name": "labor",
+        "records": 14,
+        "decoded_bytes": 22838,
+        "stored_frame_bytes": 5179,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 14,
+        "baseline_missing": 0
+      },
+      {
+        "name": "healthcare",
+        "records": 13,
+        "decoded_bytes": 20213,
+        "stored_frame_bytes": 3073,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 13
+      },
+      {
+        "name": "welfare",
+        "records": 8,
+        "decoded_bytes": 7623,
+        "stored_frame_bytes": 1693,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 8,
+        "baseline_missing": 0
+      },
+      {
+        "name": "government",
+        "records": 7,
+        "decoded_bytes": 12093,
+        "stored_frame_bytes": 1141,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 7
+      },
+      {
+        "name": "regime",
+        "records": 6,
+        "decoded_bytes": 4262,
+        "stored_frame_bytes": 785,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 3,
+        "baseline_missing": 3
+      },
+      {
+        "name": "projects",
+        "records": 2,
+        "decoded_bytes": 1181,
+        "stored_frame_bytes": 203,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 2,
+        "baseline_missing": 0
+      },
+      {
+        "name": "livelihood",
+        "records": 1,
+        "decoded_bytes": 1532,
+        "stored_frame_bytes": 390,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 1,
+        "baseline_missing": 0
+      },
+      {
+        "name": "checkpoint",
+        "records": 1,
+        "decoded_bytes": 387,
+        "stored_frame_bytes": 152,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "between_turns",
+        "records": 1,
+        "decoded_bytes": 293,
+        "stored_frame_bytes": 63,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 0
+      }
+    ],
+    "formula": [
+      {
+        "name": "(none)",
+        "records": 207887,
+        "decoded_bytes": 119262240,
+        "stored_frame_bytes": 9066338,
+        "unchanged": 198349,
+        "unchanged_zero": 154193,
+        "changed": 2577,
+        "baseline_missing": 5651
+      },
+      {
+        "name": "gini.wilderness_zero.v1",
+        "records": 18772,
+        "decoded_bytes": 14102674,
+        "stored_frame_bytes": 784847,
+        "unchanged": 18772,
+        "unchanged_zero": 18772,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "disease.count_active_cases.v1",
+        "records": 5060,
+        "decoded_bytes": 3170143,
+        "stored_frame_bytes": 188049,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 5060
+      },
+      {
+        "name": "fiscal.tax_distribution.v1",
+        "records": 4000,
+        "decoded_bytes": 3360574,
+        "stored_frame_bytes": 176141,
+        "unchanged": 3994,
+        "unchanged_zero": 3994,
+        "changed": 6,
+        "baseline_missing": 0
+      },
+      {
+        "name": "market.local_bid.v1",
+        "records": 2285,
+        "decoded_bytes": 2111369,
+        "stored_frame_bytes": 120898,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 2285
+      },
+      {
+        "name": "feudal_tribute.inventory_share_transfer.v1",
+        "records": 1145,
+        "decoded_bytes": 1582544,
+        "stored_frame_bytes": 77677,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 1145,
+        "baseline_missing": 0
+      },
+      {
+        "name": "labor.final_member_count.v1",
+        "records": 1075,
+        "decoded_bytes": 6468774,
+        "stored_frame_bytes": 243318,
+        "unchanged": 1057,
+        "unchanged_zero": 988,
+        "changed": 18,
+        "baseline_missing": 0
+      },
+      {
+        "name": "gdp.sum_output_times_reference_price.v1",
+        "records": 1000,
+        "decoded_bytes": 706363,
+        "stored_frame_bytes": 60819,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 12,
+        "baseline_missing": 988
+      },
+      {
+        "name": "labor.effective_workday_cap_sample.v1",
+        "records": 1000,
+        "decoded_bytes": 715890,
+        "stored_frame_bytes": 51800,
+        "unchanged": 1000,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "trade.trader_cash_sum_wallets.v1",
+        "records": 1000,
+        "decoded_bytes": 655479,
+        "stored_frame_bytes": 55948,
+        "unchanged": 988,
+        "unchanged_zero": 988,
+        "changed": 12,
+        "baseline_missing": 0
+      },
+      {
+        "name": "trade.pipeline_depth_in_transit_goods.v1",
+        "records": 1000,
+        "decoded_bytes": 836250,
+        "stored_frame_bytes": 62918,
+        "unchanged": 1000,
+        "unchanged_zero": 1000,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "trade.sum_partner_values_in_home_currency.v1",
+        "records": 1000,
+        "decoded_bytes": 720765,
+        "stored_frame_bytes": 38526,
+        "unchanged": 1000,
+        "unchanged_zero": 1000,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "trade.sum_market_import_values_in_home_currency.v1",
+        "records": 1000,
+        "decoded_bytes": 1026322,
+        "stored_frame_bytes": 41731,
+        "unchanged": 1000,
+        "unchanged_zero": 1000,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "trade.export_minus_import_value.v1",
+        "records": 1000,
+        "decoded_bytes": 770804,
+        "stored_frame_bytes": 42886,
+        "unchanged": 1000,
+        "unchanged_zero": 1000,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "labor.final_temporary_share_mean.v1",
+        "records": 1000,
+        "decoded_bytes": 1837460,
+        "stored_frame_bytes": 72002,
+        "unchanged": 995,
+        "unchanged_zero": 988,
+        "changed": 5,
+        "baseline_missing": 0
+      },
+      {
+        "name": "people.registered_births.v1",
+        "records": 1000,
+        "decoded_bytes": 448890,
+        "stored_frame_bytes": 34319,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 1000
+      },
+      {
+        "name": "people.registered_deaths.v1",
+        "records": 1000,
+        "decoded_bytes": 468890,
+        "stored_frame_bytes": 30962,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 1000
+      },
+      {
+        "name": "people.living_nonentity_agents.v1",
+        "records": 1000,
+        "decoded_bytes": 437913,
+        "stored_frame_bytes": 30560,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 1000
+      },
+      {
+        "name": "production.sum_receipts.v1",
+        "records": 988,
+        "decoded_bytes": 643082,
+        "stored_frame_bytes": 48956,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 988
+      },
+      {
+        "name": "population.resident_ids.v1",
+        "records": 988,
+        "decoded_bytes": 566018,
+        "stored_frame_bytes": 41123,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 988
+      },
+      {
+        "name": "population.rate_wilderness_zero.v1",
+        "records": 988,
+        "decoded_bytes": 805114,
+        "stored_frame_bytes": 54469,
+        "unchanged": 988,
+        "unchanged_zero": 988,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "production.independent.v1",
+        "records": 787,
+        "decoded_bytes": 739335,
+        "stored_frame_bytes": 52819,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 787,
+        "baseline_missing": 0
+      },
+      {
+        "name": "commons.forage_activity.v1",
+        "records": 774,
+        "decoded_bytes": 486868,
+        "stored_frame_bytes": 27408,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 774
+      },
+      {
+        "name": "market.local_ask.v1",
+        "records": 735,
+        "decoded_bytes": 674237,
+        "stored_frame_bytes": 44971,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 735
+      },
+      {
+        "name": "elite.transformation_operator_gate.v1",
+        "records": 480,
+        "decoded_bytes": 764692,
+        "stored_frame_bytes": 88591,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 480
+      },
+      {
+        "name": "demographics.nonfood_consumption.v1",
+        "records": 468,
+        "decoded_bytes": 418199,
+        "stored_frame_bytes": 24964,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 468,
+        "baseline_missing": 0
+      },
+      {
+        "name": "production.independent_zero.v1",
+        "records": 279,
+        "decoded_bytes": 276623,
+        "stored_frame_bytes": 21956,
+        "unchanged": 279,
+        "unchanged_zero": 279,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "obligation.assessment.v1",
+        "records": 267,
+        "decoded_bytes": 168268,
+        "stored_frame_bytes": 10863,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 267
+      },
+      {
+        "name": "gini.retain_previous_value.v1",
+        "records": 240,
+        "decoded_bytes": 187720,
+        "stored_frame_bytes": 13865,
+        "unchanged": 240,
+        "unchanged_zero": 240,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "production.sum_receipts.v2",
+        "records": 216,
+        "decoded_bytes": 272766,
+        "stored_frame_bytes": 18759,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 216
+      },
+      {
+        "name": "inventory.sum_producer_holdings.v1",
+        "records": 216,
+        "decoded_bytes": 148781,
+        "stored_frame_bytes": 12023,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 216
+      },
+      {
+        "name": "aggregate.sum.v1",
+        "records": 201,
+        "decoded_bytes": 340251,
+        "stored_frame_bytes": 21840,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 201
+      },
+      {
+        "name": "nutrition.intake_and_reserve.v1",
+        "records": 188,
+        "decoded_bytes": 310694,
+        "stored_frame_bytes": 18181,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 188,
+        "baseline_missing": 0
+      },
+      {
+        "name": "disease.exposure_risk.v1",
+        "records": 186,
+        "decoded_bytes": 170530,
+        "stored_frame_bytes": 13253,
+        "unchanged": 173,
+        "unchanged_zero": 173,
+        "changed": 13,
+        "baseline_missing": 0
+      },
+      {
+        "name": "factions.support_history.v1",
+        "records": 168,
+        "decoded_bytes": 430916,
+        "stored_frame_bytes": 35417,
+        "unchanged": 8,
+        "unchanged_zero": 8,
+        "changed": 160,
+        "baseline_missing": 0
+      },
+      {
+        "name": "factions.grievance_history_decay.v1",
+        "records": 168,
+        "decoded_bytes": 233748,
+        "stored_frame_bytes": 12857,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 168,
+        "baseline_missing": 0
+      },
+      {
+        "name": "aggregate.mean.v1",
+        "records": 163,
+        "decoded_bytes": 400852,
+        "stored_frame_bytes": 38035,
+        "unchanged": 52,
+        "unchanged_zero": 9,
+        "changed": 47,
+        "baseline_missing": 64
+      },
+      {
+        "name": "forex.bank_conversion.v1",
+        "records": 132,
+        "decoded_bytes": 138332,
+        "stored_frame_bytes": 10618,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 132,
+        "baseline_missing": 0
+      },
+      {
+        "name": "elite.planning_cadence.v2",
+        "records": 104,
+        "decoded_bytes": 94141,
+        "stored_frame_bytes": 25337,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 104
+      },
+      {
+        "name": "elite.luxury_purchase_priority.v1",
+        "records": 104,
+        "decoded_bytes": 86440,
+        "stored_frame_bytes": 19815,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 104
+      },
+      {
+        "name": "trade.voyage_ai_selection.v1",
+        "records": 104,
+        "decoded_bytes": 61547,
+        "stored_frame_bytes": 9952,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 104
+      },
+      {
+        "name": "elite.spatial_trade_delegation.v1",
+        "records": 104,
+        "decoded_bytes": 84118,
+        "stored_frame_bytes": 20696,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 104
+      },
+      {
+        "name": "elite.labor_legislation_priority.v1",
+        "records": 104,
+        "decoded_bytes": 99715,
+        "stored_frame_bytes": 19698,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 104
+      },
+      {
+        "name": "elite.inventory_liquidation_gate.v1",
+        "records": 96,
+        "decoded_bytes": 158964,
+        "stored_frame_bytes": 28041,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 96
+      },
+      {
+        "name": "elite.capital_allocation_gate.v1",
+        "records": 74,
+        "decoded_bytes": 1975344,
+        "stored_frame_bytes": 107548,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 74
+      },
+      {
+        "name": "route.trader_destination_score.v1",
+        "records": 72,
+        "decoded_bytes": 2787619,
+        "stored_frame_bytes": 154120,
+        "unchanged": 72,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "social_class.group_population.v1",
+        "records": 72,
+        "decoded_bytes": 53519,
+        "stored_frame_bytes": 6818,
+        "unchanged": 61,
+        "unchanged_zero": 29,
+        "changed": 11,
+        "baseline_missing": 0
+      },
+      {
+        "name": "market.zero_order_tally.v1",
+        "records": 63,
+        "decoded_bytes": 3015910,
+        "stored_frame_bytes": 122294,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 63
+      },
+      {
+        "name": "market.sum_bids.v1",
+        "records": 63,
+        "decoded_bytes": 223592,
+        "stored_frame_bytes": 22275,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 63
+      },
+      {
+        "name": "market.local_plus_imports.v1",
+        "records": 63,
+        "decoded_bytes": 84275,
+        "stored_frame_bytes": 8857,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 63
+      },
+      {
+        "name": "market.demand_supply_ratio.v1",
+        "records": 63,
+        "decoded_bytes": 54446,
+        "stored_frame_bytes": 8116,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 63
+      },
+      {
+        "name": "market.reference.v1",
+        "records": 63,
+        "decoded_bytes": 95286,
+        "stored_frame_bytes": 21983,
+        "unchanged": 14,
+        "unchanged_zero": 0,
+        "changed": 49,
+        "baseline_missing": 0
+      },
+      {
+        "name": "bank.tile_closing_alias.v1",
+        "records": 48,
+        "decoded_bytes": 44581,
+        "stored_frame_bytes": 2458,
+        "unchanged": 4,
+        "unchanged_zero": 2,
+        "changed": 44,
+        "baseline_missing": 0
+      },
+      {
+        "name": "market.discriminatory_clear.v2",
+        "records": 38,
+        "decoded_bytes": 191659,
+        "stored_frame_bytes": 12436,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 38
+      },
+      {
+        "name": "market.clear_plus_public_buyers.v1",
+        "records": 38,
+        "decoded_bytes": 22010,
+        "stored_frame_bytes": 3639,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 38
+      },
+      {
+        "name": "market.transaction_vwap.v1",
+        "records": 36,
+        "decoded_bytes": 88796,
+        "stored_frame_bytes": 9141,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 36
+      },
+      {
+        "name": "bank.deposit_to_cash.v1",
+        "records": 29,
+        "decoded_bytes": 28539,
+        "stored_frame_bytes": 5711,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 29,
+        "baseline_missing": 0
+      },
+      {
+        "name": "innovation.bottleneck.v1",
+        "records": 29,
+        "decoded_bytes": 49918,
+        "stored_frame_bytes": 2884,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 29
+      },
+      {
+        "name": "innovation.breakthrough_draw.v1",
+        "records": 29,
+        "decoded_bytes": 31813,
+        "stored_frame_bytes": 1887,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 29
+      },
+      {
+        "name": "elite.lord_transformation_selection.v1",
+        "records": 24,
+        "decoded_bytes": 407583,
+        "stored_frame_bytes": 46234,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 24
+      },
+      {
+        "name": "food.source_total.v1",
+        "records": 24,
+        "decoded_bytes": 51987,
+        "stored_frame_bytes": 5714,
+        "unchanged": 7,
+        "unchanged_zero": 0,
+        "changed": 17,
+        "baseline_missing": 0
+      },
+      {
+        "name": "forex.reserve_ppp.v1",
+        "records": 22,
+        "decoded_bytes": 23509,
+        "stored_frame_bytes": 2194,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 22,
+        "baseline_missing": 0
+      },
+      {
+        "name": "treasury.account_chain.v1",
+        "records": 22,
+        "decoded_bytes": 56975,
+        "stored_frame_bytes": 5244,
+        "unchanged": 11,
+        "unchanged_zero": 10,
+        "changed": 11,
+        "baseline_missing": 0
+      },
+      {
+        "name": "bank.cash_to_deposit.v1",
+        "records": 21,
+        "decoded_bytes": 20720,
+        "stored_frame_bytes": 2609,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 21,
+        "baseline_missing": 0
+      },
+      {
+        "name": "ecology.downstream_advection.v1",
+        "records": 17,
+        "decoded_bytes": 15286,
+        "stored_frame_bytes": 2862,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 17,
+        "baseline_missing": 0
+      },
+      {
+        "name": "finance.bank_equity_balance_sheet.v1",
+        "records": 17,
+        "decoded_bytes": 13561,
+        "stored_frame_bytes": 3064,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 12,
+        "baseline_missing": 5
+      },
+      {
+        "name": "innovation.learning_by_doing.v1",
+        "records": 15,
+        "decoded_bytes": 59512,
+        "stored_frame_bytes": 3237,
+        "unchanged": 3,
+        "unchanged_zero": 3,
+        "changed": 12,
+        "baseline_missing": 0
+      },
+      {
+        "name": "bank.opening_plus_transitions.v1",
+        "records": 15,
+        "decoded_bytes": 69414,
+        "stored_frame_bytes": 4992,
+        "unchanged": 2,
+        "unchanged_zero": 1,
+        "changed": 13,
+        "baseline_missing": 0
+      },
+      {
+        "name": "disease.compound_wear.v1",
+        "records": 13,
+        "decoded_bytes": 8691,
+        "stored_frame_bytes": 1012,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 13,
+        "baseline_missing": 0
+      },
+      {
+        "name": "medicine.cure_chance.v1",
+        "records": 13,
+        "decoded_bytes": 12668,
+        "stored_frame_bytes": 1569,
+        "unchanged": 2,
+        "unchanged_zero": 0,
+        "changed": 11,
+        "baseline_missing": 0
+      },
+      {
+        "name": "living.basket_prices_climate.v1",
+        "records": 12,
+        "decoded_bytes": 18040,
+        "stored_frame_bytes": 4175,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 12,
+        "baseline_missing": 0
+      },
+      {
+        "name": "elite.planning_phase_gate.v1",
+        "records": 12,
+        "decoded_bytes": 6704,
+        "stored_frame_bytes": 2254,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 12
+      },
+      {
+        "name": "elite.market_novelty.v1",
+        "records": 12,
+        "decoded_bytes": 7616,
+        "stored_frame_bytes": 2233,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 12
+      },
+      {
+        "name": "labor.round_robin_emergency_cohort.v1",
+        "records": 12,
+        "decoded_bytes": 21821,
+        "stored_frame_bytes": 5015,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 12,
+        "baseline_missing": 0
+      },
+      {
+        "name": "labor.sabotage_rollup.v1",
+        "records": 12,
+        "decoded_bytes": 8639,
+        "stored_frame_bytes": 2170,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 12
+      },
+      {
+        "name": "labor.broken_machinery_closing_stock.v1",
+        "records": 12,
+        "decoded_bytes": 11585,
+        "stored_frame_bytes": 1981,
+        "unchanged": 12,
+        "unchanged_zero": 12,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "labor.count_active_strikers.v1",
+        "records": 12,
+        "decoded_bytes": 7844,
+        "stored_frame_bytes": 1289,
+        "unchanged": 12,
+        "unchanged_zero": 12,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "water.capacity_rainfall_maintenance.v1",
+        "records": 12,
+        "decoded_bytes": 8760,
+        "stored_frame_bytes": 2620,
+        "unchanged": 12,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "feudal_tribute.reference_valuation.v1",
+        "records": 12,
+        "decoded_bytes": 69275,
+        "stored_frame_bytes": 6396,
+        "unchanged": 3,
+        "unchanged_zero": 3,
+        "changed": 9,
+        "baseline_missing": 0
+      },
+      {
+        "name": "market.transport_demand_supply_ratio.v1",
+        "records": 12,
+        "decoded_bytes": 7424,
+        "stored_frame_bytes": 928,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 12
+      },
+      {
+        "name": "market.decay.v1",
+        "records": 12,
+        "decoded_bytes": 11024,
+        "stored_frame_bytes": 1860,
+        "unchanged": 12,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "rent.obligation_settlement.v1",
+        "records": 12,
+        "decoded_bytes": 7040,
+        "stored_frame_bytes": 1276,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 12
+      },
+      {
+        "name": "rent.active_obligations.v1",
+        "records": 12,
+        "decoded_bytes": 6404,
+        "stored_frame_bytes": 634,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 12
+      },
+      {
+        "name": "land.pasture_fraction_from_plots.v1",
+        "records": 12,
+        "decoded_bytes": 9683,
+        "stored_frame_bytes": 2222,
+        "unchanged": 9,
+        "unchanged_zero": 9,
+        "changed": 3,
+        "baseline_missing": 0
+      },
+      {
+        "name": "labor.weighted_average_shift_hours.v1",
+        "records": 12,
+        "decoded_bytes": 7865,
+        "stored_frame_bytes": 1421,
+        "unchanged": 12,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "labor.surplus_over_variable_capital.v1",
+        "records": 12,
+        "decoded_bytes": 8411,
+        "stored_frame_bytes": 1473,
+        "unchanged": 12,
+        "unchanged_zero": 12,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "labor.surplus_value_current_turn.v1",
+        "records": 12,
+        "decoded_bytes": 8963,
+        "stored_frame_bytes": 1482,
+        "unchanged": 12,
+        "unchanged_zero": 12,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "demographics.civilian_food_consumption_total.v1",
+        "records": 12,
+        "decoded_bytes": 7075,
+        "stored_frame_bytes": 1242,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 12,
+        "baseline_missing": 0
+      },
+      {
+        "name": "labor.workhouse_hours_from_fed_inmates.v1",
+        "records": 12,
+        "decoded_bytes": 9800,
+        "stored_frame_bytes": 2487,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 12
+      },
+      {
+        "name": "labor.workhouse_inmate_census.v1",
+        "records": 12,
+        "decoded_bytes": 9260,
+        "stored_frame_bytes": 1363,
+        "unchanged": 12,
+        "unchanged_zero": 12,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "labor.workplace_accident_rollup.v1",
+        "records": 12,
+        "decoded_bytes": 8965,
+        "stored_frame_bytes": 1689,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 12
+      },
+      {
+        "name": "society.entertainment_level_sample.v1",
+        "records": 12,
+        "decoded_bytes": 7592,
+        "stored_frame_bytes": 1325,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 12
+      },
+      {
+        "name": "ecology.soil_balance.v1",
+        "records": 12,
+        "decoded_bytes": 10505,
+        "stored_frame_bytes": 3003,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 12,
+        "baseline_missing": 0
+      },
+      {
+        "name": "ecology.nutrition_transition.v1",
+        "records": 12,
+        "decoded_bytes": 8027,
+        "stored_frame_bytes": 1204,
+        "unchanged": 12,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "ecology.air_emissions_dispersion.v1",
+        "records": 12,
+        "decoded_bytes": 12744,
+        "stored_frame_bytes": 2428,
+        "unchanged": 12,
+        "unchanged_zero": 12,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "ecology.water_emissions_advection.v1",
+        "records": 12,
+        "decoded_bytes": 15640,
+        "stored_frame_bytes": 2633,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 12,
+        "baseline_missing": 0
+      },
+      {
+        "name": "ecology.soil_toxins_biodegradation.v1",
+        "records": 12,
+        "decoded_bytes": 8468,
+        "stored_frame_bytes": 1200,
+        "unchanged": 12,
+        "unchanged_zero": 12,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "disease.threshold_crossing_fatalities.v1",
+        "records": 12,
+        "decoded_bytes": 8552,
+        "stored_frame_bytes": 2252,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 12
+      },
+      {
+        "name": "medicine.regional_spending.v1",
+        "records": 12,
+        "decoded_bytes": 13102,
+        "stored_frame_bytes": 3126,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 12
+      },
+      {
+        "name": "health.untreated_case_rollup.v1",
+        "records": 12,
+        "decoded_bytes": 7925,
+        "stored_frame_bytes": 1164,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 12
+      },
+      {
+        "name": "population.sum_hungry_output_groups.v1",
+        "records": 12,
+        "decoded_bytes": 9122,
+        "stored_frame_bytes": 2633,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 12
+      },
+      {
+        "name": "demographics.infant_fatalities_sum.v1",
+        "records": 12,
+        "decoded_bytes": 6500,
+        "stored_frame_bytes": 1196,
+        "unchanged": 12,
+        "unchanged_zero": 12,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "factions.grievance_sources.v1",
+        "records": 12,
+        "decoded_bytes": 18500,
+        "stored_frame_bytes": 6073,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 12
+      },
+      {
+        "name": "factions.protest_energy.v1",
+        "records": 12,
+        "decoded_bytes": 13170,
+        "stored_frame_bytes": 3530,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 12,
+        "baseline_missing": 0
+      },
+      {
+        "name": "unrest.intensities.v1",
+        "records": 12,
+        "decoded_bytes": 9789,
+        "stored_frame_bytes": 2703,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 12
+      },
+      {
+        "name": "population.sum_professions.v1",
+        "records": 12,
+        "decoded_bytes": 9500,
+        "stored_frame_bytes": 2938,
+        "unchanged": 12,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "tenure.commons_access_from_plots.v1",
+        "records": 12,
+        "decoded_bytes": 9675,
+        "stored_frame_bytes": 2320,
+        "unchanged": 9,
+        "unchanged_zero": 0,
+        "changed": 3,
+        "baseline_missing": 0
+      },
+      {
+        "name": "finance.total_cash_from_components.v1",
+        "records": 12,
+        "decoded_bytes": 10553,
+        "stored_frame_bytes": 2709,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 12,
+        "baseline_missing": 0
+      },
+      {
+        "name": "population.rate_from_last_ten_samples.v1",
+        "records": 12,
+        "decoded_bytes": 11156,
+        "stored_frame_bytes": 3073,
+        "unchanged": 12,
+        "unchanged_zero": 12,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "government.income_components.v1",
+        "records": 12,
+        "decoded_bytes": 10110,
+        "stored_frame_bytes": 1255,
+        "unchanged": 7,
+        "unchanged_zero": 7,
+        "changed": 5,
+        "baseline_missing": 0
+      },
+      {
+        "name": "migration.pressure_gate.v1",
+        "records": 12,
+        "decoded_bytes": 10399,
+        "stored_frame_bytes": 1097,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 12
+      },
+      {
+        "name": "military.border_vulnerability.v1",
+        "records": 9,
+        "decoded_bytes": 12401,
+        "stored_frame_bytes": 900,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 9
+      },
+      {
+        "name": "enclosure.bailiff_cash_gate.v1",
+        "records": 6,
+        "decoded_bytes": 5169,
+        "stored_frame_bytes": 1462,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 6,
+        "baseline_missing": 0
+      },
+      {
+        "name": "fiscal.reserve_deficit.v1",
+        "records": 5,
+        "decoded_bytes": 4509,
+        "stored_frame_bytes": 1248,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 5
+      },
+      {
+        "name": "fiscal.income_tax_assessment.v1",
+        "records": 5,
+        "decoded_bytes": 20482,
+        "stored_frame_bytes": 3496,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 5
+      },
+      {
+        "name": "fiscal.remaining_tax_gap.v1",
+        "records": 5,
+        "decoded_bytes": 4567,
+        "stored_frame_bytes": 833,
+        "unchanged": 3,
+        "unchanged_zero": 3,
+        "changed": 2,
+        "baseline_missing": 0
+      },
+      {
+        "name": "fiscal.tax_rate_adjustment.v1",
+        "records": 5,
+        "decoded_bytes": 5851,
+        "stored_frame_bytes": 1372,
+        "unchanged": 5,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "mortality.age_wealth_crowding_health.v1",
+        "records": 5,
+        "decoded_bytes": 5284,
+        "stored_frame_bytes": 784,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 5,
+        "baseline_missing": 0
+      },
+      {
+        "name": "charity.food_distribution_transfer.v1",
+        "records": 4,
+        "decoded_bytes": 3661,
+        "stored_frame_bytes": 926,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 4,
+        "baseline_missing": 0
+      },
+      {
+        "name": "charity.food_aid_allocation.v1",
+        "records": 4,
+        "decoded_bytes": 3962,
+        "stored_frame_bytes": 767,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 4,
+        "baseline_missing": 0
+      },
+      {
+        "name": "population.resident_census_bridge.v1",
+        "records": 4,
+        "decoded_bytes": 4123,
+        "stored_frame_bytes": 502,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 4,
+        "baseline_missing": 0
+      },
+      {
+        "name": "construction.material_labor_progress.v1",
+        "records": 3,
+        "decoded_bytes": 3838,
+        "stored_frame_bytes": 551,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 3,
+        "baseline_missing": 0
+      },
+      {
+        "name": "unrest.takeover_force_gate.v1",
+        "records": 3,
+        "decoded_bytes": 2378,
+        "stored_frame_bytes": 827,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 3
+      },
+      {
+        "name": "labor.tightness_mrpl_cash_policy.v1",
+        "records": 3,
+        "decoded_bytes": 2469,
+        "stored_frame_bytes": 726,
+        "unchanged": 3,
+        "unchanged_zero": 3,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "labor.workforce_availability.v1",
+        "records": 3,
+        "decoded_bytes": 3908,
+        "stored_frame_bytes": 763,
+        "unchanged": 3,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 0
+      },
+      {
+        "name": "coup.force_balance.v1",
+        "records": 3,
+        "decoded_bytes": 2006,
+        "stored_frame_bytes": 399,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 3
+      },
+      {
+        "name": "regime.legitimacy_target_drift.v1",
+        "records": 3,
+        "decoded_bytes": 2256,
+        "stored_frame_bytes": 386,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 3,
+        "baseline_missing": 0
+      },
+      {
+        "name": "diplomacy.ideology_trade_treaty_memory.v1",
+        "records": 3,
+        "decoded_bytes": 2532,
+        "stored_frame_bytes": 326,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 3,
+        "baseline_missing": 0
+      },
+      {
+        "name": "treasury.closed_accounts.v1",
+        "records": 3,
+        "decoded_bytes": 14896,
+        "stored_frame_bytes": 1371,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 3,
+        "baseline_missing": 0
+      },
+      {
+        "name": "construction.founder_conversion.v1",
+        "records": 2,
+        "decoded_bytes": 1017,
+        "stored_frame_bytes": 164,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 2,
+        "baseline_missing": 0
+      },
+      {
+        "name": "government.food_aid_recipient_transfer.v1",
+        "records": 1,
+        "decoded_bytes": 1532,
+        "stored_frame_bytes": 390,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 1,
+        "baseline_missing": 0
+      }
+    ],
+    "subject_type": [
+      {
+        "name": "tile",
+        "records": 254755,
+        "decoded_bytes": 164786837,
+        "stored_frame_bytes": 11578490,
+        "unchanged": 230717,
+        "unchanged_zero": 185477,
+        "changed": 3415,
+        "baseline_missing": 20623
+      },
+      {
+        "name": "agent",
+        "records": 4769,
+        "decoded_bytes": 9457675,
+        "stored_frame_bytes": 760160,
+        "unchanged": 430,
+        "unchanged_zero": 279,
+        "changed": 955,
+        "baseline_missing": 2081
+      },
+      {
+        "name": "nation",
+        "records": 727,
+        "decoded_bytes": 1125729,
+        "stored_frame_bytes": 81324,
+        "unchanged": 105,
+        "unchanged_zero": 15,
+        "changed": 94,
+        "baseline_missing": 526
+      },
+      {
+        "name": "tile/faction",
+        "records": 672,
+        "decoded_bytes": 909087,
+        "stored_frame_bytes": 73785,
+        "unchanged": 16,
+        "unchanged_zero": 16,
+        "changed": 656,
+        "baseline_missing": 0
+      },
+      {
+        "name": "tile/agent/good",
+        "records": 468,
+        "decoded_bytes": 418199,
+        "stored_frame_bytes": 24964,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 468,
+        "baseline_missing": 0
+      },
+      {
+        "name": "tile/agent",
+        "records": 195,
+        "decoded_bytes": 316904,
+        "stored_frame_bytes": 19661,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 195,
+        "baseline_missing": 0
+      },
+      {
+        "name": "public_account",
+        "records": 187,
+        "decoded_bytes": 188061,
+        "stored_frame_bytes": 18050,
+        "unchanged": 11,
+        "unchanged_zero": 10,
+        "changed": 176,
+        "baseline_missing": 0
+      },
+      {
+        "name": "bank",
+        "records": 117,
+        "decoded_bytes": 151964,
+        "stored_frame_bytes": 14525,
+        "unchanged": 2,
+        "unchanged_zero": 1,
+        "changed": 110,
+        "baseline_missing": 5
+      },
+      {
+        "name": "bank_account",
+        "records": 50,
+        "decoded_bytes": 49259,
+        "stored_frame_bytes": 8320,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 50,
+        "baseline_missing": 0
+      },
+      {
+        "name": "tile/plot",
+        "records": 24,
+        "decoded_bytes": 30517,
+        "stored_frame_bytes": 6717,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 12,
+        "baseline_missing": 12
+      },
+      {
+        "name": "fx_desk",
+        "records": 23,
+        "decoded_bytes": 24575,
+        "stored_frame_bytes": 2443,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 22,
+        "baseline_missing": 0
+      },
+      {
+        "name": "tile/operation",
+        "records": 13,
+        "decoded_bytes": 20213,
+        "stored_frame_bytes": 3073,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 13
+      },
+      {
+        "name": "nation/tile",
+        "records": 9,
+        "decoded_bytes": 12401,
+        "stored_frame_bytes": 900,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 9
+      },
+      {
+        "name": "tile/intent",
+        "records": 4,
+        "decoded_bytes": 6537,
+        "stored_frame_bytes": 982,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 2
+      },
+      {
+        "name": "province/charity",
+        "records": 4,
+        "decoded_bytes": 3962,
+        "stored_frame_bytes": 767,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 4,
+        "baseline_missing": 0
+      },
+      {
+        "name": "nation_pair",
+        "records": 3,
+        "decoded_bytes": 2532,
+        "stored_frame_bytes": 326,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 3,
+        "baseline_missing": 0
+      },
+      {
+        "name": "tile/contractor",
+        "records": 2,
+        "decoded_bytes": 5123,
+        "stored_frame_bytes": 447,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 2,
+        "baseline_missing": 0
+      },
+      {
+        "name": "tile/project",
+        "records": 2,
+        "decoded_bytes": 2321,
+        "stored_frame_bytes": 260,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 2,
+        "baseline_missing": 0
+      },
+      {
+        "name": "(none)",
+        "records": 2,
+        "decoded_bytes": 680,
+        "stored_frame_bytes": 215,
+        "unchanged": 0,
+        "unchanged_zero": 0,
+        "changed": 0,
+        "baseline_missing": 0
+      }
+    ]
+  },
+  "observed_tile_count": 1000,
+  "wilderness_tile_count_inferred_from_formula": 988,
+  "wilderness_all_records": {
+    "records": 239103,
+    "decoded_bytes": 140740422,
+    "stored_frame_bytes": 10124512,
+    "unchanged": 228222,
+    "unchanged_zero": 183762,
+    "changed": 13,
+    "baseline_missing": 10868
+  },
+  "other_tile_records": {
+    "records": 15652,
+    "decoded_bytes": 24046415,
+    "stored_frame_bytes": 1453978,
+    "unchanged": 2495,
+    "unchanged_zero": 1715,
+    "changed": 3402,
+    "baseline_missing": 9755
+  },
+  "wilderness_snapshots": {
+    "records": 177840,
+    "decoded_bytes": 98495246,
+    "stored_frame_bytes": 7296200,
+    "unchanged": 177834,
+    "unchanged_zero": 153134,
+    "changed": 6,
+    "baseline_missing": 0
+  },
+  "other_tile_snapshots": {
+    "records": 1881,
+    "decoded_bytes": 1171549,
+    "stored_frame_bytes": 98963,
+    "unchanged": 1418,
+    "unchanged_zero": 1039,
+    "changed": 453,
+    "baseline_missing": 10
+  },
+  "snapshot_metrics": [
+    {
+      "name": "goods.price",
+      "records": 19000,
+      "decoded_bytes": 10312065,
+      "stored_frame_bytes": 649248,
+      "unchanged": 18951,
+      "unchanged_zero": 0,
+      "changed": 49,
+      "baseline_missing": 0
+    },
+    {
+      "name": "economy.gini",
+      "records": 18012,
+      "decoded_bytes": 11214444,
+      "stored_frame_bytes": 827544,
+      "unchanged": 18012,
+      "unchanged_zero": 18012,
+      "changed": 0,
+      "baseline_missing": 0
+    },
+    {
+      "name": "goods.production",
+      "records": 18000,
+      "decoded_bytes": 9795128,
+      "stored_frame_bytes": 670511,
+      "unchanged": 17964,
+      "unchanged_zero": 17961,
+      "changed": 36,
+      "baseline_missing": 0
+    },
+    {
+      "name": "goods.producer_inventory",
+      "records": 18000,
+      "decoded_bytes": 9680250,
+      "stored_frame_bytes": 620478,
+      "unchanged": 17976,
+      "unchanged_zero": 17976,
+      "changed": 24,
+      "baseline_missing": 0
+    },
+    {
+      "name": "goods.demand",
+      "records": 17847,
+      "decoded_bytes": 9511749,
+      "stored_frame_bytes": 664322,
+      "unchanged": 17790,
+      "unchanged_zero": 17784,
+      "changed": 54,
+      "baseline_missing": 3
+    },
+    {
+      "name": "goods.supply",
+      "records": 17847,
+      "decoded_bytes": 9511768,
+      "stored_frame_bytes": 605346,
+      "unchanged": 17808,
+      "unchanged_zero": 17784,
+      "changed": 36,
+      "baseline_missing": 3
+    },
+    {
+      "name": "goods.sold",
+      "records": 17843,
+      "decoded_bytes": 9328796,
+      "stored_frame_bytes": 640322,
+      "unchanged": 17807,
+      "unchanged_zero": 17784,
+      "changed": 36,
+      "baseline_missing": 0
+    },
+    {
+      "name": "health.active_disease_cases",
+      "records": 5000,
+      "decoded_bytes": 3195450,
+      "stored_frame_bytes": 281916,
+      "unchanged": 4998,
+      "unchanged_zero": 4998,
+      "changed": 2,
+      "baseline_missing": 0
+    },
+    {
+      "name": "health.disease_cases",
+      "records": 5000,
+      "decoded_bytes": 2676330,
+      "stored_frame_bytes": 160905,
+      "unchanged": 4994,
+      "unchanged_zero": 4994,
+      "changed": 6,
+      "baseline_missing": 0
+    },
+    {
+      "name": "finance.tax_distribution",
+      "records": 4000,
+      "decoded_bytes": 2595229,
+      "stored_frame_bytes": 219311,
+      "unchanged": 3994,
+      "unchanged_zero": 3994,
+      "changed": 6,
+      "baseline_missing": 0
+    },
+    {
+      "name": "people.population",
+      "records": 1003,
+      "decoded_bytes": 607761,
+      "stored_frame_bytes": 65604,
+      "unchanged": 1003,
+      "unchanged_zero": 988,
+      "changed": 0,
+      "baseline_missing": 0
+    },
+    {
+      "name": "people.deaths",
+      "records": 1003,
+      "decoded_bytes": 612740,
+      "stored_frame_bytes": 57902,
+      "unchanged": 1003,
+      "unchanged_zero": 1003,
+      "changed": 0,
+      "baseline_missing": 0
+    },
+    {
+      "name": "people.births",
+      "records": 1003,
+      "decoded_bytes": 612740,
+      "stored_frame_bytes": 43912,
+      "unchanged": 1003,
+      "unchanged_zero": 1003,
+      "changed": 0,
+      "baseline_missing": 0
+    },
+    {
+      "name": "people.residents",
+      "records": 1003,
+      "decoded_bytes": 606784,
+      "stored_frame_bytes": 53311,
+      "unchanged": 999,
+      "unchanged_zero": 988,
+      "changed": 4,
+      "baseline_missing": 0
+    },
+    {
+      "name": "politics.protest_energy",
+      "records": 1003,
+      "decoded_bytes": 522556,
+      "stored_frame_bytes": 57331,
+      "unchanged": 988,
+      "unchanged_zero": 988,
+      "changed": 15,
+      "baseline_missing": 0
+    },
+    {
+      "name": "economy.gdp_nominal",
+      "records": 1003,
+      "decoded_bytes": 633294,
+      "stored_frame_bytes": 58987,
+      "unchanged": 988,
+      "unchanged_zero": 988,
+      "changed": 15,
+      "baseline_missing": 0
+    },
+    {
+      "name": "living.cost_of_living",
+      "records": 1003,
+      "decoded_bytes": 544223,
+      "stored_frame_bytes": 70103,
+      "unchanged": 988,
+      "unchanged_zero": 0,
+      "changed": 15,
+      "baseline_missing": 0
+    },
+    {
+      "name": "people.population_change_rate",
+      "records": 1000,
+      "decoded_bytes": 643890,
+      "stored_frame_bytes": 68877,
+      "unchanged": 1000,
+      "unchanged_zero": 1000,
+      "changed": 0,
+      "baseline_missing": 0
+    },
+    {
+      "name": "trade.trader_cash",
+      "records": 1000,
+      "decoded_bytes": 620022,
+      "stored_frame_bytes": 58736,
+      "unchanged": 988,
+      "unchanged_zero": 988,
+      "changed": 12,
+      "baseline_missing": 0
+    },
+    {
+      "name": "trade.pipeline_depth",
+      "records": 1000,
+      "decoded_bytes": 619890,
+      "stored_frame_bytes": 59637,
+      "unchanged": 1000,
+      "unchanged_zero": 1000,
+      "changed": 0,
+      "baseline_missing": 0
+    },
+    {
+      "name": "people.hungry",
+      "records": 1000,
+      "decoded_bytes": 505090,
+      "stored_frame_bytes": 44322,
+      "unchanged": 988,
+      "unchanged_zero": 988,
+      "changed": 12,
+      "baseline_missing": 0
+    },
+    {
+      "name": "trade.export_value",
+      "records": 1000,
+      "decoded_bytes": 620758,
+      "stored_frame_bytes": 54958,
+      "unchanged": 1000,
+      "unchanged_zero": 1000,
+      "changed": 0,
+      "baseline_missing": 0
+    },
+    {
+      "name": "trade.import_value",
+      "records": 1000,
+      "decoded_bytes": 620758,
+      "stored_frame_bytes": 41648,
+      "unchanged": 1000,
+      "unchanged_zero": 1000,
+      "changed": 0,
+      "baseline_missing": 0
+    },
+    {
+      "name": "trade.net_value",
+      "records": 1000,
+      "decoded_bytes": 617758,
+      "stored_frame_bytes": 43772,
+      "unchanged": 1000,
+      "unchanged_zero": 1000,
+      "changed": 0,
+      "baseline_missing": 0
+    },
+    {
+      "name": "labor.average_shift_hours",
+      "records": 1000,
+      "decoded_bytes": 522066,
+      "stored_frame_bytes": 68767,
+      "unchanged": 1000,
+      "unchanged_zero": 0,
+      "changed": 0,
+      "baseline_missing": 0
+    },
+    {
+      "name": "labor.statutory_workday",
+      "records": 1000,
+      "decoded_bytes": 618890,
+      "stored_frame_bytes": 66139,
+      "unchanged": 1000,
+      "unchanged_zero": 0,
+      "changed": 0,
+      "baseline_missing": 0
+    },
+    {
+      "name": "labor.average_alienation",
+      "records": 1000,
+      "decoded_bytes": 521663,
+      "stored_frame_bytes": 44248,
+      "unchanged": 988,
+      "unchanged_zero": 988,
+      "changed": 12,
+      "baseline_missing": 0
+    },
+    {
+      "name": "labor.average_class_consciousness",
+      "records": 1000,
+      "decoded_bytes": 530162,
+      "stored_frame_bytes": 50980,
+      "unchanged": 997,
+      "unchanged_zero": 997,
+      "changed": 3,
+      "baseline_missing": 0
+    },
+    {
+      "name": "labor.exploitation_rate",
+      "records": 1000,
+      "decoded_bytes": 520066,
+      "stored_frame_bytes": 43904,
+      "unchanged": 1000,
+      "unchanged_zero": 1000,
+      "changed": 0,
+      "baseline_missing": 0
+    },
+    {
+      "name": "labor.surplus_value",
+      "records": 1000,
+      "decoded_bytes": 534066,
+      "stored_frame_bytes": 47025,
+      "unchanged": 1000,
+      "unchanged_zero": 1000,
+      "changed": 0,
+      "baseline_missing": 0
+    },
+    {
+      "name": "labor.strikers",
+      "records": 1000,
+      "decoded_bytes": 512066,
+      "stored_frame_bytes": 40246,
+      "unchanged": 1000,
+      "unchanged_zero": 1000,
+      "changed": 0,
+      "baseline_missing": 0
+    },
+    {
+      "name": "labor.workplace_accidents",
+      "records": 1000,
+      "decoded_bytes": 526066,
+      "stored_frame_bytes": 53064,
+      "unchanged": 1000,
+      "unchanged_zero": 1000,
+      "changed": 0,
+      "baseline_missing": 0
+    },
+    {
+      "name": "society.entertainment_level",
+      "records": 1000,
+      "decoded_bytes": 524066,
+      "stored_frame_bytes": 55515,
+      "unchanged": 1000,
+      "unchanged_zero": 1000,
+      "changed": 0,
+      "baseline_missing": 0
+    },
+    {
+      "name": "labor.machinery_sabotaged",
+      "records": 1000,
+      "decoded_bytes": 531066,
+      "stored_frame_bytes": 54769,
+      "unchanged": 1000,
+      "unchanged_zero": 1000,
+      "changed": 0,
+      "baseline_missing": 0
+    },
+    {
+      "name": "labor.broken_machinery",
+      "records": 1000,
+      "decoded_bytes": 519066,
+      "stored_frame_bytes": 42350,
+      "unchanged": 1000,
+      "unchanged_zero": 1000,
+      "changed": 0,
+      "baseline_missing": 0
+    },
+    {
+      "name": "labor.hungry_adults",
+      "records": 1000,
+      "decoded_bytes": 607896,
+      "stored_frame_bytes": 56487,
+      "unchanged": 988,
+      "unchanged_zero": 988,
+      "changed": 12,
+      "baseline_missing": 0
+    },
+    {
+      "name": "labor.temporary_work_share",
+      "records": 1000,
+      "decoded_bytes": 631243,
+      "stored_frame_bytes": 65147,
+      "unchanged": 995,
+      "unchanged_zero": 988,
+      "changed": 5,
+      "baseline_missing": 0
+    },
+    {
+      "name": "politics.unrest_event",
+      "records": 1000,
+      "decoded_bytes": 512103,
+      "stored_frame_bytes": 59026,
+      "unchanged": 991,
+      "unchanged_zero": 0,
+      "changed": 9,
+      "baseline_missing": 0
+    },
+    {
+      "name": "ecology.soil_fertility",
+      "records": 1000,
+      "decoded_bytes": 519297,
+      "stored_frame_bytes": 57215,
+      "unchanged": 988,
+      "unchanged_zero": 0,
+      "changed": 12,
+      "baseline_missing": 0
+    },
+    {
+      "name": "ecology.nutrition_density",
+      "records": 1000,
+      "decoded_bytes": 522066,
+      "stored_frame_bytes": 43827,
+      "unchanged": 1000,
+      "unchanged_zero": 0,
+      "changed": 0,
+      "baseline_missing": 0
+    },
+    {
+      "name": "ecology.pollution_air",
+      "records": 1000,
+      "decoded_bytes": 518066,
+      "stored_frame_bytes": 49832,
+      "unchanged": 1000,
+      "unchanged_zero": 1000,
+      "changed": 0,
+      "baseline_missing": 0
+    },
+    {
+      "name": "ecology.pollution_water",
+      "records": 1000,
+      "decoded_bytes": 521352,
+      "stored_frame_bytes": 39586,
+      "unchanged": 982,
+      "unchanged_zero": 982,
+      "changed": 18,
+      "baseline_missing": 0
+    },
+    {
+      "name": "ecology.pollution_soil",
+      "records": 1000,
+      "decoded_bytes": 519066,
+      "stored_frame_bytes": 37096,
+      "unchanged": 1000,
+      "unchanged_zero": 1000,
+      "changed": 0,
+      "baseline_missing": 0
+    },
+    {
+      "name": "health.average_bodily_wear",
+      "records": 1000,
+      "decoded_bytes": 534508,
+      "stored_frame_bytes": 62732,
+      "unchanged": 988,
+      "unchanged_zero": 988,
+      "changed": 12,
+      "baseline_missing": 0
+    },
+    {
+      "name": "health.medical_spending",
+      "records": 1000,
+      "decoded_bytes": 529078,
+      "stored_frame_bytes": 53735,
+      "unchanged": 994,
+      "unchanged_zero": 994,
+      "changed": 6,
+      "baseline_missing": 0
+    },
+    {
+      "name": "health.untreated_cases",
+      "records": 1000,
+      "decoded_bytes": 519066,
+      "stored_frame_bytes": 44632,
+      "unchanged": 1000,
+      "unchanged_zero": 1000,
+      "changed": 0,
+      "baseline_missing": 0
+    },
+    {
+      "name": "health.fatalities",
+      "records": 1000,
+      "decoded_bytes": 515066,
+      "stored_frame_bytes": 42454,
+      "unchanged": 1000,
+      "unchanged_zero": 1000,
+      "changed": 0,
+      "baseline_missing": 0
+    },
+    {
+      "name": "finance.rent_collected",
+      "records": 1000,
+      "decoded_bytes": 528066,
+      "stored_frame_bytes": 46510,
+      "unchanged": 1000,
+      "unchanged_zero": 1000,
+      "changed": 0,
+      "baseline_missing": 0
+    },
+    {
+      "name": "finance.rent_arrears",
+      "records": 1000,
+      "decoded_bytes": 526066,
+      "stored_frame_bytes": 40213,
+      "unchanged": 1000,
+      "unchanged_zero": 1000,
+      "changed": 0,
+      "baseline_missing": 0
+    },
+    {
+      "name": "politics.faction_support",
+      "records": 168,
+      "decoded_bytes": 122174,
+      "stored_frame_bytes": 16655,
+      "unchanged": 8,
+      "unchanged_zero": 8,
+      "changed": 160,
+      "baseline_missing": 0
+    },
+    {
+      "name": "politics.faction_grievance",
+      "records": 168,
+      "decoded_bytes": 122249,
+      "stored_frame_bytes": 8856,
+      "unchanged": 0,
+      "unchanged_zero": 0,
+      "changed": 168,
+      "baseline_missing": 0
+    },
+    {
+      "name": "goods.national_reference_price",
+      "records": 57,
+      "decoded_bytes": 38764,
+      "stored_frame_bytes": 3152,
+      "unchanged": 42,
+      "unchanged_zero": 0,
+      "changed": 15,
+      "baseline_missing": 0
+    },
+    {
+      "name": "labor.primary_livelihood",
+      "records": 48,
+      "decoded_bytes": 30502,
+      "stored_frame_bytes": 2897,
+      "unchanged": 46,
+      "unchanged_zero": 0,
+      "changed": 2,
+      "baseline_missing": 0
+    },
+    {
+      "name": "labor.employment_status",
+      "records": 27,
+      "decoded_bytes": 17039,
+      "stored_frame_bytes": 1620,
+      "unchanged": 23,
+      "unchanged_zero": 0,
+      "changed": 2,
+      "baseline_missing": 2
+    },
+    {
+      "name": "innovation.domain_experience",
+      "records": 15,
+      "decoded_bytes": 10141,
+      "stored_frame_bytes": 939,
+      "unchanged": 3,
+      "unchanged_zero": 3,
+      "changed": 12,
+      "baseline_missing": 0
+    },
+    {
+      "name": "finance.bank_capital",
+      "records": 12,
+      "decoded_bytes": 7871,
+      "stored_frame_bytes": 1220,
+      "unchanged": 2,
+      "unchanged_zero": 0,
+      "changed": 10,
+      "baseline_missing": 0
+    },
+    {
+      "name": "finance.bank_equity",
+      "records": 12,
+      "decoded_bytes": 7905,
+      "stored_frame_bytes": 1039,
+      "unchanged": 0,
+      "unchanged_zero": 0,
+      "changed": 12,
+      "baseline_missing": 0
+    },
+    {
+      "name": "finance.bank_deposits",
+      "records": 12,
+      "decoded_bytes": 7862,
+      "stored_frame_bytes": 984,
+      "unchanged": 0,
+      "unchanged_zero": 0,
+      "changed": 12,
+      "baseline_missing": 0
+    },
+    {
+      "name": "finance.bank_liabilities",
+      "records": 12,
+      "decoded_bytes": 7722,
+      "stored_frame_bytes": 900,
+      "unchanged": 2,
+      "unchanged_zero": 2,
+      "changed": 10,
+      "baseline_missing": 0
+    },
+    {
+      "name": "finance.bank_cumulative_writedowns",
+      "records": 12,
+      "decoded_bytes": 6464,
+      "stored_frame_bytes": 661,
+      "unchanged": 12,
+      "unchanged_zero": 12,
+      "changed": 0,
+      "baseline_missing": 0
+    },
+    {
+      "name": "land.pasture_fraction",
+      "records": 12,
+      "decoded_bytes": 7508,
+      "stored_frame_bytes": 814,
+      "unchanged": 9,
+      "unchanged_zero": 9,
+      "changed": 3,
+      "baseline_missing": 0
+    },
+    {
+      "name": "finance.government_income",
+      "records": 12,
+      "decoded_bytes": 7595,
+      "stored_frame_bytes": 928,
+      "unchanged": 7,
+      "unchanged_zero": 7,
+      "changed": 5,
+      "baseline_missing": 0
+    },
+    {
+      "name": "finance.tax_rate",
+      "records": 5,
+      "decoded_bytes": 3059,
+      "stored_frame_bytes": 314,
+      "unchanged": 5,
+      "unchanged_zero": 0,
+      "changed": 0,
+      "baseline_missing": 0
+    },
+    {
+      "name": "finance.fiscal_gap",
+      "records": 5,
+      "decoded_bytes": 3106,
+      "stored_frame_bytes": 332,
+      "unchanged": 3,
+      "unchanged_zero": 3,
+      "changed": 2,
+      "baseline_missing": 0
+    },
+    {
+      "name": "construction.progress",
+      "records": 3,
+      "decoded_bytes": 1908,
+      "stored_frame_bytes": 286,
+      "unchanged": 0,
+      "unchanged_zero": 0,
+      "changed": 1,
+      "baseline_missing": 2
+    },
+    {
+      "name": "finance.treasury",
+      "records": 3,
+      "decoded_bytes": 1956,
+      "stored_frame_bytes": 283,
+      "unchanged": 0,
+      "unchanged_zero": 0,
+      "changed": 3,
+      "baseline_missing": 0
+    },
+    {
+      "name": "politics.legitimacy",
+      "records": 3,
+      "decoded_bytes": 1998,
+      "stored_frame_bytes": 290,
+      "unchanged": 0,
+      "unchanged_zero": 0,
+      "changed": 3,
+      "baseline_missing": 0
+    },
+    {
+      "name": "goods.national_food_price",
+      "records": 3,
+      "decoded_bytes": 2050,
+      "stored_frame_bytes": 134,
+      "unchanged": 1,
+      "unchanged_zero": 0,
+      "changed": 2,
+      "baseline_missing": 0
+    }
+  ],
+  "snapshot_explanation_status": {
+    "calculation_recorded": 43635,
+    "source_missing": 136524
+  },
+  "snapshot_duplicate_subject_metric_rows": 0,
+  "candidates": [
+    {
+      "name": "snapshot_unchanged_zero",
+      "records": 154190,
+      "decoded_bytes": 85782926,
+      "stored_frame_bytes": 6345873,
+      "unchanged": 154190,
+      "unchanged_zero": 154190,
+      "changed": 0,
+      "baseline_missing": 0,
+      "referenced_records": 0,
+      "records_referenced_by_later_turn": 0
+    },
+    {
+      "name": "snapshot_unchanged_nonzero",
+      "records": 25126,
+      "decoded_bytes": 13625064,
+      "stored_frame_bytes": 1020892,
+      "unchanged": 25126,
+      "unchanged_zero": 0,
+      "changed": 0,
+      "baseline_missing": 0,
+      "referenced_records": 354,
+      "records_referenced_by_later_turn": 354
+    },
+    {
+      "name": "price_bridge_empty_unchanged",
+      "records": 18925,
+      "decoded_bytes": 11038256,
+      "stored_frame_bytes": 1033774,
+      "unchanged": 18925,
+      "unchanged_zero": 0,
+      "changed": 0,
+      "baseline_missing": 0,
+      "referenced_records": 0,
+      "records_referenced_by_later_turn": 0
+    },
+    {
+      "name": "wilderness_gini_constant",
+      "records": 18772,
+      "decoded_bytes": 14102674,
+      "stored_frame_bytes": 784847,
+      "unchanged": 18772,
+      "unchanged_zero": 18772,
+      "changed": 0,
+      "baseline_missing": 0,
+      "referenced_records": 18772,
+      "records_referenced_by_later_turn": 18772
+    },
+    {
+      "name": "zero_census_or_population_record",
+      "records": 9965,
+      "decoded_bytes": 6769941,
+      "stored_frame_bytes": 371680,
+      "unchanged": 1976,
+      "unchanged_zero": 1976,
+      "changed": 3,
+      "baseline_missing": 7986,
+      "referenced_records": 9965,
+      "records_referenced_by_later_turn": 0
+    },
+    {
+      "name": "gini_retains_previous",
+      "records": 240,
+      "decoded_bytes": 187720,
+      "stored_frame_bytes": 13865,
+      "unchanged": 240,
+      "unchanged_zero": 240,
+      "changed": 0,
+      "baseline_missing": 0,
+      "referenced_records": 240,
+      "records_referenced_by_later_turn": 240
+    }
+  ],
+  "top_level_field_decoded_bytes": {
+    "inputs": 39392377,
+    "event_id": 15721560,
+    "subject": 13470249,
+    "run_id": 13363326,
+    "cause_event_ids": 9394405,
+    "explanation_status": 8010807,
+    "metric_id": 7955435,
+    "record_class": 7180246,
+    "kind": 6866125,
+    "confidence": 5519274,
+    "unit": 5341964,
+    "branch_id": 4716468,
+    "schema_version": 4716468,
+    "phase": 4591114,
+    "value_after": 4458422,
+    "sequence": 4454442,
+    "value_before": 4276353,
+    "formula_replay": 2994182,
+    "delta": 2574592,
+    "epoch": 2358234,
+    "formula_id": 2315594,
+    "turn": 2096208,
+    "constraints": 10032,
+    "decision_id": 7167,
+    "operation_id": 300,
+    "sha256_before": 82,
+    "count_before": 21
+  },
+  "examples": {
+    "gini_series_calculation": {
+      "branch_id": "main",
+      "cause_event_ids": [
+        "desktop-fe540ef3f39846748a2e197d55558ddc:1692"
+      ],
+      "confidence": "exact",
+      "delta": 0,
+      "epoch": 1,
+      "event_id": "desktop-fe540ef3f39846748a2e197d55558ddc:262714",
+      "formula_id": "gini.retain_previous_value.v1",
+      "formula_replay": {
+        "actual": 0,
+        "expected": 0,
+        "matches": true
+      },
+      "inputs": {
+        "initial_empty_series": false,
+        "output_good": "food",
+        "previous_gini": 0,
+        "recomputed_this_turn": false,
+        "refresh_interval_turns": 10,
+        "sample_point": "native_local_history_write"
+      },
+      "kind": "gini_series_calculation",
+      "metric_id": "economy.gini",
+      "phase": "local",
+      "record_class": "calculation",
+      "run_id": "desktop-fe540ef3f39846748a2e197d55558ddc",
+      "schema_version": 1,
+      "sequence": 262714,
+      "subject": {
+        "good": "food",
+        "id": "c935",
+        "type": "tile"
+      },
+      "turn": 2,
+      "unit": "ratio",
+      "value_after": 0,
+      "value_before": 0
+    },
+    "closing_active_disease_census": {
+      "branch_id": "main",
+      "confidence": "exact",
+      "epoch": 1,
+      "event_id": "desktop-fe540ef3f39846748a2e197d55558ddc:315682",
+      "formula_id": "disease.count_active_cases.v1",
+      "formula_replay": {
+        "actual": 0,
+        "expected": 0,
+        "matches": true
+      },
+      "inputs": {
+        "case_agent_ids": [],
+        "disease": "malnutrition",
+        "sample_point": "closing_live_state"
+      },
+      "kind": "closing_active_disease_census",
+      "metric_id": "health.active_disease_cases",
+      "phase": "snapshot",
+      "record_class": "calculation",
+      "run_id": "desktop-fe540ef3f39846748a2e197d55558ddc",
+      "schema_version": 1,
+      "sequence": 315682,
+      "subject": {
+        "disease": "malnutrition",
+        "id": "c0",
+        "type": "tile"
+      },
+      "turn": 2,
+      "unit": "people",
+      "value_after": 0
+    },
+    "metric_snapshot": {
+      "branch_id": "main",
+      "cause_event_ids": [
+        "desktop-fe540ef3f39846748a2e197d55558ddc:313514"
+      ],
+      "confidence": "exact",
+      "delta": 0.1370250000006763,
+      "epoch": 1,
+      "event_id": "desktop-fe540ef3f39846748a2e197d55558ddc:323769",
+      "explanation_status": "calculation_recorded",
+      "inputs": {
+        "source_event_id": "desktop-fe540ef3f39846748a2e197d55558ddc:313514"
+      },
+      "kind": "metric_snapshot",
+      "metric_id": "finance.bank_capital",
+      "phase": "snapshot",
+      "record_class": "observation",
+      "run_id": "desktop-fe540ef3f39846748a2e197d55558ddc",
+      "schema_version": 1,
+      "sequence": 323769,
+      "subject": {
+        "id": "c0",
+        "type": "tile"
+      },
+      "turn": 2,
+      "unit": "local_currency",
+      "value_after": 1999.9908450000007,
+      "value_before": 1999.85382
+    },
+    "price_bridge": {
+      "branch_id": "main",
+      "cause_event_ids": [
+        "desktop-fe540ef3f39846748a2e197d55558ddc:263696"
+      ],
+      "confidence": "exact",
+      "delta": 0.0763135310156009,
+      "epoch": 1,
+      "event_id": "desktop-fe540ef3f39846748a2e197d55558ddc:323774",
+      "explanation_status": "ordered_writes_reconciled",
+      "inputs": {
+        "absolute_change": 0.0763135310156009,
+        "gaps": [],
+        "percent_change": 7.63135310156009,
+        "steps": [
+          {
+            "after": 1.076313531015601,
+            "before": 1.0,
+            "difference": 0.0763135310156009,
+            "event_id": "desktop-fe540ef3f39846748a2e197d55558ddc:263696",
+            "kind": "market_price_update"
+          }
+        ]
+      },
+      "kind": "price_bridge",
+      "metric_id": "goods.price",
+      "phase": "snapshot",
+      "record_class": "audit",
+      "run_id": "desktop-fe540ef3f39846748a2e197d55558ddc",
+      "schema_version": 1,
+      "sequence": 323774,
+      "subject": {
+        "good": "food",
+        "id": "c0",
+        "type": "tile"
+      },
+      "turn": 2,
+      "unit": "local_currency_per_unit",
+      "value_after": 1.076313531015601,
+      "value_before": 1.0
+    }
+  },
+  "methodology": {
+    "stored_frame_bytes": "Exact frame extents; compression dictionaries cross rows, so not a prediction of savings.",
+    "candidate_counts": "Categories can overlap; these are investigation targets, not proven removable records.",
+    "references": "Exact run event-ID strings across all payload fields in all three turns; each referencing row counted once per target.",
+    "wilderness": "Inferred from gini.wilderness_zero.v1 in this same turn; not from whether a delta is zero."
+  }
+}

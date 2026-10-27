@@ -1,0 +1,42 @@
+{
+  "source": "/Users/sli/Code/tmp/traces/desktop-fe540ef3f39846748a2e197d55558ddc.ctr",
+  "turn": 2,
+  "batch_logical_limit": 128,
+  "batch_source_bytes_limit": 524288,
+  "results": [
+    {
+      "mode": "baseline",
+      "logical_events": 262026,
+      "physical_frames": 262026,
+      "encode_and_append_seconds": 3.0029298258014023,
+      "encoded_payload_bytes": 177512576,
+      "stored_bytes": 12598247,
+      "expanded_canonical_sha256": "d21735cf8d02984b5e0a9bde9519713af44ce065618b5fcf798eae8cf37833b4",
+      "timed_rolling_digest": "1b496254af2fe6b21084727f9222791a5f35c18acf756768f03588ef46bd3713",
+      "timed_digest_scope": "canonical_logical_events"
+    },
+    {
+      "mode": "packed_seekable_physical_digest",
+      "logical_events": 262026,
+      "physical_frames": 2054,
+      "encode_and_append_seconds": 1.3098803614266217,
+      "encoded_payload_bytes": 87727191,
+      "stored_bytes": 5261822,
+      "expanded_canonical_sha256": "d21735cf8d02984b5e0a9bde9519713af44ce065618b5fcf798eae8cf37833b4",
+      "timed_rolling_digest": "fb463fc107640c75ef72a0657fd8b06049d973dc48314110ea79ed2e69a54716",
+      "timed_digest_scope": "packed_payload"
+    },
+    {
+      "mode": "packed_seekable_legacy_digest",
+      "logical_events": 262026,
+      "physical_frames": 2054,
+      "encode_and_append_seconds": 2.6678086719475687,
+      "encoded_payload_bytes": 87727191,
+      "stored_bytes": 5261822,
+      "expanded_canonical_sha256": "d21735cf8d02984b5e0a9bde9519713af44ce065618b5fcf798eae8cf37833b4",
+      "timed_rolling_digest": "1b496254af2fe6b21084727f9222791a5f35c18acf756768f03588ef46bd3713",
+      "timed_digest_scope": "canonical_logical_events"
+    }
+  ],
+  "limits": "Times include encoding, append/compression, and the stated rolling hash, but exclude source decoding, simulation work, live recorder indexes/caches, and production index integration. Physical-scope hashing would require versioned checkpoint semantics. Offline representation experiment, not a game speed benchmark."
+}
