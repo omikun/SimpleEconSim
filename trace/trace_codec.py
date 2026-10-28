@@ -16,6 +16,7 @@ import zlib
 from trace_packing import canonical, freeze, pack, unpack, PreparedEvent, COVERAGE_RULE, BASELINE_RULE
 from trace_state_coverage import (CoverageBuffer, CoverageGroup, CoverageSample, capture_cell,
                             validate_group, context_of, expand_cell, expanded_count)
+from wilderness_trace import validate_record as validate_wilderness_record
 
 MAGIC = b'COCTRACE5\n'
 PACKED_MAGIC = b'COCTRACE4\n'
@@ -297,6 +298,7 @@ def iter_storage_records(path, *, start_offset=None, end_offset=None):
             if count is not None and count != prior_count: raise ValueError('packed logical count mismatch')
             after = hashlib.sha256(payload.encode()).hexdigest(); rows = list(unpack(envelope['packet']))
             for row in rows:
+                validate_wilderness_record(row)
                 if row.get('kind') == 'state_coverage':
                     if version != 5: raise ValueError('state coverage requires V5')
                     validate_group(row)

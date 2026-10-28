@@ -19,9 +19,11 @@ def attach(world):
     clock={'turn':world.get('turn',0),'epoch':0,'next':1,'phase':'setup'}
     for source in [*tiles,*nations]:
         source._run_trace=trace;source._collective_trace_clock=clock
+    trace.wilderness.register(tiles,nations)
     trace.bank_book.register_tiles(tiles,clock)
     trace.treasury_book.register_nations(nations,clock)
     for tile in tiles:forex.flush_pending_trader_float_traces(tile)
+    trace.wilderness.record(tiles,clock)
     session=SimpleNamespace(tiles=tiles,nations=nations,run_trace=trace,_nation_history={})
     session._trace_previous_labor_censuses=capture_labor_censuses(tiles)
     session._trace_previous=sample(tiles,nations,labor_censuses=session._trace_previous_labor_censuses)

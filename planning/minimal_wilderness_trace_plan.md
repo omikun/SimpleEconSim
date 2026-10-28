@@ -1,9 +1,10 @@
 # Minimal wilderness trace policy
 
 Design and feasibility analysis: 2026-10-27, game implementation `1cbb5fa`.
-User request: work out how to remove most wilderness tracing while preserving
-explanations of meaningful events. Production recording is unchanged by this
-analysis; implementation steps are listed below.
+User request: remove most wilderness tracing while preserving explanations of
+meaningful events. The analysis below informed the implemented policy, validated
+2026-10-27 against base commit `5246fe9`. See the
+[implementation report](reports/minimal_wilderness_trace_implementation.md).
 
 ## Proposed change
 
@@ -207,28 +208,34 @@ RNG and all protected event values/constraints/source relationships, allowing
 explicit source-ID remapping and truthful new quote observations. Do not require
 equality to the padded observations deliberately removed.
 
-- [ ] Add policy metadata, eligibility, sparse initial state and bounded
+- [x] Add policy metadata, eligibility, sparse initial state and bounded
   exact-boundary coverage; retain a full diagnostic policy.
-- [ ] Add on-use price observations at every consumer; test accepted/rejected
+- [x] Add on-use price observations at the audited consumers; test accepted/rejected
   decisions, current values, changed values and valid source IDs.
-- [ ] Add all early sampler/emitter branches without per-good construction or
+- [x] Add early sampler/emitter branches without per-good construction or
   ID allocation for omitted defaults.
-- [ ] Add historical applicability/default handling and sparse lookup, with
+- [x] Add historical applicability/default handling and sparse lookup, with
   no unnecessary provider calls.
-- [ ] Test empty scaffolding versus real faction/cargo activity; homesteaders;
+- [x] Test empty scaffolding versus real faction/cargo activity; homesteaders;
   enter/leave/re-enter and same-turn migration; native population/displacement;
   successful/repelled claims; pollution; institutions and nation membership.
-- [ ] Preserve fiscal/financial legs, source links, gaps, unknown baselines,
+- [x] Preserve fiscal/financial legs, source links, gaps, unknown baselines,
   changed-to-zero cases and effects into later active turns.
-- [ ] Test command epochs, fixed prefixes, missing coverage, index rebuild,
+- [x] Test command epochs, fixed prefixes, missing coverage, index rebuild,
   corrupt/torn data, old formats, checkpoints and fresh-process forks.
-- [ ] Compare isolated full/minimal first-ten-turn default runs and profiles,
+- [x] Compare isolated full/minimal first-ten-turn default runs and profiles,
   full economic state/RNG, protected evidence, authored Egypt and focused
   frontier transitions. Report measured CPU, counts and query behavior.
-- [ ] Document results and commit the completed implementation without pushing.
+- [x] Document results and commit the completed implementation without pushing.
 
-Design and feasibility work above is complete; unchecked items are future
-implementation work. [Raw analysis](reports/minimal_wilderness_trace_analysis.json)
+Design, implementation and acceptance are complete and included in the delivery commit.
+Claim/displacement and wallet behavior retain their existing logs and regression
+coverage. This optimization does not add missing structured claim-source
+contracts. History scaffolding and the short three-good trade-flow check remain;
+the large per-stat economic sampler/emitter paths are bypassed. Nonempty or
+cause-bearing trade summaries remain even when their numeric total is zero.
+
+[Raw analysis](reports/minimal_wilderness_trace_analysis.json)
 contains the captured exceptions, fresh eligibility census and dependency scan.
 Local drivers: `tmp/analyze_minimal_wilderness_policy.py` and
 `tmp/check_wilderness_external_dependencies.py`. No model calls were used.

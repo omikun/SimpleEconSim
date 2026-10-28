@@ -39,7 +39,7 @@ also contains the hover preference.
 
 **Desktop:** Click a chart point or open an F11 evidence record, then use
 **Explain with AI** at the bottom right. F12 opens the general stat chooser.
-The chooser lists **only stats recorded for its selected entity and turn**,
+The chooser lists **recorded stats and explicitly checked frontier fields for its selected entity and turn**,
 with goods, professions, diseases, and other dimensions included automatically.
 Type to filter (for example `goods.price` or `good=food`), use Up/Down to select,
 and click a stat or press Enter to request its explanation. The first local
@@ -76,6 +76,17 @@ and selected material sources from both directions. Opposing changes and gross
 fiscal inflows/outflows remain visible even at zero net change. These summaries
 do not establish missing upstream causes; full regional detail stays in the
 trace inspector.
+
+Quiet wilderness has a compact frontier chooser: native population, resident
+count, ecological fields and capture-policy context, plus any actual events.
+Padded market, tax and labor chart statistics receive a local applicability
+explanation instead of “no trace found.” A tile can have background native
+inhabitants while having no resident agents or operating economy. These answers
+use recorded turn/epoch coverage and historical state, work without an API key,
+and never call the model. Uncovered turns remain unavailable. Actual changes,
+including pollution, retain ordinary causal evidence and the on-demand AI path.
+Reference-price evidence identifies its observation date and non-market basis;
+it does not establish a market-price delta.
 
 The loading screen remains visible through evidence collection, local history
 matching, model generation, and response validation. It shows the selected stat,

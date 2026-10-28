@@ -10,6 +10,44 @@ when restored by a compatible checkpoint build. Older application builds cannot
 read V5. Checkpoint source fingerprints still require compatible application
 sources; this change does not migrate old simulation pickles across builds.
 
+## Quiet wilderness capture
+
+New V5 runs use capture policy `minimal-wilderness.v1`. Quiet, unclaimed tiles
+without resident agents, institutions, active cargo, faction members, military
+or projects no longer generate padded economic observations. An empty faction
+system or empty route object alone does not make a tile active. Background
+native population is preserved separately from resident agents.
+
+At setup, bounded batches record six frontier fields: native population, soil
+fertility, nutrition density, and air/water/soil pollution. Each completed
+turn/command epoch records checked domain coverage in cohorts of at most 512
+tiles, with references to their recorded state. Actual field changes retain
+ordinary changed snapshots and a new state anchor. Missing coverage never means
+inactivity or an unchanged value; gaps require a fresh baseline. The index adds
+one row per cohort, without manufacturing per-stat observations for omitted
+chart defaults.
+
+Wilderness reference prices are captured when a real calculation consumes
+them. Sources identify recipe references without an operating market; they are
+not clearing prices or paid trades. A quote is reused only while its current
+value, units and regime remain valid. Route decisions and migration pressure
+retain actual numerical inputs and reference links. UI previews and F12 reads
+do not create observations.
+
+Pollution, migration, foraging, claims, shipments, financial legs and other
+actual activity remain recorded. Resident homesteaders and other active frontier
+tiles retain full capture. Regime changes invalidate cached reference sources;
+newly active economies retain unknown openings where no baseline was observed.
+Existing claim/ticker logs remain intact; sparse coverage does not create
+missing upstream causal evidence for those mechanisms.
+
+`COC_TRACE_WILDERNESS=full` selects diagnostic full capture for new runs.
+V3/V4 runs and saved runs without the new policy retain full capture on resume.
+New minimal-policy checkpoints preserve state anchors and consumed-price
+sources across forks. This is a capture reduction: expanded record counts also
+fall, and omitted padded facts are intentionally not reconstructed. V5 framing,
+digest scopes and checkpoint count meanings are unchanged.
+
 ## Unchanged stats
 
 A normal snapshot records the metric, subject dimensions, opening and closing

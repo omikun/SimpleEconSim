@@ -223,8 +223,10 @@ class SimServer:
                 nation._collective_trace_clock = setup_clock
             self.run_trace.bank_book.register_tiles(self.tiles, setup_clock)
             self.run_trace.treasury_book.register_nations(self.nations, setup_clock)
+            self.run_trace.wilderness.register(self.tiles,self.nations)
             for tile in self.tiles:
                 fx.flush_pending_trader_float_traces(tile)
+            self.run_trace.wilderness.record(self.tiles,setup_clock)
             from trace_snapshots import (entity_role_census, resident_census,
                                          sample)
             from labor_census_trace import capture_labor_censuses

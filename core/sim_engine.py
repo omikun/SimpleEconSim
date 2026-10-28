@@ -365,6 +365,9 @@ def step_turn(t: int, tiles: list, nations: list = None,
         r.net_trade_value_log.append(net_total)
         r.cumulative_trade_balance += net_total
         r.trade_flow_log.append(net_total)
+        from wilderness_trace import quiet
+        if quiet(r) and export_total == 0 and import_total == 0 and not export_rows and not import_event_ids:
+            continue
         currency = getattr(r, 'home_currency', None) or 'local_currency'
         export_event_id = emit(
             r, kind='trade_export_value_calculation',

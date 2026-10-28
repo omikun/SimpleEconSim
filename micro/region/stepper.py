@@ -58,6 +58,8 @@ def sample_effective_workday_cap(region: Any) -> float:
         region.workday_cap_log = history
     before = history[-1] if history else None
     history.append(cap)
+    from wilderness_trace import quiet
+    if quiet(region):return cap
     from run_trace import emit
     emit(region, kind='effective_workday_cap_sample',
          record_class='calculation', phase='local',

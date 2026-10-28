@@ -1,0 +1,1347 @@
+{
+  "date": "2026-10-27",
+  "base_commit": "5246fe9",
+  "capture_policy": "minimal-wilderness.v1",
+  "method": [
+    "Same source, isolated sequential new-process full/minimal runs with seed 777 and PYTHONHASHSEED=0.",
+    "V5 grouped tracing and native 1000-tile map; ten default turns, two Egypt steps (turns 2 and 3).",
+    "No heavy validation concurrent with timings; construction, canonical hashing, F12 index and profiling excluded from step timing.",
+    "Single timing run per policy; machine-specific observations, not a statistically repeated latency guarantee.",
+    "cProfile run is separate; cumulative times overlap and include profiler overhead.",
+    "Complete economic object graph, quantities, histories, registries and RNG compared; only registered domain UUIDs, observational recorder fields and journal-clock gaps normalized.",
+    "Padded wilderness facts are intentionally omitted; protected values and source relationships compared separately with explicit identity remapping."
+  ],
+  "runs": {
+    "default": {
+      "timing": {
+        "full": {
+          "mode": "timing",
+          "seed": 777,
+          "tiles": 1000,
+          "build_seconds": 0.4973392500542104,
+          "turns": [
+            {
+              "turn": 1,
+              "seconds": 2.9928758749738336,
+              "event_records": 56623,
+              "expanded_records": 261010
+            },
+            {
+              "turn": 2,
+              "seconds": 3.2563485829159617,
+              "event_records": 40263,
+              "expanded_records": 262026
+            },
+            {
+              "turn": 3,
+              "seconds": 3.155583333224058,
+              "event_records": 40108,
+              "expanded_records": 261935
+            },
+            {
+              "turn": 4,
+              "seconds": 3.3139117918908596,
+              "event_records": 40060,
+              "expanded_records": 261777
+            },
+            {
+              "turn": 5,
+              "seconds": 3.3341302922926843,
+              "event_records": 41270,
+              "expanded_records": 262996
+            },
+            {
+              "turn": 6,
+              "seconds": 3.227812458295375,
+              "event_records": 39339,
+              "expanded_records": 261048
+            },
+            {
+              "turn": 7,
+              "seconds": 3.231916334014386,
+              "event_records": 38666,
+              "expanded_records": 260388
+            },
+            {
+              "turn": 8,
+              "seconds": 3.447065958287567,
+              "event_records": 38345,
+              "expanded_records": 260013
+            },
+            {
+              "turn": 9,
+              "seconds": 3.4484910001046956,
+              "event_records": 39802,
+              "expanded_records": 261486
+            },
+            {
+              "turn": 10,
+              "seconds": 3.791266332846135,
+              "event_records": 43468,
+              "expanded_records": 265048
+            }
+          ],
+          "total_step_seconds": 33.199401958845556,
+          "trace": "/Users/sli/Code/tmp/traces/desktop-69cc6686d63e495ebaa5b26d9132cd98.ctr",
+          "trace_bytes": 47113174,
+          "event_records": 418081,
+          "expanded_records": 2617864,
+          "metrics_digest": "3d68a92039a1df2bf6022b8dfab40b6c5e9016d456bdc245bd4c217afb30a0f5",
+          "python_rng_digest": "a8645bc695911fcc96f38e54fb6ca47b7c77a5bb4d5c8c724b13a30128fcf7e5",
+          "numpy_rng_digest": "b4587759d63d8a810c3b5f8017d8a75a76ab15258462948f43893ca7ad8faca4",
+          "economic_state_digest": "bebb82e7d28e7d541b1b1ee1ebbca1e2a87d988513188f66425a62090034b026",
+          "state_normalization": {
+            "domain_uuid_count": 13,
+            "journal_sequences_ranked": 365,
+            "omitted_observation_fields": {
+              "_collective_trace_clock": 1003,
+              "_run_trace": 1003,
+              "_auction_import_sale_trace_ids": 1000,
+              "_collective_trace_event_ids": 11,
+              "_labor_workforce_event_ids": 12,
+              "_pending_trader_float_traces": 12,
+              "_trace_forage_receipts": 1000,
+              "_trace_gini_samples": 1000,
+              "_trace_gini_sources": 1000,
+              "_trace_pending_disease_fatalities": 12,
+              "_trace_profession_members": 1000,
+              "_trade_price_event_ids": 12,
+              "_last_border_vulnerability_event_id": 2,
+              "_last_diplomacy_event_id": 2,
+              "_last_market_novelty_trace": 12,
+              "_last_execution_times": 12,
+              "assessment_event_id": 12,
+              "_public_trace_source": 8,
+              "_cached_wealth": 1270,
+              "_decision_event_id": 13,
+              "trace_event_id": 213,
+              "source_id": 13350,
+              "planner_decision_event_ids": 3,
+              "offer_event_id": 3,
+              "_latest_labor_surplus_event_id": 5,
+              "event_id": 771,
+              "purchase_trace_event_id": 6
+            }
+          },
+          "catalog_cold_seconds": 12.103360917419195,
+          "catalog_warm_seconds": 0.002623958047479391,
+          "catalog_options": 958
+        },
+        "minimal": {
+          "mode": "timing",
+          "seed": 777,
+          "tiles": 1000,
+          "build_seconds": 0.49830941716209054,
+          "turns": [
+            {
+              "turn": 1,
+              "seconds": 1.0581253338605165,
+              "event_records": 20289,
+              "expanded_records": 22148
+            },
+            {
+              "turn": 2,
+              "seconds": 1.2552981250919402,
+              "event_records": 21526,
+              "expanded_records": 22977
+            },
+            {
+              "turn": 3,
+              "seconds": 1.091170041821897,
+              "event_records": 21371,
+              "expanded_records": 22886
+            },
+            {
+              "turn": 4,
+              "seconds": 1.1514144162647426,
+              "event_records": 21323,
+              "expanded_records": 22728
+            },
+            {
+              "turn": 5,
+              "seconds": 1.259264875203371,
+              "event_records": 22533,
+              "expanded_records": 23947
+            },
+            {
+              "turn": 6,
+              "seconds": 1.1561127081513405,
+              "event_records": 20602,
+              "expanded_records": 21999
+            },
+            {
+              "turn": 7,
+              "seconds": 1.203590250108391,
+              "event_records": 19929,
+              "expanded_records": 21339
+            },
+            {
+              "turn": 8,
+              "seconds": 1.1287767919711769,
+              "event_records": 19608,
+              "expanded_records": 20964
+            },
+            {
+              "turn": 9,
+              "seconds": 1.2799894167110324,
+              "event_records": 21065,
+              "expanded_records": 22437
+            },
+            {
+              "turn": 10,
+              "seconds": 1.5901926667429507,
+              "event_records": 24731,
+              "expanded_records": 25999
+            }
+          ],
+          "total_step_seconds": 12.173934625927359,
+          "trace": "/Users/sli/Code/tmp/traces/desktop-7c4fcbd5eacb4823ad0e5a229f859009.ctr",
+          "trace_bytes": 18531272,
+          "event_records": 213118,
+          "expanded_records": 227565,
+          "metrics_digest": "3d68a92039a1df2bf6022b8dfab40b6c5e9016d456bdc245bd4c217afb30a0f5",
+          "python_rng_digest": "a8645bc695911fcc96f38e54fb6ca47b7c77a5bb4d5c8c724b13a30128fcf7e5",
+          "numpy_rng_digest": "b4587759d63d8a810c3b5f8017d8a75a76ab15258462948f43893ca7ad8faca4",
+          "economic_state_digest": "bebb82e7d28e7d541b1b1ee1ebbca1e2a87d988513188f66425a62090034b026",
+          "state_normalization": {
+            "domain_uuid_count": 13,
+            "journal_sequences_ranked": 365,
+            "omitted_observation_fields": {
+              "_collective_trace_clock": 1003,
+              "_run_trace": 1003,
+              "_auction_import_sale_trace_ids": 1000,
+              "_collective_trace_event_ids": 11,
+              "_labor_workforce_event_ids": 12,
+              "_pending_trader_float_traces": 12,
+              "_trace_forage_receipts": 1000,
+              "_trace_gini_samples": 12,
+              "_trace_gini_sources": 12,
+              "_trace_pending_disease_fatalities": 12,
+              "_trace_profession_members": 12,
+              "_trade_price_event_ids": 12,
+              "_last_border_vulnerability_event_id": 2,
+              "_last_diplomacy_event_id": 2,
+              "_last_market_novelty_trace": 12,
+              "_last_execution_times": 12,
+              "assessment_event_id": 12,
+              "_public_trace_source": 8,
+              "_cached_wealth": 1270,
+              "_decision_event_id": 13,
+              "trace_event_id": 213,
+              "source_id": 13350,
+              "planner_decision_event_ids": 3,
+              "offer_event_id": 3,
+              "_latest_labor_surplus_event_id": 5,
+              "event_id": 771,
+              "purchase_trace_event_id": 6
+            }
+          },
+          "catalog_cold_seconds": 4.093030416872352,
+          "catalog_warm_seconds": 0.0027131671085953712,
+          "catalog_options": 958
+        }
+      },
+      "equality": {
+        "metrics_digest": true,
+        "python_rng_digest": true,
+        "numpy_rng_digest": true,
+        "economic_state_digest": true
+      },
+      "reductions_percent": {
+        "total_step_seconds": 63.33086167932079,
+        "trace_bytes": 60.66647515618455,
+        "event_records": 49.02471052260208,
+        "expanded_records": 91.3072260438281
+      },
+      "step_speedup": 2.727088897630462
+    },
+    "egypt_1877": {
+      "timing": {
+        "full": {
+          "mode": "timing",
+          "seed": 777,
+          "tiles": 1000,
+          "build_seconds": 0.4839433329179883,
+          "turns": [
+            {
+              "turn": 2,
+              "seconds": 3.361835000105202,
+              "event_records": 59104,
+              "expanded_records": 263489
+            },
+            {
+              "turn": 3,
+              "seconds": 3.6644595828838646,
+              "event_records": 42475,
+              "expanded_records": 264132
+            }
+          ],
+          "total_step_seconds": 7.026294582989067,
+          "trace": "/Users/sli/Code/tmp/traces/desktop-2450481511434430805a2aed89f03b71.ctr",
+          "trace_bytes": 9604721,
+          "event_records": 101722,
+          "expanded_records": 527764,
+          "metrics_digest": "5599acf189dd71a37bf59148d6d1308bcdfbe20513e33b3c23d89175af41095e",
+          "python_rng_digest": "d8413accc783c9b8465f194852cbd16e1add29a06c69f01400ba40989f2d350f",
+          "numpy_rng_digest": "b4587759d63d8a810c3b5f8017d8a75a76ab15258462948f43893ca7ad8faca4",
+          "economic_state_digest": "4606080ef91ef6cd054f60c519a6997ab180bc750b0cb9f646f6727a968103ae",
+          "state_normalization": {
+            "domain_uuid_count": 0,
+            "journal_sequences_ranked": 0,
+            "omitted_observation_fields": {
+              "_collective_trace_clock": 1003,
+              "_run_trace": 1003,
+              "_auction_import_sale_trace_ids": 1000,
+              "_trace_forage_receipts": 1000,
+              "_trace_gini_samples": 1000,
+              "_trace_gini_sources": 1000,
+              "_trace_profession_members": 1000,
+              "_labor_workforce_event_ids": 12,
+              "_pending_trader_float_traces": 12,
+              "_trace_pending_disease_fatalities": 12,
+              "_trade_price_event_ids": 12,
+              "_last_market_novelty_trace": 12,
+              "_last_execution_times": 12,
+              "assessment_event_id": 12,
+              "_public_trace_source": 8,
+              "_cached_wealth": 1282,
+              "_trace_enabled": 1,
+              "_trace_session": 1,
+              "run_trace": 1,
+              "source_id": 5521,
+              "event_id": 158
+            }
+          },
+          "catalog_cold_seconds": 2.5582513748668134,
+          "catalog_warm_seconds": 0.0013727089390158653,
+          "catalog_options": 181
+        },
+        "minimal": {
+          "mode": "timing",
+          "seed": 777,
+          "tiles": 1000,
+          "build_seconds": 0.47045179177075624,
+          "turns": [
+            {
+              "turn": 2,
+              "seconds": 1.2241487498395145,
+              "event_records": 22790,
+              "expanded_records": 24637
+            },
+            {
+              "turn": 3,
+              "seconds": 1.4446000000461936,
+              "event_records": 23741,
+              "expanded_records": 25076
+            }
+          ],
+          "total_step_seconds": 2.668748749885708,
+          "trace": "/Users/sli/Code/tmp/traces/desktop-b260259884a24b82aaa84d18fcb8a2d3.ctr",
+          "trace_bytes": 3764264,
+          "event_records": 46678,
+          "expanded_records": 49860,
+          "metrics_digest": "5599acf189dd71a37bf59148d6d1308bcdfbe20513e33b3c23d89175af41095e",
+          "python_rng_digest": "d8413accc783c9b8465f194852cbd16e1add29a06c69f01400ba40989f2d350f",
+          "numpy_rng_digest": "b4587759d63d8a810c3b5f8017d8a75a76ab15258462948f43893ca7ad8faca4",
+          "economic_state_digest": "4606080ef91ef6cd054f60c519a6997ab180bc750b0cb9f646f6727a968103ae",
+          "state_normalization": {
+            "domain_uuid_count": 0,
+            "journal_sequences_ranked": 0,
+            "omitted_observation_fields": {
+              "_collective_trace_clock": 1003,
+              "_run_trace": 1003,
+              "_auction_import_sale_trace_ids": 1000,
+              "_trace_forage_receipts": 1000,
+              "_labor_workforce_event_ids": 12,
+              "_pending_trader_float_traces": 12,
+              "_trace_gini_samples": 12,
+              "_trace_gini_sources": 12,
+              "_trace_pending_disease_fatalities": 12,
+              "_trace_profession_members": 12,
+              "_trade_price_event_ids": 12,
+              "_last_market_novelty_trace": 12,
+              "_last_execution_times": 12,
+              "assessment_event_id": 12,
+              "_public_trace_source": 8,
+              "_cached_wealth": 1282,
+              "_trace_enabled": 1,
+              "_trace_session": 1,
+              "run_trace": 1,
+              "source_id": 5521,
+              "event_id": 158
+            }
+          },
+          "catalog_cold_seconds": 0.8624327080324292,
+          "catalog_warm_seconds": 0.003098000306636095,
+          "catalog_options": 8
+        }
+      },
+      "equality": {
+        "metrics_digest": true,
+        "python_rng_digest": true,
+        "numpy_rng_digest": true,
+        "economic_state_digest": true
+      },
+      "reductions_percent": {
+        "total_step_seconds": 62.01769341771048,
+        "trace_bytes": 60.808190055702816,
+        "event_records": 54.112188120563886,
+        "expanded_records": 90.55259547828196
+      },
+      "step_speedup": 2.63280482409218
+    }
+  },
+  "minimal_profile": {
+    "total_calls": 138590315,
+    "primitive_calls": 134557813,
+    "total_self_seconds": 32.320626822000015,
+    "self_seconds_by_file": {
+      "~": 9.673084149000006,
+      "trace/trace_packing.py": 8.197185331,
+      "/opt/homebrew/Cellar/python@3.13/3.13.1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/json/encoder.py": 1.896605167,
+      "trace/run_trace.py": 1.5817907839999998,
+      "micro/region_market.py": 1.36237453,
+      "core/sim_engine.py": 1.1675470019999998,
+      "economy/actor_accounts.py": 0.8958616830000001,
+      "trace/trace_codec.py": 0.673936151,
+      "meso/world_trade.py": 0.6652908689999999,
+      "economy/capitalist_planner.py": 0.5721210349999999,
+      "trace/wilderness_trace.py": 0.5199253140000001,
+      "meso/region_logistics.py": 0.5119308379999999,
+      "agents/agent.py": 0.49140290200000003,
+      "/opt/homebrew/Cellar/python@3.13/3.13.1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/enum.py": 0.32220075600000003,
+      "terrain/wilderness/wilderness.py": 0.306639614,
+      "micro/region/stepper.py": 0.205813987,
+      "micro/nutrition.py": 0.20331610200000003,
+      "micro/livelihood_access.py": 0.18473665699999994,
+      "trace/trace_snapshots.py": 0.18147305800000002,
+      "micro/region/core.py": 0.163162353,
+      "trace/price_trace.py": 0.155672589,
+      "agents/demographics_consumption.py": 0.149901154,
+      "micro/region_production.py": 0.14204940000000005,
+      "trace/trace_index.py": 0.138604747,
+      "/opt/homebrew/Cellar/python@3.13/3.13.1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/json/__init__.py": 0.130698566,
+      "economy/labor_mobility.py": 0.11107930300000002,
+      "meso/forex.py": 0.110539748,
+      "trace/labor_census_trace.py": 0.10260720200000001,
+      "agents/alienation.py": 0.094876812,
+      "economy/economic_replay.py": 0.09383531399999999,
+      "micro/feudal_tribute.py": 0.076202188,
+      "micro/disease.py": 0.071215106,
+      "trace/trace_clock.py": 0.06349960500000001,
+      "/opt/homebrew/Cellar/python@3.13/3.13.1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/statistics.py": 0.060821133000000006,
+      "agents/demographics_estate.py": 0.06072836500000001,
+      "micro/foraging.py": 0.054241552000000005,
+      "economy/true_cost_ledger.py": 0.053991561,
+      "micro/labor_choice.py": 0.047358306,
+      "micro/region_labor.py": 0.04536104200000001,
+      "micro/land_tenure.py": 0.043763891,
+      "trace/trace_state_coverage.py": 0.042915438,
+      "micro/region_factions.py": 0.04195599,
+      "trace/national_contributions.py": 0.041493452,
+      "economy/econsim_trade_money.py": 0.037523799000000004,
+      "agents/demographics_reproduction.py": 0.032164537,
+      "economy/econsim_live.py": 0.031777028,
+      "economy/transformation_graph.py": 0.030498596000000006,
+      "macro/government.py": 0.029236277,
+      "trace/faction_trace.py": 0.026880485000000003,
+      "core/random_cache.py": 0.024325228,
+      "micro/labor_cases.py": 0.022711494000000002,
+      "trace/treasury_trace.py": 0.021228224000000004,
+      "trace/bank_trace.py": 0.018654872000000003,
+      "micro/food_security.py": 0.018143615000000002,
+      "macro/nation.py": 0.017151832000000002,
+      "agents/social_class.py": 0.01682288,
+      "micro/externalities.py": 0.016488470999999998,
+      "macro/innovation.py": 0.016029649,
+      "core/state_handler.py": 0.015602440999999998,
+      "macro/faction.py": 0.015063652,
+      "trace/finance_trace.py": 0.013499146000000002,
+      "/opt/homebrew/Cellar/python@3.13/3.13.1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/fractions.py": 0.011405712999999998,
+      "micro/production_emissions.py": 0.009989821999999999,
+      "micro/region_finance.py": 0.009780458999999998,
+      "meso/province.py": 0.009223650000000002,
+      "agents/demographics_career.py": 0.009186675,
+      "micro/labor_resistance.py": 0.008027025,
+      "agents/collective_action.py": 0.007379620000000001,
+      "agents/charity.py": 0.007256712,
+      "trace/gini_trace.py": 0.006432804000000002,
+      "agents/resistance/manager.py": 0.006398940000000002,
+      "micro/supply_rights.py": 0.006390674000000001,
+      "/opt/homebrew/Cellar/python@3.13/3.13.1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/random.py": 0.0059025499999999995,
+      "core/game_time.py": 0.005609449000000001,
+      "micro/pollution_response.py": 0.005488686000000001,
+      "trace/innovation_trace.py": 0.0054555870000000005,
+      "meso/transporter.py": 0.005148081000000001,
+      "micro/workhouse.py": 0.005124522,
+      "macro/intents.py": 0.004948086,
+      "/opt/homebrew/Cellar/python@3.13/3.13.1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/logging/__init__.py": 0.004816981,
+      "micro/land_rent.py": 0.004652505,
+      "core/secular_climate.py": 0.004133885,
+      "trace/desktop_trace_session.py": 0.0041058430000000005,
+      "micro/labor_politics.py": 0.0036570710000000005,
+      "agents/unrest.py": 0.003634913,
+      "micro/buildings.py": 0.003502404,
+      "<frozen importlib._bootstrap_external>": 0.003372199,
+      "<frozen os>": 0.00325871,
+      "terrain/edges/terrain_edges.py": 0.003106756,
+      "micro/claims.py": 0.003074363,
+      "<frozen genericpath>": 0.0026173430000000003,
+      "economy/supply_strategy.py": 0.002428217,
+      "macro/construction_politics.py": 0.0023800699999999998,
+      "micro/labor_contract.py": 0.002285558,
+      "macro/diplomacy.py": 0.002266932,
+      "micro/crop_credit.py": 0.002218172,
+      "meso/migration.py": 0.002093291,
+      "/opt/homebrew/Cellar/python@3.13/3.13.1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/collections/__init__.py": 0.001941292,
+      "<frozen importlib._bootstrap>": 0.0016227420000000002,
+      "core/logger.py": 0.001582296,
+      "macro/ai_nation.py": 0.00148174,
+      "<frozen abc>": 0.0011643330000000003,
+      "micro/enclosure.py": 0.001087078,
+      "macro/army.py": 0.0010579569999999998,
+      "/opt/homebrew/Cellar/python@3.13/3.13.1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/dataclasses.py": 0.000995414,
+      "micro/region/helpers.py": 0.000972353,
+      "economy/trade_costs.py": 0.0008702850000000002,
+      "trace/collective_trace_clock.py": 0.000704843,
+      "macro/regime.py": 0.000605543,
+      "<frozen _collections_abc>": 0.0006016540000000001,
+      "client/worldview/worldview_engine.py": 0.0005977180000000001,
+      "micro/supply_proposals.py": 0.0004900720000000001,
+      "macro/imperialism/manager.py": 0.0004269730000000001,
+      "terrain/tile_resources.py": 0.00042061100000000004,
+      "meso/food_logistics.py": 0.00039890500000000007,
+      "<frozen posixpath>": 0.00036643900000000003,
+      "/opt/homebrew/Cellar/python@3.13/3.13.1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/json/decoder.py": 0.00036463,
+      "micro/market_concessions.py": 0.00035485500000000006,
+      "/opt/homebrew/Cellar/python@3.13/3.13.1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/numbers.py": 0.000301819,
+      "micro/labor_laws.py": 0.000289202,
+      "trace/trace_phase.py": 0.000249295,
+      "trace/health_trace.py": 0.000193615,
+      "<string>": 0.00018599300000000002,
+      "/opt/homebrew/Cellar/python@3.13/3.13.1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/inspect.py": 0.000120663,
+      "/opt/homebrew/Cellar/python@3.13/3.13.1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/uuid.py": 0.000111872,
+      "/opt/homebrew/Cellar/python@3.13/3.13.1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/threading.py": 0.00011165400000000001,
+      "macro/treasury_composition.py": 7.6077e-05,
+      "macro/sovereign_bonds.py": 6.7538e-05,
+      "/opt/homebrew/Cellar/python@3.13/3.13.1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/typing.py": 6.166900000000001e-05,
+      "venv/lib/python3.13/site-packages/_distutils_hack/__init__.py": 4.833300000000001e-05,
+      "macro/banking_policy.py": 4.6833e-05,
+      "economy/inventory_provenance.py": 4.1163e-05,
+      "/opt/homebrew/Cellar/python@3.13/3.13.1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/multiprocessing/process.py": 4.0363000000000006e-05,
+      "/opt/homebrew/Cellar/python@3.13/3.13.1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py": 3.341600000000001e-05,
+      "macro/war_logic.py": 2.4049e-05,
+      "client/desktop/engine.py": 2.2335000000000002e-05,
+      "agents/person_death.py": 2.067e-05,
+      "agents/resistance/models.py": 1.7541e-05,
+      "core/ledger.py": 1.7417e-05,
+      "macro/coup.py": 1.6828999999999998e-05,
+      "/opt/homebrew/Cellar/python@3.13/3.13.1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/reprlib.py": 1.4168e-05,
+      "macro/imperialism/models.py": 9.999e-06,
+      "<frozen zipimport>": 3.832e-06,
+      "macro/__init__.py": 3.7940000000000004e-06,
+      "macro/imperialism/__init__.py": 3.0420000000000003e-06,
+      "agents/resistance/__init__.py": 2.792e-06,
+      "/opt/homebrew/Cellar/python@3.13/3.13.1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/functools.py": 2.791e-06,
+      "agents/__init__.py": 2.667e-06,
+      "/opt/homebrew/Cellar/python@3.13/3.13.1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/contextlib.py": 2.6260000000000004e-06,
+      "<frozen codecs>": 2.2920000000000002e-06,
+      "micro/food_levy.py": 2.2920000000000002e-06,
+      "agents/popular_resistance.py": 1.6260000000000002e-06,
+      "core/imperialism.py": 1.582e-06
+    },
+    "top_self": [
+      {
+        "file": "trace/trace_packing.py",
+        "line": 150,
+        "function": "freeze",
+        "primitive_calls": 227562,
+        "calls": 3016636,
+        "self_seconds": 7.484155611,
+        "cumulative_seconds": 10.412392826
+      },
+      {
+        "file": "/opt/homebrew/Cellar/python@3.13/3.13.1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/json/encoder.py",
+        "line": 205,
+        "function": "iterencode",
+        "primitive_calls": 170974,
+        "calls": 170974,
+        "self_seconds": 1.76570246,
+        "cumulative_seconds": 1.76570246
+      },
+      {
+        "file": "~",
+        "line": 0,
+        "function": "<built-in method builtins.getattr>",
+        "primitive_calls": 18022417,
+        "calls": 18423705,
+        "self_seconds": 1.4133577010000002,
+        "cumulative_seconds": 1.711576827
+      },
+      {
+        "file": "core/sim_engine.py",
+        "line": 26,
+        "function": "step_turn",
+        "primitive_calls": 10,
+        "calls": 10,
+        "self_seconds": 1.1667845719999999,
+        "cumulative_seconds": 28.830717458000002
+      },
+      {
+        "file": "~",
+        "line": 0,
+        "function": "<method 'compress' of 'zlib.Compress' objects>",
+        "primitive_calls": 3355,
+        "calls": 3355,
+        "self_seconds": 1.123916498,
+        "cumulative_seconds": 1.123916498
+      },
+      {
+        "file": "~",
+        "line": 0,
+        "function": "<method 'isascii' of 'str' objects>",
+        "primitive_calls": 16701857,
+        "calls": 16701857,
+        "self_seconds": 1.05018755,
+        "cumulative_seconds": 1.05018755
+      },
+      {
+        "file": "~",
+        "line": 0,
+        "function": "<built-in method builtins.len>",
+        "primitive_calls": 20669275,
+        "calls": 20669275,
+        "self_seconds": 1.007972809,
+        "cumulative_seconds": 1.007972809
+      },
+      {
+        "file": "trace/run_trace.py",
+        "line": 224,
+        "function": "emit",
+        "primitive_calls": 205462,
+        "calls": 205462,
+        "self_seconds": 1.002469071,
+        "cumulative_seconds": 17.322220002
+      },
+      {
+        "file": "~",
+        "line": 0,
+        "function": "<built-in method builtins.isinstance>",
+        "primitive_calls": 15185580,
+        "calls": 15185580,
+        "self_seconds": 0.9294710210000001,
+        "cumulative_seconds": 0.9317791900000001
+      },
+      {
+        "file": "~",
+        "line": 0,
+        "function": "<method 'get' of 'dict' objects>",
+        "primitive_calls": 10453499,
+        "calls": 10453499,
+        "self_seconds": 0.820295837,
+        "cumulative_seconds": 0.8276679520000001
+      },
+      {
+        "file": "meso/world_trade.py",
+        "line": 216,
+        "function": "resolve_parked",
+        "primitive_calls": 10,
+        "calls": 10,
+        "self_seconds": 0.609703996,
+        "cumulative_seconds": 0.723451708
+      },
+      {
+        "file": "~",
+        "line": 0,
+        "function": "<method 'values' of 'dict' objects>",
+        "primitive_calls": 10169169,
+        "calls": 10169169,
+        "self_seconds": 0.609669828,
+        "cumulative_seconds": 0.609669828
+      },
+      {
+        "file": "micro/region_market.py",
+        "line": 1495,
+        "function": "trade",
+        "primitive_calls": 120,
+        "calls": 120,
+        "self_seconds": 0.5912168870000001,
+        "cumulative_seconds": 9.034759293999999
+      },
+      {
+        "file": "economy/actor_accounts.py",
+        "line": 347,
+        "function": "seal_turn",
+        "primitive_calls": 120,
+        "calls": 120,
+        "self_seconds": 0.5764354320000001,
+        "cumulative_seconds": 1.0631785850000002
+      },
+      {
+        "file": "trace/trace_codec.py",
+        "line": 160,
+        "function": "append",
+        "primitive_calls": 208390,
+        "calls": 212977,
+        "self_seconds": 0.41480925300000004,
+        "cumulative_seconds": 14.793952646000001
+      },
+      {
+        "file": "~",
+        "line": 0,
+        "function": "<method 'append' of 'list' objects>",
+        "primitive_calls": 5310332,
+        "calls": 5310332,
+        "self_seconds": 0.36707387599999997,
+        "cumulative_seconds": 0.36707387599999997
+      },
+      {
+        "file": "~",
+        "line": 0,
+        "function": "<built-in method builtins.sum>",
+        "primitive_calls": 881268,
+        "calls": 896064,
+        "self_seconds": 0.311671289,
+        "cumulative_seconds": 0.8688897489999999
+      },
+      {
+        "file": "trace/trace_packing.py",
+        "line": 225,
+        "function": "pack",
+        "primitive_calls": 3355,
+        "calls": 3355,
+        "self_seconds": 0.30805227500000004,
+        "cumulative_seconds": 0.975236516
+      },
+      {
+        "file": "meso/region_logistics.py",
+        "line": 101,
+        "function": "trace_safe",
+        "primitive_calls": 731,
+        "calls": 812040,
+        "self_seconds": 0.296765316,
+        "cumulative_seconds": 0.401901836
+      },
+      {
+        "file": "terrain/wilderness/wilderness.py",
+        "line": 105,
+        "function": "_align_logs",
+        "primitive_calls": 9880,
+        "calls": 9880,
+        "self_seconds": 0.235632769,
+        "cumulative_seconds": 0.385564022
+      },
+      {
+        "file": "economy/capitalist_planner.py",
+        "line": 1138,
+        "function": "_plan_and_execute_elite",
+        "primitive_calls": 738,
+        "calls": 738,
+        "self_seconds": 0.22699850300000002,
+        "cumulative_seconds": 2.615149317
+      },
+      {
+        "file": "/opt/homebrew/Cellar/python@3.13/3.13.1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/enum.py",
+        "line": 199,
+        "function": "__get__",
+        "primitive_calls": 1366927,
+        "calls": 1366927,
+        "self_seconds": 0.19302251,
+        "cumulative_seconds": 0.278029171
+      },
+      {
+        "file": "trace/run_trace.py",
+        "line": 32,
+        "function": "_subject_key",
+        "primitive_calls": 250181,
+        "calls": 250181,
+        "self_seconds": 0.19125538800000003,
+        "cumulative_seconds": 0.723567166
+      },
+      {
+        "file": "micro/region_market.py",
+        "line": 606,
+        "function": "clear_discriminatory",
+        "primitive_calls": 449,
+        "calls": 449,
+        "self_seconds": 0.189661128,
+        "cumulative_seconds": 2.0300040420000003
+      },
+      {
+        "file": "~",
+        "line": 0,
+        "function": "<built-in method math.isfinite>",
+        "primitive_calls": 3422828,
+        "calls": 3422828,
+        "self_seconds": 0.18868724100000003,
+        "cumulative_seconds": 0.18868724100000003
+      }
+    ],
+    "top_cumulative": [
+      {
+        "file": "trace/desktop_trace_session.py",
+        "line": 53,
+        "function": "wrapped",
+        "primitive_calls": 10,
+        "calls": 10,
+        "self_seconds": 0.004102467,
+        "cumulative_seconds": 32.325003251
+      },
+      {
+        "file": "client/worldview/worldview_engine.py",
+        "line": 138,
+        "function": "step_world",
+        "primitive_calls": 10,
+        "calls": 10,
+        "self_seconds": 0.0005133330000000001,
+        "cumulative_seconds": 28.887092333000002
+      },
+      {
+        "file": "core/sim_engine.py",
+        "line": 26,
+        "function": "step_turn",
+        "primitive_calls": 10,
+        "calls": 10,
+        "self_seconds": 1.1667845719999999,
+        "cumulative_seconds": 28.830717458000002
+      },
+      {
+        "file": "meso/province.py",
+        "line": 126,
+        "function": "step",
+        "primitive_calls": 50,
+        "calls": 50,
+        "self_seconds": 0.008491918000000001,
+        "cumulative_seconds": 24.415459711000004
+      },
+      {
+        "file": "micro/region/core.py",
+        "line": 545,
+        "function": "step_economy",
+        "primitive_calls": 120,
+        "calls": 120,
+        "self_seconds": 0.000601333,
+        "cumulative_seconds": 23.272767795
+      },
+      {
+        "file": "micro/region/stepper.py",
+        "line": 78,
+        "function": "step_economy",
+        "primitive_calls": 120,
+        "calls": 120,
+        "self_seconds": 0.05655534500000001,
+        "cumulative_seconds": 23.272166461999998
+      },
+      {
+        "file": "trace/run_trace.py",
+        "line": 224,
+        "function": "emit",
+        "primitive_calls": 205462,
+        "calls": 205462,
+        "self_seconds": 1.002469071,
+        "cumulative_seconds": 17.322220002
+      },
+      {
+        "file": "trace/run_trace.py",
+        "line": 731,
+        "function": "emit",
+        "primitive_calls": 191888,
+        "calls": 191888,
+        "self_seconds": 0.15853921,
+        "cumulative_seconds": 15.94338053
+      },
+      {
+        "file": "trace/run_trace.py",
+        "line": 162,
+        "function": "_append",
+        "primitive_calls": 208379,
+        "calls": 208379,
+        "self_seconds": 0.066705873,
+        "cumulative_seconds": 14.860627641000002
+      },
+      {
+        "file": "trace/trace_codec.py",
+        "line": 160,
+        "function": "append",
+        "primitive_calls": 208390,
+        "calls": 212977,
+        "self_seconds": 0.41480925300000004,
+        "cumulative_seconds": 14.793952646000001
+      },
+      {
+        "file": "trace/trace_packing.py",
+        "line": 150,
+        "function": "freeze",
+        "primitive_calls": 227562,
+        "calls": 3016636,
+        "self_seconds": 7.484155611,
+        "cumulative_seconds": 10.412392826
+      },
+      {
+        "file": "micro/region_market.py",
+        "line": 1495,
+        "function": "trade",
+        "primitive_calls": 120,
+        "calls": 120,
+        "self_seconds": 0.5912168870000001,
+        "cumulative_seconds": 9.034759293999999
+      },
+      {
+        "file": "trace/trace_codec.py",
+        "line": 224,
+        "function": "flush_pending",
+        "primitive_calls": 3385,
+        "calls": 3385,
+        "self_seconds": 0.07473459600000001,
+        "cumulative_seconds": 4.157660990000001
+      },
+      {
+        "file": "trace/trace_codec.py",
+        "line": 204,
+        "function": "_batch",
+        "primitive_calls": 3355,
+        "calls": 3355,
+        "self_seconds": 0.031243068,
+        "cumulative_seconds": 4.0810338
+      },
+      {
+        "file": "trace/trace_snapshots.py",
+        "line": 921,
+        "function": "record",
+        "primitive_calls": 10,
+        "calls": 10,
+        "self_seconds": 0.05516103700000001,
+        "cumulative_seconds": 3.1914864150000004
+      },
+      {
+        "file": "economy/capitalist_planner.py",
+        "line": 1059,
+        "function": "plan_and_execute_elite",
+        "primitive_calls": 738,
+        "calls": 738,
+        "self_seconds": 0.061128076,
+        "cumulative_seconds": 2.8081786350000004
+      },
+      {
+        "file": "economy/capitalist_planner.py",
+        "line": 1138,
+        "function": "_plan_and_execute_elite",
+        "primitive_calls": 738,
+        "calls": 738,
+        "self_seconds": 0.22699850300000002,
+        "cumulative_seconds": 2.615149317
+      },
+      {
+        "file": "meso/region_logistics.py",
+        "line": 84,
+        "function": "repoint_traders",
+        "primitive_calls": 120,
+        "calls": 120,
+        "self_seconds": 0.114500602,
+        "cumulative_seconds": 2.077708127
+      },
+      {
+        "file": "/opt/homebrew/Cellar/python@3.13/3.13.1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/json/__init__.py",
+        "line": 183,
+        "function": "dumps",
+        "primitive_calls": 170974,
+        "calls": 170974,
+        "self_seconds": 0.130594279,
+        "cumulative_seconds": 2.074842797
+      },
+      {
+        "file": "micro/region_market.py",
+        "line": 606,
+        "function": "clear_discriminatory",
+        "primitive_calls": 449,
+        "calls": 449,
+        "self_seconds": 0.189661128,
+        "cumulative_seconds": 2.0300040420000003
+      },
+      {
+        "file": "/opt/homebrew/Cellar/python@3.13/3.13.1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/json/encoder.py",
+        "line": 183,
+        "function": "encode",
+        "primitive_calls": 170974,
+        "calls": 170974,
+        "self_seconds": 0.11253675300000002,
+        "cumulative_seconds": 1.9258825640000004
+      },
+      {
+        "file": "/opt/homebrew/Cellar/python@3.13/3.13.1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/json/encoder.py",
+        "line": 205,
+        "function": "iterencode",
+        "primitive_calls": 170974,
+        "calls": 170974,
+        "self_seconds": 1.76570246,
+        "cumulative_seconds": 1.76570246
+      },
+      {
+        "file": "~",
+        "line": 0,
+        "function": "<built-in method builtins.getattr>",
+        "primitive_calls": 18022417,
+        "calls": 18423705,
+        "self_seconds": 1.4133577010000002,
+        "cumulative_seconds": 1.711576827
+      },
+      {
+        "file": "micro/region/stepper.py",
+        "line": 644,
+        "function": "live",
+        "primitive_calls": 120,
+        "calls": 120,
+        "self_seconds": 0.0026660950000000003,
+        "cumulative_seconds": 1.7052595030000002
+      },
+      {
+        "file": "economy/econsim_live.py",
+        "line": 94,
+        "function": "Live",
+        "primitive_calls": 120,
+        "calls": 120,
+        "self_seconds": 0.028331583,
+        "cumulative_seconds": 1.6980326680000002
+      }
+    ]
+  },
+  "profile_matches_timing_counts_metrics_rng": true,
+  "protected_evidence": [
+    {
+      "name": "default",
+      "protected_counts": {
+        "full": 227283,
+        "minimal": 227283
+      },
+      "missing_count": 0,
+      "added_count": 0,
+      "missing_examples": [],
+      "added_examples": [],
+      "changed_count": 0,
+      "changed_examples": [],
+      "difference_paths": {},
+      "validated_new_first_read_quote_links": 1428,
+      "events_with_new_quote_links": 54,
+      "validated_new_migration_food_quote_links": 14,
+      "unknown_source_examples": {
+        "full": [],
+        "minimal": []
+      },
+      "excluded_kinds": {
+        "full": {
+          "null": 1,
+          "gini_series_calculation": 18772,
+          "wilderness_food_production": 9880,
+          "wilderness_nominal_gdp": 9880,
+          "wilderness_population_census": 9880,
+          "trader_cash_total_calculation": 9880,
+          "trade_pipeline_depth_calculation": 9880,
+          "population_change_rate_calculation": 9880,
+          "effective_workday_cap_sample": 9880,
+          "trade_export_value_calculation": 9770,
+          "trade_import_value_calculation": 9770,
+          "trade_net_value_calculation": 9770,
+          "final_labor_member_count": 9880,
+          "final_temporary_work_share_mean": 9880,
+          "person_event_count": 19760,
+          "living_person_count": 9880,
+          "price_bridge": 187720,
+          "metric_snapshot": 187720,
+          "turn_checkpoint": 10
+        },
+        "minimal": {
+          "null": 1,
+          "wilderness_initial_state": 2,
+          "wilderness_domain_coverage": 22,
+          "wilderness_reference_price_observation": 187,
+          "wilderness_state_observation": 60,
+          "turn_checkpoint": 10
+        }
+      },
+      "normalization": "Run/domain UUIDs, journal clock sequence gaps, checkpoint digest/count metadata; all protected IDs remapped by event identity/occurrence; quiet recipe price IDs remapped by tile/good/value (observation date intentionally differs). No economic quantities removed. Clock-derived operation IDs are consistently renamed by their stem and occurrence, preserving associations.",
+      "nested_journal_sequences_normalized": {
+        "full": 1539,
+        "minimal": 1539
+      },
+      "economic_state_equal": true,
+      "state_differences": [],
+      "pass": true,
+      "new_link_validation": "Route quote additions match frozen tile/good/price inputs; added migration food sources match full-policy quote values and reproduce the frozen neighbor mean. Existing source order and all other fields remain checked.",
+      "excluded_kind_count_limit": "Quiet grouped non-price cells are skipped before expansion; excluded-kind counts are diagnostic and not a full inventory of all omitted expanded cells."
+    },
+    {
+      "name": "egypt_1877",
+      "protected_counts": {
+        "full": 49643,
+        "minimal": 49643
+      },
+      "missing_count": 0,
+      "added_count": 0,
+      "missing_examples": [],
+      "added_examples": [],
+      "changed_count": 0,
+      "changed_examples": [],
+      "difference_paths": {},
+      "validated_new_first_read_quote_links": 1326,
+      "events_with_new_quote_links": 60,
+      "validated_new_migration_food_quote_links": 13,
+      "unknown_source_examples": {
+        "full": [],
+        "minimal": []
+      },
+      "excluded_kinds": {
+        "full": {
+          "null": 1,
+          "gini_series_calculation": 18772,
+          "wilderness_food_production": 1976,
+          "wilderness_nominal_gdp": 1976,
+          "wilderness_population_census": 1976,
+          "trader_cash_total_calculation": 1976,
+          "trade_pipeline_depth_calculation": 1976,
+          "population_change_rate_calculation": 1976,
+          "effective_workday_cap_sample": 1976,
+          "trade_export_value_calculation": 1952,
+          "trade_import_value_calculation": 1952,
+          "trade_net_value_calculation": 1952,
+          "final_labor_member_count": 1976,
+          "final_temporary_work_share_mean": 1976,
+          "person_event_count": 3952,
+          "living_person_count": 1976,
+          "price_bridge": 37544,
+          "metric_snapshot": 37544,
+          "turn_checkpoint": 2
+        },
+        "minimal": {
+          "null": 1,
+          "wilderness_initial_state": 2,
+          "wilderness_domain_coverage": 6,
+          "wilderness_reference_price_observation": 204,
+          "wilderness_state_observation": 2,
+          "turn_checkpoint": 2
+        }
+      },
+      "normalization": "Run/domain UUIDs, journal clock sequence gaps, checkpoint digest/count metadata; all protected IDs remapped by event identity/occurrence; quiet recipe price IDs remapped by tile/good/value (observation date intentionally differs). No economic quantities removed. Clock-derived operation IDs are consistently renamed by their stem and occurrence, preserving associations.",
+      "nested_journal_sequences_normalized": {
+        "full": 255,
+        "minimal": 255
+      },
+      "economic_state_equal": true,
+      "state_differences": [],
+      "pass": true,
+      "new_link_validation": "Route quote additions match frozen tile/good/price inputs; added migration food sources match full-policy quote values and reproduce the frozen neighbor mean. Existing source order and all other fields remain checked.",
+      "excluded_kind_count_limit": "Quiet grouped non-price cells are skipped before expansion; excluded-kind counts are diagnostic and not a full inventory of all omitted expanded cells."
+    }
+  ],
+  "audit": {
+    "default": {
+      "integrity": {
+        "rows": 227565,
+        "checkpoints": 10,
+        "sha256": "50909c3879363194dc2af218c15571183a2f197acaa9981798a545b7aa7b6e22",
+        "event_records": 213118,
+        "coverage_groups": 4598,
+        "virtual_samples": 19045
+      },
+      "causal_audit": {
+        "counts": {
+          "rows": 227565,
+          "source_contract_not_supported": 116354,
+          "formula_verified": 103336,
+          "formula_not_supported_by_replay": 16147,
+          "source_contract_verified": 27333,
+          "calculation_without_formula": 120,
+          "checkpoints_verified": 10
+        },
+        "structural_and_supported_formula_checks_pass": true,
+        "complete_causal_coverage": false,
+        "decoded_trace_bytes": 376088195,
+        "limits": [
+          "Unknown formulas and missing per-metric source contracts remain unverified.",
+          "Required-source contracts cover named stock/production formulas; other metrics remain outside provenance coverage.",
+          "Explicit gap audits are retained and are not repaired by this report."
+        ],
+        "issues": [],
+        "issue_examples_truncated": false
+      },
+      "quiet_wilderness_and_policy_kinds": {
+        "wilderness_initial_state": 2,
+        "wilderness_domain_coverage": 22,
+        "wilderness_reference_price_observation": 187,
+        "pollution_downstream_advection": 70,
+        "trade_export_value_calculation": 110,
+        "trade_import_value_calculation": 110,
+        "trade_net_value_calculation": 110,
+        "metric_snapshot": 60,
+        "wilderness_state_observation": 60
+      },
+      "per_turn": {
+        "0": {
+          "wilderness_initial_state": 2,
+          "wilderness_domain_coverage": 2
+        },
+        "1": {
+          "wilderness_reference_price_observation": 187,
+          "pollution_downstream_advection": 7,
+          "trade_export_value_calculation": 11,
+          "trade_import_value_calculation": 11,
+          "trade_net_value_calculation": 11,
+          "metric_snapshot": 6,
+          "wilderness_state_observation": 6,
+          "wilderness_domain_coverage": 2
+        },
+        "2": {
+          "pollution_downstream_advection": 7,
+          "trade_export_value_calculation": 11,
+          "trade_import_value_calculation": 11,
+          "trade_net_value_calculation": 11,
+          "metric_snapshot": 6,
+          "wilderness_state_observation": 6,
+          "wilderness_domain_coverage": 2
+        },
+        "3": {
+          "pollution_downstream_advection": 7,
+          "trade_export_value_calculation": 11,
+          "trade_import_value_calculation": 11,
+          "trade_net_value_calculation": 11,
+          "metric_snapshot": 6,
+          "wilderness_state_observation": 6,
+          "wilderness_domain_coverage": 2
+        },
+        "4": {
+          "pollution_downstream_advection": 7,
+          "trade_export_value_calculation": 11,
+          "trade_import_value_calculation": 11,
+          "trade_net_value_calculation": 11,
+          "metric_snapshot": 6,
+          "wilderness_state_observation": 6,
+          "wilderness_domain_coverage": 2
+        },
+        "5": {
+          "pollution_downstream_advection": 7,
+          "trade_export_value_calculation": 11,
+          "trade_import_value_calculation": 11,
+          "trade_net_value_calculation": 11,
+          "metric_snapshot": 6,
+          "wilderness_state_observation": 6,
+          "wilderness_domain_coverage": 2
+        },
+        "6": {
+          "pollution_downstream_advection": 7,
+          "trade_export_value_calculation": 11,
+          "trade_import_value_calculation": 11,
+          "trade_net_value_calculation": 11,
+          "metric_snapshot": 6,
+          "wilderness_state_observation": 6,
+          "wilderness_domain_coverage": 2
+        },
+        "7": {
+          "pollution_downstream_advection": 7,
+          "trade_export_value_calculation": 11,
+          "trade_import_value_calculation": 11,
+          "trade_net_value_calculation": 11,
+          "metric_snapshot": 6,
+          "wilderness_state_observation": 6,
+          "wilderness_domain_coverage": 2
+        },
+        "8": {
+          "pollution_downstream_advection": 7,
+          "trade_export_value_calculation": 11,
+          "trade_import_value_calculation": 11,
+          "trade_net_value_calculation": 11,
+          "metric_snapshot": 6,
+          "wilderness_state_observation": 6,
+          "wilderness_domain_coverage": 2
+        },
+        "9": {
+          "pollution_downstream_advection": 7,
+          "trade_export_value_calculation": 11,
+          "trade_import_value_calculation": 11,
+          "trade_net_value_calculation": 11,
+          "metric_snapshot": 6,
+          "wilderness_state_observation": 6,
+          "wilderness_domain_coverage": 2
+        },
+        "10": {
+          "pollution_downstream_advection": 7,
+          "trade_export_value_calculation": 11,
+          "trade_import_value_calculation": 11,
+          "trade_net_value_calculation": 11,
+          "metric_snapshot": 6,
+          "wilderness_state_observation": 6,
+          "wilderness_domain_coverage": 2
+        }
+      },
+      "quote_count": 187,
+      "quote_tiles": 11
+    },
+    "egypt_1877": {
+      "integrity": {
+        "rows": 49860,
+        "checkpoints": 2,
+        "sha256": "229210e6642243b116fa9f14a28897074391230cb930222f53cbb0cfe6bc34b5",
+        "event_records": 46678,
+        "coverage_groups": 710,
+        "virtual_samples": 3892
+      },
+      "causal_audit": {
+        "counts": {
+          "rows": 49860,
+          "source_contract_not_supported": 24942,
+          "formula_verified": 19521,
+          "formula_not_supported_by_replay": 6056,
+          "source_contract_verified": 5411,
+          "calculation_without_formula": 26,
+          "checkpoints_verified": 2
+        },
+        "structural_and_supported_formula_checks_pass": true,
+        "complete_causal_coverage": false,
+        "decoded_trace_bytes": 80091654,
+        "limits": [
+          "Unknown formulas and missing per-metric source contracts remain unverified.",
+          "Required-source contracts cover named stock/production formulas; other metrics remain outside provenance coverage.",
+          "Explicit gap audits are retained and are not repaired by this report."
+        ],
+        "issues": [],
+        "issue_examples_truncated": false
+      },
+      "quiet_wilderness_and_policy_kinds": {
+        "wilderness_initial_state": 2,
+        "wilderness_domain_coverage": 6,
+        "wilderness_reference_price_observation": 204,
+        "pollution_downstream_advection": 2,
+        "trade_export_value_calculation": 24,
+        "trade_import_value_calculation": 24,
+        "trade_net_value_calculation": 24,
+        "metric_snapshot": 2,
+        "wilderness_state_observation": 2
+      },
+      "per_turn": {
+        "1": {
+          "wilderness_initial_state": 2,
+          "wilderness_domain_coverage": 2
+        },
+        "2": {
+          "wilderness_reference_price_observation": 204,
+          "pollution_downstream_advection": 1,
+          "trade_export_value_calculation": 12,
+          "trade_import_value_calculation": 12,
+          "trade_net_value_calculation": 12,
+          "metric_snapshot": 1,
+          "wilderness_state_observation": 1,
+          "wilderness_domain_coverage": 2
+        },
+        "3": {
+          "pollution_downstream_advection": 1,
+          "trade_export_value_calculation": 12,
+          "trade_import_value_calculation": 12,
+          "trade_net_value_calculation": 12,
+          "metric_snapshot": 1,
+          "wilderness_state_observation": 1,
+          "wilderness_domain_coverage": 2
+        }
+      },
+      "quote_count": 204,
+      "quote_tiles": 12
+    }
+  }
+}

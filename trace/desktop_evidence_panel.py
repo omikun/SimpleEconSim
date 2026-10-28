@@ -16,7 +16,7 @@ def _selection(world):
 
 def load(world):
     state=world['_causal_panel'];trace=world.get('run_trace')
-    state.update(row=None,explanation=None,error=None,source_offset=0)
+    state.update(row=None,explanation=None,error=None,source_offset=0,policy_message=None)
     if trace is None:
         state['error']='No causal recorder is attached to this world.';return
     nation,tile=_selection(world)
@@ -43,6 +43,11 @@ def load(world):
         if result['events']:
             state['row']=result['events'][0]
             state['explanation']=ExplanationReader(trace.path,state['boundary']).explain(state['row'])
+        elif subject and subject.get('type')=='tile':
+            from trace_index import TraceIndex
+            if TraceIndex(trace.path).wilderness_status(turn=state['turn'],subject=subject,boundary=state['boundary']):
+                from wilderness_trace import MESSAGE
+                state['policy_message']=MESSAGE
     except Exception as error:state['error']=str(error)
 
 
@@ -120,7 +125,11 @@ def draw(surface,world):
     yy=y+148
     if state.get('error'):text('Could not load evidence: '+state['error'],x+16,yy,(255,140,120));return
     row=state.get('row');explanation=state.get('explanation')
-    if row is None:text('No matching evidence for this turn. Choose an earlier turn or another category.',x+16,yy);return
+    if row is None:
+        import textwrap
+        for line in textwrap.wrap(state.get('policy_message') or 'No matching evidence for this turn. Choose an earlier turn or another category.',max(20,int((w-32)/9))):
+            text(line,x+16,yy);yy+=25
+        return
     text(f"{row['kind'].replace('_',' ').capitalize()} · {explanation['label']}",x+16,yy,(250,210,120));yy+=26
     text(f"{row.get('value_before','—')} → {row.get('value_after','—')} {row.get('unit','')} · T{row['turn']}",x+16,yy);yy+=26
     for note in explanation['notes']:

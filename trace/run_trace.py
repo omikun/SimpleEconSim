@@ -50,7 +50,7 @@ def _subject_key(subject):
 
 class RunTrace:
     def __init__(self, path, run_id, *, seed=None, scenario=None, recent_limit=256,
-                 storage_version=None, sparse=None):
+                 storage_version=None, sparse=None, wilderness_policy=None):
         self.path = Path(path)
         if self.path.suffix != '.ctr':
             raise ValueError('causal trace path must end in .ctr')
@@ -103,9 +103,14 @@ class RunTrace:
         if sparse is None:
             sparse = os.environ.get('COC_TRACE_SPARSE', '1') != '0'
         self._compact_writer = CompactTraceWriter(self.path, version=storage_version, sparse=sparse)
+        from wilderness_trace import WildernessTrace, VERSION as WILDERNESS_VERSION
+        policy=wilderness_policy or (os.environ.get('COC_TRACE_WILDERNESS','minimal') if storage_version==5 else 'full')
+        if policy not in ('minimal','full'):raise ValueError('Unsupported wilderness capture policy')
+        self.wilderness = WildernessTrace(self, storage_version==5 and policy=='minimal')
         self._append({'schema_version': SCHEMA_VERSION, 'record_class': 'metadata',
                       'run_id': self.run_id, 'branch_id': self.branch_id,
                       'seed': seed, 'scenario': scenario,
+                      'capture_policy': WILDERNESS_VERSION if self.wilderness.enabled else 'full',
                       'storage_format': ({5:'grouped-state-coverage-v5',4:'packed-coverage-v4',3:'framed-deflate-blocks-v1'}[storage_version]),
                       **({'digest_scope': self._compact_writer.digest_scope} if storage_version >= 4 else {})})
 
@@ -138,6 +143,11 @@ class RunTrace:
         self.branch_id = branch_id
         self._known_event_ids.path = self.path
         self._compact_writer = CompactTraceWriter(self.path, resume=True)
+        # Saved pre-policy runs must retain full capture when resumed. New
+        # minimal runs pickle their policy, state anchors and consumed quotes.
+        if not hasattr(self,'wilderness'):
+            from wilderness_trace import WildernessTrace
+            self.wilderness=WildernessTrace(self,False)
         self.bank_book.banks = {id(info['bank']): info for info in self.bank_book.banks.values()}
         book = self.treasury_book
         book.accounts = {('cash', id(info['agent'])) if info['bank'] is None else
@@ -509,7 +519,15 @@ class RunTrace:
         return events.get(event_kind)
 
     def latest_reference_price_event_id(self, tile_id, good_name):
-        """Return the latest recorded local reference price for one good."""
+        """Link a consumed price: observe quiet references, otherwise use the latest market source.
+
+        Simulation calculations call this at consumption. Read-only inspectors
+        query the published trace instead, so they cannot create observations.
+        """
+        frontier=getattr(self,'wilderness',None)
+        tile=frontier.regions.get(str(tile_id)) if frontier else None
+        if tile is not None and frontier.quiet(tile):
+            return frontier.reference(tile,str(good_name))
         return self._latest_reference_price_events.get((str(tile_id), str(good_name)))
 
     def technology_event_id(self, nation_name, tech_id):

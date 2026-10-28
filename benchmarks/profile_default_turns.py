@@ -7,6 +7,7 @@ ordinary run is the source of gameplay latency measurements.
 import argparse
 import cProfile
 import hashlib
+import gzip
 import json
 import os
 from pathlib import Path
@@ -52,7 +53,8 @@ def worker(args):
     from simulation_semantics import normalized_metrics
     np.random.seed(args.seed)
     started=time.perf_counter()
-    world=build_world_view(seed=args.seed,terrain_seed=args.seed,nation_seed=args.seed)
+    world=build_world_view(seed=args.seed,terrain_seed=args.seed,nation_seed=args.seed,
+                          **({'scenario_id':args.scenario} if args.scenario else {}))
     build_seconds=time.perf_counter()-started
     trace=world['run_trace'];turns=[];profile_paths=[]
     previous_count=trace.event_count;previous_expanded=trace.count
@@ -82,6 +84,24 @@ def worker(args):
                 'metrics_digest':digest(sorted(metrics.items())),
                 'python_rng_digest':hashlib.sha256(repr(random.getstate()).encode()).hexdigest(),
                 'numpy_rng_digest':hashlib.sha256(repr(np.random.get_state()).encode()).hexdigest()}
+        if args.capture_state:
+            from simulation_semantics import canonical_state,state_digest
+            state=canonical_state(world['tiles'],world['nations'],extra={
+                'turn':world['turn'],'pair_orders':world['pair_orders'],'currencies':world['currencies'],
+                'currency_totals':world['currency_totals'],'violations':world['violations']})
+            result['economic_state_digest']=state_digest(state)
+            result['state_normalization']=state['normalization']
+            with gzip.open(args.output/(args.worker+'-state.json.gz'),'wt') as output:
+                json.dump(state['graph'],output,separators=(',',':'))
+        from trace_index import TraceIndex
+        index=TraceIndex(trace.path)
+        subject={'type':'tile','id':world['tiles'][0].name}
+        started=time.perf_counter();options=index.available_metrics(turn=world['turn'],subject=subject)
+        result['catalog_cold_seconds']=time.perf_counter()-started
+        started=time.perf_counter();again=index.available_metrics(turn=world['turn'],subject=subject)
+        result['catalog_warm_seconds']=time.perf_counter()-started
+        assert options==again
+        result['catalog_options']=len(options)
         if profile_paths:
             combined=pstats.Stats(str(profile_paths[0]))
             for path in profile_paths[1:]:combined.add(str(path))
@@ -102,6 +122,8 @@ def main():
     parser.add_argument('--turns',type=int,default=10)
     parser.add_argument('--output',type=Path,default=Path('tmp/default-ten-turn-profile'))
     parser.add_argument('--worker',choices=('timing','profile'))
+    parser.add_argument('--scenario',choices=('egypt_1877',))
+    parser.add_argument('--capture-state',action='store_true',help='compare the full canonical economy outside measured steps')
     args=parser.parse_args()
     if args.turns<1:parser.error('--turns must be positive')
     args.output=args.output.resolve();args.output.mkdir(parents=True,exist_ok=True)
@@ -111,7 +133,9 @@ def main():
         print('Starting isolated',mode,'run',flush=True)
         subprocess.run([sys.executable,'-m','benchmarks.profile_default_turns',
                         '--seed',str(args.seed),'--turns',str(args.turns),
-                        '--output',str(args.output),'--worker',mode],check=True,cwd=root,
+                        '--output',str(args.output),'--worker',mode,
+                        *(['--scenario',args.scenario] if args.scenario else []),
+                        *(['--capture-state'] if args.capture_state else [])],check=True,cwd=root,
                        env={**os.environ,'PYTHONHASHSEED':'0'})
     reports={mode:json.loads((args.output/(mode+'.json')).read_text()) for mode in ('timing','profile')}
     for key in ('metrics_digest','python_rng_digest','numpy_rng_digest','event_records','expanded_records'):

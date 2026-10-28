@@ -588,10 +588,15 @@ def nation_chart_aggregation_rows(nation, turn=None):
     return rows
 
 
-def sample(tiles, nations, *, labor_censuses=None):
+def sample(tiles, nations, *, labor_censuses=None, full=False):
     values = {}
+    frontier=getattr(getattr(tiles[0],'_run_trace',None),'wilderness',None) if tiles and not full else None
+    if frontier:frontier.register(tiles,nations)
     for tile in tiles:
         tile_subject = {'type': 'tile', 'id': tile.name}
+        if frontier and frontier.quiet(tile):
+            values[('world.wilderness_state',tile.name)]=(tile_subject,'state',frontier.state(tile))
+            continue
         bank = getattr(tile, 'bank', None)
         if bank is not None:
             capital = float(getattr(bank, 'capital', 0.0))
@@ -919,6 +924,8 @@ def record(server):
     tiles_by_name = {tile.name: tile for tile in server.tiles}
     labor_censuses = capture_labor_censuses(server.tiles)
     current = sample(server.tiles, server.nations, labor_censuses=labor_censuses)
+    frontier=getattr(server.run_trace,'wilderness',None)
+    quiet_tiles={key[1] for key in current if key[0]=='world.wilderness_state'}
     previous = getattr(server, '_trace_previous', {})
     previous_nation_membership = getattr(
         server, '_trace_previous_nation_membership', {})
@@ -935,7 +942,7 @@ def record(server):
     # return to a profession has a real before value, without snapshotting
     # unchanged zero categories every turn.
     for key, (subject, unit, _before) in previous.items():
-        if key[0] in ('people.profession_population', 'labor.primary_livelihood',
+        if key[1] not in quiet_tiles and key[0] in ('people.profession_population', 'labor.primary_livelihood',
                       'labor.employment_status') and key not in current:
             current[key] = (subject, unit, 0)
     current_people = resident_census(server.tiles)
@@ -948,7 +955,7 @@ def record(server):
         server.run_trace.bank_book.close(server.tiles, clock, previous)
         server.run_trace.treasury_book.close(server.nations, clock, previous)
         record_labor_censuses(
-            server.run_trace, clock, labor_censuses,
+            server.run_trace, clock, {name:census for name,census in labor_censuses.items() if name not in quiet_tiles},
             getattr(server, '_trace_previous_labor_censuses', {}), previous)
         if previous_people is not None:
             for bridge in resident_population_bridges(
@@ -973,6 +980,7 @@ def record(server):
                         if bridge['inputs']['reconciled'] else
                         'unexplained_population_residual'))
         for tile in server.tiles:
+            if tile.name in quiet_tiles:continue
             from disease import ALL_DISEASES
             for disease in ALL_DISEASES:
                 case_ids=[person.id for person in tile.agents if getattr(person,'alive',True)
@@ -1352,6 +1360,7 @@ def record(server):
                     formula_id='aggregate.sum.v1',
                     inputs=profession_inputs)
         for key, (subject, unit, after) in current.items():
+            if key[0]=='world.wilderness_state':continue
             before = previous[key][2] if key in previous else None
             if key[0] == 'people.profession_population' and before == after:
                 continue
@@ -1411,6 +1420,7 @@ def record(server):
                     after=aggregate['after'],
                     formula_id=aggregate['formula_id'], inputs=inputs,
                     cause_event_ids=source_event_ids or None)
+        if frontier:frontier.record(server.tiles,clock)
     server._trace_previous = current
     server._trace_previous_people = current_people
     server._trace_previous_roles = current_roles

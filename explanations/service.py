@@ -117,15 +117,22 @@ class ExplanationService:
                 if result['capture_key'] != key:
                     raise ValueError('Mismatched cache key.')
             except (OSError, ValueError, KeyError, TypeError):
-                if self.provider.unavailable:
+                packet = build_packet(captured, lambda state: self._stage(ident, state))
+                if packet.get('local_explanation'):
+                    narrative={'selection_id':packet['selection_id'],
+                        'claims':[{'text':packet['local_explanation'],
+                                   'evidence_ids':packet['root_event_ids'],'level':'observation'}],
+                        'historical_parallel':None,'suggested_actions':[],'future_mechanics':[]}
+                    metadata={'model':'local-capture-policy','provider_called':False}
+                elif self.provider.unavailable:
                     with self.lock:
                         self.jobs[ident].update(state='unavailable', error=self.provider.unavailable)
                     return
-                packet = build_packet(captured, lambda state: self._stage(ident, state))
-                self._stage(ident, 'selecting_history')
-                packet['historical_candidates'] = history.candidates(packet)
-                self._stage(ident, 'generating')
-                narrative, metadata = self.provider.generate(packet)
+                else:
+                    self._stage(ident, 'selecting_history')
+                    packet['historical_candidates'] = history.candidates(packet)
+                    self._stage(ident, 'generating')
+                    narrative, metadata = self.provider.generate(packet)
                 self._stage(ident, 'validating')
                 schema.validate(narrative, packet)
                 result = {'capture_key': key, 'packet': packet, 'narrative': narrative,

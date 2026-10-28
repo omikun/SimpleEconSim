@@ -8,6 +8,8 @@ from __future__ import annotations
 
 
 METRICS = {
+    'world.wilderness_state': ('tile','state','Explicit quiet-frontier state and capture applicability'),
+    'frontier.native_population': ('tile','people','Background native inhabitants used by frontier claims; separate from resident agents'),
     'goods.price': ('tile/simulation/good', 'local_currency_per_unit', 'displayed recipe reference price; region_market and econsim_trade_money price writers'),
     'goods.national_reference_price': ('nation/good', 'mean_local_currency_per_unit', 'trace_snapshots.sample mean across territories with a recorded reference price; no currency conversion'),
     'goods.national_food_price': ('nation/good', 'mean_local_currency_per_unit', 'sim_server._record_history food_price mean, with explicit territory coverage'),

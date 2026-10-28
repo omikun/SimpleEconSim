@@ -16,7 +16,7 @@ def normalized_metrics(server):
         if isinstance(value,list):return [normalize(item) for item in value]
         if isinstance(value,dict):return {normalize(key):normalize(item) for key,item in value.items()}
         return value
-    return {normalize(key):normalize(value) for key,value in sample(server.tiles,server.nations).items()}
+    return {normalize(key):normalize(value) for key,value in sample(server.tiles,server.nations,full=True).items()}
 
 
 # Only observational identity/cache fields are omitted. Financial quantities,

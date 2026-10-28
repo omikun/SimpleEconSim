@@ -40,7 +40,8 @@ def tile_labor_census(tile):
 
 
 def capture_labor_censuses(tiles):
-    return {tile.name: tile_labor_census(tile) for tile in tiles}
+    from wilderness_trace import quiet
+    return {tile.name: tile_labor_census(tile) for tile in tiles if not quiet(tile)}
 
 
 def census_groups(census, field):

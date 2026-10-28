@@ -38,8 +38,8 @@ class TraceIndex:
         try:
             db.execute('PRAGMA cache_size=-2048')
             db.execute('CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY,value TEXT)')
-            db.execute('CREATE TABLE IF NOT EXISTS events(n INTEGER PRIMARY KEY,id TEXT UNIQUE,turn INTEGER,kind TEXT,metric TEXT,subject TEXT,good TEXT,block INTEGER,position INTEGER,end INTEGER,sha TEXT,class TEXT,sequence INTEGER)')
-            expected = ['n','id','turn','kind','metric','subject','good','block','position','end','sha','class','sequence']
+            db.execute('CREATE TABLE IF NOT EXISTS events(n INTEGER PRIMARY KEY,id TEXT UNIQUE,turn INTEGER,kind TEXT,metric TEXT,subject TEXT,good TEXT,block INTEGER,position INTEGER,end INTEGER,sha TEXT,class TEXT,sequence INTEGER,epoch INTEGER)')
+            expected = ['n','id','turn','kind','metric','subject','good','block','position','end','sha','class','sequence','epoch']
             if [row[1] for row in db.execute('PRAGMA table_info(events)')] != expected:
                 raise IndexCacheError('incompatible index schema')
             for field in ('id','turn','kind','metric','good'):
@@ -48,6 +48,8 @@ class TraceIndex:
             db.execute('CREATE TABLE IF NOT EXISTS coverage(n INTEGER PRIMARY KEY,prefix TEXT,min_seq INTEGER,max_seq INTEGER,turn INTEGER,subject TEXT,cells TEXT,block INTEGER,position INTEGER,end INTEGER,sha TEXT)')
             db.execute('CREATE INDEX IF NOT EXISTS coverage_by_range ON coverage(prefix,min_seq,max_seq)')
             db.execute("CREATE INDEX IF NOT EXISTS coverage_by_entity_turn ON coverage(json_extract(subject,'$.type'),json_extract(subject,'$.id'),turn)")
+            db.execute('CREATE TABLE IF NOT EXISTS wilderness(n INTEGER PRIMARY KEY,id TEXT,turn INTEGER,epoch INTEGER,tiles TEXT,end INTEGER)')
+            db.execute('CREATE INDEX IF NOT EXISTS wilderness_by_turn ON wilderness(turn,epoch)')
         except BaseException:
             db.close()
             raise
@@ -77,8 +79,43 @@ class TraceIndex:
                     AND c.turn=? AND c.end<=?)
                     GROUP BY metric,subject ORDER BY metric,subject""",
                     (subject['type'],subject['id'],turn,indexed['boundary'])*2).fetchall()
-            return [{'metric_id': metric, 'subject': json.loads(encoded), 'count': count}
+            result=[{'metric_id': metric, 'subject': json.loads(encoded), 'count': count}
                     for metric, encoded, count in rows]
+            covered=self.wilderness_status(turn=turn,subject=subject,boundary=indexed['boundary'])
+            if covered:
+                from wilderness_trace import FIELDS
+                existing={(row['metric_id'],json.dumps(row['subject'],sort_keys=True)) for row in result}
+                for metric in ['world.wilderness_state','people.residents',*[field[0] for field in FIELDS]]:
+                    selected={'type':'tile','id':subject['id']}
+                    if (metric,json.dumps(selected,sort_keys=True)) not in existing:
+                        result.append({'metric_id':metric,'subject':selected,'count':1,'coverage':'wilderness_domain'})
+            return result
+
+    def wilderness_status(self,*,turn,subject,boundary=None,epoch=None):
+        """Resolve one checked tile/domain without indexing per-tile or per-metric rows."""
+        if subject.get('type')!='tile':return None
+        with _path_lock(self.index_path):
+            indexed=self._query_or_rebuild(boundary=boundary,limit=0,_index_only=True)
+            with closing(self._connect()) as db:
+                clauses=['turn=?','end<=?',"EXISTS (SELECT 1 FROM json_each(tiles) WHERE value IS ?)"]
+                parameters=[turn,indexed['boundary'],subject['id']]
+                if epoch is not None:clauses.append('epoch=?');parameters.append(epoch)
+                found=db.execute('SELECT id FROM wilderness WHERE '+' AND '.join(clauses)+
+                                 ' ORDER BY epoch,n LIMIT 1',parameters).fetchone()
+            if not found:return None
+            cohort=self._query_or_rebuild(event_id=found[0],boundary=indexed['boundary'],limit=1)['events'][0]
+            refs=cohort['inputs']['state_refs']
+            source=next((ident for ident,names in refs.items() if subject['id'] in names),None)
+            if source is None:raise CorruptTrace('Wilderness state reference missing')
+            page=self._query_or_rebuild(event_id=source,boundary=indexed['boundary'],limit=1)
+            if not page['events']:raise CorruptTrace('Wilderness state source missing')
+            state=page['events'][0]
+            if (state.get('kind') not in ('wilderness_initial_state','wilderness_state_observation')
+                    or state['sequence']>=cohort['sequence']
+                    or (state['turn'],state.get('epoch',0))>(cohort['turn'],cohort.get('epoch',0))
+                    or subject['id'] not in state.get('inputs',{}).get('states',{})):
+                raise CorruptTrace('Wilderness state subject mismatch')
+            return {'coverage':cohort,'source':state,'state':state['inputs']['states'][subject['id']]}
 
     def _query_or_rebuild(self, **filters):
         try:
@@ -116,7 +153,7 @@ class TraceIndex:
                 raise IndexCacheError('invalid index boundary metadata') from error
             if (meta.get('identity')!=identity or previous>size
                     or (previous==size and meta.get('mtime')!=str(self.path.stat().st_mtime_ns))):
-                db.execute('DELETE FROM events');db.execute('DELETE FROM coverage');db.execute('DELETE FROM meta');meta={};previous=0
+                db.execute('DELETE FROM events');db.execute('DELETE FROM coverage');db.execute('DELETE FROM wilderness');db.execute('DELETE FROM meta');meta={};previous=0
             # Index the caller's fixed published boundary. Re-read at most the
             # last block to verify coordinates before appending new rows.
             if boundary>previous:
@@ -131,9 +168,13 @@ class TraceIndex:
                         continue
                     row=record.row if record.row is not None else json.loads(record.payload)
                     subject_json=json.dumps(row.get('subject',{}),sort_keys=True,separators=(',',':'))
-                    db.execute('INSERT INTO events VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',
+                    db.execute('INSERT INTO events VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
                                (number,row.get('event_id'),row.get('turn'),row.get('kind'),row.get('metric_id'),subject_json,
-                                row.get('subject',{}).get('good'),record.block_offset,record.record_in_block,record.end_offset,sha,row.get('record_class'),row.get('sequence')))
+                                row.get('subject',{}).get('good'),record.block_offset,record.record_in_block,record.end_offset,sha,row.get('record_class'),row.get('sequence'),row.get('epoch',0)))
+                    if row.get('kind')=='wilderness_domain_coverage':
+                        db.execute('INSERT INTO wilderness VALUES(?,?,?,?,?,?)',
+                            (number,row['event_id'],row['turn'],row.get('epoch',0),
+                             json.dumps(row['inputs']['tiles']),record.end_offset))
                     if row.get('kind') == 'state_coverage':
                         inputs = row['inputs']
                         db.execute('INSERT INTO coverage VALUES(?,?,?,?,?,?,?,?,?,?,?)',

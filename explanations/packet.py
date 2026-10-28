@@ -8,7 +8,7 @@ from metric_catalog import METRICS
 from trace_index import TraceIndex
 from trace_explanation import describe
 
-VERSION = '1'
+VERSION = '2'
 MAX_EVENTS = 64
 MAX_ROOTS = 48
 MAX_DEPTH = 4
@@ -65,6 +65,12 @@ def build_packet(capture, stage=lambda value: None):
     stage('collecting_evidence')
     result = index.query(**filters, limit=MAX_ROOTS)
     roots = result['events']
+    if not roots or selection['metric_id'] in ('goods.price','world.wilderness_state'):
+        status=index.wilderness_status(turn=selection['turn'],subject=selection['subject'],
+                                       epoch=selection.get('epoch'),boundary=boundary)
+        if status:
+            from explanations.wilderness import packet
+            return packet(capture,index,status)
     if not roots:
         raise ValueError('No recorded evidence for this stat and selection. Use the recorded-evidence view.')
     gaps = []

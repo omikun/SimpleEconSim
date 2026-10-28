@@ -216,10 +216,22 @@ def run_migrations(t, regions, rng=None):
         pressure = migration_intent_components(source)
         score = pressure['score']
         from run_trace import emit
+        # Observe only at the real gate evaluation: the same score helper is
+        # also used by UI previews, which must never create trace evidence.
+        price_sources=[]
+        recorder=getattr(source,'_run_trace',None)
+        getter=getattr(recorder,'latest_reference_price_event_id',None)
+        if callable(getter) and source.neighbors:
+            from goods import Goods
+            for tile in [source,*source.neighbors.values()]:
+                if getattr(tile,'recipes',None) and Goods.food in tile.recipes:
+                    ident=getter(str(tile.name),'food')
+                    if ident and ident not in price_sources:price_sources.append(ident)
         intent_event = emit(source, kind='migration_push_decision', record_class='calculation',
                             subject={'type': 'tile', 'id': source.name},
                             metric_id='people.migration_pressure', unit='score',
                             after=score, formula_id='migration.pressure_gate.v1',
+                            cause_event_ids=price_sources,
                             inputs={'threshold': MIGRATION_PRESSURE_THRESHOLD,
                                     'population': len(source.agents),
                                     'wage_memory_average': pressure['average_wage_memory'],
