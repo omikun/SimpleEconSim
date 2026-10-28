@@ -1,5 +1,7 @@
 # Rebellion Mechanics: Charismatic Agitation, Fermentation, and Martyrdom
 
+**Design relationship (October 27, 2026):** The [people-network manifesto](gdd.md#manifesto-a-nation-is-a-network-of-people) extends collective action to governing, coalition formation, and a displaced player's movement to regain power. The [isolated network prototype proposal](../planning/people_network_layer.md) is under discussion and is not implemented by these documents. The regional follower counts and thresholds below describe this document's existing rebellion model; they are not a specification of an explicit relationship graph. In the new direction, deprivation does not inevitably produce mobilization, and removal of a leader does not guarantee either collapse or a successful martyrdom cascade. Organization, connections, interests, and circumstances must mediate those outcomes.
+
 ## 1. Executive Summary & Historical Grounding
 
 Rebellions and agrarian insurrections do not arise spontaneously out of undifferentiated misery. Instead, historical resistance emerges through an interplay between **material immiseration** (food starvation, land enclosure, wage suppression, debt peonage) and **coordination structures** that solve the classical *Collective Action Problem* (Olson).

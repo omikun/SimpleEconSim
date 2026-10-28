@@ -19,6 +19,19 @@
 ### The Player's Role
 You act as the **Sovereign State** (and its regional/provincial apparatus) governing an interconnected multi-region economy, or as a historical ruler navigating an authored crisis campaign. You do not telepathically command citizens to work or eat; instead, you shape their material incentives, property laws, infrastructure, fiscal/monetary rules, and diplomatic/military posture—and then Deal with the emergent class, fiscal, and geopolitical consequences.
 
+### Manifesto Direction: A Nation Depends on Its People's Networks
+The intended direction extends the current state-centered role: **power emerges from relationships among people**. Trusted organizers mobilize others toward concrete goals; durable communities sustain collective action; bridges between groups make coalitions possible. Governments depend on these networks to act, and their decisions reshape the networks in return. Material conditions create interests and grievances, while relationships shape whether people can act on them together.
+
+The player should be able to govern while in power and, after being overthrown, continue as a displaced leader organizing a movement to regain power. Supporters, obligations, rivals, and persistent organizations should connect those phases of play. The standalone laboratory implements the first version of this continuity; extending it to the existing campaigns remains a design commitment.
+
+The first experiment is an isolated network playtest over the terrain map, selected through a separate launcher, with the broader simulation replaced by explicit scenario inputs. Its balance and interface remain open to playtest revision; integration follows evidence that the loop is enjoyable. See the [manifesto](docs/gdd.md#manifesto-a-nation-is-a-network-of-people) and [prototype discussion](planning/people_network_layer.md).
+
+The [first implementation plan](planning/people_network_first_implementation_plan.md) records the design of the desktop Network Laboratory, including recruitment, coalition bargaining, displacement and restoration, terrain views, isolation boundaries, and playtest acceptance gates.
+
+### Play the Network Laboratory
+
+The first standalone network prototype is now available: `venv/bin/python -m client.desktop.network_lab`. It runs pressure propagation and competing coalitions over terrain, with governing, displacement, restoration, promises and causal history. Use `--start displaced` to begin in opposition. The existing economic simulation does not run in this client. See the [laboratory guide](docs/people_network_lab.md) for controls, saves and verification, and the [implementation report](planning/reports/people_network_first_playtest.md) for current limits.
+
 ### Core Strategic Tensions
 Every decision pulls against competing structural constraints:
 - **Domestic Subsistence vs. Cash-Crop Export & Debt Service**: Diverting fertile river basins and peasant labor toward export cash crops (like cotton) raises foreign exchange for bond coupons, but hollows out local grain supply, triggering famine, hoarding, and food riots.

@@ -27,6 +27,26 @@ implementation plan are in [Game time design](planning/game_time_design.md).
 
 ## 1. Executive Concept & Philosophical Thesis
 
+### Manifesto: A Nation Is a Network of People
+
+**Design direction agreed October 27, 2026; not implemented by this document.**
+
+A nation's capacity to act depends on the network of its people. Resources, laws, and formal offices acquire practical force through relationships of trust, obligation, dependence, and authority. Material conditions shape what people need and want; their connections shape whether they can pursue those interests together.
+
+Influential people can mobilize contacts toward specific tasks or goals, and those contacts can carry mobilization outward. Influence is contextual: a trusted workplace organizer need not command the same trust in a religious community or army unit. Network effects should allow participation to reinforce participation, while distrust, risk, conflicting interests, and weak connections can prevent a cascade. Grievance alone does not guarantee organization or victory.
+
+The intended network simulation is a graph with local pressure propagation: actions and organizers introduce influence that radiates along relationships, meets resistance, and competes with opposing influence. Spheres of influence and contested boundaries emerge from those interactions rather than being assigned per region. The model should preserve a minimal causal history of actions, graph/source changes, and consequential transitions, so a player can inspect the accumulated pressures and inflection points behind a coalition shift or loss of office. The proposed dynamics and trace design are in [Graph dynamics and minimal causal trace](../planning/people_network_graph_dynamics.md).
+
+Durable subnetworks—families, communities, unions, officer circles, patronage networks, and other institutions—give society memory and staying power beyond one leader or crisis. People may belong to several groups. Coalition formation depends on the people who bridge them, the commitments they negotiate, and their ability to retain cooperation after an immediate goal has been achieved. Central figures matter, but mature organizations can survive their departure.
+
+Governments are embedded in these networks. Holding office provides institutional powers, but carrying out policy requires cooperation from officials, communities, workers, and armed forces. Governments respond to organized demands, bargain with coalitions, and reshape relationships through their actions. The same networks can support state capacity, obstruct decisions, or organize a replacement government.
+
+**The player can govern and organize a return to power.** While in office, the player governs through institutions and a supporting coalition. If overthrown, the player can continue as the displaced leader, cultivate supporters, build a movement, and attempt to regain office. Relationships, promises, organizational memory, and opposition persist across the transition. Losing office is a change in the player's position, not automatically the end of play or a transfer of the player's identity to the new ruler. Return to power is possible, not guaranteed; character succession and other terminal conditions remain open design questions.
+
+This extends the current campaign behavior described below, where the player remains responsible for Egypt's government through succession. Existing scenario descriptions describe current behavior; they do not establish that the new continuity has been implemented.
+
+**Prove the play before integrating the layer.** Explore this as a separately enabled development layer, initially playable over terrain with other simulation systems disabled or replaced by explicit scenario inputs. The prototype should make organizing, coalition maintenance, governing, displacement, and recovery understandable and enjoyable before coupling them to the wider economy. A region need not have its own graph screen: the working proposal is one network spanning the map, with local inspection and selective relationship overlays. Mode boundaries, prototype scope, and unresolved choices are in [People network layer](../planning/people_network_layer.md). These technical choices are proposals for discussion, not implementation instructions.
+
 ### 1.0 First Playable Scenario: Egypt's Grain and Debt Crisis, 1877
 
 The first campaign is grounded in **Khedivate of Egypt under Khedive Ismail Pasha**, during the overlap of a low Nile flood and the country's debt emergency. In 1876, Egypt suspended payments on treasury bonds and established the Caisse de la Dette Publique, whose foreign commissioners directly received revenues assigned to debt service. In 1877, a very low Nile left farmland unirrigated and threatened the *doura* (maize) staple. The scenario brings these documented pressures into one playable crisis in **Cairo**, the **Nile Delta**, and **Upper Egypt**, with **Alexandria** as the export and port connection. It uses a deterministic setup and a 20-turn base horizon that extends for late sovereignty crises.

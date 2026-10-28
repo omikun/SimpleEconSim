@@ -1,0 +1,208 @@
+[
+  [
+    {
+      "issuer": "player",
+      "kind": "organize",
+      "params": {
+        "target": "player",
+        "channel": "player"
+      }
+    },
+    {
+      "issuer": "player",
+      "kind": "organize",
+      "params": {
+        "target": "p00",
+        "channel": "player"
+      }
+    }
+  ],
+  [
+    {
+      "issuer": "player",
+      "kind": "organize",
+      "params": {
+        "target": "p01",
+        "channel": "player"
+      }
+    },
+    {
+      "issuer": "player",
+      "kind": "organize",
+      "params": {
+        "target": "p02",
+        "channel": "player"
+      }
+    }
+  ],
+  [],
+  [],
+  [],
+  [],
+  [],
+  [],
+  [],
+  [],
+  [],
+  [
+    {
+      "issuer": "player",
+      "kind": "promise",
+      "params": {
+        "target": "p04",
+        "term": "liaison"
+      }
+    },
+    {
+      "issuer": "player",
+      "kind": "approach",
+      "params": {
+        "target": "p04",
+        "channel": "player"
+      }
+    }
+  ],
+  [
+    {
+      "issuer": "player",
+      "kind": "organize",
+      "params": {
+        "target": "p03",
+        "channel": "player"
+      }
+    }
+  ],
+  [
+    {
+      "issuer": "player",
+      "kind": "approach",
+      "params": {
+        "target": "p04",
+        "channel": "player"
+      }
+    }
+  ],
+  [],
+  [
+    {
+      "issuer": "player",
+      "kind": "approach",
+      "params": {
+        "target": "p04",
+        "channel": "player"
+      }
+    }
+  ],
+  [
+    {
+      "issuer": "player",
+      "kind": "approach",
+      "params": {
+        "target": "p00",
+        "channel": "player"
+      }
+    },
+    {
+      "issuer": "player",
+      "kind": "organize",
+      "params": {
+        "target": "p04",
+        "channel": "player"
+      }
+    }
+  ],
+  [],
+  [
+    {
+      "issuer": "player",
+      "kind": "approach",
+      "params": {
+        "target": "p00",
+        "channel": "player"
+      }
+    }
+  ],
+  [
+    {
+      "issuer": "player",
+      "kind": "organize",
+      "params": {
+        "target": "p00",
+        "channel": "player"
+      }
+    },
+    {
+      "issuer": "player",
+      "kind": "approach",
+      "params": {
+        "target": "p04",
+        "channel": "player"
+      }
+    }
+  ],
+  [],
+  [
+    {
+      "issuer": "player",
+      "kind": "approach",
+      "params": {
+        "target": "p06",
+        "channel": "player"
+      }
+    },
+    {
+      "issuer": "player",
+      "kind": "organize",
+      "params": {
+        "target": "p04",
+        "channel": "player"
+      }
+    }
+  ],
+  [
+    {
+      "issuer": "player",
+      "kind": "challenge",
+      "params": {}
+    },
+    {
+      "issuer": "player",
+      "kind": "approach",
+      "params": {
+        "target": "p07",
+        "channel": "player"
+      }
+    }
+  ],
+  [
+    {
+      "issuer": "player",
+      "kind": "approach",
+      "params": {
+        "target": "p06",
+        "channel": "player"
+      }
+    }
+  ],
+  [
+    {
+      "issuer": "player",
+      "kind": "appoint",
+      "params": {
+        "target": "p04"
+      }
+    },
+    {
+      "issuer": "player",
+      "kind": "adopt",
+      "params": {
+        "channel": "upstream"
+      }
+    }
+  ],
+  [],
+  [],
+  [],
+  [],
+  []
+]

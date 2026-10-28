@@ -1,0 +1,139 @@
+[
+  {
+    "start": "governing",
+    "policy": "hold",
+    "rounds": 24,
+    "officeholder": "player",
+    "transfers": [],
+    "project": {
+      "package": "upstream",
+      "streak": 3,
+      "deadline": 12,
+      "complete": true,
+      "maintenance_misses": 0,
+      "completed_round": 10,
+      "failed": false
+    },
+    "mean_step_ms": 4.3154757004231215,
+    "max_step_ms": 5.022000055760145,
+    "trace_bytes": 2000165,
+    "bytes_per_round": 83340.20833333333,
+    "semantic_records": 202,
+    "digest": "3c445f50b490c9372fe8c062f19e7e8fdaeaa5394d59db97c3e0dd388f87be04",
+    "replay": "passed"
+  },
+  {
+    "start": "governing",
+    "policy": "pass",
+    "rounds": 24,
+    "officeholder": "rival",
+    "transfers": [
+      {
+        "round": 8,
+        "before": "player",
+        "after": "rival"
+      }
+    ],
+    "project": {
+      "package": "market",
+      "streak": 3,
+      "deadline": 14,
+      "complete": true,
+      "maintenance_misses": 0,
+      "completed_round": 12,
+      "failed": false
+    },
+    "mean_step_ms": 3.8040277819770076,
+    "max_step_ms": 4.286666866391897,
+    "trace_bytes": 1886920,
+    "bytes_per_round": 78621.66666666667,
+    "semantic_records": 110,
+    "digest": "02792f36bc6f236f1de23c922566be447af26fddb1d43fe85f7648bf92b65f65",
+    "replay": "passed"
+  },
+  {
+    "start": "displaced",
+    "policy": "recover",
+    "rounds": 24,
+    "officeholder": "player",
+    "transfers": [
+      {
+        "round": 16,
+        "before": "rival",
+        "after": "player"
+      }
+    ],
+    "project": {
+      "package": null,
+      "streak": 0,
+      "deadline": null,
+      "complete": false,
+      "maintenance_misses": 0,
+      "completed_round": null
+    },
+    "mean_step_ms": 4.1532569836514694,
+    "max_step_ms": 4.585290793329477,
+    "trace_bytes": 2022818,
+    "bytes_per_round": 84284.08333333333,
+    "semantic_records": 195,
+    "digest": "34cf0e06204ca18f82f064275b91fe394c67bc9d01ea0ee06404ffa5ba64a338",
+    "replay": "passed"
+  },
+  {
+    "start": "displaced",
+    "policy": "pass",
+    "rounds": 24,
+    "officeholder": "rival",
+    "transfers": [],
+    "project": {
+      "package": "market",
+      "streak": 3,
+      "deadline": 12,
+      "complete": true,
+      "maintenance_misses": 0,
+      "completed_round": 12,
+      "failed": false
+    },
+    "mean_step_ms": 3.9122116674358645,
+    "max_step_ms": 4.297290928661823,
+    "trace_bytes": 1867780,
+    "bytes_per_round": 77824.16666666667,
+    "semantic_records": 95,
+    "digest": "47f95a9ca299aeb7e96b6be260e59a57ba2f056e61d107a5fa62e08b0877c7fb",
+    "replay": "passed"
+  },
+  {
+    "start": "governing",
+    "policy": "cycle",
+    "rounds": 30,
+    "officeholder": "player",
+    "transfers": [
+      {
+        "round": 11,
+        "before": "player",
+        "after": "rival"
+      },
+      {
+        "round": 24,
+        "before": "rival",
+        "after": "player"
+      }
+    ],
+    "project": {
+      "package": "upstream",
+      "streak": 3,
+      "deadline": 30,
+      "complete": true,
+      "maintenance_misses": 0,
+      "completed_round": 26,
+      "failed": false
+    },
+    "mean_step_ms": 4.302154217536251,
+    "max_step_ms": 4.961374681442976,
+    "trace_bytes": 2497848,
+    "bytes_per_round": 83261.6,
+    "semantic_records": 253,
+    "digest": "533c8e3b2f6bce2db88b92831f0c430afb9a9e03f3ed9b953eaa221a56007340",
+    "replay": "passed"
+  }
+]
