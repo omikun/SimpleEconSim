@@ -321,7 +321,7 @@ def draw_help_modal(surface, world, font, font_small):
         surface.blit(font_small.render(f"- Terrain & Landmass Seed: {t_seed}    (Pass with CLI: --terrain-seed <int>)", True, (180, 230, 180)), (bx + 34, y + 54))
         surface.blit(font_small.render(f"- Nations & Placement Seed: {n_seed}    (Pass with CLI: --nation-seed <int>)", True, (255, 205, 150)), (bx + 34, y + 76))
         
-        cli_hint = font_small.render("Example: python3 worldview.py --seed 42 --terrain-seed 101 --nation-seed 777", True, (160, 190, 225))
+        cli_hint = font_small.render("Example: python3 client/desktop/app.py --seed 42 --terrain-seed 101 --nation-seed 777", True, (160, 190, 225))
         surface.blit(cli_hint, (bx + 540, y + 76))
 
         y += 125

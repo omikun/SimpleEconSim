@@ -27,7 +27,7 @@ from sim_server.qr_code import generate_terminal_qr, generate_svg_qr
 curr_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = curr_dir
 while project_root and project_root != '/':
-    if (os.path.exists(os.path.join(project_root, 'worldview.py')) or os.path.exists(os.path.join(project_root, 'core', 'sim_engine.py'))):
+    if (os.path.exists(os.path.join(project_root, 'client', 'desktop', 'app.py')) or os.path.exists(os.path.join(project_root, 'core', 'sim_engine.py'))):
         break
     project_root = os.path.dirname(project_root)
 if project_root not in sys.path:

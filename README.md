@@ -63,7 +63,7 @@ Launch the full Pygame + 3D Voronoi/Hex desktop game with campaign selection, Gu
 ```bash
 ./runworldview.sh
 # or directly:
-./venv/bin/python worldview.py
+./venv/bin/python client/desktop/app.py
 ```
 
 - **Guided Mode vs. Advanced Sandbox Mode**:
@@ -291,7 +291,7 @@ Based on active architectural and design roadmaps in [`planning/ARCHITECTURE_AND
 
 ```text
 .
-├── worldview.py              # Primary 3D/Voronoi Desktop Game Client entrypoint
+├── client/desktop/app.py     # Primary 3D/Voronoi Desktop Game Client entrypoint
 ├── econsim.py                # Standalone single-region economic simulator entrypoint
 ├── tech_sim_web.py           # Standalone Emergent Tech Tree & Leapfrog Simulator server (:8082)
 ├── runworldview.sh           # Convenience launcher for Desktop Worldview
