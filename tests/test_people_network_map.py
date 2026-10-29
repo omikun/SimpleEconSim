@@ -40,8 +40,11 @@ class GeographicAndOverviewTests(unittest.TestCase):
         self.assertEqual(len(data['supporters']),5)
         self.assertLessEqual(len(data['recommendations']),2)
         self.assertEqual(len({r['person'] for r in data['recommendations']}),len(data['recommendations']))
-        self.assertTrue(any(r['kind']=='organize' for r in data['recommendations']))
-        self.assertTrue(any(r['kind']=='approach' for r in data['recommendations']))
+        self.assertTrue(data['recommendations'])
+        for r in data['recommendations']:
+            self.assertEqual(r['forecast']['horizon'],5)
+            self.assertIn('effects',r['forecast'])
+            self.assertIn('Sen',r['forecast']['assumption'])
         for recommendation in data['recommendations']:
             command(session,'player',recommendation['kind'],_preview=True,**recommendation['params'])
         self.assertEqual(before,session.payload())

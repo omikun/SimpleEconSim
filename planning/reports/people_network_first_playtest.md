@@ -55,3 +55,5 @@ Recommendation: play and iterate in the standalone laboratory. Do not integrate 
 ## Follow-up: geography and readable overview
 
 The [map/overview revision](people_network_map_overview.md) corrects the upstream/coastal placement and adds a large named graph, map-based reach and vote markers, community support summaries, explained next-action cards and plain-language in-game objectives. The expanded targeted suite passes 51 tests. The refreshed acceptance summary records current hashes and timings; initial timing figures above describe the original implementation run.
+
+The later [strategy advice revision](people_network_strategy_advice.md) replaces the overview's initial ranking shortcuts with five-round branch comparisons and makes relationship lines thicker according to trust and capacity. The targeted suite now passes 55 tests; all five political path digests remain identical.

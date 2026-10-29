@@ -15,7 +15,7 @@ from people_network.events import explain, causal_chain
 from people_network.persistence import save, load, replay
 from people_network.terrain import load_terrain
 from people_network.insights import overview
-from client.desktop.network_map import draw as draw_network_map, positions as network_positions, short_name
+from client.desktop.network_map import draw as draw_network_map, positions as network_positions, short_name, relationship_width
 
 BG=(15,24,32); PANEL=(22,34,44); TEXT=(230,235,226); MUTED=(153,174,181)
 GOLD=(240,197,101); BLUE=(89,185,239); RED=(236,126,116); GREEN=(117,204,165)
@@ -92,7 +92,7 @@ class Laboratory:
         elif self.session.state['round']==24:
             self.message='24-round debrief available below. You may keep playing or restart.'
         else:
-            info=overview(self.session.state)
+            info=overview(self.session.state,advise=False)
             self.message=f"Round finished. You now have {len(info['supporters'])} council votes. Ready for repair: {info['work']} workers and {info['haul']} haulers."
 
     def persist(self,loading=False):
@@ -151,6 +151,7 @@ class Laboratory:
         else:
             y=self.wrap('The bridge is repaired. Keep two people helping each round to maintain it.',x,y,width,15,GREEN,3)+8
         self.button('Goal: '+dict(player='Keep / win council votes',rival='Help Sen',upstream='Repair for farmers',market='Repair for traders')[self.channel],(x,y,width,30),self.cycle_channel);y+=40
+        self.text('5-round comparisons, not guaranteed outcomes',x,y,13,MUTED);y+=25
         for recommendation in info['recommendations']:
             if y+125>height-12:break
             pid=recommendation['person'];name=short_name(s['people'][pid])
@@ -161,7 +162,7 @@ class Laboratory:
             self.button(recommendation['action'],(x,y,width,30),
                         lambda r=recommendation:self.perform(r['kind'],r['params']),valid,reason);y+=43
         if y+48<height:
-            self.wrap('Larger markers on the map have more trusted reach. Diamonds are council votes. Numbered markers match these suggestions.',x,y,width,13,MUTED,3)
+            self.wrap('Each forecast compares one move with waiting. You make no further moves; Sen keeps responding. Numbered markers match the suggestions.',x,y,width,13,MUTED,4)
 
     def draw_person(self,x,y,width):
         p=self.state['people'][self.selected]
@@ -183,7 +184,8 @@ class Laboratory:
         for i,pid in enumerate(contacts[:8]):
             angle=2*math.pi*i/min(8,len(contacts))
             point=(int(center[0]+math.cos(angle)*(width/2-45)),int(center[1]+math.sin(angle)*37))
-            pygame.draw.line(self.screen,MUTED,center,point,1)
+            edge=self.state['edges'][f'{self.selected}>{pid}']
+            pygame.draw.line(self.screen,MUTED,center,point,relationship_width(edge,self.channel))
             pygame.draw.circle(self.screen,RED if self.state['people'][pid]['allegiance']=='rival' else GREEN,point,6)
             self.text(self.state['people'][pid]['name'].split(' — ')[-1],point[0]-16,point[1]-19,13)
             self.markers.append((point,pid))
@@ -313,7 +315,7 @@ class Laboratory:
 
     def draw(self):
         w,h=self.screen.get_size();self.buttons=[];self.markers=[];self.screen.fill(BG)
-        self.insights=overview(self.state,self.channel)
+        self.insights=overview(self.state,self.channel,self.session.decision_start if self.history_index is None else self.state,advise=self.history_index is None)
         sidebar=410 if w>=1300 else 370;map_width=w-sidebar-28
         self.text('THE BROKEN CROSSING',20,14,25)
         holder=self.state['government']['officeholder']

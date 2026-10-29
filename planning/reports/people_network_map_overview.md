@@ -29,3 +29,7 @@ Reach counts only active outgoing channels with contextual trust at least 0.45, 
 - Both map modes render at 1100×800 and 1440×960; every person is labeled in Network. Screenshots of terrain, network and in-game briefing are visually reviewed.
 - All five political acceptance paths still replay exactly, including displacement in round 11 and restoration in round 24 of the continuous case. [Acceptance summary](people_network_acceptance.json) is refreshed for the new geographic content and terrain digests.
 - No pressure dynamics, council thresholds or economic integration were changed in this revision. Human playtesting of the clearer presentation remains the next evaluation step.
+
+## Subsequent advice revision
+
+The initial overview heuristics described above were too shallow: political targets were ranked mostly by current opposition and organizers mostly by reachable contacts. The [strategy advice revision](people_network_strategy_advice.md) replaces these suggestions with bounded forward comparisons through the actual rules, exposes assumptions and opportunity costs, and maps relationship strength to line thickness. It leaves the political simulation unchanged.

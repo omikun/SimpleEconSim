@@ -41,6 +41,14 @@ def positions(app,rect):
     return project,result,centers
 
 
+def relationship_width(edge,channel='player',emphasized=False):
+    """Thickness shows directional trust × capacity for the selected context."""
+    context='governing' if channel in ('player','rival') else 'organizing'
+    strength=edge['trust'][context]*edge['capacity']*edge['available']
+    if strength<=0:return 0
+    return min(7,1+round(5*strength)+(1 if emphasized else 0))
+
+
 def arrow(screen,color,a,b,width=1,offset=16):
     pygame.draw.line(screen,color,a,b,width)
     dx,dy=b[0]-a[0],b[1]-a[1];length=math.hypot(dx,dy)
@@ -98,7 +106,8 @@ def draw(app,rect):
         if a in advice:color=(126,165,144)
         if a==hover or a==app.selected:color=(192,219,204)
         if eid in app.boundaries and focused:color=(166,131,85)
-        weight=2 if a==hover or a==app.selected else 1
+        weight=relationship_width(e,app.channel,a==hover or a==app.selected)
+        if not weight:continue
         arrow(app.screen,color,points[a],points[b],weight)
     # Community cards summarize support without opening individual inspectors.
     occupied=[]
@@ -157,8 +166,8 @@ def draw(app,rect):
     app.button('All links' if not app.overlay else 'Useful links',(rect.right-110,rect.y+8,100,29),lambda:setattr(app,'overlay',not app.overlay))
     caption='Terrain: river arrows run downhill to the sea.' if app.map_mode=='Terrain' else 'Network: grouped by community; positions show relationships, not geography.'
     app.text(caption,rect.x+10,rect.bottom-58,13,TEXT)
-    app.text('Bigger = more trusted reach · diamond = council vote · green ring = rallying',rect.x+10,rect.bottom-38,13,MUTED)
-    app.text('Blue backs you · coral backs Sen · gold undecided · numbers match advice',rect.x+10,rect.bottom-19,13,MUTED)
+    app.text('Bigger: trusted reach · Thicker lines: stronger ties · Diamonds: council votes',rect.x+10,rect.bottom-38,13,MUTED)
+    app.text('Blue: you · coral: Sen · gold: undecided · green ring: rallying · numbers: advice',rect.x+10,rect.bottom-19,13,MUTED)
     if hover:
         p=app.state['people'][hover];m=metrics[hover]
         text=f"{short_name(p)} · {m['contacts']} trusted contacts"+(' · council vote' if m['councillor'] else '')

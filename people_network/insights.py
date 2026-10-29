@@ -1,8 +1,9 @@
 """Read-only map advice: explain reach, political leverage and useful next actions."""
 from .graph import Graph
+from .advice import recommendations as forecast_recommendations
 
 
-def overview(state, channel='player'):
+def overview(state, channel='player', decision_start=None, advise=True):
     graph=Graph(state);people=state['people'];gov=state['government']
     context='governing' if channel in ('player','rival') else 'organizing'
     metrics={}
@@ -23,34 +24,7 @@ def overview(state, channel='player'):
     council=gov['council'];supporters=[pid for pid in council if people[pid]['active'] and people[pid]['allegiance']=='player']
     swing=[pid for pid in council if people[pid]['active'] and people[pid]['allegiance']!='player' and pid in graph.contacts('player')]
     swing.sort(key=lambda pid:(-metrics[pid]['margin'],pid))
-    organizers=[pid for pid,p in people.items() if p['active'] and p['allegiance']=='player' and pid not in state['organizers']]
-    organizers.sort(key=lambda pid:(pid=='player',-(metrics[pid]['other_regions']*2+len(metrics[pid]['can_reach'])+metrics[pid]['reach']),pid))
-    recommendations=[]
-    if swing:
-        pid=swing[0];m=metrics[pid]
-        recommendations.append(dict(person=pid,kind='approach',params=dict(target=pid,channel='player'),
-                                    title='Win a council vote',action='Ask for support',
-                                    reason=f"{people[pid]['name']} does not back you. Of the councillors you can ask directly, this person has the smallest opposing lead.",
-                                    detail='An appeal can help; it does not guarantee a vote.'))
-    at_risk=sorted([pid for pid in supporters if metrics[pid]['margin']<.20],key=lambda pid:(metrics[pid]['margin'],pid))
-    if at_risk:
-        pid=at_risk[0]
-        recommendations.append(dict(person=pid,kind='approach',params=dict(target=pid,channel='player'),
-                                    title='Keep a wavering ally',action='Reassure this ally',
-                                    reason=f"{people[pid]['name']} backs you, but Sen's attraction is close. Losing this vote could weaken your majority.",detail='Existing support needs attention too.'))
-    if organizers:
-        pid=organizers[0];m=metrics[pid]
-        recommendations.append(dict(person=pid,kind='organize',params=dict(target=pid,channel=channel),
-                                    title='Ask an ally to rally others',action='Ask to rally contacts',
-                                    reason=f"{people[pid]['name']} can reach {m['contacts']} trusted contacts, including {len(m['can_reach'])} not yet committed to your goal.",
-                                    detail=f"Contacts in {m['other_regions']} other communities. Rallying uses this person's work time."))
-    unique=[];seen=set()
-    for recommendation in recommendations:
-        if recommendation['person'] not in seen:
-            unique.append(recommendation);seen.add(recommendation['person'])
-    rally=next((r for r in unique if r['kind']=='organize'),None)
-    recommendations=([unique[0],rally] if len(unique)>2 and rally and rally!=unique[0] else unique[:2])
-    for n,r in enumerate(recommendations,1):r['number']=n
+    recommendations=forecast_recommendations(state,channel,decision_start) if advise else []
     local={}
     for loc in state['locations']:
         members=[pid for pid,p in people.items() if p['location']==loc and p['active']]
