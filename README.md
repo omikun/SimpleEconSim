@@ -32,6 +32,8 @@ The [first implementation plan](planning/people_network_first_implementation_pla
 
 The standalone network prototype opens with a plain-language overview, suggested actions, a terrain map with support markers, and a named network diagram. Launch: `venv/bin/python -m client.desktop.network_lab`. It runs pressure propagation and competing coalitions over terrain, with governing, displacement, restoration, conditional group agreements, scarce public allocations, volunteer breaks, and causal history. Open Groups to see the demands and budget. Use `--start displaced` to begin in opposition. The existing economic simulation does not run in this client. See the [laboratory guide](docs/people_network_lab.md) for controls, saves and verification, and the [implementation report](planning/reports/people_network_coalition_mechanics.md) for current limits.
 
+The proposed next step is the [patronage implementation plan](planning/people_network_patronage_implementation_plan.md): brokers, contract and hiring control, private benefits, institutional dependence, and conflicting promises. This remains planned work.
+
 ### Core Strategic Tensions
 Every decision pulls against competing structural constraints:
 - **Domestic Subsistence vs. Cash-Crop Export & Debt Service**: Diverting fertile river basins and peasant labor toward export cash crops (like cotton) raises foreign exchange for bond coupons, but hollows out local grain supply, triggering famine, hoarding, and food riots.
