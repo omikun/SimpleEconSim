@@ -9,17 +9,24 @@ venv/bin/python -m client.desktop.network_lab --start displaced --seed 4243
 
 This opens a separate Pygame client. It reads exported terrain geometry and an authored society of 32 people; it does not construct or advance the economy. The ordinary game launchers retain their existing behavior. Switch between the two laboratory starts with **Other start**, or restart the same seed with **Restart**. There is no live conversion of an existing campaign into laboratory mode.
 
-## What to do
+## Your job
 
-You begin in office with five of nine councillors, or in opposition after an authored displacement with four supporters. You have two political actions per round. Select people on the map, in the contact diagram, or from the council list. Tab cycles every person.
+**Keep enough people behind you to govern, and get the broken bridge repaired.** Farmers want the repairs to help them reach their fields first. Traders want market access first. You need cooperation from both groups, while your rival Sen is trying to win your councillors away from you.
 
-Choose a goal: your candidacy, Sen's candidacy, upstream repair, or market repair. **Appeal** sends a delayed message along an existing contact. **Organize** reserves your or a supporting person's effort to sustain that goal and contact others. It becomes active the next round. **Release effort** lets that person work again. Ordinary pressure also travels through existing relationships without new messages.
+Start with **Overview**, which opens automatically. You do not need to inspect all 32 people. It tells you how many of the nine council votes you hold, explains the bridge decision, and suggests useful people with direct action buttons. Numbered markers on the map match those suggestions. These are explained opportunities, not guaranteed winning moves.
 
-A high degree of connectivity does not guarantee influence. Relationships have directional trust in governing and organizing. People have their own issue interests, and attention/output budgets limit transmission. Separate pressure fields retain attraction to both candidates. Opposing pressure resists growth; a contested person can withdraw before joining another coalition. Commitments have review delays and entry/exit thresholds to prevent constant flipping.
+| Action | What you are asking |
+|---|---|
+| **Ask for support** | “Will you back me?” Talk to this one person. The request arrives next round and may fail. |
+| **Ask to rally** | “Will you recruit people you know?” An ally spends time spreading your chosen goal; they cannot also repair the bridge while doing this. |
+| **Stop rallying** | Free that person's time so they can work again. |
+| **Help farmers first / Help traders first** | Choose the repair plan as the current government. |
 
-**Introduce selected to…** connects two existing contacts who both support you; select the second person to complete the introduction. This creates one directed low-trust channel. It does not grant instant cooperation. Cancel with Escape.
+Use the goal selector to ask for political support or rally people for one of the repair plans. A person can back Sen politically and still help repair the bridge. You have two political actions each round; **End round** or Space lets people respond, speak to their contacts, work and reconsider their commitments.
 
-Holding five council commitments for two completed rounds permits **Call council vote**. The vote is scheduled for the following round, giving the incumbent a response. Five actual ballots transfer office. The player remains the same person after displacement and can keep organizing to return. Neither gaining nor losing office erases relationships or promises.
+Holding five council supporters for two completed rounds lets an opposition leader request a vote. The vote happens the following round, allowing a response. Five actual votes transfer office. If you lose office, you keep playing as the same person: rebuild a coalition and try to return. Your promises survive the change.
+
+Clicking a person opens optional detail, and Tab cycles everyone. **Introduce selected to…** connects two existing contacts who both support you. It creates one low-trust channel, not instant cooperation. Escape cancels the introduction.
 
 ## Governing and obligations
 
@@ -29,11 +36,15 @@ Repair requires six work contributions and four hauling contributions from at le
 
 A missed work round resets the consecutive streak. A package change also resets it. A missed deadline is recorded, damages trust in the incumbent, and does not forbid later completion. Completion changes trust and leads to maintenance: two contributors per round after a two-round grace period. Two consecutive shortfalls create a service failure. The prototype uses abstract effort, not cash, goods or the existing construction system.
 
-## Read the network and its history
+## Read the map without opening every person
 
-- Blue/coral marks dominant player/rival pressure. Gold marks contested people and, with **Links**, boundaries across opposing commitments. White rings identify councillors.
-- **Focus only** shows connections around the selected person. **Links** reveals the broader network. Click a contact in the stable relationship diagram to inspect them.
-- **Council** shows all nine individual commitments, both pressure values, the officeholder and challenge timing.
+- **Terrain** puts people on the actual river catchment. Flow arrows follow the river from mountain springs to the sea. Upstream Village is on inland high ground; Market Landing is at the coastal mouth. The bridge spans an actual river segment.
+- **Network** is a large, stable relationship diagram with every person named, grouped by community. Its spacing is schematic; it does not pretend to be geography.
+- Bigger markers mean more trusted outgoing reach. A diamond means that person holds a council vote. A green ring means they are already rallying contacts.
+- Blue means they back you, coral means they back Sen, and gold means they have not committed. Community cards summarize support and show whether the group prefers fields or market access first.
+- Numbered markers correspond to **Overview** suggestions: win a council vote, reassure a wavering ally, or ask an ally with useful contacts to rally others. A person's relevance to the current goal matters alongside their reach.
+- **All links** reveals the complete diagram; **Useful links** emphasizes the selected person and suggested intermediaries. Hovering reveals reach and council status without selecting anyone.
+- **Council** lists all nine votes, whether the preferences are close, the officeholder and challenge timing.
 - **Why?** shows pressure accumulation, signed incoming contributions, appeals, interests, decay, opposing resistance and saturation. The strongest incoming contacts appear by name.
 - **History** buttons and left/right arrows inspect recorded rounds; **Live** returns to current decisions. Inspection cannot advance the simulation. Actions are disabled while viewing history.
 - **Causes** expands the latest relevant semantic event into its causal parents. **Export** writes complete checkpoints, accepted actions, structural changes, transitions and their IDs to a `.trace.json` file beside the save.
@@ -51,10 +62,12 @@ venv/bin/python -m people_network.cli --start displaced --autoplay --rounds 24
 venv/bin/python -m people_network.cli --rounds 30 \
   --commands scenarios/people_network/playthroughs/govern_restore.json
 venv/bin/python -m scripts.playtest_people_network
-venv/bin/python -m unittest tests.test_people_network tests.test_people_network_ui -v
+venv/bin/python -m unittest tests.test_people_network tests.test_people_network_map tests.test_people_network_ui -v
 ```
 
 The checked 30-round fixture uses legal player commands with an active rival: displacement in round 11, restoration in round 24, and fulfillment of a liaison promise after restoration. It is a regression trace, not a walkthrough guaranteeing victory for arbitrary seeds or choices. CLI runs replay their journals and check state digests. The acceptance runner writes local summaries and full traces under `outputs/people_network/`.
+
+The corrected catchment uses 350 terrain cells and verified downhill drainage. Saves from the original terrain require a fresh run because the authored geography and terrain digests changed.
 
 The static terrain fixture was exported by `venv/bin/python -m scripts.build_people_network_terrain` from the game's polygon map generator. Regenerating it changes terrain provenance and invalidates old laboratory saves; it does not write map-editor slots.
 

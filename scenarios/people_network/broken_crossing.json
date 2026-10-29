@@ -17,30 +17,38 @@
       "town": {
         "name": "Council Town",
         "point": [
-          530,
-          460
-        ]
+          560.1209183202114,
+          324.3881606950775
+        ],
+        "elevation": 0.3530336163513819,
+        "coastal": false
       },
       "village": {
         "name": "Upstream Village",
         "point": [
-          400,
-          250
-        ]
+          449.4407606665418,
+          374.97911302171985
+        ],
+        "elevation": 0.7368403476301864,
+        "coastal": false
       },
       "workshops": {
         "name": "Workshop Settlement",
         "point": [
-          310,
-          570
-        ]
+          638.5283365080049,
+          358.7163208844661
+        ],
+        "elevation": 0.5202068904825771,
+        "coastal": false
       },
       "landing": {
         "name": "Market Landing",
         "point": [
-          650,
-          620
-        ]
+          654.9654355132411,
+          223.59410142096982
+        ],
+        "elevation": 0.001,
+        "coastal": true
       }
     },
     "people": {

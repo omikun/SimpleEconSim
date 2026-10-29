@@ -14,6 +14,8 @@ from people_network.graph import Graph
 from people_network.events import explain, causal_chain
 from people_network.persistence import save, load, replay
 from people_network.terrain import load_terrain
+from people_network.insights import overview
+from client.desktop.network_map import draw as draw_network_map, positions as network_positions, short_name
 
 BG=(15,24,32); PANEL=(22,34,44); TEXT=(230,235,226); MUTED=(153,174,181)
 GOLD=(240,197,101); BLUE=(89,185,239); RED=(236,126,116); GREEN=(117,204,165)
@@ -30,8 +32,8 @@ class Laboratory:
         self.save_path=Path(save_path or 'outputs/people_network/laboratory.json')
         self.selected='p00';self.channel='player';self.overlay=False
         self.zoom=1.;self.pan=[0.,0.];self.drag=None;self.history_index=None
-        self.buttons=[];self.markers=[];self.message='Start with an organizer or a councillor. Space ends a round.'
-        self.introducing=None;self.briefing=True;self.show_trace=False;self.scroll=0;self.sidebar_mode="Person"
+        self.buttons=[];self.markers=[];self.message='Keep five council votes and get the bridge repaired. The numbered people are useful places to start.'
+        self.introducing=None;self.briefing=True;self.show_trace=False;self.scroll=0;self.sidebar_mode="Overview";self.map_mode="Terrain";self.insights=overview(self.session.state)
 
     @property
     def state(self):
@@ -55,7 +57,8 @@ class Laboratory:
         rect=pygame.Rect(rect)
         hover=rect.collidepoint(pygame.mouse.get_pos())
         pygame.draw.rect(self.screen,(48,72,86) if enabled and hover else (34,51,63) if enabled else (27,36,43),rect,border_radius=5)
-        self.text(label,rect.x+9,rect.y+7,15,TEXT if enabled else (105,120,125))
+        font=15 if self.fonts[15].size(label)[0]<=rect.width-18 else 13
+        self.text(label,rect.x+9,rect.y+7,font,TEXT if enabled else (105,120,125))
         self.buttons.append((rect,action,enabled,reason))
 
     def preview(self,kind,params):
@@ -72,7 +75,9 @@ class Laboratory:
     def perform(self,kind,params):
         try:
             command(self.session,'player',kind,**params)
-            self.message=f'{kind.capitalize()} accepted. {self.session.state["ap"]["player"]} actions remain.'
+            name=short_name(self.session.state['people'][params.get('target','player')])
+            descriptions=dict(organize=f'{name} will spend time rallying contacts instead of repairing the bridge.',approach=f'Your request to {name} arrives next round; support is not guaranteed.',release=f'{name} is free to help with repair again.',adopt='Repair plan chosen. Now gather workers and haulers.')
+            self.message=descriptions.get(kind,f'{kind.capitalize()} accepted.')+f' {self.session.state["ap"]["player"]} actions left.'
         except CommandError as e:self.message=str(e)
 
     def end_round(self):
@@ -86,7 +91,9 @@ class Laboratory:
                           'You regained office. Your promises and coalition obligations still apply.')
         elif self.session.state['round']==24:
             self.message='24-round debrief available below. You may keep playing or restart.'
-        else:self.message='Pressure propagated. Inspect a person to see the contributions.'
+        else:
+            info=overview(self.session.state)
+            self.message=f"Round finished. You now have {len(info['supporters'])} council votes. Ready for repair: {info['work']} workers and {info['haul']} haulers."
 
     def persist(self,loading=False):
         try:
@@ -108,72 +115,59 @@ class Laboratory:
 
     def restart(self,start=None):
         self.session=new_session(start or self.session.state['start'],self.session.state['seed'])
-        self.history_index=None;self.introducing=None;self.briefing=True
+        self.history_index=None;self.introducing=None;self.briefing=True;self.sidebar_mode='Overview'
+        self.selected='p00';self.channel='player';self.zoom=1.;self.pan=[0.,0.]
         self.message='New laboratory run. Same seed, fresh relationships.'
 
     def positions(self,map_rect):
-        scale=min(map_rect.width/1000,map_rect.height/800)*self.zoom
-        center=map_rect.center
-        def project(point):return (int(center[0]+(point[0]-500)*scale+self.pan[0]),int(center[1]+(point[1]-400)*scale+self.pan[1]))
-        points={}
-        for loc in self.state['locations']:
-            members=[pid for pid,p in sorted(self.state['people'].items()) if p['location']==loc]
-            anchor=self.terrain['anchors'][loc]
-            for i,pid in enumerate(members):
-                angle=2*math.pi*i/len(members)
-                radius=36+(i%2)*15
-                points[pid]=project((anchor[0]+math.cos(angle)*radius,anchor[1]+math.sin(angle)*radius))
+        project,points,_=network_positions(self,map_rect)
         return project,points
 
     def draw_map(self,rect):
-        self.screen.set_clip(rect)
-        pygame.draw.rect(self.screen,(32,64,80),rect)
-        project,points=self.positions(rect)
-        for cell in self.terrain['cells']:
-            poly=[project(p) for p in cell['polygon']]
-            if len(poly)>=3:
-                pygame.draw.polygon(self.screen,cell['color'],poly)
-                pygame.draw.polygon(self.screen,(55,77,69),poly,1)
-        for river in self.terrain['rivers']:
-            pygame.draw.line(self.screen,(87,157,187),project(river[0]),project(river[1]),2)
-        town=project(self.terrain['anchors']['town']);up=project(self.terrain['anchors']['village'])
-        pygame.draw.line(self.screen,GOLD,up,town,3)
-        self.text('Shared crossing',(up[0]+town[0])//2-55,(up[1]+town[1])//2,13,GOLD)
-        graph=Graph(self.state)
-        for eid,e in sorted(graph.edges.items()):
-            if not e['available']:continue
-            focus=self.selected in (e['source'],e['target'])
-            a,b=points[e['source']],points[e['target']]
-            if focus or self.overlay:
-                boundary=eid in self.boundaries
-                color=GOLD if boundary else (158,198,193) if focus else (78,107,103)
-                pygame.draw.line(self.screen,color,a,b,2 if focus else 1)
-                if focus:
-                    dx,dy=b[0]-a[0],b[1]-a[1];length=max(1,math.hypot(dx,dy))
-                    tip=(int(b[0]-dx/length*12),int(b[1]-dy/length*12))
-                    pygame.draw.polygon(self.screen,color,[tip,(tip[0]-int(dx/length*7-dy/length*4),tip[1]-int(dy/length*7+dx/length*4)),(tip[0]-int(dx/length*7+dy/length*4),tip[1]-int(dy/length*7-dx/length*4))])
-        for loc,data in self.state['locations'].items():
-            anchor=project(self.terrain['anchors'][loc]);self.text(data['name'],anchor[0]-72,anchor[1]-86,17,TEXT)
-        for pid,p in sorted(self.state['people'].items()):
-            point=points[pid];a,b=p['pressure']['player'],p['pressure']['rival']
-            color=BLUE if a-b>.10 else RED if b-a>.10 else GOLD if min(a,b)>.3 else MUTED
-            radius=11 if pid==self.selected else 8
-            if pid in self.state['government']['council']:
-                pygame.draw.circle(self.screen,TEXT,point,radius+3,1)
-            if p['contested']:pygame.draw.circle(self.screen,GOLD,point,radius+5,2)
-            pygame.draw.circle(self.screen,color,point,radius)
-            if pid==self.selected or pid in ('player','rival'):
-                self.text(p['name'].split(' — ')[-1],point[0]+12,point[1]-8,13)
-            if rect.collidepoint(point):self.markers.append((point,pid))
-        self.screen.set_clip(None)
-        self.text('BLUE  your pressure    CORAL  rival    GOLD  contested / boundary',rect.x+12,rect.bottom-48,13)
-        self.text('White ring: councillor · click a person · wheel zoom · right-drag pan',rect.x+12,rect.bottom-27,13)
+        draw_network_map(self,rect)
+
+    def draw_overview(self,x,y,width,height):
+        s=self.state;info=self.insights
+        self.text('Who can help you?',x,y,25);y+=36
+        count=len(info['supporters'])
+        self.text(f'You have {count} of 9 council votes.',x,y,20,BLUE);y+=29
+        sentence=('Keep at least five to hold office.' if s['government']['officeholder']=='player' else
+                  'You have enough votes. Hold five for two rounds, then challenge Sen.' if count>=5 else
+                  f'Win {5-count} more vote'+('s' if 5-count!=1 else '')+'; hold five for two rounds to challenge Sen.')
+        y=self.wrap(sentence,x,y,width,15,TEXT,2)+9
+        if s['government']['officeholder']!='player' and s['government']['support_streak']['player']>=2:
+            self.action_button('Call a vote to return to office','challenge',{},x,y,width);y+=42
+        project=s['project']
+        if not project['package']:
+            y=self.wrap('The bridge is broken. Farmers want access to their fields; traders want access to the market. Choose whom to help first.',x,y,width,15,max_lines=4)+8
+            if s['government']['officeholder']=='player':
+                half=(width-8)//2
+                self.action_button('Help farmers first','adopt',dict(channel='upstream'),x,y,half)
+                self.action_button('Help traders first','adopt',dict(channel='market'),x+half+8,y,half);y+=42
+            else:y=self.wrap('You can rally support, but only the current government can adopt a repair plan.',x,y,width,13,max_lines=3)+6
+        elif not project['complete']:
+            self.text(f"Ready: {info['work']}/6 workers, {info['haul']}/4 haulers",x,y,17,GREEN);y+=26
+            y=self.wrap('Ask allies to rally repair help. People rallying contacts cannot also work on the bridge.',x,y,width,15,max_lines=3)+8
+        else:
+            y=self.wrap('The bridge is repaired. Keep two people helping each round to maintain it.',x,y,width,15,GREEN,3)+8
+        self.button('Goal: '+dict(player='Keep / win council votes',rival='Help Sen',upstream='Repair for farmers',market='Repair for traders')[self.channel],(x,y,width,30),self.cycle_channel);y+=40
+        for recommendation in info['recommendations']:
+            if y+125>height-12:break
+            pid=recommendation['person'];name=short_name(s['people'][pid])
+            self.text(f"{recommendation['number']}. {name} · {recommendation['title']}",x,y,17,GOLD);y+=25
+            y=self.wrap(recommendation['reason'],x,y,width,15,TEXT,3)
+            y=self.wrap(recommendation['detail'],x,y,width,13,MUTED,2)+7
+            valid,reason=self.preview(recommendation['kind'],recommendation['params'])
+            self.button(recommendation['action'],(x,y,width,30),
+                        lambda r=recommendation:self.perform(r['kind'],r['params']),valid,reason);y+=43
+        if y+48<height:
+            self.wrap('Larger markers on the map have more trusted reach. Diamonds are council votes. Numbered markers match these suggestions.',x,y,width,13,MUTED,3)
 
     def draw_person(self,x,y,width):
         p=self.state['people'][self.selected]
         self.text(p['name'],x,y,25);y+=34
-        self.text(f"{p['role']} · {p['skill']} · {p['allegiance'] or 'undecided'}",x,y,15);y+=25
-        for k,label,color in [('player','Your pressure',BLUE),('rival','Rival pressure',RED),('upstream','Upstream repair',GREEN),('market','Market repair',GOLD)]:
+        self.text(f"{p['role']} · "+dict(work='repair worker',haul='hauler')[p['skill']]+' · '+('backs you' if p['allegiance']=='player' else 'backs Sen' if p['allegiance']=='rival' else 'undecided'),x,y,15);y+=25
+        for k,label,color in [('player','Support for you',BLUE),('rival','Support for Sen',RED),('upstream',"Farmers' repair",GREEN),('market',"Traders' repair",GOLD)]:
             self.text(label,x,y,13,color)
             pygame.draw.rect(self.screen,(43,58,69),(x+123,y+3,width-175,10),border_radius=4)
             pygame.draw.rect(self.screen,color,(x+123,y+3,int((width-175)*p['pressure'][k]),10),border_radius=4)
@@ -181,7 +175,7 @@ class Laboratory:
         groups=[o['name'] for o in self.state['organizations'].values() if self.selected in o['members']]
         y=self.wrap('Member: '+', '.join(groups),x,y+4,width,13,max_lines=2)+6
         y=self.wrap('Work commitment: '+str(p['task'] or 'none')+(' · effort reserved for organizing' if self.selected in self.state['organizers'] else ''),x,y,width,13,max_lines=2)+5
-        self.text('Immediate contacts',x,y,17);y+=28
+        self.text('People they can reach',x,y,17);y+=28
         contacts=Graph(self.state).contacts(self.selected)
         # Stable contact layout, independent of terrain coordinates.
         center=(x+width//2,y+43)
@@ -196,12 +190,13 @@ class Laboratory:
         y+=103
         self.text(f'{len(contacts)} outgoing contacts · Tab cycles all people',x,y,13,MUTED);y+=23
         self.button('Goal: '+dict(player='Your candidacy',rival="Sen's candidacy",upstream='Upstream repair',market='Market repair')[self.channel],(x,y,width,30),self.cycle_channel);y+=38
+        y=self.wrap('Ask for support speaks to this person. Ask to rally asks them to spend work time recruiting their contacts.',x,y,width,13,MUTED,3)+7
         half=(width-8)//2
         for row in [
-            [('Appeal','approach',dict(target=self.selected,channel=self.channel)),('Organize','organize',dict(target=self.selected,channel=self.channel))],
-            [('Release effort','release',dict(target=self.selected)),('Appoint liaison','appoint',dict(target=self.selected))],
+            [('Ask for support','approach',dict(target=self.selected,channel=self.channel)),('Ask to rally','organize',dict(target=self.selected,channel=self.channel))],
+            [('Stop rallying','release',dict(target=self.selected)),('Appoint liaison','appoint',dict(target=self.selected))],
             [('Promise liaison','promise',dict(target=self.selected,term='liaison')),('Promise package','promise',dict(target=self.selected,term=self.channel if self.channel in ('upstream','market') else 'upstream'))],
-            [('Adopt upstream','adopt',dict(channel='upstream')),('Adopt market','adopt',dict(channel='market'))],
+            [('Help farmers first','adopt',dict(channel='upstream')),('Help traders first','adopt',dict(channel='market'))],
             [('Call council vote','challenge',{}),('Work personally','work',{})]]:
             for col,(label,kind,params) in enumerate(row):self.action_button(label,kind,params,x+col*(half+8),y,half)
             y+=38
@@ -218,9 +213,9 @@ class Laboratory:
         y=self.wrap('A challenge needs five commitments for two rounds. The incumbent gets one response round.',x,y,width,15,max_lines=3)+12
         for pid in gov['council']:
             p=self.state['people'][pid]
-            self.button(p['name']+' · '+str(p['allegiance'] or 'undecided'),(x,y,width,32),lambda pid=pid:self.inspect_person(pid))
+            self.button(p['name']+' · '+('backs you' if p['allegiance']=='player' else 'backs Sen' if p['allegiance']=='rival' else 'undecided'),(x,y,width,32),lambda pid=pid:self.inspect_person(pid))
             y+=34
-            self.text(f"Your pressure {p['pressure']['player']:.2f} / rival {p['pressure']['rival']:.2f}",x+8,y,13,MUTED);y+=27
+            self.text('Both sides are close' if abs(p['pressure']['player']-p['pressure']['rival'])<.2 else 'Clear preference for now',x+8,y,13,MUTED);y+=27
         self.text('Office: '+gov['officeholder'],x,y,17,GOLD);y+=29
         self.action_button('Request a confidence vote','challenge',{},x,y,width);y+=42
         if gov['challenge']:
@@ -246,8 +241,8 @@ class Laboratory:
 
     def draw_why(self,x,y,width,height):
         y=self.draw_history(x,y,width)+20
-        y=self.wrap('Pressure propagates along trusted channels. Interests anchor it; decay and opposing pressure resist it. Contributions describe this run, not a counterfactual proof.',x,y,width,15,max_lines=5)+16
-        self.text('Recent inflection points',x,y,20);y+=32
+        y=self.wrap('People hear from contacts they trust, weigh the plan against their own needs, and hear from Sen too. These numbers explain the change in this run; they do not guarantee a vote.',x,y,width,15,max_lines=5)+16
+        self.text('What changed and why',x,y,20);y+=32
         events=[e for e in self.session.events if e['round']<self.state['round'] and e['kind'] not in ('action','structural_change','project_progress')]
         relevant=[e for e in events if e['subject']==self.selected] or events
         if relevant:
@@ -257,7 +252,7 @@ class Laboratory:
         self.button('Export full causal history',(x,min(y+16,height-60),width,32),self.export)
 
     def cycle_channel(self):
-        channels=['player','rival','upstream','market'];self.channel=channels[(channels.index(self.channel)+1)%4]
+        channels=['player','upstream','market'];self.channel=channels[(channels.index(self.channel)+1)%4]
 
     def begin_introduction(self):
         self.introducing=self.selected;self.message='Choose the other person to introduce. Both must support you.'
@@ -266,7 +261,7 @@ class Laboratory:
         if self.introducing:
             first=self.introducing;self.introducing=None
             self.perform('introduce',dict(target=first,other=pid))
-        self.selected=pid
+        self.selected=pid;self.sidebar_mode='Person'
 
     def draw_history(self,x,y,width):
         self.text('Why did this change?',x,y,20);y+=29
@@ -318,6 +313,7 @@ class Laboratory:
 
     def draw(self):
         w,h=self.screen.get_size();self.buttons=[];self.markers=[];self.screen.fill(BG)
+        self.insights=overview(self.state,self.channel)
         sidebar=410 if w>=1300 else 370;map_width=w-sidebar-28
         self.text('THE BROKEN CROSSING',20,14,25)
         holder=self.state['government']['officeholder']
@@ -326,17 +322,21 @@ class Laboratory:
         labels=[('End round',self.end_round),('Save',self.persist),('Load',lambda:self.persist(True)),('Export',self.export),('Restart',self.restart),('Other start',lambda:self.restart('displaced' if self.session.state['start']=='governing' else 'governing'))]
         header_width=min(100,(map_width-178)//6)
         for i,(label,action) in enumerate(labels):self.button(label,(20+i*(header_width+8),79,header_width,32),action)
-        self.button('Links' if self.overlay else 'Focus only',(map_width-102,79,102,32),lambda:setattr(self,'overlay',not self.overlay))
+        self.button('Help',(map_width-92,79,92,32),lambda:setattr(self,'briefing',True))
         x=map_width+24;pygame.draw.rect(self.screen,PANEL,(x-12,0,sidebar+16,h))
-        for i,label in enumerate(('Person','Council','Promises','Why?')):
-            self.button(label,(x+i*((sidebar-22)//4),12,(sidebar-26)//4,30),lambda label=label:setattr(self,'sidebar_mode',label))
-        if self.sidebar_mode=='Person':
+        for i,label in enumerate(('Overview','Person','Council','Promises','Why?')):
+            self.button(label,(x+i*((sidebar-22)//5),12,(sidebar-26)//5,30),lambda label=label:setattr(self,'sidebar_mode',label))
+        if self.sidebar_mode=='Overview':self.draw_overview(x,60,sidebar-22,h)
+        elif self.sidebar_mode=='Person':
             y=self.draw_person(x,54,sidebar-22)
             if y+165<h:self.draw_history(x,y+8,sidebar-22)
         elif self.sidebar_mode=='Council':self.draw_council(x,60,sidebar-22)
         elif self.sidebar_mode=='Promises':self.draw_promises(x,60,sidebar-22)
         else:self.draw_why(x,60,sidebar-22,h)
-        map_rect=pygame.Rect(18,124,map_width-18,h-360)
+        objective=('Keep five council votes to stay in office.' if holder=='player' else 'Build a five-vote coalition to return to office.')
+        self.text(objective,22,126,20,GOLD)
+        self.text('The bridge needs help. Farmers and traders disagree about whom repairs should serve first.',22,155,15,TEXT)
+        map_rect=pygame.Rect(18,187,map_width-18,h-377)
         self.boundaries=set(Graph(self.state).boundary_edges())
         self.draw_map(map_rect)
         y=map_rect.bottom+12
@@ -369,15 +369,13 @@ class Laboratory:
     def draw_briefing(self,w,h):
         shade=pygame.Surface((w,h),pygame.SRCALPHA);shade.fill((4,12,18,210));self.screen.blit(shade,(0,0))
         box=pygame.Rect(w//2-370,h//2-230,740,460);pygame.draw.rect(self.screen,PANEL,box,border_radius=12)
-        self.text('A nation depends on its people.',box.x+28,box.y+25,32)
-        text=('The flood broke the shared crossing. Four communities need to cooperate, but disagree about who benefits. '
-              'You and Sen compete for nine councillors. Holding five supporters for two rounds permits a challenge; '
-              'the following round gives the incumbent a chance to respond. Losing office leaves you in the game. '
-              'Build a movement and return with the obligations you promised. '
-              'Select people to inspect their pressures and contacts. Appeals arrive next round; organizing uses effort '
-              'to sustain pressure and reach others. Recruit for repair separately from political allegiance. '
-              'Two actions per round. Space advances. Tab cycles people. F1 shows this briefing. '
-              'This isolated laboratory uses abstract effort, a fixed terrain map, and no economy, aging or warfare.')
+        self.text('Keep support. Repair the bridge.',box.x+28,box.y+25,32)
+        text=("A flood broke the bridge. Farmers need access to their fields; traders need access to the market. "
+              "Choose whom to help first and gather workers for repairs. Keep five of nine council votes to stay in power. "
+              "ASK FOR SUPPORT talks to one person. ASK TO RALLY asks an ally to recruit their contacts instead of doing repair work. "
+              "OVERVIEW suggests useful people; its numbers match the map. NETWORK shows everybody. "
+              "Bigger markers reach more trusted people; diamonds are council votes. "
+              "Two actions each round. Space ends a round. If overthrown, build a coalition to return.")
         self.wrap(text,box.x+28,box.y+85,680,20,TEXT,12)
         self.button('Enter the laboratory',(box.x+230,box.bottom-54,280,34),lambda:setattr(self,'briefing',False))
 

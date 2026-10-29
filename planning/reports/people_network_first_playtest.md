@@ -6,11 +6,11 @@ Date: October 28, 2026. Scope: standalone Network Laboratory, not full-game inte
 
 The [laboratory](../../docs/people_network_lab.md) runs a sparse directed relationship graph with four pressure channels, contextual trust, bounded sources, shared attention, damped propagation and explicit opposing-candidate resistance. It includes authored overlapping organizations, introductions, promises, task cooperation, an active rival, council challenges, continuous player identity across office changes, save/load/replay, time inspection and causal reconstruction.
 
-A separate desktop entry point reads a 180-cell terrain fixture exported from the existing polygon generator. It does not construct economic agents or advance the existing world. `client.desktop` now resolves its public exports lazily so importing the laboratory does not initialize the full client. Tests assert the absence of economic engine imports and preservation of global RNG state.
+A separate desktop entry point reads a terrain fixture (initially 180 cells; corrected to a verified 350-cell river catchment in the [overview revision](people_network_map_overview.md)) exported from the existing polygon generator. It does not construct economic agents or advance the existing world. `client.desktop` now resolves its public exports lazily so importing the laboratory does not initialize the full client. Tests assert the absence of economic engine imports and preservation of global RNG state.
 
 ## Reproducible political paths
 
-All cases use seed 4243, an active rival, and legal commands. The [machine-readable acceptance summary](people_network_acceptance.json) includes state digests and measurements. Reproduce with:
+All cases use seed 4243, an active rival, and legal commands. The [machine-readable acceptance summary](people_network_acceptance.json) includes state digests and measurements, refreshed after the geography correction; the political paths are unchanged. Reproduce with:
 
 ```bash
 venv/bin/python -m scripts.playtest_people_network
@@ -51,3 +51,7 @@ Coordinator unavailability is a journaled scenario/debug operation: membership a
 No human tester study has been performed. The proposed three-person formative test, enjoyment/replayability assessment, cross-player balance and real desktop input review remain open. Full graph diagnostics expose small-scenario structure; normal views focus on the selected person, council and active pressures. Counterfactual necessity is not asserted by the contribution trace; a dedicated counterfactual branching interface is deferred.
 
 Recommendation: play and iterate in the standalone laboratory. Do not integrate with economic state, existing rebellion/regime outcomes, or national-scale population until human playtests show the loop is understandable and worth replaying. The 24-round debrief remains a concise event/status view with optional continuation, rather than a separately authored campaign ending screen.
+
+## Follow-up: geography and readable overview
+
+The [map/overview revision](people_network_map_overview.md) corrects the upstream/coastal placement and adds a large named graph, map-based reach and vote markers, community support summaries, explained next-action cards and plain-language in-game objectives. The expanded targeted suite passes 51 tests. The refreshed acceptance summary records current hashes and timings; initial timing figures above describe the original implementation run.

@@ -34,12 +34,28 @@ class LaboratoryUITests(unittest.TestCase):
         self.assertEqual(state_digest(app.session.state),expected)
         self.assertIn('Invalid',app.message)
 
+    def test_network_names_everyone_and_advice_can_act_without_person_inspection(self):
+        app=self.app;app.briefing=False
+        for size in [(1100,800),(1440,960)]:
+            app.screen=pygame.display.set_mode(size)
+            for view in ('Terrain','Network'):
+                app.map_mode=view;app.sidebar_mode='Overview';app.draw()
+                if view=='Network':self.assertEqual(app.visible_labels,set(app.state['people']))
+                self.assertTrue(app.insights['recommendations'])
+                self.assertEqual([r['number'] for r in app.insights['recommendations']],list(range(1,len(app.insights['recommendations'])+1)))
+                for rect,_,_,_ in app.buttons:self.assertLessEqual(rect.bottom,size[1])
+        suggestion=next(r for r in app.insights['recommendations'] if r['kind']=='organize')
+        app.perform(suggestion['kind'],suggestion['params'])
+        self.assertIn(suggestion['person'],app.session.state['organizers'])
+        self.assertEqual(app.sidebar_mode,'Overview')
+        self.assertEqual(app.session.state['ap']['player'],1)
+
     def test_all_panels_fit_supported_windows_and_modal_blocks_background(self):
         app=self.app
         for size in [(1100,800),(1440,960)]:
             app.screen=pygame.display.set_mode(size)
             app.briefing=False
-            for mode in ('Person','Council','Promises','Why?'):
+            for mode in ('Overview','Person','Council','Promises','Why?'):
                 app.sidebar_mode=mode;app.draw()
                 for rect,_,_,_ in app.buttons:
                     self.assertGreaterEqual(rect.left,0)

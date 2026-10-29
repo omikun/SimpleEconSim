@@ -30,7 +30,7 @@ The [first implementation plan](planning/people_network_first_implementation_pla
 
 ### Play the Network Laboratory
 
-The first standalone network prototype is now available: `venv/bin/python -m client.desktop.network_lab`. It runs pressure propagation and competing coalitions over terrain, with governing, displacement, restoration, promises and causal history. Use `--start displaced` to begin in opposition. The existing economic simulation does not run in this client. See the [laboratory guide](docs/people_network_lab.md) for controls, saves and verification, and the [implementation report](planning/reports/people_network_first_playtest.md) for current limits.
+The standalone network prototype opens with a plain-language overview, suggested actions, a terrain map with support markers, and a named network diagram. Launch: `venv/bin/python -m client.desktop.network_lab`. It runs pressure propagation and competing coalitions over terrain, with governing, displacement, restoration, promises and causal history. Use `--start displaced` to begin in opposition. The existing economic simulation does not run in this client. See the [laboratory guide](docs/people_network_lab.md) for controls, saves and verification, and the [implementation report](planning/reports/people_network_first_playtest.md) for current limits.
 
 ### Core Strategic Tensions
 Every decision pulls against competing structural constraints:
