@@ -63,7 +63,7 @@ Launch the full Pygame + 3D Voronoi/Hex desktop game with campaign selection, Gu
 ```bash
 ./runworldview.sh
 # or directly:
-./venv/bin/python client/desktop/app.py
+./venv/bin/python -m client.desktop.app
 ```
 
 - **Guided Mode vs. Advanced Sandbox Mode**:

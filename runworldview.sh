@@ -1,1 +1,1 @@
-/Users/sli/Code/venv/bin/python3 /Users/sli/Code/client/desktop/app.py "$@"
+/Users/sli/Code/venv/bin/python3 -m client.desktop.app "$@"
