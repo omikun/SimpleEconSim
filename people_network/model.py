@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 import hashlib
 import json
 
-VERSION = 1
+VERSION = 2
 CHANNELS = ('player', 'rival', 'upstream', 'market')
 CANDIDATES = ('player', 'rival')
 
@@ -35,6 +35,8 @@ class Session:
     def emit(self, kind, subject, before=None, after=None, parents=(), **details):
         self.state['event_sequence'] += 1
         eid = f"e{self.state['event_sequence']:06d}"
+        if not self.tracing:
+            return eid
         record = dict(id=eid, round=self.state['round'], kind=kind, subject=subject,
                       before=deepcopy(before), after=deepcopy(after),
                       parents=list(dict.fromkeys(p for p in parents if p)), **deepcopy(details))

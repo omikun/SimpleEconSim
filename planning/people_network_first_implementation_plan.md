@@ -1,7 +1,9 @@
 # People network: first implementation plan
 
 Date: October 28, 2026.
-Status: first standalone implementation delivered October 28, 2026. This plan records the intended design; the [guide](../docs/people_network_lab.md) and [verification report](reports/people_network_first_playtest.md) describe implemented behavior, adaptations, and remaining human playtests. Full-game integration remains deferred.
+Status: first standalone implementation delivered October 28, 2026. This plan records the intended design; the [guide](../docs/people_network_lab.md) and [verification report](reports/people_network_coalition_mechanics.md) describe implemented behavior, adaptations, and remaining human playtests. Full-game integration remains deferred.
+
+Rules version 2 adds [coalition maintenance mechanics](people_network_coalition_mechanics.md): competing group demands, conserved public allocations, conditional agreements and volunteer strain.
 
 Related: [manifesto](../docs/gdd.md#manifesto-a-nation-is-a-network-of-people), [initial design discussion](people_network_layer.md), [existing rebellion design](../docs/rebellion.md).
 
@@ -298,7 +300,7 @@ At 32 people, target engine resolution below 50 ms per round on the development 
 
 The terrain dependency spike may run during milestone 1 to retire risk early; building the full interface waits until a headless political loop works. Each milestone should be a small reviewable change, with tests relevant to its rules. Do not merge unrelated ongoing engineering/technology work into this feature.
 
-After milestone 6, write `planning/reports/people_network_first_playtest.md` with scenario/rules digests, reproduced runs, tester findings, balance changes and a recommendation: iterate, expand standalone play, or attempt one integration experiment. Update the README and scenario guide to distinguish working features from remaining proposals.
+After milestone 6, write `planning/reports/people_network_coalition_mechanics.md` with scenario/rules digests, reproduced runs, tester findings, balance changes and a recommendation: iterate, expand standalone play, or attempt one integration experiment. Update the README and scenario guide to distinguish working features from remaining proposals.
 
 ## 14. Risks and explicit responses
 

@@ -1,7 +1,7 @@
 # Graph dynamics and minimal causal trace
 
 Date: October 28, 2026.
-Status: technical specification for the [first implementation](people_network_first_implementation_plan.md). The standalone laboratory is implemented; see the [guide](../docs/people_network_lab.md) and [verification report](reports/people_network_first_playtest.md) for delivered behavior and limits.
+Status: technical specification for the [first implementation](people_network_first_implementation_plan.md). The standalone laboratory is implemented; see the [guide](../docs/people_network_lab.md) and [verification report](reports/people_network_coalition_mechanics.md) for delivered behavior and limits.
 
 The requested model is a graph simulation with local influence propagation, competing pressures, persistent communities, and explainable inflection points. Explicit invitations remain player actions; they are not the sole mechanism by which influence spreads. This specification replaces the earlier invitation-only scoring proposal.
 

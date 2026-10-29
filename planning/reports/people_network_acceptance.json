@@ -8,18 +8,64 @@
     "project": {
       "package": "upstream",
       "streak": 3,
-      "deadline": 12,
+      "deadline": 9,
       "complete": true,
       "maintenance_misses": 0,
       "completed_round": 10,
-      "failed": false
+      "failed": true
     },
-    "mean_step_ms": 4.645963416654316,
-    "max_step_ms": 5.935166999734065,
-    "trace_bytes": 2014853,
-    "bytes_per_round": 83952.20833333333,
-    "semantic_records": 202,
-    "digest": "12bec92b3902d214b6f0fa73a5fada011550cda79e37f00da36a1f4d32ad6309",
+    "allocations": {
+      "civic": 1,
+      "growers": 2,
+      "craft": 1,
+      "trade": 0
+    },
+    "agreements": [
+      {
+        "group": "civic",
+        "leader": "player",
+        "status": "honored",
+        "breaches": 0
+      },
+      {
+        "group": "civic",
+        "leader": "rival",
+        "status": "suspended",
+        "breaches": 0
+      },
+      {
+        "group": "trade",
+        "leader": "rival",
+        "status": "suspended",
+        "breaches": 0
+      },
+      {
+        "group": "growers",
+        "leader": "player",
+        "status": "honored",
+        "breaches": 0
+      },
+      {
+        "group": "craft",
+        "leader": "rival",
+        "status": "suspended",
+        "breaches": 0
+      },
+      {
+        "group": "craft",
+        "leader": "player",
+        "status": "honored",
+        "breaches": 0
+      }
+    ],
+    "exhausted": 29,
+    "version": 2,
+    "mean_step_ms": 5.431709957823235,
+    "max_step_ms": 5.934957996942103,
+    "trace_bytes": 2745776,
+    "bytes_per_round": 114407.33333333333,
+    "semantic_records": 327,
+    "digest": "df210b9beb778768cce59f9986d42e7f11361063885e234de9805fe91bb0b256",
     "replay": "passed"
   },
   {
@@ -29,7 +75,7 @@
     "officeholder": "rival",
     "transfers": [
       {
-        "round": 8,
+        "round": 14,
         "before": "player",
         "after": "rival"
       }
@@ -37,18 +83,46 @@
     "project": {
       "package": "market",
       "streak": 3,
-      "deadline": 14,
+      "deadline": 21,
       "complete": true,
       "maintenance_misses": 0,
-      "completed_round": 12,
+      "completed_round": 17,
       "failed": false
     },
-    "mean_step_ms": 4.39755200000036,
-    "max_step_ms": 5.418832999566803,
-    "trace_bytes": 1901608,
-    "bytes_per_round": 79233.66666666667,
-    "semantic_records": 110,
-    "digest": "6e58fe827e8bbf9dcfeae0c103decfc734204ce29d825f84f0d51cf978136869",
+    "allocations": {
+      "civic": 1,
+      "growers": 0,
+      "craft": 1,
+      "trade": 2
+    },
+    "agreements": [
+      {
+        "group": "civic",
+        "leader": "rival",
+        "status": "honored",
+        "breaches": 0
+      },
+      {
+        "group": "trade",
+        "leader": "rival",
+        "status": "honored",
+        "breaches": 0
+      },
+      {
+        "group": "craft",
+        "leader": "rival",
+        "status": "honored",
+        "breaches": 0
+      }
+    ],
+    "exhausted": 16,
+    "version": 2,
+    "mean_step_ms": 5.13980741652631,
+    "max_step_ms": 5.527708999579772,
+    "trace_bytes": 2591182,
+    "bytes_per_round": 107965.91666666667,
+    "semantic_records": 196,
+    "digest": "73b5927fce277c54b7986abbc905ad824aaa2f83c83500f8b6bbbe50e718b969",
     "replay": "passed"
   },
   {
@@ -58,25 +132,72 @@
     "officeholder": "player",
     "transfers": [
       {
-        "round": 16,
+        "round": 11,
         "before": "rival",
         "after": "player"
       }
     ],
     "project": {
-      "package": null,
-      "streak": 0,
-      "deadline": null,
-      "complete": false,
+      "package": "market",
+      "streak": 3,
+      "deadline": 9,
+      "complete": true,
       "maintenance_misses": 0,
-      "completed_round": null
+      "completed_round": 12,
+      "failed": true
     },
-    "mean_step_ms": 4.7036701250059805,
-    "max_step_ms": 5.370458000470535,
-    "trace_bytes": 2037506,
-    "bytes_per_round": 84896.08333333333,
-    "semantic_records": 195,
-    "digest": "dd97fa1aa9057695751fcf7cc9b52560579390e71ac76d07145edd143dd44fba",
+    "allocations": {
+      "civic": 1,
+      "growers": 0,
+      "craft": 1,
+      "trade": 2
+    },
+    "agreements": [
+      {
+        "group": "civic",
+        "leader": "player",
+        "status": "honored",
+        "breaches": 0
+      },
+      {
+        "group": "trade",
+        "leader": "player",
+        "status": "honored",
+        "breaches": 0
+      },
+      {
+        "group": "civic",
+        "leader": "rival",
+        "status": "suspended",
+        "breaches": 0
+      },
+      {
+        "group": "craft",
+        "leader": "player",
+        "status": "honored",
+        "breaches": 0
+      },
+      {
+        "group": "growers",
+        "leader": "rival",
+        "status": "suspended",
+        "breaches": 0
+      },
+      {
+        "group": "craft",
+        "leader": "rival",
+        "status": "suspended",
+        "breaches": 0
+      }
+    ],
+    "exhausted": 28,
+    "version": 2,
+    "mean_step_ms": 5.429593665818781,
+    "max_step_ms": 5.921374999161344,
+    "trace_bytes": 2798396,
+    "bytes_per_round": 116599.83333333333,
+    "semantic_records": 357,
+    "digest": "62e2778282a035c1229f1444ca921883c4cb1e60ce16642504100a3b75f8b836",
     "replay": "passed"
   },
   {
@@ -88,25 +209,53 @@
     "project": {
       "package": "market",
       "streak": 3,
-      "deadline": 12,
+      "deadline": 9,
       "complete": true,
       "maintenance_misses": 0,
       "completed_round": 12,
-      "failed": false
+      "failed": true
     },
-    "mean_step_ms": 4.2778802082921175,
-    "max_step_ms": 4.76479200005997,
-    "trace_bytes": 1882468,
-    "bytes_per_round": 78436.16666666667,
-    "semantic_records": 95,
-    "digest": "2cc98b415691d7d16c8db49834edd045f1062cffad253b10c24f664d74ddb607",
+    "allocations": {
+      "civic": 1,
+      "growers": 2,
+      "craft": 1,
+      "trade": 0
+    },
+    "agreements": [
+      {
+        "group": "civic",
+        "leader": "rival",
+        "status": "honored",
+        "breaches": 0
+      },
+      {
+        "group": "growers",
+        "leader": "rival",
+        "status": "honored",
+        "breaches": 0
+      },
+      {
+        "group": "craft",
+        "leader": "rival",
+        "status": "honored",
+        "breaches": 0
+      }
+    ],
+    "exhausted": 15,
+    "version": 2,
+    "mean_step_ms": 5.276805499609812,
+    "max_step_ms": 7.710707999649458,
+    "trace_bytes": 2575781,
+    "bytes_per_round": 107324.20833333333,
+    "semantic_records": 189,
+    "digest": "f54e9bb2f709a3b02ae62859f42508921dd07fdcb98d5e1d1e42ddb04cc01ff1",
     "replay": "passed"
   },
   {
     "start": "governing",
     "policy": "cycle",
-    "rounds": 30,
-    "officeholder": "player",
+    "rounds": 32,
+    "officeholder": "rival",
     "transfers": [
       {
         "round": 11,
@@ -114,26 +263,77 @@
         "after": "rival"
       },
       {
-        "round": 24,
+        "round": 23,
         "before": "rival",
         "after": "player"
+      },
+      {
+        "round": 30,
+        "before": "player",
+        "after": "rival"
       }
     ],
     "project": {
       "package": "upstream",
       "streak": 3,
-      "deadline": 30,
+      "deadline": 9,
       "complete": true,
       "maintenance_misses": 0,
-      "completed_round": 26,
-      "failed": false
+      "completed_round": 10,
+      "failed": true
     },
-    "mean_step_ms": 4.859334833448277,
-    "max_step_ms": 9.451375000026019,
-    "trace_bytes": 2515992,
-    "bytes_per_round": 83866.4,
-    "semantic_records": 253,
-    "digest": "5c3061776e1e88ce6f8ed0908d6017533671b6a2897b091e46a678c6b7a3bc6f",
+    "allocations": {
+      "civic": 1,
+      "growers": 0,
+      "craft": 1,
+      "trade": 2
+    },
+    "agreements": [
+      {
+        "group": "civic",
+        "leader": "player",
+        "status": "suspended",
+        "breaches": 0
+      },
+      {
+        "group": "civic",
+        "leader": "rival",
+        "status": "honored",
+        "breaches": 0
+      },
+      {
+        "group": "trade",
+        "leader": "rival",
+        "status": "repairing",
+        "breaches": 1
+      },
+      {
+        "group": "growers",
+        "leader": "player",
+        "status": "suspended",
+        "breaches": 1
+      },
+      {
+        "group": "craft",
+        "leader": "rival",
+        "status": "honored",
+        "breaches": 0
+      },
+      {
+        "group": "craft",
+        "leader": "player",
+        "status": "suspended",
+        "breaches": 0
+      }
+    ],
+    "exhausted": 37,
+    "version": 2,
+    "mean_step_ms": 5.472425812513393,
+    "max_step_ms": 5.932708001637366,
+    "trace_bytes": 3692363,
+    "bytes_per_round": 115386.34375,
+    "semantic_records": 479,
+    "digest": "b1d2b121bc0255293dc213a3202038bb6b14ccea92f7c3ff732b1acc6da284bd",
     "replay": "passed"
   }
 ]

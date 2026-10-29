@@ -15,6 +15,7 @@ from people_network.events import explain, causal_chain
 from people_network.persistence import save, load, replay
 from people_network.terrain import load_terrain
 from people_network.insights import overview
+from people_network.coalitions import pledge_text, failed_conditions
 from client.desktop.network_map import draw as draw_network_map, positions as network_positions, short_name, relationship_width
 
 BG=(15,24,32); PANEL=(22,34,44); TEXT=(230,235,226); MUTED=(153,174,181)
@@ -30,7 +31,7 @@ class Laboratory:
         self.session=new_session(start,seed)
         self.terrain=load_terrain()
         self.save_path=Path(save_path or 'outputs/people_network/laboratory.json')
-        self.selected='p00';self.channel='player';self.overlay=False
+        self.selected='p00';self.channel='player';self.overlay=False;self.budget_donor='trade'
         self.zoom=1.;self.pan=[0.,0.];self.drag=None;self.history_index=None
         self.buttons=[];self.markers=[];self.message='Keep five council votes and get the bridge repaired. The numbered people are useful places to start.'
         self.introducing=None;self.briefing=True;self.show_trace=False;self.scroll=0;self.sidebar_mode="Overview";self.map_mode="Terrain";self.insights=overview(self.session.state)
@@ -137,6 +138,13 @@ class Laboratory:
         y=self.wrap(sentence,x,y,width,15,TEXT,2)+9
         if s['government']['officeholder']!='player' and s['government']['support_streak']['player']>=2:
             self.action_button('Call a vote to return to office','challenge',{},x,y,width);y+=42
+        pledged=sum(s['organizations'][a['group']]['funding_need'] for a in s['agreements'] if a['leader']=='player')
+        broken=sum(a['leader']=='player' and a['status'] in ('breached','repairing') for a in s['agreements'])
+        warning=(f'Your agreements need {pledged} shares; only 4 exist. You cannot deliver them all.' if pledged>4 else
+                 f'{broken} group agreements need repair; members may withhold support.' if broken else
+                 f"Groups request 6 shares; only 4 exist. {len(info['tired'])} organizers need a break soon.")
+        y=self.wrap(warning,x,y,width,13,GOLD,2)+4
+        self.button('Group demands and public budget',(x,y,width,29),lambda:setattr(self,'sidebar_mode','Groups'));y+=37
         project=s['project']
         if not project['package']:
             y=self.wrap('The bridge is broken. Farmers want access to their fields; traders want access to the market. Choose whom to help first.',x,y,width,15,max_lines=4)+8
@@ -153,7 +161,7 @@ class Laboratory:
         self.button('Goal: '+dict(player='Keep / win council votes',rival='Help Sen',upstream='Repair for farmers',market='Repair for traders')[self.channel],(x,y,width,30),self.cycle_channel);y+=40
         self.text('5-round comparisons, not guaranteed outcomes',x,y,13,MUTED);y+=25
         for recommendation in info['recommendations']:
-            if y+125>height-12:break
+            if y+150>height-12:break
             pid=recommendation['person'];name=short_name(s['people'][pid])
             self.text(f"{recommendation['number']}. {name} · {recommendation['title']}",x,y,17,GOLD);y+=25
             y=self.wrap(recommendation['reason'],x,y,width,15,TEXT,3)
@@ -162,7 +170,7 @@ class Laboratory:
             self.button(recommendation['action'],(x,y,width,30),
                         lambda r=recommendation:self.perform(r['kind'],r['params']),valid,reason);y+=43
         if y+48<height:
-            self.wrap('Each forecast compares one move with waiting. You make no further moves; Sen keeps responding. Numbered markers match the suggestions.',x,y,width,13,MUTED,4)
+            self.wrap('Forecast: this move, then five rounds without more moves. Sen keeps responding.',x,y,width,13,MUTED,2)
 
     def draw_person(self,x,y,width):
         p=self.state['people'][self.selected]
@@ -175,7 +183,7 @@ class Laboratory:
             self.text(f"{p['pressure'][k]:.2f}",x+width-43,y-2,13);y+=22
         groups=[o['name'] for o in self.state['organizations'].values() if self.selected in o['members']]
         y=self.wrap('Member: '+', '.join(groups),x,y+4,width,13,max_lines=2)+6
-        y=self.wrap('Work commitment: '+str(p['task'] or 'none')+(' · effort reserved for organizing' if self.selected in self.state['organizers'] else ''),x,y,width,13,max_lines=2)+5
+        y=self.wrap('Repair: '+str(p['task'] or 'none')+f" · rallying strain {p['fatigue']}/{self.state['rules']['rally_limit']}"+(' · needs a politics break' if self.state['round']<p['rest_until'] else ''),x,y,width,13,max_lines=2)+5
         self.text('People they can reach',x,y,17);y+=28
         contacts=Graph(self.state).contacts(self.selected)
         # Stable contact layout, independent of terrain coordinates.
@@ -209,6 +217,28 @@ class Laboratory:
             self.action_button('Renounce oldest promise','renounce',dict(promise=promise['id']),x,y,width);y+=36
         return y
 
+    def cycle_donor(self):
+        groups=list(self.state['organizations']);self.budget_donor=groups[(groups.index(self.budget_donor)+1)%len(groups)]
+
+    def draw_groups(self,x,y,width,height):
+        s=self.state;gov=s['government']
+        self.text('Who wants what?',x,y,25);y+=36
+        y=self.wrap('4 budget shares; groups ask for 6. Honor agreements for two rounds, then keep delivering. Breaches can cost votes.',x,y,width,15,TEXT,3)+8
+        donor=s['organizations'][self.budget_donor]['name']
+        self.button('Take a share from: '+donor,(x,y,width,31),self.cycle_donor);y+=40
+        for oid,org in s['organizations'].items():
+            info=self.insights['groups'][oid]
+            self.text(f"{org['name']} · {info['allocation']}/{info['need']} shares",x,y,15,GOLD);y+=23
+            y=self.wrap(org['demand_label'],x,y,width,13,MUTED,1)
+            y=self.wrap(info['asks'],x,y,width,13,TEXT,2)
+            a=info['agreement'];status=(a['status']+f" {a['met_streak']}/2" if a and a['status'] in ('provisional','repairing') else a['status'] if a else 'no agreement')
+            self.text(f"You: {info['standing']} / Sen: {org['band']['rival']} · {status}",x,y,13,MUTED);y+=24
+            half=(width-8)//2
+            self.action_button('Give one share','fund',dict(group=oid,donor=self.budget_donor),x,y,half)
+            self.action_button('Agree to conditions','agreement',dict(group=oid),x+half+8,y,half);y+=44
+        pledged=sum(s['organizations'][a['group']]['funding_need'] for a in s['agreements'] if a['leader']=='player')
+        if y+40<height:self.wrap(f'Your agreements require {pledged} of 4 shares. '+('You cannot honor them all at once.' if pledged>4 else 'Members still choose their votes individually.'),x,y,width,13,GOLD,2)
+
     def draw_council(self,x,y,width):
         gov=self.state['government']
         self.text('The nine-person council',x,y,25);y+=38
@@ -217,7 +247,8 @@ class Laboratory:
             p=self.state['people'][pid]
             self.button(p['name']+' · '+('backs you' if p['allegiance']=='player' else 'backs Sen' if p['allegiance']=='rival' else 'undecided'),(x,y,width,32),lambda pid=pid:self.inspect_person(pid))
             y+=34
-            self.text('Both sides are close' if abs(p['pressure']['player']-p['pressure']['rival'])<.2 else 'Clear preference for now',x+8,y,13,MUTED);y+=27
+            withheld=failed_conditions(self.state,pid,'player')
+            self.text('Withholding: group agreement broken' if withheld else 'Both sides are close' if abs(p['pressure']['player']-p['pressure']['rival'])<.2 else 'Clear preference for now',x+8,y,13,GOLD if withheld else MUTED);y+=27
         self.text('Office: '+gov['officeholder'],x,y,17,GOLD);y+=29
         self.action_button('Request a confidence vote','challenge',{},x,y,width);y+=42
         if gov['challenge']:
@@ -254,7 +285,7 @@ class Laboratory:
         self.button('Export full causal history',(x,min(y+16,height-60),width,32),self.export)
 
     def cycle_channel(self):
-        channels=['player','upstream','market'];self.channel=channels[(channels.index(self.channel)+1)%4]
+        channels=['player','upstream','market'];self.channel=channels[(channels.index(self.channel)+1)%len(channels)]
 
     def begin_introduction(self):
         self.introducing=self.selected;self.message='Choose the other person to introduce. Both must support you.'
@@ -275,6 +306,9 @@ class Laboratory:
             y=self.wrap(f"Rounds {info['rounds'][0]+1}–{end+1}: {channel} {p['before']:.2f} → {p['after']:.2f}",x,y,width,15,TEXT,2)
             self.text(f"Contacts {p['incoming']:+.3f} · appeals {p['source']:+.3f}",x,y,13);y+=21
             self.text(f"Interests {p['anchor']:+.3f} · decay {p['decay']:+.3f}",x,y,13);y+=21
+            interests=p['interest_components']
+            if interests['group'] or interests['agreement']:
+                self.text(f"Group delivery {interests['group']:+.3f} · agreements {interests['agreement']:+.3f}",x,y,13);y+=21
             self.text(f"Opposition {p['opposition']:+.3f} · cap {p['clamp']:+.3f}",x,y,13);y+=21
             edges=list(p['edges'].items())[:2]
             for eid,value in edges:
@@ -291,13 +325,24 @@ class Laboratory:
             a=value;params=a['params'];target=params.get('target',a['issuer'])
             verb=dict(approach='appealed to',organize='organized with',promise='made a promise to',
                       appoint='appointed',release='released',introduce='introduced').get(a['kind'],a['kind'])
-            text=f"{name(a['issuer'])} {verb} {name(target)}"
+            if a['kind']=='fund':
+                text=f"{name(a['issuer'])} moved a service share to "+self.state['organizations'][params['group']]['name']
+            elif a['kind']=='agreement':
+                text=f"{name(a['issuer'])} offered terms to "+self.state['organizations'][params['group']]['name']
+            else:text=f"{name(a['issuer'])} {verb} {name(target)}"
+        elif kind=='allegiance' and e.get('withheld_for'):
+            groups=', '.join(self.state['organizations'][g]['name'] for g in e['withheld_for'])
+            text=f"{name(subject)} withheld support: agreement with {groups} was broken"
         elif kind=='allegiance':text=f"{name(subject)} "+('withdrew from a coalition' if value is None else f"joined {name(value)}'s coalition")
         elif kind=='boundary':text=f"{name(subject)} "+('became contested' if value else 'left the contested zone')
         elif kind=='commitment':text=f"{name(subject)} "+(f"committed to {value} repair" if value else 'withdrew from repair')
         elif kind=='office_transfer':text=f"{name(value)} took office from {name(e['before'])}"
         elif kind=='council_vote':text=f"Council vote: {name(value)} holds office"
         elif kind=='majority':text=f"{name(subject)} "+('secured a council majority' if value else 'lost the council majority')
+        elif kind=='group_mood':text=self.state['organizations'][e['group']]['name']+' is '+str(value)+' with '+name(e['leader'])
+        elif kind.startswith('agreement_'):
+            text=kind.replace('_',' ')+' · '+self.state['organizations'].get(e.get('group'),{}).get('name','group')
+        elif kind=='organizer_exhausted':text=name(e['person'])+' needs a break from rallying'
         elif kind=='promise_result':
             promise=next((p for p in self.session.state['promises'] if p['id']==subject),None)
             text=f"Promise {value}"+(f" to {name(promise['beneficiary'])}" if promise else '')
@@ -308,6 +353,10 @@ class Laboratory:
                 sender,target=subject.split('>',1)
                 direction='fell' if isinstance(e['before'],dict) and isinstance(value,dict) and value.get('governing',1)<e['before'].get('governing',0) else 'changed'
                 text=f"{name(target)}'s trust in {name(sender)} {direction}"
+            elif subject=='budget':
+                receivers=[g for g,v in value.items() if v>e['before'][g]]
+                donors=[g for g,v in value.items() if v<e['before'][g]]
+                text='One share: '+self.state['organizations'][donors[0]]['name']+' → '+self.state['organizations'][receivers[0]]['name']
             elif subject=='project':text=f"{value['package'].capitalize()} repair adopted"
             else:text=e.get('reason','A relationship or obligation changed')
         else:text=kind.replace('_',' ').capitalize()+' · '+(name(subject) if subject in people else 'crossing' if subject=='project' else 'community')
@@ -326,12 +375,13 @@ class Laboratory:
         for i,(label,action) in enumerate(labels):self.button(label,(20+i*(header_width+8),79,header_width,32),action)
         self.button('Help',(map_width-92,79,92,32),lambda:setattr(self,'briefing',True))
         x=map_width+24;pygame.draw.rect(self.screen,PANEL,(x-12,0,sidebar+16,h))
-        for i,label in enumerate(('Overview','Person','Council','Promises','Why?')):
-            self.button(label,(x+i*((sidebar-22)//5),12,(sidebar-26)//5,30),lambda label=label:setattr(self,'sidebar_mode',label))
+        for i,(label,mode) in enumerate((('Start','Overview'),('People','Person'),('Groups','Groups'),('Council','Council'),('Pledges','Promises'),('Why?','Why?'))):
+            self.button(label,(x+i*((sidebar-22)//6),12,(sidebar-28)//6,30),lambda mode=mode:setattr(self,'sidebar_mode',mode))
         if self.sidebar_mode=='Overview':self.draw_overview(x,60,sidebar-22,h)
         elif self.sidebar_mode=='Person':
             y=self.draw_person(x,54,sidebar-22)
             if y+165<h:self.draw_history(x,y+8,sidebar-22)
+        elif self.sidebar_mode=='Groups':self.draw_groups(x,60,sidebar-22,h)
         elif self.sidebar_mode=='Council':self.draw_council(x,60,sidebar-22)
         elif self.sidebar_mode=='Promises':self.draw_promises(x,60,sidebar-22)
         else:self.draw_why(x,60,sidebar-22,h)
@@ -372,13 +422,17 @@ class Laboratory:
         shade=pygame.Surface((w,h),pygame.SRCALPHA);shade.fill((4,12,18,210));self.screen.blit(shade,(0,0))
         box=pygame.Rect(w//2-370,h//2-230,740,460);pygame.draw.rect(self.screen,PANEL,box,border_radius=12)
         self.text('Keep support. Repair the bridge.',box.x+28,box.y+25,32)
-        text=("A flood broke the bridge. Farmers need access to their fields; traders need access to the market. "
-              "Choose whom to help first and gather workers for repairs. Keep five of nine council votes to stay in power. "
-              "ASK FOR SUPPORT talks to one person. ASK TO RALLY asks an ally to recruit their contacts instead of doing repair work. "
-              "OVERVIEW suggests useful people; its numbers match the map. NETWORK shows everybody. "
-              "Bigger markers reach more trusted people; diamonds are council votes. "
-              "Two actions each round. Space ends a round. If overthrown, build a coalition to return.")
-        self.wrap(text,box.x+28,box.y+85,680,20,TEXT,12)
+        paragraphs=[
+            'A flood broke the bridge. Farmers want field access first; traders want market access first.',
+            'Keep five of nine council votes. The seats span all four communities.',
+            'GROUPS: You have 4 service-budget shares. Their requests total 6. Moving a share helps one group and costs another.',
+            'AGREEMENTS: Deliver the terms for two rounds, then keep doing so. Broken agreements can cost votes and survive changes of government.',
+            'RALLYING: An ally recruits contacts instead of doing repairs. After three active rounds they need two rounds away from campaigning.',
+            'ASK FOR SUPPORT talks to one person. The Overview suggests moves; Network shows everyone.',
+            'Two actions per round. Space advances. If overthrown, rebuild a coalition and return.'
+        ]
+        y=box.y+78
+        for paragraph in paragraphs:y=self.wrap(paragraph,box.x+28,y,680,17,TEXT,2)+5
         self.button('Enter the laboratory',(box.x+230,box.bottom-54,280,34),lambda:setattr(self,'briefing',False))
 
     def scrub(self,delta):

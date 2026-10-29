@@ -18,12 +18,13 @@ def explain(session, person, start=None, end=None):
         _, parts = advance(entry['before'],entry['sources'])
         for channel,p in parts[person].items():
             if channel not in totals:
-                totals[channel] = dict(before=p['before'],after=p['after'],incoming=0.,source=0.,anchor=0.,decay=0.,opposition=0.,clamp=0.)
+                totals[channel] = dict(interest_components=dict(base=0.,group=0.,agreement=0.,clamp=0.),before=p['before'],after=p['after'],incoming=0.,source=0.,anchor=0.,decay=0.,opposition=0.,clamp=0.)
                 edge_values[channel] = {}
             t = totals[channel]
             t['after'] = p['after']
             for key in ('incoming','source','anchor','decay','opposition','clamp'):
                 t[key] += p[key]
+            for key,value in p['interest_components'].items():t['interest_components'][key]+=value
             for eid,value in p['edges'].items():
                 edge_values[channel][eid] = edge_values[channel].get(eid,0.) + value
     for channel,t in totals.items():

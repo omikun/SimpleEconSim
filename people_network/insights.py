@@ -1,5 +1,6 @@
 """Read-only map advice: explain reach, political leverage and useful next actions."""
 from .graph import Graph
+from .coalitions import terms, pledge_text
 from .advice import recommendations as forecast_recommendations
 
 
@@ -36,4 +37,11 @@ def overview(state, channel='player', decision_start=None, advise=True):
     workers=[pid for pid,p in people.items() if p['active'] and package and p['task']==package and p['task_since']<state['round'] and pid not in state['organizers']]
     return dict(metrics=metrics,recommendations=recommendations,supporters=supporters,swing=swing,local=local,
                 work=sum(people[p]['skill']=='work' for p in workers),haul=sum(people[p]['skill']=='haul' for p in workers),
-                task_locations=len({people[p]['location'] for p in workers}))
+                task_locations=len({people[p]['location'] for p in workers}),
+                groups={oid:dict(allocation=gov['allocations'][oid],need=o['funding_need'],
+                                 asks=pledge_text(state,oid),standing=o['band']['player'],
+                                 unmet=terms(state,oid,'player'),
+                                 agreement=next((a for a in state['agreements'] if a['group']==oid and a['leader']=='player'),None))
+                        for oid,o in state['organizations'].items()},
+                tired=[pid for pid in state['organizers'] if people[pid]['fatigue']>=state['rules']['rally_limit']-1],
+                resting=[pid for pid,p in people.items() if state['round']<p['rest_until']])

@@ -34,3 +34,7 @@ All five existing scripted political runs retain their exact authoritative state
 This is bounded one-move lookahead against one known rival policy. It does not search future player combinations, compare new pledges/concessions, test alternative rival strategies or guarantee robust long-term coalitions. A pledge that breaks when no further actions are taken may be fulfillable by a subsequent appointment; the forecast's assumption must be read accordingly. The existing real-time trace explains actual outcomes, while the card explains a conditional hypothetical branch.
 
 The laboratory itself still has only two candidates, one council and two repair priorities. There is little cost to rallying when no repair labor is needed. Neither this forecaster nor a higher node centrality score supplies competing long-term interests, real organizational operating costs, deeper faction bargaining or more ways to govern. Those are substantive future gameplay decisions requiring design and playtesting, not claims made by this update.
+
+## Rules version 2 follow-up
+
+The [coalition-mechanics revision](people_network_coalition_mechanics.md) adds competing group demands, conserved service-budget allocations, conditional agreements, remembered delivery and volunteer strain. Earlier mechanics, timings and playthrough round numbers in this report describe version 1. The acceptance summary now records version 2.

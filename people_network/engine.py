@@ -4,6 +4,7 @@ import math
 from .graph import Graph
 from .model import CANDIDATES, CHANNELS, state_digest
 from .dynamics import advance as pressure_step, summary, contested
+from .coalitions import (advance_demands, rest_and_strain, failed_conditions, agreement_offer, pledge_text)
 
 
 class CommandError(ValueError):
@@ -32,10 +33,25 @@ def command(session, issuer, kind, _preview=False, **params):
             _require(not any(i['sender'] == issuer and i['target'] == target and i['channel'] == channel
                              for i in s['invitations']), 'An equivalent appeal is already in transit')
         else:
+            _require(people[target]['fatigue']<=1 and s['round']>=people[target]['rest_until'],
+                     'This volunteer needs a break from politics before rallying again')
+            _require(not failed_conditions(s,target,issuer), 'Honor your group agreement before asking this member to rally')
             _require(target == issuer or people[target]['allegiance'] == issuer,
                      'This organizer has not joined your coalition')
             _require(not any(o['person'] == target for o in s['organizers'].values()),
                      'Already organizing; release them first')
+    elif kind == 'fund':
+        group,donor=params.get('group'),params.get('donor')
+        _require(s['government']['officeholder']==issuer,'Only the government can move public budget shares')
+        _require(group in s['organizations'] and donor in s['organizations'] and group!=donor,'Choose two different groups')
+        _require(s['government']['allocations'][donor]>0,'The donor group has no share to move')
+    elif kind == 'agreement':
+        oid=params.get('group')
+        _require(oid in s['organizations'],'Unknown organization')
+        coordinator=s['organizations'][oid]['coordinator']
+        _require(coordinator in graph.contacts(issuer),'You need an available contact with the group coordinator')
+        _require(not any(a['group']==oid and a['leader']==issuer for a in s['agreements']),
+                 'This agreement already exists; deliver its terms to restore trust')
     elif kind == 'release':
         _require(target in s['organizers'] and s['organizers'][target]['issuer'] == issuer,
                  'No organizer to release')
@@ -135,6 +151,13 @@ def _resolve_declarations(session):
             value = dict(person=target, issuer=issuer, channel=channel, event=parent, active_from=s['round']+1)
             s['organizers'][target] = value
             _change(session, f'source:{target}', None, value, parent)
+        elif kind == 'fund':
+            before=deepcopy(s['government']['allocations'])
+            s['government']['allocations'][p['donor']]-=1
+            s['government']['allocations'][p['group']]+=1
+            _change(session,'budget',before,s['government']['allocations'],parent,reason='one service share transferred')
+        elif kind == 'agreement':
+            agreement_offer(session,issuer,p['group'],parent)
         elif kind == 'release':
             old = s['organizers'].pop(target)
             _change(session, f'source:{target}', old, None, parent)
@@ -152,7 +175,8 @@ def _resolve_declarations(session):
             _change(session, 'project', before, s['project'], parent, reason='package adopted; consecutive work reset')
         elif kind == 'appoint':
             s['government']['liaisons'][target] = issuer
-            _change(session, f'liaison:{target}', None, issuer, parent)
+            changed=_change(session, f'liaison:{target}', None, issuer, parent)
+            s['last_change']['liaisons']=changed
         elif kind == 'promise':
             value = dict(id=parent, issuer=issuer, beneficiary=target, term=p['term'], event=parent,
                          due=s['round']+2 if s['government']['officeholder'] == issuer else None, status='pending')
@@ -189,7 +213,13 @@ def _sources(session):
         person = s['people'][pid]
         if pid != org['issuer'] and person['allegiance'] != org['issuer']:
             continue
-        requests.append(dict(person=pid, channel=org['channel'], amount=rules['self_source'], sender=pid, event=org['event']))
+        requests.append(dict(person=pid, channel=org['channel'], amount=rules['self_source']*(1-.15*person['fatigue']), sender=pid, event=org['event']))
+    for agreement in s['agreements']:
+        if agreement['status'] in ('provisional','suspended'):
+            oid=agreement['group'];leader=agreement['leader'];pid=s['organizations'][oid]['coordinator']
+            edge=s['edges'].get(f'{leader}>{pid}')
+            if edge and pid and s['people'][pid]['active']:
+                requests.append(dict(person=pid,channel=leader,amount=.06*edge['trust']['governing'],sender=leader,event=agreement['last_event']))
     # Promises introduce a small local attraction, discounted by trust, while they remain pending.
     for promise in s['promises']:
         if promise['status'] == 'pending':
@@ -240,10 +270,15 @@ def _decisions(session, fields, parts, parents, checkpoint):
             threshold = rules['margin_switch'] if old and old != choice else rules['margin_entry']
             if fields[pid][choice] >= rules['entry'] and abs(margin) >= threshold:
                 new = choice
+        blocked=failed_conditions(s,pid,new) if new else []
+        if pid not in CANDIDATES and blocked:
+            new=None
+            parents[pid].extend(a['last_event'] for a in blocked)
         if new != old:
             eid = session.emit('allegiance', pid, old, new,
                                parents[pid]+[s['last_change'].get(pid)],
-                               checkpoint=checkpoint, margin=margin, decomposition=summary(parts[pid]))
+                               checkpoint=checkpoint, margin=margin, decomposition=summary(parts[pid]),
+                               withheld_for=[a['group'] for a in blocked])
             person['allegiance'], person['last_review'] = new, s['round']
             s['last_change'][pid] = eid
         now = contested(person, rules)
@@ -345,7 +380,8 @@ def _government(session):
                            ballots={pid:s['people'][pid]['allegiance'] for pid in gov['council']})
         if len(votes[candidate]) >= 5:
             gov['officeholder'], gov['liaisons'] = candidate, {}
-            session.emit('office_transfer', 'government', old, candidate, [eid])
+            office_event=session.emit('office_transfer', 'government', old, candidate, [eid])
+            s['last_change']['office']=office_event
             for promise in s['promises']:
                 if promise['issuer'] == candidate and promise['status'] == 'pending' and promise['due'] is None:
                     promise['due'] = s['round']+2
@@ -373,12 +409,18 @@ def step(session, rival=True):
         act(session)
     commands = [{k:deepcopy(a[k]) for k in ('issuer','kind','params')} for a in s['actions']]
     _resolve_declarations(session)
+    advance_demands(session)
     sources, parents = _sources(session)
     before = deepcopy(s)
     fields, parts = pressure_step(before, sources)
     checkpoint = len(session.journal)
     graph = Graph(before)
     for pid in parents:
+        for oid,group in s['organizations'].items():
+            if pid in group['members']:
+                parents[pid].extend([s['last_change'].get('budget'),s['last_change'].get('liaisons'),s['last_change'].get('office')])
+                parents[pid].extend(s['last_change'].get(f'group:{oid}:{c}') for c in CANDIDATES)
+                parents[pid].extend(a['last_event'] for a in s['agreements'] if a['group']==oid)
         for edge_id in graph.incoming[pid]:
             source = graph.edges[edge_id]['source']
             parents[pid].extend([s['last_change'].get(edge_id), s['last_change'].get(source),
@@ -387,6 +429,7 @@ def step(session, rival=True):
     _project(session)
     _promises(session)
     _government(session)
+    rest_and_strain(session)
     _forward(session)
     # A coalition cannot retain command of an organizer who has withdrawn.
     for pid, organizer in list(s['organizers'].items()):

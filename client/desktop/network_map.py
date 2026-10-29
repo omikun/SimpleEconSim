@@ -118,7 +118,9 @@ def draw(app,rect):
         name+=' · '+counts['priority']
         label_y=cy-91 if app.map_mode=='Terrain' else cy-85
         label_y=max(rect.y+45,label_y)
-        line=f"People: {counts['you']} back you · {counts['rival']} Sen · {counts['unsure']} unsure"
+        oid=next(oid for oid,org in app.state['organizations'].items() if org['location']==loc)
+        funding=app.insights['groups'][oid]
+        line=f"{counts['you']} back you · {counts['rival']} Sen · funding {funding['allocation']}/{funding['need']}"
         width=max(app.fonts[15].size(name)[0],app.fonts[13].size(line)[0])+12
         label=pygame.Rect(int(cx-width/2),int(label_y),width,42)
         label.clamp_ip(rect.inflate(-8,-8))
@@ -136,7 +138,7 @@ def draw(app,rect):
         if not p['active']:color=MUTED
         radius=6+round(7*m['reach']/max_reach)
         if pid==app.selected:pygame.draw.circle(app.screen,TEXT,point,radius+5,1)
-        if m['organizer']:pygame.draw.circle(app.screen,GREEN,point,radius+3,2)
+        if m['organizer']:pygame.draw.circle(app.screen,GOLD if p['fatigue']>=app.state['rules']['rally_limit']-1 else GREEN,point,radius+3,2)
         if m['councillor']:
             x,y=point
             pygame.draw.polygon(app.screen,color,[(x,y-radius-2),(x+radius+2,y),(x,y+radius+2),(x-radius-2,y)])
@@ -170,5 +172,5 @@ def draw(app,rect):
     app.text('Blue: you · coral: Sen · gold: undecided · green ring: rallying · numbers: advice',rect.x+10,rect.bottom-19,13,MUTED)
     if hover:
         p=app.state['people'][hover];m=metrics[hover]
-        text=f"{short_name(p)} · {m['contacts']} trusted contacts"+(' · council vote' if m['councillor'] else '')
+        text=f"{short_name(p)} · {m['contacts']} contacts · strain {p['fatigue']}/{app.state['rules']['rally_limit']}"+(' · council vote' if m['councillor'] else '')
         app.text(text,rect.x+198,rect.y+15,13,TEXT)

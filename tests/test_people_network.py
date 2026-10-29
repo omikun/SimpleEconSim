@@ -112,7 +112,7 @@ class NetworkGameTests(unittest.TestCase):
 
     def test_introduction_adds_one_channel_after_mutual_agreement(self):
         session=new_session();s=session.state
-        a,b='p00','p04'
+        a,b='p00','p01'
         s['edges'].pop(f'{a}>{b}',None)
         command(session,'player','introduce',target=a,other=b)
         self.assertIn(f'{a}>{b}',s['edges'])
@@ -229,10 +229,11 @@ class NetworkGameTests(unittest.TestCase):
             for c in row:command(session,c['issuer'],c['kind'],**c['params'])
             step(session)
         transfers=[e for e in session.events if e['kind']=='office_transfer']
-        self.assertEqual([e['after'] for e in transfers],['rival','player'])
-        self.assertEqual([e['round']+1 for e in transfers],[11,24])
-        self.assertEqual(session.state['government']['officeholder'],'player')
-        self.assertEqual(session.state['promises'][0]['status'],'fulfilled')
+        self.assertEqual([e['after'] for e in transfers[:2]],['rival','player'])
+        self.assertEqual([e['round']+1 for e in transfers[:2]],[11,23])
+        self.assertEqual(session.history[22]['after']['government']['officeholder'],'player')
+        self.assertTrue(any(e['kind']=='agreement_honored' and e.get('leader')=='player' and e['round']>=23 for e in session.events))
+        self.assertTrue(any(e['kind']=='organizer_exhausted' for e in session.events))
         self.assertEqual(state_digest(session.state),state_digest(replay(session).state))
 
     def test_global_random_and_economic_import_isolation(self):

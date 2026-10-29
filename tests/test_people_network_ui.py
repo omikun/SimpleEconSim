@@ -50,12 +50,24 @@ class LaboratoryUITests(unittest.TestCase):
         self.assertEqual(app.sidebar_mode,'Overview')
         self.assertEqual(app.session.state['ap']['player'],1)
 
+    def test_groups_actions_and_goal_cycle_are_reachable(self):
+        app=self.app;app.briefing=False;app.sidebar_mode='Groups';app.draw()
+        self.assertIn('growers',app.insights['groups'])
+        app.perform('fund',dict(group='growers',donor='trade'))
+        self.assertEqual(app.session.state['government']['allocations']['growers'],2)
+        app.perform('agreement',dict(group='growers'))
+        self.assertEqual(app.session.state['agreements'][0]['group'],'growers')
+        agreement_event=next(e for e in app.session.events if e['kind']=='agreement_offered')
+        self.assertIn("Cultivators",app.event_label(agreement_event))
+        for _ in range(6):app.cycle_channel()
+        self.assertEqual(app.channel,'player')
+
     def test_all_panels_fit_supported_windows_and_modal_blocks_background(self):
         app=self.app
         for size in [(1100,800),(1440,960)]:
             app.screen=pygame.display.set_mode(size)
             app.briefing=False
-            for mode in ('Overview','Person','Council','Promises','Why?'):
+            for mode in ('Overview','Person','Groups','Council','Promises','Why?'):
                 app.sidebar_mode=mode;app.draw()
                 for rect,_,_,_ in app.buttons:
                     self.assertGreaterEqual(rect.left,0)

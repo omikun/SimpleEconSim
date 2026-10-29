@@ -46,7 +46,7 @@ def _measure(state,channel):
                 council_readiness=readiness,work=work,haul=haul,supply=supply,
                 task_readiness=task_readiness,complete=int(project['complete']),
                 failures=int(project.get('failed',False))+int(project['maintenance_misses']>=2),
-                streak=project['streak'],breaches=sum(p['status']=='broken' for p in state['promises']),
+                streak=project['streak'],breaches=sum(p['status']=='broken' for p in state['promises'])+sum(a['status']=='breached' and a['leader']=='player' for a in state['agreements']),
                 margins={p:people[p]['pressure']['player']-people[p]['pressure']['rival'] for p in council})
 
 
@@ -88,12 +88,24 @@ def _candidate_actions(state,channel):
                 continue
             yield dict(person=pid,kind=kind,params=params)
 
+    for oid,org in sorted(state['organizations'].items()):
+        options=[('agreement',dict(group=oid))]
+        if state['government']['officeholder']=='player':
+            options.extend(('fund',dict(group=oid,donor=d)) for d in sorted(state['organizations']) if d!=oid)
+        for kind,params in options:
+            try:command(preview,'player',kind,_preview=True,**params)
+            except CommandError:continue
+            if org['coordinator']:
+                yield dict(person=org['coordinator'],kind=kind,params=params)
+
 
 def _explanation(state,channel,action,gains,effect):
     pid=action['person'];p=state['people'][pid];name=p['name'].split(' — ')[-1]
     task=channel in ('upstream','market')
     protected=[q for q in effect['extra_stable_supporters'] if state['people'][q]['allegiance']=='player']
-    if action['kind']=='release':title='Free someone to repair';label='Let them work again'
+    if action['kind']=='fund':title='Choose who gets funded';label='Move one budget share'
+    elif action['kind']=='agreement':title='Bargain for conditional support';label='Offer group agreement'
+    elif action['kind']=='release':title='Free someone to repair';label='Let them work again'
     elif task:title='Recruit repair help';label='Ask to rally contacts' if action['kind']=='organize' else 'Ask for repair help'
     elif action['kind']=='organize':title='Protect your coalition' if protected else 'Build lasting support';label='Ask to rally contacts'
     elif p['allegiance']=='player':title='Protect existing support';label='Reassure this ally'
@@ -115,7 +127,14 @@ def _explanation(state,channel,action,gains,effect):
     else:
         result='This strengthens existing support, but does not yet secure another lasting vote.'
     tradeoffs=[]
-    if action['kind']=='organize':
+    if action['kind']=='fund':
+        donor=state['organizations'][action['params']['donor']]['name']
+        tradeoffs.append('One share comes from '+donor+'.')
+    elif action['kind']=='agreement':
+        from .coalitions import pledge_text
+        tradeoffs.append('You must deliver: '+pledge_text(state,action['params']['group'])+'.')
+    elif action['kind']=='organize':
+        tradeoffs.append(f"At most {state['rules']['rally_limit']-p['fatigue']} rallying rounds before a break.")
         if p['task']==state['project']['package'] and p['task'] is not None and p['task_since']<state['round']:
             tradeoffs.append(f"Pulls {name}, a {p['skill']} contributor, off the repair team.")
         else:

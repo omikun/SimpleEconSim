@@ -1,6 +1,6 @@
 # Network Laboratory: The Broken Crossing
 
-The first isolated implementation of the [people-network manifesto](gdd.md#manifesto-a-nation-is-a-network-of-people). Run it from the repository root:
+Rules version 2: the isolated implementation of the [people-network manifesto](gdd.md#manifesto-a-nation-is-a-network-of-people). Run it from the repository root:
 
 ```bash
 venv/bin/python -m client.desktop.network_lab
@@ -13,13 +13,15 @@ This opens a separate Pygame client. It reads exported terrain geometry and an a
 
 **Keep enough people behind you to govern, and get the broken bridge repaired.** Farmers want the repairs to help them reach their fields first. Traders want market access first. You need cooperation from both groups, while your rival Sen is trying to win your councillors away from you.
 
-Start with **Overview**, which opens automatically. You do not need to inspect all 32 people. It tells you how many of the nine council votes you hold, explains the bridge decision, and suggests useful people with direct action buttons. Numbered markers on the map match those suggestions. They now compare the consequences of a move with waiting, rather than simply picking the least opposed or most connected person.
+Start with **Start**, the overview that opens automatically. **Groups** shows what people want and what you have promised. You do not need to inspect all 32 people. It tells you how many of the nine council votes you hold, explains the bridge decision, and suggests useful people with direct action buttons. Numbered markers on the map match those suggestions. They now compare the consequences of a move with waiting, rather than simply picking the least opposed or most connected person.
 
 | Action | What you are asking |
 |---|---|
 | **Ask for support** | “Will you back me?” Talk to this one person. The request arrives next round and may fail. |
 | **Ask to rally** | “Will you recruit people you know?” An ally spends time spreading your chosen goal; they cannot also repair the bridge while doing this. |
 | **Stop rallying** | Free that person's time so they can work again. |
+| **Give one share** | Move a recurring public service share from the selected donor group to this group. |
+| **Agree to conditions** | Promise a group its listed terms; members consider your program, then judge delivery. |
 | **Help farmers first / Help traders first** | Choose the repair plan as the current government. |
 
 Use the goal selector to ask for political support or rally people for one of the repair plans. A person can back Sen politically and still help repair the bridge. You have two political actions each round; **End round** or Space lets people respond, speak to their contacts, work and reconsider their commitments.
@@ -27,6 +29,33 @@ Use the goal selector to ask for political support or rally people for one of th
 Holding five council supporters for two completed rounds lets an opposition leader request a vote. The vote happens the following round, allowing a response. Five actual votes transfer office. If you lose office, you keep playing as the same person: rebuild a coalition and try to return. Your promises survive the change.
 
 Clicking a person opens optional detail, and Tab cycles everyone. **Introduce selected to…** connects two existing contacts who both support you. It creates one low-trust channel, not instant cooperation. Escape cancels the introduction.
+
+## Groups, budgets and conditional backing
+
+The council now includes people from all four communities. A coalition cannot be built solely by concentrating on councillors in the capital.
+
+| Group | What it wants |
+|---|---|
+| Cultivators | Two service-budget shares; prefers field access first. |
+| Traders | Two shares; prefers market access first. |
+| Craft mutual-aid society | One share and no more than two members rallying for the same leader at once. |
+| Civic service association | One share and a liaison from its membership. |
+
+You have **four recurring service-budget shares**, while these minimum funding requests total six. In **Groups**, choose a donor with the top button, then **Give one share** to a different group. This uses one political action and conserves the total of four. The allocation persists each round and across office changes. These are an explicit laboratory service-budget abstraction, not cash from the full economic game.
+
+An agreement makes the listed funding, representation or workload conditions binding for that candidate's relationship with the group. It can make a credible program more attractive; it does not instantly pledge everyone's votes. Broken agreements and promises lower credibility, and promising more shares than exist weakens belief in the offer.
+
+A new agreement gives an incumbent two governing rounds to begin delivery. An opposition leader's clock waits until they take office. **Two consecutive delivered rounds honor the agreement; delivery must then continue.** Breach can make individual members withhold support even when personal influence remains high. Restoring delivery takes two rounds again. Existing agreements cannot be erased by signing the same offer again.
+
+Losing office suspends obligations you cannot enforce, but retains your delivery record, breach history and elapsed governing time. Returning does not provide another fresh grace period. The new ruler inherits the public allocation and must decide how to change it. Honoring an agreement remains compatible with members individually preferring another candidate.
+
+Actual service delivery and representation alter group opinions, which feed each person's interests and travel through relationships. Overlapping memberships can create competing obligations. Past governing records fade slowly in opposition. The **Groups** panel compares your record with Sen's; map cards show current funding against requests.
+
+## Keeping people organized costs time
+
+Volunteers—including the player and Sen—can rally for **three active rounds**, then automatically step back for **two rounds away from campaigning**. This cost exists even when the bridge has no work underway. Weariness weakens their reinforcement before the break. Releasing someone early lets them recover; at high strain they cannot immediately be assigned again. A break from rallying does not prevent ordinary repair work or governing decisions.
+
+Green rings mark rallying people; gold outer rings warn that a break is approaching. Hover or inspect a person to see their strain. Craft members also judge how many of their peers you keep away from ordinary work. Durable relationships and organizations remain when an organizer steps back, so planning relief is part of coalition maintenance.
 
 ## Governing and obligations
 
@@ -55,7 +84,7 @@ For each legal request, rallying assignment or release, the advisor runs a separ
 
 Each card states its estimated result and cost. These are alternatives, not additive promises of success: after you choose one, the other suggestions are recalculated. Forecasts assume you take no additional actions during the five rounds. Making further moves changes the outcome. The advisor does not compare every possible sequence, repair policy, concession or long-term alliance; it is not an optimal strategy guide. Historical inspection shows actual history rather than speculative advice.
 
-The scenario itself remains small. It has two candidates, a council and two repair priorities. If no public work needs doing, rallying can be almost cost-free; an improved advisor does not fix that lack of stakes. Richer coalition bargaining and competing long-term demands are future gameplay work, not features supplied by these forecasts.
+The advisor also considers public allocations, group agreements and volunteer breaks through the same five-round engine. It still does not plan every future sequence; an agreement may require follow-up moves beyond the one being compared. The terms are authored group demands, not a free-form negotiation system.
 
 The trace records significant changes rather than one narrative event per edge/channel update. Full local contributions can be reconstructed from checkpoints using `people_network.events.explain`. Contributions explain the executed path; the application makes no automatic claim that one intervention was a necessary cause.
 
@@ -63,17 +92,17 @@ Use Space or N to end a round; right-drag pans and the wheel zooms. F1 opens the
 
 ## Saves and headless verification
 
-Save/load defaults to `outputs/people_network/laboratory.json`; `--save-path` changes it. Saves include pending decisions, pressures, graph/source state, timers and the action journal. They validate content/rules and terrain digests. A failed load leaves the current session intact. Existing game saves and terrain slots are separate. Exported JSON is intended for local analysis; saves are not signed or authenticated.
+Save/load defaults to `outputs/people_network/laboratory.json`; `--save-path` changes it. Saves include pending decisions, pressures, group records, agreements, budget allocations, volunteer strain, graph/source state, timers and the action journal. Version-1 saves are rejected explicitly; start a fresh run for the coalition rules. They validate content/rules and terrain digests. A failed load leaves the current session intact. Existing game saves and terrain slots are separate. Exported JSON is intended for local analysis; saves are not signed or authenticated.
 
 ```bash
 venv/bin/python -m people_network.cli --start displaced --autoplay --rounds 24
-venv/bin/python -m people_network.cli --rounds 30 \
+venv/bin/python -m people_network.cli --rounds 32 \
   --commands scenarios/people_network/playthroughs/govern_restore.json
 venv/bin/python -m scripts.playtest_people_network
-venv/bin/python -m unittest tests.test_people_network tests.test_people_network_map tests.test_people_network_advice tests.test_people_network_ui -v
+venv/bin/python -m unittest tests.test_people_network tests.test_people_network_map tests.test_people_network_advice tests.test_people_network_coalitions tests.test_people_network_ui -v
 ```
 
-The checked 30-round fixture uses legal player commands with an active rival: displacement in round 11, restoration in round 24, and fulfillment of a liaison promise after restoration. It is a regression trace, not a walkthrough guaranteeing victory for arbitrary seeds or choices. CLI runs replay their journals and check state digests. The acceptance runner writes local summaries and full traces under `outputs/people_network/`.
+The checked 32-round version-2 fixture uses legal player commands with an active rival: displacement in round 11, restoration in round 23, renewed governing obligations, and another loss of office in round 30. The last change is a real outcome of the new rules, not a scripted transition. Separate acceptance paths show that retaining office, restoring office and failing to restore are all possible. CLI runs replay their journals and check state digests. The acceptance runner writes local summaries and full traces under `outputs/people_network/`.
 
 The corrected catchment uses 350 terrain cells and verified downhill drainage. Saves from the original terrain require a fresh run because the authored geography and terrain digests changed.
 
@@ -83,4 +112,4 @@ The static terrain fixture was exported by `venv/bin/python -m scripts.build_peo
 
 This is a small full-information laboratory with a simple council and public rival heuristic. It has no death/succession, military removal, hidden intelligence, full economic integration or browser client. Organization succession on a person's unavailability exists as a journaled scenario/debug input, not as a normal player coercion action. Affiliation and geography are authored; the seed supplies a small initial pressure perturbation. After round 24, play can continue.
 
-Automated checks establish reproducibility and the existence of different political paths. Enjoyment, balance across players, and usability with actual human testers remain to be evaluated before integrating this layer with the wider game. See the [verification report](../planning/reports/people_network_first_playtest.md).
+Automated checks establish reproducibility and the existence of different political paths. Enjoyment, balance across players, and usability with actual human testers remain to be evaluated before integrating this layer with the wider game. See the [verification report](../planning/reports/people_network_coalition_mechanics.md).

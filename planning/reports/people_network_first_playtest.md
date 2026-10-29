@@ -1,5 +1,7 @@
 # People network laboratory: first implementation verification
 
+Historical version-1 report. Current results are in the [version-2 coalition report](people_network_coalition_mechanics.md).
+
 Date: October 28, 2026. Scope: standalone Network Laboratory, not full-game integration.
 
 ## Delivered
@@ -57,3 +59,7 @@ Recommendation: play and iterate in the standalone laboratory. Do not integrate 
 The [map/overview revision](people_network_map_overview.md) corrects the upstream/coastal placement and adds a large named graph, map-based reach and vote markers, community support summaries, explained next-action cards and plain-language in-game objectives. The expanded targeted suite passes 51 tests. The refreshed acceptance summary records current hashes and timings; initial timing figures above describe the original implementation run.
 
 The later [strategy advice revision](people_network_strategy_advice.md) replaces the overview's initial ranking shortcuts with five-round branch comparisons and makes relationship lines thicker according to trust and capacity. The targeted suite now passes 55 tests; all five political path digests remain identical.
+
+## Rules version 2 follow-up
+
+The [coalition-mechanics revision](people_network_coalition_mechanics.md) adds competing group demands, conserved service-budget allocations, conditional agreements, remembered delivery and volunteer strain. Earlier mechanics, timings and playthrough round numbers in this report describe version 1. The acceptance summary now records version 2.

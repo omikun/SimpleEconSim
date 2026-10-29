@@ -2,9 +2,76 @@
   [
     {
       "issuer": "player",
+      "kind": "agreement",
+      "params": {
+        "group": "civic"
+      }
+    },
+    {
+      "issuer": "player",
+      "kind": "appoint",
+      "params": {
+        "target": "p00"
+      }
+    }
+  ],
+  [
+    {
+      "issuer": "player",
+      "kind": "agreement",
+      "params": {
+        "group": "growers"
+      }
+    },
+    {
+      "issuer": "player",
+      "kind": "fund",
+      "params": {
+        "group": "growers",
+        "donor": "craft"
+      }
+    }
+  ],
+  [
+    {
+      "issuer": "player",
+      "kind": "agreement",
+      "params": {
+        "group": "craft"
+      }
+    },
+    {
+      "issuer": "player",
+      "kind": "fund",
+      "params": {
+        "group": "craft",
+        "donor": "trade"
+      }
+    }
+  ],
+  [
+    {
+      "issuer": "player",
+      "kind": "adopt",
+      "params": {
+        "channel": "upstream"
+      }
+    },
+    {
+      "issuer": "player",
       "kind": "organize",
       "params": {
-        "target": "player",
+        "target": "p24",
+        "channel": "player"
+      }
+    }
+  ],
+  [
+    {
+      "issuer": "player",
+      "kind": "organize",
+      "params": {
+        "target": "p16",
         "channel": "player"
       }
     },
@@ -13,6 +80,47 @@
       "kind": "organize",
       "params": {
         "target": "p00",
+        "channel": "player"
+      }
+    }
+  ],
+  [
+    {
+      "issuer": "player",
+      "kind": "organize",
+      "params": {
+        "target": "player",
+        "channel": "player"
+      }
+    },
+    {
+      "issuer": "player",
+      "kind": "approach",
+      "params": {
+        "target": "p17",
+        "channel": "player"
+      }
+    }
+  ],
+  [],
+  [],
+  [],
+  [],
+  [],
+  [
+    {
+      "issuer": "player",
+      "kind": "organize",
+      "params": {
+        "target": "p16",
+        "channel": "player"
+      }
+    },
+    {
+      "issuer": "player",
+      "kind": "organize",
+      "params": {
+        "target": "p08",
         "channel": "player"
       }
     }
@@ -30,44 +138,7 @@
       "issuer": "player",
       "kind": "organize",
       "params": {
-        "target": "p02",
-        "channel": "player"
-      }
-    }
-  ],
-  [],
-  [],
-  [],
-  [],
-  [],
-  [],
-  [],
-  [],
-  [],
-  [
-    {
-      "issuer": "player",
-      "kind": "promise",
-      "params": {
-        "target": "p04",
-        "term": "liaison"
-      }
-    },
-    {
-      "issuer": "player",
-      "kind": "approach",
-      "params": {
-        "target": "p04",
-        "channel": "player"
-      }
-    }
-  ],
-  [
-    {
-      "issuer": "player",
-      "kind": "organize",
-      "params": {
-        "target": "p03",
+        "target": "player",
         "channel": "player"
       }
     }
@@ -77,57 +148,7 @@
       "issuer": "player",
       "kind": "approach",
       "params": {
-        "target": "p04",
-        "channel": "player"
-      }
-    }
-  ],
-  [],
-  [
-    {
-      "issuer": "player",
-      "kind": "approach",
-      "params": {
-        "target": "p04",
-        "channel": "player"
-      }
-    }
-  ],
-  [
-    {
-      "issuer": "player",
-      "kind": "approach",
-      "params": {
-        "target": "p00",
-        "channel": "player"
-      }
-    },
-    {
-      "issuer": "player",
-      "kind": "organize",
-      "params": {
-        "target": "p04",
-        "channel": "player"
-      }
-    }
-  ],
-  [],
-  [
-    {
-      "issuer": "player",
-      "kind": "approach",
-      "params": {
-        "target": "p00",
-        "channel": "player"
-      }
-    }
-  ],
-  [
-    {
-      "issuer": "player",
-      "kind": "organize",
-      "params": {
-        "target": "p00",
+        "target": "p09",
         "channel": "player"
       }
     },
@@ -135,13 +156,20 @@
       "issuer": "player",
       "kind": "approach",
       "params": {
-        "target": "p04",
+        "target": "p17",
         "channel": "player"
       }
     }
   ],
-  [],
   [
+    {
+      "issuer": "player",
+      "kind": "approach",
+      "params": {
+        "target": "p04",
+        "channel": "player"
+      }
+    },
     {
       "issuer": "player",
       "kind": "approach",
@@ -149,12 +177,112 @@
         "target": "p06",
         "channel": "player"
       }
+    }
+  ],
+  [
+    {
+      "issuer": "player",
+      "kind": "organize",
+      "params": {
+        "target": "p00",
+        "channel": "player"
+      }
+    },
+    {
+      "issuer": "player",
+      "kind": "approach",
+      "params": {
+        "target": "p09",
+        "channel": "player"
+      }
+    }
+  ],
+  [
+    {
+      "issuer": "player",
+      "kind": "approach",
+      "params": {
+        "target": "p04",
+        "channel": "player"
+      }
+    },
+    {
+      "issuer": "player",
+      "kind": "approach",
+      "params": {
+        "target": "p24",
+        "channel": "player"
+      }
+    }
+  ],
+  [
+    {
+      "issuer": "player",
+      "kind": "organize",
+      "params": {
+        "target": "p16",
+        "channel": "player"
+      }
     },
     {
       "issuer": "player",
       "kind": "organize",
       "params": {
+        "target": "p08",
+        "channel": "player"
+      }
+    }
+  ],
+  [
+    {
+      "issuer": "player",
+      "kind": "approach",
+      "params": {
+        "target": "p09",
+        "channel": "player"
+      }
+    },
+    {
+      "issuer": "player",
+      "kind": "approach",
+      "params": {
         "target": "p04",
+        "channel": "player"
+      }
+    }
+  ],
+  [
+    {
+      "issuer": "player",
+      "kind": "organize",
+      "params": {
+        "target": "p01",
+        "channel": "player"
+      }
+    },
+    {
+      "issuer": "player",
+      "kind": "approach",
+      "params": {
+        "target": "p24",
+        "channel": "player"
+      }
+    }
+  ],
+  [
+    {
+      "issuer": "player",
+      "kind": "approach",
+      "params": {
+        "target": "p17",
+        "channel": "player"
+      }
+    },
+    {
+      "issuer": "player",
+      "kind": "organize",
+      "params": {
+        "target": "player",
         "channel": "player"
       }
     }
@@ -167,9 +295,9 @@
     },
     {
       "issuer": "player",
-      "kind": "approach",
+      "kind": "organize",
       "params": {
-        "target": "p07",
+        "target": "p09",
         "channel": "player"
       }
     }
@@ -179,7 +307,15 @@
       "issuer": "player",
       "kind": "approach",
       "params": {
-        "target": "p06",
+        "target": "p17",
+        "channel": "player"
+      }
+    },
+    {
+      "issuer": "player",
+      "kind": "approach",
+      "params": {
+        "target": "p04",
         "channel": "player"
       }
     }
@@ -189,20 +325,160 @@
       "issuer": "player",
       "kind": "appoint",
       "params": {
-        "target": "p04"
+        "target": "p00"
       }
     },
     {
       "issuer": "player",
-      "kind": "adopt",
+      "kind": "fund",
       "params": {
-        "channel": "upstream"
+        "group": "growers",
+        "donor": "trade"
       }
     }
   ],
-  [],
-  [],
-  [],
-  [],
-  []
+  [
+    {
+      "issuer": "player",
+      "kind": "fund",
+      "params": {
+        "group": "growers",
+        "donor": "trade"
+      }
+    },
+    {
+      "issuer": "player",
+      "kind": "organize",
+      "params": {
+        "target": "p16",
+        "channel": "player"
+      }
+    }
+  ],
+  [
+    {
+      "issuer": "player",
+      "kind": "organize",
+      "params": {
+        "target": "p00",
+        "channel": "player"
+      }
+    },
+    {
+      "issuer": "player",
+      "kind": "organize",
+      "params": {
+        "target": "p01",
+        "channel": "player"
+      }
+    }
+  ],
+  [
+    {
+      "issuer": "player",
+      "kind": "organize",
+      "params": {
+        "target": "p08",
+        "channel": "player"
+      }
+    },
+    {
+      "issuer": "player",
+      "kind": "approach",
+      "params": {
+        "target": "p09",
+        "channel": "player"
+      }
+    }
+  ],
+  [
+    {
+      "issuer": "player",
+      "kind": "organize",
+      "params": {
+        "target": "player",
+        "channel": "player"
+      }
+    },
+    {
+      "issuer": "player",
+      "kind": "approach",
+      "params": {
+        "target": "p16",
+        "channel": "player"
+      }
+    }
+  ],
+  [
+    {
+      "issuer": "player",
+      "kind": "approach",
+      "params": {
+        "target": "p09",
+        "channel": "player"
+      }
+    },
+    {
+      "issuer": "player",
+      "kind": "approach",
+      "params": {
+        "target": "p04",
+        "channel": "player"
+      }
+    }
+  ],
+  [
+    {
+      "issuer": "player",
+      "kind": "approach",
+      "params": {
+        "target": "p16",
+        "channel": "player"
+      }
+    },
+    {
+      "issuer": "player",
+      "kind": "approach",
+      "params": {
+        "target": "p17",
+        "channel": "player"
+      }
+    }
+  ],
+  [
+    {
+      "issuer": "player",
+      "kind": "organize",
+      "params": {
+        "target": "p09",
+        "channel": "player"
+      }
+    },
+    {
+      "issuer": "player",
+      "kind": "approach",
+      "params": {
+        "target": "p04",
+        "channel": "player"
+      }
+    }
+  ],
+  [
+    {
+      "issuer": "player",
+      "kind": "organize",
+      "params": {
+        "target": "p00",
+        "channel": "player"
+      }
+    },
+    {
+      "issuer": "player",
+      "kind": "organize",
+      "params": {
+        "target": "p01",
+        "channel": "player"
+      }
+    }
+  ]
 ]

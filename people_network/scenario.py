@@ -30,6 +30,8 @@ def validate(state):
         for key in ('pressure', 'alignment'):
             if set(p[key]) != set(CHANNELS) or any(not math.isfinite(v) or not 0 <= v <= 1 for v in p[key].values()):
                 raise ValueError(f'Invalid {key}: {pid}')
+        if set(p['base_alignment'])!=set(CHANNELS) or any(not math.isfinite(v) or not 0<=v<=1 for v in p['base_alignment'].values()):
+            raise ValueError('Invalid underlying interests')
         if not isinstance(p['active'], bool):
             raise ValueError('Person availability must be boolean')
         if p['task'] not in ('upstream', 'market', None):
@@ -50,7 +52,30 @@ def validate(state):
         raise ValueError('Invalid dynamics coefficients')
     if rules['step'] * (rules['receiving_budget'] + rules['anchor'] + rules['decay'] + rules.get('competition',0.)) > 1:
         raise ValueError('Unstable dynamics configuration')
+    allocations=state['government']['allocations']
+    if set(allocations)!=set(state['organizations']) or any(type(v) is not int or v<0 for v in allocations.values()) or sum(allocations.values())!=4 or state['government']['budget_total']!=4:
+        raise ValueError('Public allocations must conserve four integer service shares')
+    if any(type(p['fatigue']) is not int or not 0<=p['fatigue']<=rules['rally_limit'] or type(p['rest_until']) is not int for p in people.values()):
+        raise ValueError('Invalid organizing strain/rest state')
+    if any(type(rules[k]) is not int or rules[k]<1 for k in ('rally_limit','rally_rest','agreement_grace')):
+        raise ValueError('Invalid coalition timing rules')
+    if not 0<rules['group_response']<=1 or not 0<=rules['group_influence']<=1 or not 0<=rules['agreement_influence']<=1:
+        raise ValueError('Invalid group response')
+    seen=set()
+    for a in state['agreements']:
+        key=(a['leader'],a['group'])
+        if key in seen or a['leader'] not in ('player','rival') or a['group'] not in state['organizations']:
+            raise ValueError('Invalid or duplicate group agreement')
+        seen.add(key)
+        if a['status'] not in ('provisional','suspended','honored','breached','repairing') or min(a['office_rounds'],a['met_streak'],a['breaches'])<0:
+            raise ValueError('Invalid agreement status/timer')
     for org in state['organizations'].values():
+        if type(org['funding_need']) is not int or not 1<=org['funding_need']<=4 or org['location'] not in state['locations']:
+            raise ValueError('Invalid group demand')
+        if set(org['standing'])!={'player','rival'} or set(org['band'])!={'player','rival'} or any(v not in ('watching','angry','warming','satisfied') for v in org['band'].values()):
+            raise ValueError('Invalid group delivery state')
+        if any(not math.isfinite(v) or not -1<=v<=1 for v in org['standing'].values()):
+            raise ValueError('Invalid delivery record')
         if len(org['members']) != len(set(org['members'])) or not set(org['members']).issubset(people):
             raise ValueError('Invalid membership')
         if org['coordinator'] is not None and org['coordinator'] not in org['members']:
@@ -103,5 +128,7 @@ def new_session(start='governing', seed=4243):
         p['allegiance'] = leader
         p['alignment'][leader], p['alignment']['rival' if leader == 'player' else 'player'] = 1., 0.
         p['pressure'][leader], p['pressure']['rival' if leader == 'player' else 'player'] = .92, .08
+    from .coalitions import initialize
+    initialize(state)
     validate(state)
     return Session(state, deepcopy(state))

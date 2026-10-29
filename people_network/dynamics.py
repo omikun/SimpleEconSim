@@ -28,6 +28,9 @@ def advance(state, sources):
             edge_total = math.fsum(incoming.values())
             source = h * sources.get(pid, {}).get(channel, 0.0)
             anchor = h * rules['anchor'] * (person['alignment'][channel] - old)
+            alignment_parts=person.get('alignment_parts',{}).get(channel)
+            interest_components=({k:h*rules['anchor']*(v-old if k=='base' else v) for k,v in alignment_parts.items()}
+                                 if alignment_parts else dict(base=anchor,group=0.,agreement=0.,clamp=0.))
             decay = -h * rules['decay'] * old
             other = 'rival' if channel == 'player' else 'player'
             opposition = -h * rules.get('competition', 0.) * old * person['pressure'][other] if channel in ('player', 'rival') else 0.
@@ -36,7 +39,7 @@ def advance(state, sources):
             result[pid][channel] = new
             parts[pid][channel] = dict(before=old, after=new, incoming=edge_total,
                                        source=source, anchor=anchor, decay=decay, opposition=opposition,
-                                       clamp=new-raw, edges=incoming)
+                                       clamp=new-raw, edges=incoming,interest_components=interest_components)
     return result, parts
 
 

@@ -1,7 +1,7 @@
 # People network layer: design discussion and isolated playtest
 
 Date: October 27, 2026.
-Status: original design discussion retained below. The first standalone laboratory has since been implemented; see the [guide](../docs/people_network_lab.md) and [verification report](reports/people_network_first_playtest.md). Wider integration remains deferred.
+Status: original design discussion retained below. The first standalone laboratory has since been implemented; see the [guide](../docs/people_network_lab.md) and [verification report](reports/people_network_coalition_mechanics.md). Wider integration remains deferred.
 
 The [first implementation plan](people_network_first_implementation_plan.md) expands this discussion into a proposed scenario, rule set, architecture, delivery sequence, and playtest gates. Its initial scope choices are proposed defaults, not implemented capabilities.
 
