@@ -34,6 +34,8 @@ The standalone network prototype opens with a plain-language overview, suggested
 
 The separate **Patronage** ruleset adds brokers, repair contracts, hiring control, finite payments, personal toll exemptions, job dependence, public/private promises and evidence. Launch with `venv/bin/python -m client.desktop.network_lab --ruleset patronage`. Win by governing with five council commitments and a working bridge from round 12 onward; public access, private gains and survival are reported separately. See the [play guide and tested winning routes](docs/people_network_patronage.md), [implementation plan](planning/people_network_patronage_implementation_plan.md), and [verification report](planning/reports/people_network_patronage.md). The classic laboratory remains available.
 
+The proposed next direction is [Governing through society](planning/governing_network_implementation_plan.md): integrate political responses into existing economic decisions, starting with Egypt's grain crisis. Routine administration and organizing would run automatically; players would address group demands and consequential disputes. This plan replaces the idea of importing the laboratories' full individual-management loop into the main game. It is documentation, not an implemented campaign change.
+
 ### Core Strategic Tensions
 Every decision pulls against competing structural constraints:
 - **Domestic Subsistence vs. Cash-Crop Export & Debt Service**: Diverting fertile river basins and peasant labor toward export cash crops (like cotton) raises foreign exchange for bond coupons, but hollows out local grain supply, triggering famine, hoarding, and food riots.

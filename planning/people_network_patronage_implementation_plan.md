@@ -3,6 +3,8 @@
 Date: October 29, 2026.
 Status: first bounded implementation completed October 29, 2026. See the [play guide and winning routes](../docs/people_network_patronage.md) and [verification report](reports/people_network_patronage.md). The specification below records the design; implemented scope and remaining limits are in the report. Existing [version-2 coalition rules](people_network_coalition_mechanics.md) remain available as the classic ruleset.
 
+Direction update, October 30: the [Governing through society plan](governing_network_implementation_plan.md) supersedes integrating this laboratory's complete player-facing loop into the main game. The experiment remains useful evidence; the next proposal removes recurring individual recruitment and reuses existing campaign resources and institutions.
+
 ## 1. Intended player experience
 
 The player bargains with people who can deliver cooperation, appointments, jobs or obstruction. A representative may gain personally while their constituents suffer. A favor can secure cooperation now and strengthen a future rival. Completing the bridge can end someone's useful temporary authority. Holding office, delivering effective government and improving people's lives are distinct outcomes.
