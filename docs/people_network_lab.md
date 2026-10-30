@@ -1,5 +1,7 @@
 # Network Laboratory: The Broken Crossing
 
+For contracts, hiring patrons, private toll bargains and audits, use the separate [Patronage guide and winning routes](people_network_patronage.md): `venv/bin/python -m client.desktop.network_lab --ruleset patronage`. This page describes the classic coalition ruleset.
+
 Rules version 2: the isolated implementation of the [people-network manifesto](gdd.md#manifesto-a-nation-is-a-network-of-people). Run it from the repository root:
 
 ```bash

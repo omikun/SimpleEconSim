@@ -183,6 +183,10 @@ def _ranked(state_json,start_json,channel):
 
 def recommendations(state,channel='player',decision_start=None):
     if channel not in ('player','rival','upstream','market'):raise ValueError('Unknown advice goal')
+    if state.get('ruleset')=='patronage':
+        # The classic forecast assumes public full information. Patronage uses
+        # scoped offer/blocker cards rather than forecasting undiscovered deals.
+        return []
     # Cache by the complete state and the actual rival information boundary.
     # Cache hits do no simulation; returned advice cannot mutate cached records.
     key=json.dumps(state,sort_keys=True,separators=(',',':'))

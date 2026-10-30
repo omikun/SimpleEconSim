@@ -5,6 +5,20 @@ from .coalitions import terms
 from .engine import command, CommandError
 
 
+def own_changes(view,before,after):
+    """Merge this declaration's delta without importing unseen same-round deals."""
+    if isinstance(before,dict) and isinstance(after,dict):
+        result=deepcopy(view)
+        for key,value in after.items():
+            if key not in before:result[key]=deepcopy(value)
+            elif value!=before[key]:result[key]=own_changes(result.get(key),before[key],value)
+        for key in before.keys()-after.keys():result.pop(key,None)
+        return result
+    if isinstance(before,list) and isinstance(after,list) and after[:len(before)]==before:
+        return deepcopy(view)+deepcopy(after[len(before):])
+    return deepcopy(after)
+
+
 def group_weight(state,oid,issuer):
     return sum((3. if p in state['government']['council'] else .25)*
                (1. if state['people'][p]['allegiance']==issuer else .65)
@@ -74,8 +88,21 @@ def act(session,issuer='rival'):
     # Select from the same public start-of-round snapshot as before. Incorporate
     # only this leader's own declarations, not the opponent's unobserved choices.
     view=deepcopy(session.decision_start)
+    if view.get('ruleset')=='patronage':
+        # Public declared backing is observable; another actor's private
+        # preference numbers and undisclosed bargain terms are not.
+        for pid,person in view['people'].items():
+            if pid!=issuer:
+                for leader in ('player','rival'):
+                    person['pressure'][leader]=.65 if person['allegiance']==leader else .35
     for _ in range(session.state['ap'][issuer]):
-        for _,kind,params in choose(view,issuer):
+        candidates=choose(view,issuer)
+        if view.get('ruleset')=='patronage':
+            candidates=patronage_choices(view,issuer)+candidates
+            candidates.sort(key=lambda c:(-c[0],c[1],str(sorted(c[2].items()))))
+        for _,kind,params in candidates:
+            private_before=deepcopy(session.state['patronage']) if view.get('ruleset')=='patronage' else None
+            project_before=deepcopy(session.state['project'])
             try:command(session,issuer,kind,**params)
             except CommandError:continue
             if kind=='organize':view['organizers'][params['target']]={'issuer':issuer}
@@ -86,4 +113,37 @@ def act(session,issuer='rival'):
                 view['government']['allocations'][params['donor']]-=1
                 view['government']['allocations'][params['group']]+=1
             elif kind=='agreement':view['agreements'].append(dict(leader=issuer,group=params['group']))
+            elif kind in ('award_contract','hiring_office','completion_bonus','grant_access','exempt','free_access','audit','disclose','buyout_access','cancel_contract'):
+                # Update only this actor's own accepted declarations. Other
+                # same-round choices remain hidden until the next boundary.
+                view['patronage']=own_changes(view['patronage'],private_before,session.state['patronage'])
+                view['project']=own_changes(view['project'],project_before,session.state['project'])
             break
+
+
+def patronage_choices(state,issuer):
+    from .knowledge import public_view
+    p=state['patronage'];c=p['contract'];candidates=[]
+    incumbent=state['government']['officeholder']==issuer
+    votes=sum(state['people'][pid]['allegiance']==issuer for pid in state['government']['council'])
+    if incumbent and (not c or c['status']=='cancelled') and not state['project']['complete']:
+        route='merchant' if p['accounts']['bridge_fund']>=36 and state['people']['p24']['allegiance']==issuer else 'public'
+        candidates.append((104,'award_contract',dict(route=route,channel='market')))
+    if incumbent and c and c['status']=='active' and c['route']=='merchant' and p['rights']['hiring']['holder']=='p24' and votes<=5:
+        candidates.append((103,'hiring_office',dict(holder='p16')))
+    if incumbent and c and c['status']=='active' and p['rights']['hiring']['holder']=='p16' and c['route']=='merchant' and not c['bonus']:
+        candidates.append((109,'completion_bonus',{}))
+    if incumbent and c and votes<5:
+        access=p['rights'].get('access',{})
+        if not access.get('active') and state['people']['p24']['allegiance']!=issuer:
+            candidates.append((102,'grant_access',dict(target='p24',fee=1)))
+        elif access.get('active') and state['people']['p08']['allegiance']!=issuer:
+            own_exemptions=[f['terms']['person'] for f in public_view(state,issuer) if f['kind']=='exemption']
+            if 'p08' not in own_exemptions:candidates.append((102,'exempt',dict(target='p08')))
+    if incumbent and not p['auditor'] and p['rights'].get('access',{}).get('issuer') not in (None,issuer):
+        candidates.append((85,'audit',{}))
+    for fact in public_view(state,issuer):
+        if fact['kind'] in ('exemption','access_receipt') and fact['terms'].get('issuer')!=issuer and not any(d['fact']==fact['id'] and d['actor']==issuer for d in p['disclosures']):
+            candidates.append((88,'disclose',dict(fact=fact['id'])))
+            break
+    return candidates

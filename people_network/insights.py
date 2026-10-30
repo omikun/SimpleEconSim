@@ -25,7 +25,7 @@ def overview(state, channel='player', decision_start=None, advise=True):
     council=gov['council'];supporters=[pid for pid in council if people[pid]['active'] and people[pid]['allegiance']=='player']
     swing=[pid for pid in council if people[pid]['active'] and people[pid]['allegiance']!='player' and pid in graph.contacts('player')]
     swing.sort(key=lambda pid:(-metrics[pid]['margin'],pid))
-    recommendations=forecast_recommendations(state,channel,decision_start) if advise else []
+    recommendations=forecast_recommendations(state,channel,decision_start) if advise and state.get('ruleset')!='patronage' else []
     local={}
     for loc in state['locations']:
         members=[pid for pid,p in people.items() if p['location']==loc and p['active']]

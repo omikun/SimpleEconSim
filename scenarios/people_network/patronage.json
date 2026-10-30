@@ -1,0 +1,17 @@
+{
+  "id": "broken_crossing_patronage",
+  "version": 3,
+  "fund": 36,
+  "wallet": 4,
+  "debrief_round": 12,
+  "concession_rounds": 6,
+  "contacts": [{"source": "p16", "target": "p10", "trust": {"governing": 0.45, "organizing": 0.6}, "capacity": 0.5, "available": 1.0}],
+  "travelers": ["p08", "p09", "p10", "p11", "p24", "p25", "p26", "p28"],
+  "brokers": {
+    "p24": {"role": "Repair contractor", "income": 1.0, "control": 0.5, "delivery": 0.8, "constituents": 0.3, "asks": "Six-credit management margin; toll income is an additional opportunity."},
+    "p16": {"role": "Hiring patron", "income": 0.9, "control": 1.0, "delivery": 0.3, "constituents": 0.7, "asks": "Control of jobs; a two-credit completion bonus can outweigh keeping the office open."},
+    "p08": {"role": "Landholder and farmers' representative", "income": 0.9, "control": 0.4, "delivery": 0.5, "constituents": 0.3, "asks": "An exemption for her own journeys. This does not exempt the village."},
+    "p00": {"role": "Independent auditor", "income": 0.1, "control": 0.3, "delivery": 1.0, "constituents": 1.0, "asks": "Access to records and freedom to publish them; refuses a private exemption."},
+    "p17": {"role": "Alternative craft organizer", "income": 0.5, "control": 0.5, "delivery": 0.8, "constituents": 0.9, "asks": "Broad hiring and access, rather than Quinn's exclusive job queue."}
+  }
+}

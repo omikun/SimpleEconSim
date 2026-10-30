@@ -5,6 +5,7 @@ from .graph import Graph
 from .model import CANDIDATES, CHANNELS, state_digest
 from .dynamics import advance as pressure_step, summary, contested
 from .coalitions import (advance_demands, rest_and_strain, failed_conditions, agreement_offer, pledge_text)
+from . import patronage
 
 
 class CommandError(ValueError):
@@ -26,7 +27,9 @@ def command(session, issuer, kind, _preview=False, **params):
     _require(target in people, 'Unknown person')
     _require(people[target].get('active',True), 'This person is currently unavailable')
     graph = Graph(s)
-    if kind in ('approach', 'organize'):
+    if kind in patronage.KINDS:
+        patronage.check(s,issuer,kind,params,_require)
+    elif kind in ('approach', 'organize'):
         _require(channel in CHANNELS, 'Unknown candidate or task')
         if kind == 'approach':
             _require(target in graph.contacts(issuer), 'An appeal needs an available direct contact')
@@ -67,6 +70,8 @@ def command(session, issuer, kind, _preview=False, **params):
     elif kind in ('adopt', 'appoint'):
         _require(s['government']['officeholder'] == issuer, 'Only the incumbent has this power')
         if kind == 'adopt':
+            _require(not patronage.enabled(s) or not s['patronage']['contract'] or s['patronage']['contract']['status']=='cancelled',
+                     'An active contract fixes the work plan; cancel before changing it')
             _require(channel in ('upstream', 'market'), 'Choose a repair package')
             _require(not s['project']['complete'], 'The crossing is complete; maintain it')
             _require(s['project']['package'] != channel, 'This package is already active')
@@ -104,7 +109,11 @@ def command(session, issuer, kind, _preview=False, **params):
     if _preview:
         return None
     record = dict(issuer=issuer, kind=kind, params=deepcopy(params))
-    eid = session.emit('action', issuer, after=record, action_points=s['ap'][issuer]-1)
+    visibility={}
+    if patronage.enabled(s):
+        private=kind in ('exempt','grant_access','completion_bonus','disclose')
+        visibility['audience']=sorted({issuer,target}) if private else sorted(people)
+    eid = session.emit('action', issuer, after=record, action_points=s['ap'][issuer]-1,**visibility)
     record['event'] = eid
     s['ap'][issuer] -= 1
     s['actions'].append(record)
@@ -144,7 +153,9 @@ def _resolve_declarations(session):
     for a in s['pending_actions']:
         kind, issuer, p, parent = a['kind'], a['issuer'], a['params'], a['event']
         target, channel = p.get('target', issuer), p.get('channel', issuer)
-        if kind == 'approach':
+        if kind in patronage.KINDS:
+            patronage.declare(session,issuer,kind,p,parent)
+        elif kind == 'approach':
             s['invitations'].append(dict(sender=issuer, target=target, channel=channel,
                                          due=s['round']+1, event=parent))
         elif kind == 'organize':
@@ -314,6 +325,9 @@ def _project(session):
     for a in s['actions']:
         if a['kind'] == 'work' and a['issuer'] not in workers:
             workers.append(a['issuer'])
+    if patronage.enabled(s):
+        from .contracts import crew, maintenance
+        workers=list(dict.fromkeys(workers+(maintenance(session) if proj['complete'] else crew(session))))
     counts = {skill: sum(s['people'][p]['skill'] == skill for p in workers) for skill in ('work','haul')}
     before = deepcopy(proj)
     if not proj['complete']:
@@ -330,13 +344,16 @@ def _project(session):
         kind = ('project_completed' if not before['complete'] and proj['complete'] else
                 'project_failed' if not before.get('failed') and proj.get('failed') else
                 'maintenance_failed' if before['maintenance_misses']<2<=proj['maintenance_misses'] else 'project_progress')
-        eid = session.emit(kind, 'project', before, proj,
-                           [s['last_change'].get('project')]+[s['last_change'].get(f'task:{p}') for p in workers],
+        causes=[s['last_change'].get('project')]+[s['last_change'].get(f'task:{p}') for p in workers]
+        if patronage.enabled(s):
+            causes.extend([s['last_change'].get('right:hiring'),s['patronage']['last_policy_event']])
+            causes.extend(s['last_change'].get('benefit:'+pid) for pid in workers)
+        eid = session.emit(kind, 'project', before, proj, causes,
                            contributors=workers, counts=counts)
         s['last_change']['project'] = eid
         if kind in ('project_completed','project_failed','maintenance_failed'):
             holder = s['government']['officeholder']
-            for edge_id, edge in sorted(s['edges'].items()):
+            for edge_id, edge in sorted(s['edges'].items()) if not patronage.enabled(s) else []:
                 if edge['source'] == holder:
                     old = deepcopy(edge['trust'])
                     delta = .08 if kind == 'project_completed' else -.12
@@ -410,12 +427,16 @@ def step(session, rival=True):
     commands = [{k:deepcopy(a[k]) for k in ('issuer','kind','params')} for a in s['actions']]
     _resolve_declarations(session)
     advance_demands(session)
+    if patronage.enabled(s):
+        patronage.interests(session)
     sources, parents = _sources(session)
     before = deepcopy(s)
     fields, parts = pressure_step(before, sources)
     checkpoint = len(session.journal)
     graph = Graph(before)
     for pid in parents:
+        if patronage.enabled(s):
+            parents[pid].extend([s['last_change'].get('benefit:'+pid),s['last_change'].get('knowledge:'+pid)])
         for oid,group in s['organizations'].items():
             if pid in group['members']:
                 parents[pid].extend([s['last_change'].get('budget'),s['last_change'].get('liaisons'),s['last_change'].get('office')])
@@ -426,7 +447,12 @@ def step(session, rival=True):
             parents[pid].extend([s['last_change'].get(edge_id), s['last_change'].get(source),
                                  s['last_change'].get(f'source:{source}')])
     _decisions(session, fields, parts, parents, checkpoint)
+    completed_before=s['project']['complete']
     _project(session)
+    if patronage.enabled(s):
+        from .contracts import after_project
+        after_project(session,completed_before)
+        patronage.after_round(session)
     _promises(session)
     _government(session)
     rest_and_strain(session)
@@ -437,6 +463,12 @@ def step(session, rival=True):
             del s['organizers'][pid]
             _change(session, f'source:{pid}', organizer, None, s['last_change'].get(pid), reason='organizer withdrew')
     s['round'] += 1
+    if patronage.enabled(s):
+        outcome=patronage.result(s)
+        if outcome['won'] and s['patronage']['vote_win_round'] is None:
+            s['patronage']['vote_win_round']=s['round']
+            s['patronage']['debrief_event']=session.emit('mandate_secured','government',None,outcome,
+                [s['last_change'].get('office'),s['last_change'].get('project')],audience=sorted(s['people']))
     s['ap'] = {'player':2,'rival':2}
     s['actions'] = []
     session.decision_start = deepcopy(s)

@@ -1,7 +1,7 @@
 # Patronage, brokers and captured government: implementation plan
 
 Date: October 29, 2026.
-Status: proposed next implementation, documentation only. Existing [version-2 coalition rules](people_network_coalition_mechanics.md) remain the working game.
+Status: first bounded implementation completed October 29, 2026. See the [play guide and winning routes](../docs/people_network_patronage.md) and [verification report](reports/people_network_patronage.md). The specification below records the design; implemented scope and remaining limits are in the report. Existing [version-2 coalition rules](people_network_coalition_mechanics.md) remain available as the classic ruleset.
 
 ## 1. Intended player experience
 
@@ -219,4 +219,4 @@ Record public and private accounts, completed work/access, actor dependence, sup
 
 Select the ruleset at scenario creation, not with a mid-run live toggle. Preserve version-2 laboratory runs and their deterministic fixture as a classic baseline. At milestone 1, decide and test explicit save envelopes: support version 2 as classic with its original fields, and use a distinct version-3 Patronage schema. Refuse implicit conversion into patronage state. Do not rewrite classic state or consume additional RNG draws when the new ruleset is disabled.
 
-The next coding step is milestone 1 plus a headless offer/permission fixture. Settle the actor/role/ledger contracts before adding UI or secrecy. Keep the current executable and acceptance cases intact while those contracts become reviewable. Economic integration and a generalized political system remain separate work.
+The implementation began with milestone 1 and a headless offer/permission fixture, then added the playable interface and evidence rules. The current [verification report](reports/people_network_patronage.md) records delivered behavior and acceptance evidence. Economic integration and a generalized political system remain separate work.

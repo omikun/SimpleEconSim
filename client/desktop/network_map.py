@@ -109,6 +109,22 @@ def draw(app,rect):
         weight=relationship_width(e,app.channel,a==hover or a==app.selected)
         if not weight:continue
         arrow(app.screen,color,points[a],points[b],weight)
+    patronage=app.state.get('ruleset')=='patronage'
+    if patronage and getattr(app,'power_overlay',True):
+        from people_network.patronage import visible_summary
+        summary=visible_summary(app.state)
+        # Paid dependence has a distinct dashed style and scale. It never
+        # replaces the directional trust/capacity lines in the social graph.
+        for dependency in summary['dependencies']:
+            if dependency['strength']<.05:continue
+            a=points[dependency['patron']];b=points[dependency['worker']]
+            width=1+round(4*dependency['strength'])
+            distance=math.dist(a,b);steps=max(1,int(distance/12))
+            for n in range(0,steps,2):
+                t=n/steps;u=min(1.,(n+1)/steps)
+                start=(a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t)
+                end=(a[0]+(b[0]-a[0])*u,a[1]+(b[1]-a[1])*u)
+                pygame.draw.line(app.screen,(90,215,205),start,end,width)
     # Community cards summarize support without opening individual inspectors.
     occupied=[]
     for loc,(cx,cy) in centers.items():
@@ -137,8 +153,13 @@ def draw(app,rect):
         color=BLUE if p['allegiance']=='player' else RED if p['allegiance']=='rival' else GOLD
         if not p['active']:color=MUTED
         radius=6+round(7*m['reach']/max_reach)
+        if patronage and getattr(app,'power_overlay',True):
+            held=[name for name,right in app.state['patronage']['rights'].items() if right['active'] and right['holder']==pid]
+            if held:
+                pygame.draw.circle(app.screen,GOLD,point,radius+8,3)
+                app.text('/'.join(held),point[0]+radius+9,point[1]-8,13,GOLD)
         if pid==app.selected:pygame.draw.circle(app.screen,TEXT,point,radius+5,1)
-        if m['organizer']:pygame.draw.circle(app.screen,GOLD if p['fatigue']>=app.state['rules']['rally_limit']-1 else GREEN,point,radius+3,2)
+        if m['organizer']:pygame.draw.circle(app.screen,((245,166,83) if patronage else GOLD) if p['fatigue']>=app.state['rules']['rally_limit']-1 else GREEN,point,radius+3,2)
         if m['councillor']:
             x,y=point
             pygame.draw.polygon(app.screen,color,[(x,y-radius-2),(x+radius+2,y),(x,y+radius+2),(x-radius-2,y)])
@@ -161,16 +182,29 @@ def draw(app,rect):
         if chosen:
             pygame.draw.rect(app.screen,DARK,chosen,border_radius=3)
             app.text(label,chosen.x+3,chosen.y+1,13,TEXT);occupied.append(chosen);app.visible_labels.add(pid)
+    if patronage and getattr(app,'power_overlay',True):
+        # Legal dependency gates are separate from social edges. These arrows
+        # identify who controls an operation, not who is universally popular.
+        active=[(name,right) for name,right in sorted(app.state['patronage']['rights'].items()) if right['active']]
+        for i,(name,right) in enumerate(active):
+            gate=pygame.Rect(rect.x+8+i*(rect.width//3),rect.bottom-101,rect.width//3-14,29)
+            holder=right['holder'];label='Public board' if holder=='public_board' else short_name(app.state['people'][holder])
+            if holder in points:arrow(app.screen,GOLD,points[holder],gate.midtop,3,4)
+            pygame.draw.rect(app.screen,DARK,gate,border_radius=4)
+            pygame.draw.rect(app.screen,GOLD,gate,1,border_radius=4)
+            app.text(dict(contract='Repair',hiring='Jobs',access='Access')[name]+': '+label,gate.x+7,gate.y+6,13,GOLD)
     pygame.draw.rect(app.screen,DARK,(rect.x,rect.bottom-65,rect.width,65))
     app.screen.set_clip(None)
     app.button('Terrain',(rect.x+8,rect.y+8,82,29),lambda:setattr(app,'map_mode','Terrain'))
     app.button('Network',(rect.x+96,rect.y+8,88,29),lambda:setattr(app,'map_mode','Network'))
-    app.button('All links' if not app.overlay else 'Useful links',(rect.right-110,rect.y+8,100,29),lambda:setattr(app,'overlay',not app.overlay))
+    if patronage:
+        app.button('Leverage '+('on' if getattr(app,'power_overlay',True) else 'off'),(rect.x+192,rect.y+8,108,29),lambda:setattr(app,'power_overlay',not getattr(app,'power_overlay',True)))
+    app.button(('All known links' if patronage else 'All links') if not app.overlay else 'Useful links',(rect.right-110,rect.y+8,100,29),lambda:setattr(app,'overlay',not app.overlay))
     caption='Terrain: river arrows run downhill to the sea.' if app.map_mode=='Terrain' else 'Network: grouped by community; positions show relationships, not geography.'
     app.text(caption,rect.x+10,rect.bottom-58,13,TEXT)
-    app.text('Bigger: trusted reach · Thicker lines: stronger ties · Diamonds: council votes',rect.x+10,rect.bottom-38,13,MUTED)
-    app.text('Blue: you · coral: Sen · gold: undecided · green ring: rallying · numbers: advice',rect.x+10,rect.bottom-19,13,MUTED)
+    app.text('Gold: rights · Teal dashes: paid dependence · Blue/coral: you/Sen' if patronage else 'Bigger: trusted reach · Thicker lines: stronger ties · Diamonds: council votes',rect.x+10,rect.bottom-38,13,MUTED)
+    app.text('Solid: known trust · Size: reach · Diamond: council · Inner ring: rally (amber: tiring)' if patronage else 'Blue: you · coral: Sen · gold: undecided · green ring: rallying · numbers: advice',rect.x+10,rect.bottom-19,13,MUTED)
     if hover:
         p=app.state['people'][hover];m=metrics[hover]
         text=f"{short_name(p)} · {m['contacts']} contacts · strain {p['fatigue']}/{app.state['rules']['rally_limit']}"+(' · council vote' if m['councillor'] else '')
-        app.text(text,rect.x+198,rect.y+15,13,TEXT)
+        app.text(text,rect.x+(310 if patronage else 198),rect.y+15,13,TEXT)

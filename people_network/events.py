@@ -24,7 +24,7 @@ def explain(session, person, start=None, end=None):
             t['after'] = p['after']
             for key in ('incoming','source','anchor','decay','opposition','clamp'):
                 t[key] += p[key]
-            for key,value in p['interest_components'].items():t['interest_components'][key]+=value
+            for key,value in p['interest_components'].items():t['interest_components'][key]=t['interest_components'].get(key,0.)+value
             for eid,value in p['edges'].items():
                 edge_values[channel][eid] = edge_values[channel].get(eid,0.) + value
     for channel,t in totals.items():

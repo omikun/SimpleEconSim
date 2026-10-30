@@ -1,0 +1,167 @@
+[
+  [
+    {
+      "issuer": "player",
+      "kind": "award_contract",
+      "params": {
+        "route": "merchant"
+      }
+    },
+    {
+      "issuer": "player",
+      "kind": "hiring_office",
+      "params": {
+        "holder": "p16"
+      }
+    }
+  ],
+  [
+    {
+      "issuer": "player",
+      "kind": "completion_bonus",
+      "params": {}
+    },
+    {
+      "issuer": "player",
+      "kind": "organize",
+      "params": {
+        "target": "player",
+        "channel": "player"
+      }
+    }
+  ],
+  [
+    {
+      "issuer": "player",
+      "kind": "grant_access",
+      "params": {
+        "target": "p24",
+        "fee": 2
+      }
+    },
+    {
+      "issuer": "player",
+      "kind": "exempt",
+      "params": {
+        "target": "p08"
+      }
+    }
+  ],
+  [
+    {
+      "issuer": "player",
+      "kind": "organize",
+      "params": {
+        "target": "p16",
+        "channel": "player"
+      }
+    },
+    {
+      "issuer": "player",
+      "kind": "appoint",
+      "params": {
+        "target": "p00"
+      }
+    }
+  ],
+  [
+    {
+      "issuer": "player",
+      "kind": "fund",
+      "params": {
+        "group": "growers",
+        "donor": "trade"
+      }
+    },
+    {
+      "issuer": "player",
+      "kind": "agreement",
+      "params": {
+        "group": "growers"
+      }
+    }
+  ],
+  [
+    {
+      "issuer": "player",
+      "kind": "agreement",
+      "params": {
+        "group": "civic"
+      }
+    },
+    {
+      "issuer": "player",
+      "kind": "organize",
+      "params": {
+        "target": "p24",
+        "channel": "player"
+      }
+    }
+  ],
+  [
+    {
+      "issuer": "player",
+      "kind": "agreement",
+      "params": {
+        "group": "craft"
+      }
+    },
+    {
+      "issuer": "player",
+      "kind": "organize",
+      "params": {
+        "target": "p00",
+        "channel": "player"
+      }
+    }
+  ],
+  [
+    {
+      "issuer": "player",
+      "kind": "organize",
+      "params": {
+        "target": "p01",
+        "channel": "player"
+      }
+    },
+    {
+      "issuer": "player",
+      "kind": "organize",
+      "params": {
+        "target": "player",
+        "channel": "player"
+      }
+    }
+  ],
+  [
+    {
+      "issuer": "player",
+      "kind": "organize",
+      "params": {
+        "target": "p08",
+        "channel": "player"
+      }
+    }
+  ],
+  [
+    {
+      "issuer": "player",
+      "kind": "organize",
+      "params": {
+        "target": "p16",
+        "channel": "player"
+      }
+    }
+  ],
+  [],
+  [
+    {
+      "issuer": "player",
+      "kind": "organize",
+      "params": {
+        "target": "p24",
+        "channel": "player"
+      }
+    }
+  ]
+]

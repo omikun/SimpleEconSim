@@ -9,8 +9,17 @@ from .model import CHANNELS, VERSION, Session, digest
 SCENARIO = Path(__file__).resolve().parents[1] / 'scenarios/people_network/broken_crossing.json'
 
 
+def content_digest(ruleset='classic'):
+    data=json.loads(SCENARIO.read_text())
+    if ruleset=='patronage':
+        from .patronage import FIXTURE
+        return digest(dict(classic=data,patronage=json.loads(FIXTURE.read_text())))
+    return digest(data)
+
+
 def validate(state):
-    if state['mode'] != 'network_lab' or state['version'] != VERSION:
+    patronage=state.get('ruleset')=='patronage'
+    if state['mode'] != 'network_lab' or state['version'] != (3 if patronage else VERSION):
         raise ValueError('Unsupported laboratory mode or rules version')
     people, rules = state['people'], state['rules']
     if len(people) != 32 or not set(('player', 'rival')).issubset(people):
@@ -93,11 +102,20 @@ def validate(state):
             raise ValueError('Invalid promise state')
         if promise['beneficiary'] not in people or promise['issuer'] not in ('player', 'rival'):
             raise ValueError('Invalid promise')
+    if patronage:
+        from .patronage import validate as validate_patronage
+        validate_patronage(state)
+        if any(not set(a.get('signatories',[])).issubset(people) for a in state['agreements']):
+            raise ValueError('Invalid agreement signatories')
+    elif 'patronage' in state or state.get('ruleset','classic')!='classic':
+        raise ValueError('Patronage state requires its explicit ruleset')
 
 
-def new_session(start='governing', seed=4243):
+def new_session(start='governing', seed=4243, ruleset='classic'):
     if start not in ('governing', 'displaced'):
         raise ValueError('Choose governing or displaced')
+    if ruleset not in ('classic','patronage'):
+        raise ValueError('Choose classic or patronage rules')
     data = json.loads(SCENARIO.read_text())
     state = deepcopy(data['state'])
     from .terrain import load_terrain
@@ -130,5 +148,9 @@ def new_session(start='governing', seed=4243):
         p['pressure'][leader], p['pressure']['rival' if leader == 'player' else 'player'] = .92, .08
     from .coalitions import initialize
     initialize(state)
+    if ruleset=='patronage':
+        from .patronage import initialize as initialize_patronage
+        state.update(version=3,ruleset='patronage',scenario_id='broken_crossing_patronage',content_digest=content_digest('patronage'))
+        initialize_patronage(state)
     validate(state)
     return Session(state, deepcopy(state))

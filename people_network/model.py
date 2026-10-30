@@ -45,6 +45,6 @@ class Session:
         return eid
 
     def payload(self):
-        return dict(version=VERSION, state=self.state, initial=self.initial,
+        return dict(version=self.state['version'], state=self.state, initial=self.initial,
                     events=self.events, history=self.history, journal=self.journal,
                     tracing=self.tracing, decision_start=self.decision_start)

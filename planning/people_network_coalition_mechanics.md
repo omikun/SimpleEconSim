@@ -44,6 +44,6 @@ Saves use version 2 and include all allocations, agreements, interest components
 
 This remains the isolated laboratory: no household finances, national tax revenue, real government budget, imprisonment, death/succession or full-game integration. Agreement cancellation/free-form renegotiation and changing external demand schedules are not implemented. Players can restore a breached agreement by actual delivery. Human playtesting must assess whether the new choices are legible and enjoyable.
 
-## Proposed next layer
+## Separate Patronage ruleset
 
-The [patronage implementation plan](people_network_patronage_implementation_plan.md) proposes personal versus constituent interests, control rights, contracts, jobs, private gains, dependence and audience-scoped promises. It is a design plan, not an implemented change to these version-2 rules.
+The [Patronage ruleset](../docs/people_network_patronage.md) implements a bounded version of the [patronage plan](people_network_patronage_implementation_plan.md): personal versus constituent interests, control rights, contracts, jobs, private gains, dependence and audience-scoped promises. It uses a separate version-3 schema and launcher option; these classic version-2 rules retain their behavior.

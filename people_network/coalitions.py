@@ -33,7 +33,7 @@ def terms(state,oid,leader):
 
 def failed_conditions(state,pid,candidate):
     return [a for a in state['agreements'] if a['leader']==candidate and a['status'] in ('breached','repairing') and a['breaches']>0
-            and pid in state['organizations'][a['group']]['members']]
+            and pid in (a.get('signatories',[]) if state.get('ruleset')=='patronage' else state['organizations'][a['group']]['members'])]
 
 
 def pledge_text(state,oid):
@@ -54,6 +54,10 @@ def agreement_offer(session,leader,oid,parent):
     state=session.state
     value=dict(id=parent,leader=leader,group=oid,status='provisional',office_rounds=0,
                met_streak=0,breaches=0,last_event=parent,offered_round=state['round'])
+    if state.get('ruleset')=='patronage':
+        # A representative binds only their own cooperation. Individual workers
+        # subsequently consent to specific jobs, not to their employer's ballot.
+        value['signatories']=[state['organizations'][oid]['coordinator']]
     state['agreements'].append(value)
     value['last_event']=_record(session,'agreement_offered',f'agreement:{parent}',None,value,[parent],
                                 terms=pledge_text(state,oid),group=oid,leader=leader)

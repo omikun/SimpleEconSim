@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 import tempfile
 from .model import Session, VERSION, digest, state_digest
-from .scenario import SCENARIO, validate
+from .scenario import SCENARIO, validate, content_digest
 
 
 def save(session, path):
@@ -34,9 +34,9 @@ def load(path):
         p = envelope['payload']
         if digest(p) != envelope['checksum']:
             raise ValueError('Save checksum does not match')
-        if p['version'] != VERSION:
+        if p['version'] not in (VERSION,3) or p['version']!=p['state']['version']:
             raise ValueError('Unsupported save version')
-        expected = digest(json.loads(SCENARIO.read_text()))
+        expected = content_digest(p['state'].get('ruleset','classic'))
         if p['state']['content_digest'] != expected or p['initial']['content_digest'] != expected:
             raise ValueError('Scenario content changed; start a new laboratory run')
         from .terrain import load_terrain

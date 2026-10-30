@@ -23,14 +23,14 @@ GOLD=(240,197,101); BLUE=(89,185,239); RED=(236,126,116); GREEN=(117,204,165)
 
 
 class Laboratory:
-    def __init__(self,start='governing',seed=4243,save_path=None):
+    def __init__(self,start='governing',seed=4243,save_path=None,ruleset='classic'):
         pygame.init()
         self.screen=pygame.display.set_mode((1440,960),pygame.RESIZABLE)
         pygame.display.set_caption('The Broken Crossing · Network Laboratory')
         self.fonts={n:pygame.font.SysFont('Arial',n) for n in (13,15,17,20,25,32)}
-        self.session=new_session(start,seed)
+        self.session=new_session(start,seed,ruleset)
         self.terrain=load_terrain()
-        self.save_path=Path(save_path or 'outputs/people_network/laboratory.json')
+        self.save_path=Path(save_path or ('outputs/people_network/patronage.json' if ruleset=='patronage' else 'outputs/people_network/laboratory.json'))
         self.selected='p00';self.channel='player';self.overlay=False;self.budget_donor='trade'
         self.zoom=1.;self.pan=[0.,0.];self.drag=None;self.history_index=None
         self.buttons=[];self.markers=[];self.message='Keep five council votes and get the bridge repaired. The numbered people are useful places to start.'
@@ -100,6 +100,8 @@ class Laboratory:
         try:
             if loading:
                 replacement=load(self.save_path)
+                if replacement.state.get('ruleset','classic')!=self.session.state.get('ruleset','classic'):
+                    raise ValueError('This save uses a different ruleset; open its matching laboratory launcher')
                 replay(replacement)
                 self.session=replacement;self.history_index=None
             else:save(self.session,self.save_path)
@@ -115,7 +117,7 @@ class Laboratory:
         except OSError as e:self.message=str(e)
 
     def restart(self,start=None):
-        self.session=new_session(start or self.session.state['start'],self.session.state['seed'])
+        self.session=new_session(start or self.session.state['start'],self.session.state['seed'],self.session.state.get('ruleset','classic'))
         self.history_index=None;self.introducing=None;self.briefing=True;self.sidebar_mode='Overview'
         self.selected='p00';self.channel='player';self.zoom=1.;self.pan=[0.,0.]
         self.message='New laboratory run. Same seed, fresh relationships.'
@@ -375,7 +377,8 @@ class Laboratory:
         for i,(label,action) in enumerate(labels):self.button(label,(20+i*(header_width+8),79,header_width,32),action)
         self.button('Help',(map_width-92,79,92,32),lambda:setattr(self,'briefing',True))
         x=map_width+24;pygame.draw.rect(self.screen,PANEL,(x-12,0,sidebar+16,h))
-        for i,(label,mode) in enumerate((('Start','Overview'),('People','Person'),('Groups','Groups'),('Council','Council'),('Pledges','Promises'),('Why?','Why?'))):
+        tabs=(('Start','Overview'),('Deals','Offers'),('Brokers','Power'),('Council','Council'),('Jobs','Jobs'),('Why?','Why?')) if self.state.get('ruleset')=='patronage' else (('Start','Overview'),('People','Person'),('Groups','Groups'),('Council','Council'),('Pledges','Promises'),('Why?','Why?'))
+        for i,(label,mode) in enumerate(tabs):
             self.button(label,(x+i*((sidebar-22)//6),12,(sidebar-28)//6,30),lambda mode=mode:setattr(self,'sidebar_mode',mode))
         if self.sidebar_mode=='Overview':self.draw_overview(x,60,sidebar-22,h)
         elif self.sidebar_mode=='Person':
@@ -384,10 +387,13 @@ class Laboratory:
         elif self.sidebar_mode=='Groups':self.draw_groups(x,60,sidebar-22,h)
         elif self.sidebar_mode=='Council':self.draw_council(x,60,sidebar-22)
         elif self.sidebar_mode=='Promises':self.draw_promises(x,60,sidebar-22)
+        elif self.sidebar_mode=='Offers':self.draw_offers(x,60,sidebar-22,h)
+        elif self.sidebar_mode=='Jobs':self.draw_jobs(x,60,sidebar-22,h)
+        elif self.sidebar_mode=='Power':self.draw_power(x,60,sidebar-22,h)
         else:self.draw_why(x,60,sidebar-22,h)
         objective=('Keep five council votes to stay in office.' if holder=='player' else 'Build a five-vote coalition to return to office.')
         self.text(objective,22,126,20,GOLD)
-        self.text('The bridge needs help. Farmers and traders disagree about whom repairs should serve first.',22,155,15,TEXT)
+        self.text('Win after round 12: a working bridge, office, and five council votes.' if self.state.get('ruleset')=='patronage' else 'The bridge needs help. Farmers and traders disagree about whom repairs should serve first.',22,155,15,TEXT)
         map_rect=pygame.Rect(18,187,map_width-18,h-377)
         self.boundaries=set(Graph(self.state).boundary_edges())
         self.draw_map(map_rect)
@@ -401,12 +407,12 @@ class Laboratory:
         self.button('Live',(236,y,68,29),lambda:setattr(self,'history_index',None))
         self.button('Causes',(312,y,86,29),lambda:setattr(self,'show_trace',not self.show_trace))
         self.text('LIVE' if self.history_index is None else f'Viewing round {self.history_index+1}',410,y+6,13,GOLD);y+=38
-        significant=[e for e in self.session.events if e['kind'] not in ('action','project_progress','structural_change') and e['round']<self.state['round']]
+        significant=[e for e in self.session.events if e['kind'] not in ('action','project_progress','structural_change') and e['round']<self.state['round'] and self.event_visible(e)]
         if self.show_trace and significant:
             relevant=[e for e in significant if e['subject']==self.selected] or significant
             events=causal_chain(self.session,relevant[-1]['id'])
         else:events=list(reversed(significant))
-        for event in events[:max(1,(h-y-14)//21)]:
+        for event in [e for e in events if self.event_visible(e)][:max(1,(h-y-14)//21)]:
             self.text(self.event_label(event)[:max(30,(map_width-40)//8)],20,y,13,MUTED);y+=21
         challenge=self.state['government']['challenge']
         if challenge:self.text(f"COUNCIL VOTE scheduled for round {challenge['due']+1}",20,112,13,GOLD)
@@ -435,10 +441,24 @@ class Laboratory:
         for paragraph in paragraphs:y=self.wrap(paragraph,box.x+28,y,680,17,TEXT,2)+5
         self.button('Enter the laboratory',(box.x+230,box.bottom-54,280,34),lambda:setattr(self,'briefing',False))
 
+    def event_visible(self,event):
+        return True
+
     def scrub(self,delta):
         if not self.session.history:return
         current=len(self.session.history) if self.history_index is None else self.history_index
         self.history_index=max(0,min(len(self.session.history)-1,current+delta))
+
+    def click(self,position):
+        """The same hit testing serves native mouse events and UI playtests."""
+        for rect,action,enabled,reason in reversed(self.buttons):
+            if rect.collidepoint(position):
+                if enabled:action()
+                elif reason:self.message=reason
+                return
+        if not self.briefing:
+            nearby=sorted((math.dist(point,position),pid) for point,pid in self.markers)
+            if nearby and nearby[0][0]<18:self.select(nearby[0][1])
 
     def run(self,screenshot=None):
         if screenshot:
@@ -464,15 +484,7 @@ class Laboratory:
                         elif event.key==pygame.K_RIGHT:self.scrub(1)
                 elif event.type==pygame.MOUSEBUTTONDOWN:
                     if event.button==1:
-                        for rect,action,enabled,reason in reversed(self.buttons):
-                            if rect.collidepoint(event.pos):
-                                if enabled:action()
-                                elif reason:self.message=reason
-                                break
-                        else:
-                            if not self.briefing:
-                                nearby=sorted((math.dist(point,event.pos),pid) for point,pid in self.markers)
-                                if nearby and nearby[0][0]<18:self.select(nearby[0][1])
+                        self.click(event.pos)
                     elif event.button==3:self.drag=event.pos
                 elif event.type==pygame.MOUSEBUTTONUP and event.button==3:self.drag=None
                 elif event.type==pygame.MOUSEMOTION and self.drag and not self.briefing:
@@ -487,10 +499,15 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--start',choices=['governing','displaced'],default='governing')
     parser.add_argument('--seed',type=int,default=4243)
+    parser.add_argument('--ruleset',choices=['classic','patronage'],default='classic')
     parser.add_argument('--save-path',type=Path)
     parser.add_argument('--screenshot',type=Path,help='Render one frame for visual verification')
     args=parser.parse_args()
-    Laboratory(args.start,args.seed,args.save_path).run(args.screenshot)
+    if args.ruleset=='patronage':
+        from .network_patronage import PatronageLaboratory
+        app=PatronageLaboratory(args.start,args.seed,args.save_path)
+    else:app=Laboratory(args.start,args.seed,args.save_path)
+    app.run(args.screenshot)
 
 
 if __name__=='__main__':main()

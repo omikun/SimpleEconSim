@@ -1,0 +1,169 @@
+{
+  "date": "2026-10-29",
+  "ruleset": "patronage",
+  "version": 3,
+  "tests": 75,
+  "ui": "Actual Pygame button and map-marker hit testing under SDL dummy display",
+  "routes": [
+    {
+      "route": "public",
+      "seed": 4243,
+      "played_through": "Pygame mouse hit testing",
+      "rival": "active",
+      "replay": "passed",
+      "rounds": 12,
+      "elapsed_seconds": 0.813,
+      "outcome": {
+        "votes": 5,
+        "power": true,
+        "delivery": true,
+        "won": true,
+        "ready": true,
+        "round": 12,
+        "crossings": 36,
+        "denied": 0,
+        "tolls": 0,
+        "waiting": 12,
+        "fund": 6,
+        "label": "Mandate secured"
+      },
+      "digest": "90a8e724920e47d344141c07c3951a52199631e5752a8b5a09929532a41c323f",
+      "completed_round": 4,
+      "credit_total": 164,
+      "events": 314,
+      "screenshots": [
+        "public-round-1.png",
+        "public-round-3.png",
+        "public-round-12.png"
+      ],
+      "transfers": [],
+      "save_bytes": 2331868
+    },
+    {
+      "route": "brokers",
+      "seed": 4243,
+      "played_through": "Pygame mouse hit testing",
+      "rival": "active",
+      "replay": "passed",
+      "rounds": 12,
+      "elapsed_seconds": 0.906,
+      "outcome": {
+        "votes": 5,
+        "power": true,
+        "delivery": true,
+        "won": true,
+        "ready": true,
+        "round": 12,
+        "crossings": 37,
+        "denied": 3,
+        "tolls": 30,
+        "waiting": 8,
+        "fund": 0,
+        "label": "Mandate secured"
+      },
+      "digest": "2ce3218c51458fde3c9eb62d838a1744a7854005f6b5b710059fdfe5b8b6319d",
+      "completed_round": 3,
+      "credit_total": 164,
+      "events": 341,
+      "screenshots": [
+        "brokers-round-1.png",
+        "brokers-round-3.png",
+        "brokers-round-12.png"
+      ],
+      "transfers": [],
+      "save_bytes": 2529205
+    },
+    {
+      "route": "restore",
+      "seed": 4243,
+      "played_through": "Pygame mouse hit testing",
+      "rival": "active",
+      "replay": "passed",
+      "rounds": 28,
+      "elapsed_seconds": 2.583,
+      "outcome": {
+        "votes": 6,
+        "power": true,
+        "delivery": true,
+        "won": true,
+        "ready": true,
+        "round": 28,
+        "crossings": 85,
+        "denied": 19,
+        "tolls": 35,
+        "waiting": 8,
+        "fund": 0,
+        "label": "Mandate secured"
+      },
+      "digest": "5fe2a380a57d8c3e92ecd7892d70795845811089ccded3bedded662cecd693b2",
+      "completed_round": 3,
+      "credit_total": 164,
+      "events": 791,
+      "screenshots": [
+        "restore-round-1.png",
+        "restore-round-3.png",
+        "restore-round-12.png"
+      ],
+      "transfers": [
+        {
+          "round": 11,
+          "before": "player",
+          "after": "rival"
+        },
+        {
+          "round": 19,
+          "before": "rival",
+          "after": "player"
+        }
+      ],
+      "save_bytes": 7403154
+    }
+  ],
+  "counterfactuals": [
+    {
+      "branch": "without_bonus",
+      "outcome": {
+        "votes": 5,
+        "power": true,
+        "delivery": true,
+        "won": true,
+        "ready": true,
+        "round": 12,
+        "crossings": 8,
+        "denied": 0,
+        "tolls": 12,
+        "waiting": 40,
+        "fund": 0,
+        "label": "Mandate secured"
+      },
+      "completed_round": 11,
+      "deadline_missed": true,
+      "transfers": []
+    },
+    {
+      "branch": "without_quinn_rallies",
+      "outcome": {
+        "votes": 4,
+        "power": false,
+        "delivery": true,
+        "won": false,
+        "ready": true,
+        "round": 12,
+        "crossings": 37,
+        "denied": 3,
+        "tolls": 30,
+        "waiting": 8,
+        "fund": 0,
+        "label": "Bridge delivered; coalition lost"
+      },
+      "completed_round": 3,
+      "deadline_missed": false,
+      "transfers": [
+        {
+          "round": 11,
+          "after": "rival"
+        }
+      ]
+    }
+  ]
+}
