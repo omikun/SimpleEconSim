@@ -1,0 +1,872 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-31",
+  "scope": "Egypt governing observation phase, milestones 1-2",
+  "passed": true,
+  "source_snapshot": {
+    "file_count": 693,
+    "sha256": "b19b6204c4ea8ddbec61e61118a584c207e1332c56d045d098b5dae89ed9ced1",
+    "archive": "outputs/governing_network/verified-sources.zip"
+  },
+  "unit_and_regression_tests": {
+    "passed": 53,
+    "new_observation_tests": 20,
+    "existing_scenario_tests": 33
+  },
+  "normalization": "Repository canonical graph; exclude observation sidecar; relabel exact recorder run UUID only.",
+  "campaign_comparisons": [
+    {
+      "engine": "client.desktop.engine",
+      "route": "buy",
+      "traced": false,
+      "equal": true,
+      "turn_count": 8,
+      "sampled_equal": true,
+      "economic_equal": true,
+      "decisions_equal": true
+    },
+    {
+      "engine": "client.desktop.engine",
+      "route": "buy",
+      "traced": true,
+      "equal": true,
+      "turn_count": 8,
+      "sampled_equal": true,
+      "economic_equal": true,
+      "decisions_equal": true
+    },
+    {
+      "engine": "client.desktop.engine",
+      "route": "requisition",
+      "traced": false,
+      "equal": true,
+      "turn_count": 8,
+      "sampled_equal": true,
+      "economic_equal": true,
+      "decisions_equal": true
+    },
+    {
+      "engine": "client.desktop.engine",
+      "route": "requisition",
+      "traced": true,
+      "equal": true,
+      "turn_count": 8,
+      "sampled_equal": true,
+      "economic_equal": true,
+      "decisions_equal": true
+    },
+    {
+      "engine": "client.desktop.engine",
+      "route": "market",
+      "traced": false,
+      "equal": true,
+      "turn_count": 8,
+      "sampled_equal": true,
+      "economic_equal": true,
+      "decisions_equal": true
+    },
+    {
+      "engine": "client.desktop.engine",
+      "route": "market",
+      "traced": true,
+      "equal": true,
+      "turn_count": 8,
+      "sampled_equal": true,
+      "economic_equal": true,
+      "decisions_equal": true
+    },
+    {
+      "engine": "worldview_engine",
+      "route": "buy",
+      "traced": false,
+      "equal": true,
+      "turn_count": 8,
+      "sampled_equal": true,
+      "economic_equal": true,
+      "decisions_equal": true
+    },
+    {
+      "engine": "worldview_engine",
+      "route": "buy",
+      "traced": true,
+      "equal": true,
+      "turn_count": 8,
+      "sampled_equal": true,
+      "economic_equal": true,
+      "decisions_equal": true
+    },
+    {
+      "engine": "worldview_engine",
+      "route": "requisition",
+      "traced": false,
+      "equal": true,
+      "turn_count": 8,
+      "sampled_equal": true,
+      "economic_equal": true,
+      "decisions_equal": true
+    },
+    {
+      "engine": "worldview_engine",
+      "route": "requisition",
+      "traced": true,
+      "equal": true,
+      "turn_count": 8,
+      "sampled_equal": true,
+      "economic_equal": true,
+      "decisions_equal": true
+    },
+    {
+      "engine": "worldview_engine",
+      "route": "market",
+      "traced": false,
+      "equal": true,
+      "turn_count": 8,
+      "sampled_equal": true,
+      "economic_equal": true,
+      "decisions_equal": true
+    },
+    {
+      "engine": "worldview_engine",
+      "route": "market",
+      "traced": true,
+      "equal": true,
+      "turn_count": 8,
+      "sampled_equal": true,
+      "economic_equal": true,
+      "decisions_equal": true
+    }
+  ],
+  "traced_untraced_diagnostics": [
+    {
+      "engine": "client.desktop.engine",
+      "route": "buy",
+      "equal": true
+    },
+    {
+      "engine": "client.desktop.engine",
+      "route": "requisition",
+      "equal": true
+    },
+    {
+      "engine": "client.desktop.engine",
+      "route": "market",
+      "equal": true
+    },
+    {
+      "engine": "worldview_engine",
+      "route": "buy",
+      "equal": true
+    },
+    {
+      "engine": "worldview_engine",
+      "route": "requisition",
+      "equal": true
+    },
+    {
+      "engine": "worldview_engine",
+      "route": "market",
+      "equal": true
+    }
+  ],
+  "campaign_routes": [
+    {
+      "engine": "client.desktop.engine",
+      "route": "buy",
+      "decisions": [
+        {
+          "turn": 1,
+          "action": "release_maize",
+          "success": true,
+          "message": "Issued next-meal maize rations to 110 households from the public reserve."
+        },
+        {
+          "turn": 2,
+          "action": "buy_private_grain",
+          "success": true,
+          "message": "Bought 28 private maize units for 37.7 treasury units; owners received the cash."
+        },
+        {
+          "turn": 3,
+          "action": "release_maize",
+          "success": true,
+          "message": "Issued next-meal maize rations to 7 households from the public reserve."
+        },
+        {
+          "turn": 6,
+          "action": "pay_remittance",
+          "success": true,
+          "message": "Paid 200 in debt service; 400 remains due."
+        }
+      ],
+      "last_observation": {
+        "turn": 8,
+        "mode": "observe",
+        "communities": [
+          {
+            "id": "households",
+            "title": "Cultivators and workers",
+            "count": 558,
+            "concern": "175/558 underfed; 2.7 unpaid taxes",
+            "explanation": "Food and tax pressure can unite households. Relief helps only when food reaches people.",
+            "underfed": 175,
+            "arrears": 2.6900000000000004,
+            "private_maize": 6,
+            "requisitioned": 0
+          },
+          {
+            "id": "holders",
+            "title": "Grainholders and landowners",
+            "count": 14,
+            "concern": "6 maize held; 0 seized so far",
+            "explanation": "Buying pays owners; seizure takes stocks without payment.",
+            "underfed": 10,
+            "arrears": 0.0,
+            "private_maize": 6,
+            "requisitioned": 0
+          },
+          {
+            "id": "merchants",
+            "title": "Merchants and exporters",
+            "count": 30,
+            "concern": "Private warehouse sales are held",
+            "explanation": "Opening sales allows trade; households still need money to buy.",
+            "underfed": 12,
+            "arrears": 0.0,
+            "private_maize": 6,
+            "requisitioned": 0
+          }
+        ],
+        "journal_id": "governing-observation:8",
+        "diagnostic": "Experimental contacts; pressure does not change petitions or strikes.",
+        "public_maize": 0,
+        "treasury": 192.8539668256054
+      },
+      "economic_final": "2758df2620a94c3a4b2cbeaf1d15e6df9add419c17dbcba7d526ba2c9bf366df",
+      "sampled_turns": [
+        {
+          "turn": 1,
+          "sampled": "c36a991d40a8d962b1f90025eb6b960483fd66974aefab44532bacd9c49931cc"
+        },
+        {
+          "turn": 2,
+          "sampled": "403417aea15ba088df6b7f466c185d867ea1a1538d881442ef27f3421af4909c"
+        },
+        {
+          "turn": 3,
+          "sampled": "bb09416be16e6ebd7ac9dc1aaa1bbfa0b77ffbd1d8439ad80cd9f91e012d8a63"
+        },
+        {
+          "turn": 4,
+          "sampled": "fbb82186400052d14b06911ff04a69a805c13a8372b0018ebf06c478379ddefd"
+        },
+        {
+          "turn": 5,
+          "sampled": "b48e59bb8d3625629b1ec14ca75ae54611ee2d5ff2b40d11b59ed64caefb330e"
+        },
+        {
+          "turn": 6,
+          "sampled": "2c8296a564e5ea1fc8db95659a4f387c0ccf879d6d6cad7d55f6f3a7c85ed9fa"
+        },
+        {
+          "turn": 7,
+          "sampled": "d03522c388ffa00a1b96d86e925017ca6cdbd39fc0585293582c3c66220e3010"
+        },
+        {
+          "turn": 8,
+          "sampled": "38fd7e82186a5123f364147799477694505489ad95a1e389088e137f9042d5b4"
+        }
+      ],
+      "diagnostic_digest": "5a85956ed6572e847812c3b0f24177fe77bc799353d0f56b15b7007ebceb7107"
+    },
+    {
+      "engine": "client.desktop.engine",
+      "route": "requisition",
+      "decisions": [
+        {
+          "turn": 1,
+          "action": "release_maize",
+          "success": true,
+          "message": "Issued next-meal maize rations to 110 households from the public reserve."
+        },
+        {
+          "turn": 2,
+          "action": "requisition_private_grain",
+          "success": true,
+          "message": "Requisitioned 28 private maize units for public relief; owners protest and legitimacy fell."
+        },
+        {
+          "turn": 3,
+          "action": "release_maize",
+          "success": true,
+          "message": "Issued next-meal maize rations to 7 households from the public reserve."
+        },
+        {
+          "turn": 6,
+          "action": "pay_remittance",
+          "success": true,
+          "message": "Paid 200 in debt service; 400 remains due."
+        }
+      ],
+      "last_observation": {
+        "turn": 8,
+        "mode": "observe",
+        "communities": [
+          {
+            "id": "households",
+            "title": "Cultivators and workers",
+            "count": 558,
+            "concern": "175/558 underfed; 2.7 unpaid taxes",
+            "explanation": "Food and tax pressure can unite households. Relief helps only when food reaches people.",
+            "underfed": 175,
+            "arrears": 2.6900000000000004,
+            "private_maize": 6,
+            "requisitioned": 28
+          },
+          {
+            "id": "holders",
+            "title": "Grainholders and landowners",
+            "count": 14,
+            "concern": "6 maize held; 28 seized so far",
+            "explanation": "Seizure threatens owners' control of their stocks.",
+            "underfed": 10,
+            "arrears": 0.0,
+            "private_maize": 6,
+            "requisitioned": 28
+          },
+          {
+            "id": "merchants",
+            "title": "Merchants and exporters",
+            "count": 30,
+            "concern": "Private warehouse sales are held",
+            "explanation": "Opening sales allows trade; households still need money to buy.",
+            "underfed": 12,
+            "arrears": 0.0,
+            "private_maize": 6,
+            "requisitioned": 28
+          }
+        ],
+        "journal_id": "governing-observation:8",
+        "diagnostic": "Experimental contacts; pressure does not change petitions or strikes.",
+        "public_maize": 0,
+        "treasury": 230.52709399999995
+      },
+      "economic_final": "f6167990e52db48f2b50c240ab0d30aa30b1a2a21d7d3a26e6d22e3813161e47",
+      "sampled_turns": [
+        {
+          "turn": 1,
+          "sampled": "c36a991d40a8d962b1f90025eb6b960483fd66974aefab44532bacd9c49931cc"
+        },
+        {
+          "turn": 2,
+          "sampled": "403417aea15ba088df6b7f466c185d867ea1a1538d881442ef27f3421af4909c"
+        },
+        {
+          "turn": 3,
+          "sampled": "5587d6a962adacf3d5089b436f42bdfc4d608441d84012d9a67d5f3439bf54c0"
+        },
+        {
+          "turn": 4,
+          "sampled": "a767557af1bdf78e43b91df5253c3a6e47cc98dbaf5b596d3ecaea96eabee465"
+        },
+        {
+          "turn": 5,
+          "sampled": "eda2f1f1b204ce010d7f995fc9e34bacaca0754e06b6185583081d1884eb3fda"
+        },
+        {
+          "turn": 6,
+          "sampled": "1868a7fdb07d9124311fa24baf5152279dd19dd09c4c17fe5059840e4b901984"
+        },
+        {
+          "turn": 7,
+          "sampled": "b6d1c3b403b35a9a30323a99211c1983a739abd7fa62f80c5ecc771c1f0a0729"
+        },
+        {
+          "turn": 8,
+          "sampled": "40f152d330fffcadb34d7c9ca28daabe6cd1d7a8ef59e0f9fb978fe630371937"
+        }
+      ],
+      "diagnostic_digest": "8ad4d750d6eeab21edcff1f737a53a0897e83009ce06546b106ec9362637fd66"
+    },
+    {
+      "engine": "client.desktop.engine",
+      "route": "market",
+      "decisions": [
+        {
+          "turn": 1,
+          "action": "release_maize",
+          "success": true,
+          "message": "Issued next-meal maize rations to 110 households from the public reserve."
+        },
+        {
+          "turn": 2,
+          "action": "open_private_grain_market",
+          "success": true,
+          "message": "Allowed private grain sales: 28 units reached households that could pay; holders continue to set the price."
+        },
+        {
+          "turn": 3,
+          "action": "reduce_fellahin_tax",
+          "success": true,
+          "message": "Reduced regional taxes for cultivators; the treasury will collect less revenue."
+        },
+        {
+          "turn": 6,
+          "action": "pay_remittance",
+          "success": true,
+          "message": "Paid 200 in debt service; 400 remains due."
+        }
+      ],
+      "last_observation": {
+        "turn": 8,
+        "mode": "observe",
+        "communities": [
+          {
+            "id": "households",
+            "title": "Cultivators and workers",
+            "count": 559,
+            "concern": "180/559 underfed; 8.8 unpaid taxes",
+            "explanation": "Food and tax pressure can unite households. Relief helps only when food reaches people.",
+            "underfed": 180,
+            "arrears": 8.83,
+            "private_maize": 0,
+            "requisitioned": 0
+          },
+          {
+            "id": "holders",
+            "title": "Grainholders and landowners",
+            "count": 14,
+            "concern": "0 maize held; 0 seized so far",
+            "explanation": "Buying pays owners; seizure takes stocks without payment.",
+            "underfed": 10,
+            "arrears": 0.0,
+            "private_maize": 0,
+            "requisitioned": 0
+          },
+          {
+            "id": "merchants",
+            "title": "Merchants and exporters",
+            "count": 31,
+            "concern": "Private grain sales are open",
+            "explanation": "Opening sales allows trade; households still need money to buy.",
+            "underfed": 7,
+            "arrears": 0.0,
+            "private_maize": 0,
+            "requisitioned": 0
+          }
+        ],
+        "journal_id": "governing-observation:8",
+        "diagnostic": "Experimental contacts; pressure does not change petitions or strikes.",
+        "public_maize": 0,
+        "treasury": 179.727473
+      },
+      "economic_final": "619917b02a6931f257378222fe7be56a0e7c5a6781c0855948a5071bf8d5899b",
+      "sampled_turns": [
+        {
+          "turn": 1,
+          "sampled": "c36a991d40a8d962b1f90025eb6b960483fd66974aefab44532bacd9c49931cc"
+        },
+        {
+          "turn": 2,
+          "sampled": "403417aea15ba088df6b7f466c185d867ea1a1538d881442ef27f3421af4909c"
+        },
+        {
+          "turn": 3,
+          "sampled": "a8ff286f6143c6f03c2fe7805650e5d902a774c2a39ad00698b71314d1af3461"
+        },
+        {
+          "turn": 4,
+          "sampled": "5aeb76bf21c6efa4522b29ca2b9c4c3c60c25ff3225515b06fbd7e6340be7668"
+        },
+        {
+          "turn": 5,
+          "sampled": "0787bf3363e920fcc4d0c7898413e83813c0027f3e00edbcec62b552bee968c4"
+        },
+        {
+          "turn": 6,
+          "sampled": "ef215d01362de8261fb66d16d56cca551653aa38303f57905004b0a7d4b71943"
+        },
+        {
+          "turn": 7,
+          "sampled": "951e47f1e4f9a34fcf4ab8060d2f277543214fa5fc7377b991de4e8a08929726"
+        },
+        {
+          "turn": 8,
+          "sampled": "7fbd04f577f784c5749df84fe6d9858b0091e11106242c0b5bcbcdd22117011a"
+        }
+      ],
+      "diagnostic_digest": "14582835609aa67be3336cea04459e493f4d703fdb531adcebc3f02b55122dcf"
+    },
+    {
+      "engine": "worldview_engine",
+      "route": "buy",
+      "decisions": [
+        {
+          "turn": 1,
+          "action": "release_maize",
+          "success": true,
+          "message": "Issued next-meal maize rations to 110 households from the public reserve."
+        },
+        {
+          "turn": 2,
+          "action": "buy_private_grain",
+          "success": true,
+          "message": "Bought 28 private maize units for 37.7 treasury units; owners received the cash."
+        },
+        {
+          "turn": 3,
+          "action": "release_maize",
+          "success": true,
+          "message": "Issued next-meal maize rations to 7 households from the public reserve."
+        },
+        {
+          "turn": 6,
+          "action": "pay_remittance",
+          "success": true,
+          "message": "Paid 200 in debt service; 400 remains due."
+        }
+      ],
+      "last_observation": {
+        "turn": 8,
+        "mode": "observe",
+        "communities": [
+          {
+            "id": "households",
+            "title": "Cultivators and workers",
+            "count": 558,
+            "concern": "175/558 underfed; 2.7 unpaid taxes",
+            "explanation": "Food and tax pressure can unite households. Relief helps only when food reaches people.",
+            "underfed": 175,
+            "arrears": 2.6900000000000004,
+            "private_maize": 6,
+            "requisitioned": 0
+          },
+          {
+            "id": "holders",
+            "title": "Grainholders and landowners",
+            "count": 14,
+            "concern": "6 maize held; 0 seized so far",
+            "explanation": "Buying pays owners; seizure takes stocks without payment.",
+            "underfed": 10,
+            "arrears": 0.0,
+            "private_maize": 6,
+            "requisitioned": 0
+          },
+          {
+            "id": "merchants",
+            "title": "Merchants and exporters",
+            "count": 30,
+            "concern": "Private warehouse sales are held",
+            "explanation": "Opening sales allows trade; households still need money to buy.",
+            "underfed": 12,
+            "arrears": 0.0,
+            "private_maize": 6,
+            "requisitioned": 0
+          }
+        ],
+        "journal_id": "governing-observation:8",
+        "diagnostic": "Experimental contacts; pressure does not change petitions or strikes.",
+        "public_maize": 0,
+        "treasury": 192.8539668256054
+      },
+      "economic_final": "827f641de1af6601b6f8ecbe3de001ded87e3c68b4a3e3b97b35cd6780934ee7",
+      "sampled_turns": [
+        {
+          "turn": 1,
+          "sampled": "c36a991d40a8d962b1f90025eb6b960483fd66974aefab44532bacd9c49931cc"
+        },
+        {
+          "turn": 2,
+          "sampled": "403417aea15ba088df6b7f466c185d867ea1a1538d881442ef27f3421af4909c"
+        },
+        {
+          "turn": 3,
+          "sampled": "bb09416be16e6ebd7ac9dc1aaa1bbfa0b77ffbd1d8439ad80cd9f91e012d8a63"
+        },
+        {
+          "turn": 4,
+          "sampled": "fbb82186400052d14b06911ff04a69a805c13a8372b0018ebf06c478379ddefd"
+        },
+        {
+          "turn": 5,
+          "sampled": "b48e59bb8d3625629b1ec14ca75ae54611ee2d5ff2b40d11b59ed64caefb330e"
+        },
+        {
+          "turn": 6,
+          "sampled": "2c8296a564e5ea1fc8db95659a4f387c0ccf879d6d6cad7d55f6f3a7c85ed9fa"
+        },
+        {
+          "turn": 7,
+          "sampled": "d03522c388ffa00a1b96d86e925017ca6cdbd39fc0585293582c3c66220e3010"
+        },
+        {
+          "turn": 8,
+          "sampled": "38fd7e82186a5123f364147799477694505489ad95a1e389088e137f9042d5b4"
+        }
+      ],
+      "diagnostic_digest": "5a85956ed6572e847812c3b0f24177fe77bc799353d0f56b15b7007ebceb7107"
+    },
+    {
+      "engine": "worldview_engine",
+      "route": "requisition",
+      "decisions": [
+        {
+          "turn": 1,
+          "action": "release_maize",
+          "success": true,
+          "message": "Issued next-meal maize rations to 110 households from the public reserve."
+        },
+        {
+          "turn": 2,
+          "action": "requisition_private_grain",
+          "success": true,
+          "message": "Requisitioned 28 private maize units for public relief; owners protest and legitimacy fell."
+        },
+        {
+          "turn": 3,
+          "action": "release_maize",
+          "success": true,
+          "message": "Issued next-meal maize rations to 7 households from the public reserve."
+        },
+        {
+          "turn": 6,
+          "action": "pay_remittance",
+          "success": true,
+          "message": "Paid 200 in debt service; 400 remains due."
+        }
+      ],
+      "last_observation": {
+        "turn": 8,
+        "mode": "observe",
+        "communities": [
+          {
+            "id": "households",
+            "title": "Cultivators and workers",
+            "count": 558,
+            "concern": "175/558 underfed; 2.7 unpaid taxes",
+            "explanation": "Food and tax pressure can unite households. Relief helps only when food reaches people.",
+            "underfed": 175,
+            "arrears": 2.6900000000000004,
+            "private_maize": 6,
+            "requisitioned": 28
+          },
+          {
+            "id": "holders",
+            "title": "Grainholders and landowners",
+            "count": 14,
+            "concern": "6 maize held; 28 seized so far",
+            "explanation": "Seizure threatens owners' control of their stocks.",
+            "underfed": 10,
+            "arrears": 0.0,
+            "private_maize": 6,
+            "requisitioned": 28
+          },
+          {
+            "id": "merchants",
+            "title": "Merchants and exporters",
+            "count": 30,
+            "concern": "Private warehouse sales are held",
+            "explanation": "Opening sales allows trade; households still need money to buy.",
+            "underfed": 12,
+            "arrears": 0.0,
+            "private_maize": 6,
+            "requisitioned": 28
+          }
+        ],
+        "journal_id": "governing-observation:8",
+        "diagnostic": "Experimental contacts; pressure does not change petitions or strikes.",
+        "public_maize": 0,
+        "treasury": 230.52709399999995
+      },
+      "economic_final": "7172d742d41cc3732b345b6f81799d077b1c2fb4bba90290b430470882882e93",
+      "sampled_turns": [
+        {
+          "turn": 1,
+          "sampled": "c36a991d40a8d962b1f90025eb6b960483fd66974aefab44532bacd9c49931cc"
+        },
+        {
+          "turn": 2,
+          "sampled": "403417aea15ba088df6b7f466c185d867ea1a1538d881442ef27f3421af4909c"
+        },
+        {
+          "turn": 3,
+          "sampled": "5587d6a962adacf3d5089b436f42bdfc4d608441d84012d9a67d5f3439bf54c0"
+        },
+        {
+          "turn": 4,
+          "sampled": "a767557af1bdf78e43b91df5253c3a6e47cc98dbaf5b596d3ecaea96eabee465"
+        },
+        {
+          "turn": 5,
+          "sampled": "eda2f1f1b204ce010d7f995fc9e34bacaca0754e06b6185583081d1884eb3fda"
+        },
+        {
+          "turn": 6,
+          "sampled": "1868a7fdb07d9124311fa24baf5152279dd19dd09c4c17fe5059840e4b901984"
+        },
+        {
+          "turn": 7,
+          "sampled": "b6d1c3b403b35a9a30323a99211c1983a739abd7fa62f80c5ecc771c1f0a0729"
+        },
+        {
+          "turn": 8,
+          "sampled": "40f152d330fffcadb34d7c9ca28daabe6cd1d7a8ef59e0f9fb978fe630371937"
+        }
+      ],
+      "diagnostic_digest": "8ad4d750d6eeab21edcff1f737a53a0897e83009ce06546b106ec9362637fd66"
+    },
+    {
+      "engine": "worldview_engine",
+      "route": "market",
+      "decisions": [
+        {
+          "turn": 1,
+          "action": "release_maize",
+          "success": true,
+          "message": "Issued next-meal maize rations to 110 households from the public reserve."
+        },
+        {
+          "turn": 2,
+          "action": "open_private_grain_market",
+          "success": true,
+          "message": "Allowed private grain sales: 28 units reached households that could pay; holders continue to set the price."
+        },
+        {
+          "turn": 3,
+          "action": "reduce_fellahin_tax",
+          "success": true,
+          "message": "Reduced regional taxes for cultivators; the treasury will collect less revenue."
+        },
+        {
+          "turn": 6,
+          "action": "pay_remittance",
+          "success": true,
+          "message": "Paid 200 in debt service; 400 remains due."
+        }
+      ],
+      "last_observation": {
+        "turn": 8,
+        "mode": "observe",
+        "communities": [
+          {
+            "id": "households",
+            "title": "Cultivators and workers",
+            "count": 559,
+            "concern": "180/559 underfed; 8.8 unpaid taxes",
+            "explanation": "Food and tax pressure can unite households. Relief helps only when food reaches people.",
+            "underfed": 180,
+            "arrears": 8.83,
+            "private_maize": 0,
+            "requisitioned": 0
+          },
+          {
+            "id": "holders",
+            "title": "Grainholders and landowners",
+            "count": 14,
+            "concern": "0 maize held; 0 seized so far",
+            "explanation": "Buying pays owners; seizure takes stocks without payment.",
+            "underfed": 10,
+            "arrears": 0.0,
+            "private_maize": 0,
+            "requisitioned": 0
+          },
+          {
+            "id": "merchants",
+            "title": "Merchants and exporters",
+            "count": 31,
+            "concern": "Private grain sales are open",
+            "explanation": "Opening sales allows trade; households still need money to buy.",
+            "underfed": 7,
+            "arrears": 0.0,
+            "private_maize": 0,
+            "requisitioned": 0
+          }
+        ],
+        "journal_id": "governing-observation:8",
+        "diagnostic": "Experimental contacts; pressure does not change petitions or strikes.",
+        "public_maize": 0,
+        "treasury": 179.727473
+      },
+      "economic_final": "bfd49617f63e8635533350faa309fc38c57fe21815db92e4c9857a7abc40f03c",
+      "sampled_turns": [
+        {
+          "turn": 1,
+          "sampled": "c36a991d40a8d962b1f90025eb6b960483fd66974aefab44532bacd9c49931cc"
+        },
+        {
+          "turn": 2,
+          "sampled": "403417aea15ba088df6b7f466c185d867ea1a1538d881442ef27f3421af4909c"
+        },
+        {
+          "turn": 3,
+          "sampled": "a8ff286f6143c6f03c2fe7805650e5d902a774c2a39ad00698b71314d1af3461"
+        },
+        {
+          "turn": 4,
+          "sampled": "5aeb76bf21c6efa4522b29ca2b9c4c3c60c25ff3225515b06fbd7e6340be7668"
+        },
+        {
+          "turn": 5,
+          "sampled": "0787bf3363e920fcc4d0c7898413e83813c0027f3e00edbcec62b552bee968c4"
+        },
+        {
+          "turn": 6,
+          "sampled": "ef215d01362de8261fb66d16d56cca551653aa38303f57905004b0a7d4b71943"
+        },
+        {
+          "turn": 7,
+          "sampled": "951e47f1e4f9a34fcf4ab8060d2f277543214fa5fc7377b991de4e8a08929726"
+        },
+        {
+          "turn": 8,
+          "sampled": "7fbd04f577f784c5749df84fe6d9858b0091e11106242c0b5bcbcdd22117011a"
+        }
+      ],
+      "diagnostic_digest": "14582835609aa67be3336cea04459e493f4d703fdb531adcebc3f02b55122dcf"
+    }
+  ],
+  "rendered_ui_playthrough": {
+    "passed": true,
+    "date": "2026-10-30",
+    "commands": [
+      {
+        "action": [
+          "scenario_action",
+          "release_maize"
+        ],
+        "turn": 1,
+        "observation_turn": 1
+      },
+      {
+        "action": "step_next",
+        "turn": 2,
+        "observation_turn": 2
+      },
+      {
+        "action": "toggle_society_observation",
+        "turn": 2,
+        "observation_turn": 2
+      },
+      {
+        "action": "step_next",
+        "turn": 3,
+        "observation_turn": 3
+      },
+      {
+        "action": "toggle_society_observation",
+        "turn": 3,
+        "observation_turn": 3
+      }
+    ],
+    "active_nodes": 15,
+    "directed_contacts": 18,
+    "output_directory": "outputs/governing_network/ui"
+  },
+  "pending": [
+    "strike source ownership",
+    "opposing pressure competition",
+    "automatic petition and strike recruitment",
+    "integrated policy and dispute interface",
+    "human usability testing",
+    "opposition and return to office"
+  ]
+}

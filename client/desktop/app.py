@@ -316,7 +316,8 @@ def reload_world(args=None):
                    'supply-rivalry': 'supply_rivalry'}.get(getattr(args, 'scenario', None))
 
     world = build_world_view(seed=seed, terrain_seed=terrain_seed, nation_seed=nation_seed,
-                             scenario_id=scenario_id)
+                             scenario_id=scenario_id,
+                             governing_network_mode=getattr(args, 'governing_network', 'off'))
     world['_map_generation_done'] = False
     world['_cached_from_disk'] = False
     world['loading_modal'] = None
@@ -367,7 +368,11 @@ def main():
                         help='UI composition override (guided or advanced)')
     parser.add_argument('--scenario', choices=('egypt-1877', 'labor-frontier-rivalry', 'supply-rivalry'), default=None,
                         help='Start an authored scenario')
+    parser.add_argument('--governing-network', choices=('off', 'observe'), default='off',
+                        help='Egypt society observations; choose when starting a new campaign')
     args = parser.parse_args()
+    if args.governing_network != 'off' and args.scenario != 'egypt-1877':
+        parser.error('--governing-network observe requires --scenario egypt-1877')
     scenario_id = {'egypt-1877': 'egypt_1877',
                    'labor-frontier-rivalry': 'labor_frontier_rivalry',
                    'supply-rivalry': 'supply_rivalry'}.get(args.scenario)
@@ -406,7 +411,8 @@ def main():
             world['_cached_from_disk'] = False
     else:
         world = build_world_view(seed=args.seed, terrain_seed=args.terrain_seed, nation_seed=args.nation_seed,
-                                 scenario_id=scenario_id)
+                                 scenario_id=scenario_id,
+                                 governing_network_mode=args.governing_network)
         world['_map_generation_done'] = False
         world['_cached_from_disk'] = False
 

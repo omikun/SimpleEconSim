@@ -1678,6 +1678,8 @@ def draw_guided_frame(surface, world: dict, font, font_small, mouse_pos=None) ->
         pygame.draw.rect(surface, (12, 14, 20), (0, 0, WIDTH, TOP_BAR_H))
         pygame.draw.line(surface, (58, 66, 86), (0, TOP_BAR_H), (WIDTH, TOP_BAR_H), 1)
     draw_guided_header(surface, world, font_small, mouse_pos=mouse_pos)
+    from client.desktop.panels.governing_network_ui import draw_society_observation
+    draw_society_observation(surface, world, _scenario_font, top=TOP_BAR_H, mouse_pos=mouse_pos)
     if not world.get('guided_analysis_open'):
         draw_pressure_panel(surface, world, mouse_pos=mouse_pos)
     if world.get('scenario_id') == 'egypt_1877':
@@ -2397,6 +2399,9 @@ def guided_ui_hit(pos, world: dict) -> bool:
             return True
         return False
     action = target.action
+    from client.desktop.panels.governing_network_ui import handle_society_action
+    if handle_society_action(world, action):
+        return True
     if isinstance(action, tuple) and action[0] == 'set_ui_mode':
         from world_config import set_ui_mode
         world['ui_mode'] = set_ui_mode(action[1])

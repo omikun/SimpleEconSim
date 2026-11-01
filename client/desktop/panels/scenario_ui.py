@@ -483,6 +483,8 @@ def draw_guided_frame(surface, world: dict, font, font_small, mouse_pos=None) ->
     pygame.draw.line(surface, (58, 66, 86), (0, TOP_BAR_H), (WIDTH, TOP_BAR_H), 1)
     world['_hovered_topbar_dropdown'] = None
     draw_guided_header(surface, world, font_small, mouse_pos=mouse_pos)
+    from client.desktop.panels.governing_network_ui import draw_society_observation
+    draw_society_observation(surface, world, _scenario_font, top=TOP_BAR_H, mouse_pos=mouse_pos)
     draw_pressure_panel(surface, world, mouse_pos=mouse_pos)
     draw_ticker(surface, world, font_small)
 
@@ -554,6 +556,9 @@ def guided_ui_hit(pos, world: dict) -> bool:
             return True
         return False
     action = target.action
+    from client.desktop.panels.governing_network_ui import handle_society_action
+    if handle_society_action(world, action):
+        return True
     if isinstance(action, tuple) and action[0] == 'set_ui_mode':
         if world.get('scenario_id') in ('labor_frontier_rivalry', 'supply_rivalry') and action[1] != 'guided':
             world['scenario_feedback'] = 'This 20-turn scenario uses the shared decision panel.'

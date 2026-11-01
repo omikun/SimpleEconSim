@@ -23,8 +23,11 @@ def get_reverse_layout():
 
 
 @traced_world_builder
-def build_world_view(seed=None, terrain_seed=None, nation_seed=None, scenario_id=None):
+def build_world_view(seed=None, terrain_seed=None, nation_seed=None, scenario_id=None,
+                     governing_network_mode='off'):
     """Build the 9x9 hex world + prepare viewer state."""
+    from governing_network import validate_creation_mode
+    validate_creation_mode(governing_network_mode, scenario_id)
     if scenario_id in ('labor_frontier_rivalry', 'supply_rivalry'):
         from world_config import set_map_topology
         set_map_topology('hex')
@@ -128,7 +131,7 @@ def build_world_view(seed=None, terrain_seed=None, nation_seed=None, scenario_id
     }
     if is_scenario_id(scenario_id):
         from scenario_egypt_1877 import prepare_world
-        prepare_world(world)
+        prepare_world(world, governing_network_mode=governing_network_mode)
     reset_cam(world)
     if is_scenario_id(scenario_id):
         egypt = world['selected_nation']

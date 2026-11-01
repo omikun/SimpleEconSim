@@ -340,7 +340,7 @@ def choose_egypt_geography(tiles, gen) -> dict[str, str]:
     raise ValueError("Egypt's generated coast has no connected Nile corridor.")
 
 
-def prepare_world(world: dict) -> dict:
+def prepare_world(world: dict, *, governing_network_mode='off') -> dict:
     """Attach scenario identity and opening state to a generated deterministic map."""
     egypt = next((nation for nation in world.get("nations", []) if nation.name == "Egypt"), None)
     if egypt is None:
@@ -473,6 +473,8 @@ def prepare_world(world: dict) -> dict:
     initialize(world)
     from scenario_situation import update_foreign_reports
     update_foreign_reports(world)
+    from governing_network import initialize as initialize_governing_network
+    initialize_governing_network(world, governing_network_mode)
     return world
 
 
@@ -898,6 +900,8 @@ def advance_scenario(world: dict, turn: int, ticker_push, on_phase=None) -> None
     advance_political_economy(world, nation, turn)
     from scenario_projects import advance_grain_entitlement
     advance_grain_entitlement(world)
+    from governing_network import advance as observe_governing_network
+    observe_governing_network(world)
     if on_phase:
         on_phase('political_economy')
     if turn >= int(state.get("payment_window_turn", 6)) and state.get("payment_status") in ("upcoming", "deferred"):

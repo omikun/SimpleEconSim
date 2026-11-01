@@ -1,7 +1,7 @@
 # Governing through society: simplification and implementation plan
 
 Date: October 30, 2026.
-Status: proposed next direction; documentation only. The classic and Patronage laboratories remain implemented experiments. This plan supersedes the proposal to integrate their complete player-facing systems into the main game.
+Status: staged implementation. Milestones 1–2 now have an [ownership register and observation implementation](governing_network_ownership_register.md), with a [short guide](../docs/governing_network_observation.md). The governing effects and validation in milestones 3–4 remain pending; opposition remains milestone 5. The classic and Patronage laboratories remain implemented experiments. This plan supersedes the proposal to integrate their complete player-facing systems into the main game.
 
 ## 1. Player experience
 
@@ -181,3 +181,5 @@ Human playtesting should specifically look for needless clicks, recurring mainte
 ## 11. Immediate next implementation step
 
 Start with the ownership register and a read-only Egypt observation adapter. Produce one visible explanation linking actual food/arrears outcomes to a community's concern. Audit the strike writers and political turn order before enabling effects. Do not begin by porting laboratory contracts, replacing the whole political system, or adding a new graph screen.
+
+Implementation update: the `off` and `observe` creation modes, frozen material adapter, three-community map panel, sparse diagnostic graph and bounded source journal are implemented. The audit found a shared strike Boolean with multiple independent writers, so `governing` is rejected until those sources and the next-turn consumption boundary are resolved. The [ownership register](governing_network_ownership_register.md) records that concrete gate and the remaining work; the [verification report](reports/governing_network_observation.md) records the executed checks. Observation is a completed development slice, not completion of the full governing delivery or evidence of human enjoyment.

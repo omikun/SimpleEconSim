@@ -5,6 +5,8 @@ Status: original design discussion retained below. The first standalone laborato
 
 The October 30 [Governing through society plan](governing_network_implementation_plan.md) records the proposed next direction: group-level governing decisions, autonomous routine organizing and a first integration into Egypt's existing grain crisis. It supersedes carrying the laboratories' individual campaign-management workload into the wider game; the original discussion below remains historical design context.
 
+Its first [observation phase](../docs/governing_network_observation.md) is now available in Egypt: three community summaries and a diagnostic graph, with existing political behavior preserved. The [ownership register](governing_network_ownership_register.md) records the boundary before network-driven recruitment can be enabled.
+
 The [first implementation plan](people_network_first_implementation_plan.md) expands this discussion into a proposed scenario, rule set, architecture, delivery sequence, and playtest gates. Its initial scope choices are proposed defaults, not implemented capabilities.
 
 The October 28 [graph dynamics and minimal causal trace specification](people_network_graph_dynamics.md) refines the simulation direction: use a directed weighted graph with local pressure propagation, competing influence fields and persistent communities. Invitations introduce pressure; the network continues evolving between actions. Trace a small set of interventions and consequential transitions, with checkpoints for reconstructing the accumulation and causes of inflection points.
