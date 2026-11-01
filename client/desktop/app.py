@@ -143,8 +143,9 @@ def is_any_modal_open(world) -> bool:
         return False
     loading = world.get('loading_modal')
     is_loading = bool(loading is True or (isinstance(loading, dict) and loading.get('active', False)))
+    from client.desktop.panels.governing_campaign_ui import warning_open
     return bool(
-        is_loading or
+        is_loading or warning_open(world) or
         world.get('actions_open') or
         world.get('actions_modal_open') or
         world.get('compare_open') or
@@ -231,6 +232,8 @@ def render_frame(surface, world, mouse_pos=None):
         draw_actions_modal(surface, world, font, font_small, mouse_pos=mouse_pos)
         draw_help_modal(surface, world, font, font_small)
         draw_transfer_dialog(surface, world, font, font_small, mouse_pos=mouse_pos)
+        from client.desktop.panels.governing_campaign_ui import draw_warning
+        draw_warning(surface, world, mouse_pos)
         return
 
     _draw_cached_map(surface, world, font, font_small)
@@ -263,6 +266,8 @@ def render_frame(surface, world, mouse_pos=None):
     draw_actions_modal(surface, world, font, font_small, mouse_pos=mouse_pos)
     draw_help_modal(surface, world, font, font_small)
     draw_transfer_dialog(surface, world, font, font_small, mouse_pos=mouse_pos)
+    from client.desktop.panels.governing_campaign_ui import draw_warning
+    draw_warning(surface, world, mouse_pos)
     if world.get('settings_open'):
         from client.desktop.panels.scenario_ui import draw_settings_dialog
         draw_settings_dialog(surface, world, font_small, mouse_pos)
@@ -349,7 +354,9 @@ def select_tile(world, tile):
         close_left_panels(world)
     else:
         world['selected_nation'] = tile.owner_nation
-        world['player_nation_name'] = tile.owner_nation.name
+        from governing_network import is_governing
+        if not is_governing(world):
+            world['player_nation_name'] = tile.owner_nation.name
         # Preserve currently active left panel (e.g. build menu) only if it was ALREADY open
         active_panel = get_active_left_panel(world)
         if active_panel is not None:
@@ -368,11 +375,11 @@ def main():
                         help='UI composition override (guided or advanced)')
     parser.add_argument('--scenario', choices=('egypt-1877', 'labor-frontier-rivalry', 'supply-rivalry'), default=None,
                         help='Start an authored scenario')
-    parser.add_argument('--governing-network', choices=('off', 'observe'), default='off',
+    parser.add_argument('--governing-network', choices=('off', 'observe', 'governing'), default='off',
                         help='Egypt society observations; choose when starting a new campaign')
     args = parser.parse_args()
     if args.governing_network != 'off' and args.scenario != 'egypt-1877':
-        parser.error('--governing-network observe requires --scenario egypt-1877')
+        parser.error('--governing-network requires --scenario egypt-1877')
     scenario_id = {'egypt-1877': 'egypt_1877',
                    'labor-frontier-rivalry': 'labor_frontier_rivalry',
                    'supply-rivalry': 'supply_rivalry'}.get(args.scenario)
@@ -489,6 +496,9 @@ def main():
 
                 # 0. STRICT MODAL PRIORITY: If any modal is active, route ONLY to it and NEVER fall through!
                 if is_any_modal_open(world):
+                    from client.desktop.panels.governing_campaign_ui import handle_warning
+                    if handle_warning(event.pos, world):
+                        continue
                     # 0a. Check if Fiscal Transfer Dialog is open
                     if world.get('transfer_dialog', {}).get('open'):
                         transfer_dialog_hit(event.pos, world)
@@ -759,6 +769,10 @@ def main():
                     if world.get('progress_panel_open') and PANEL_X <= mx <= PANEL_X + PANEL_W:
                         world['progress_scroll'] = max(0, world.get('progress_scroll', 0) - event.y)
                         _mark_dirty(world)
+                    elif mx >= MAP_RIGHT and world.get('_ui_governing_all_policies'):
+                        from client.desktop.panels.governing_campaign_ui import scroll
+                        if scroll(world, event.y):
+                            _mark_dirty(world)
                     elif mx < MAP_RIGHT:
                         factor = 1.15 ** event.y
                         zoom_cam_at(world, factor, mx, my)

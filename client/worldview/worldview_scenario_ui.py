@@ -1055,6 +1055,9 @@ def _draw_guided_hover_tip(surface, tip) -> None:
 
 def _announce_new_scenario_options(world: dict, action_rows: list) -> None:
     """Explain newly unlocked decision groups once, after urgent warnings clear."""
+    from governing_network import is_governing
+    if is_governing(world):
+        return
     visible = {action_id for row in action_rows for action_id, _, _ in row}
     previously_visible = world.get('scenario_last_visible_action_ids')
     if previously_visible is None:
@@ -1118,6 +1121,14 @@ def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
     if world.get('scenario_state', {}).get('ending'):
         _draw_egypt_scenario_debrief(surface, world)
         return
+    from governing_network import is_governing
+    governing = is_governing(world)
+    if governing and not world.get('_ui_governing_all_policies'):
+        from client.desktop.panels.governing_campaign_ui import draw_panel
+        draw_panel(surface, world, _scenario_font,
+                   x=MAP_RIGHT + 10, y=TOP_BAR_H + 14, width=WIDTH - MAP_RIGHT - 20,
+                   height=HEIGHT - TOP_BAR_H - TICKER_H - 28, mouse_pos=mouse_pos)
+        return
     from ui_targets import register_target
     x, y, w = MAP_RIGHT + 10, TOP_BAR_H + 14, WIDTH - MAP_RIGHT - 20
     h = HEIGHT - TOP_BAR_H - TICKER_H - 28
@@ -1130,6 +1141,9 @@ def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
     name = getattr(nation, 'display_name', 'Khedivate of Egypt')
     surface.blit(title_font.render('Situation', True, TEXT), (x + 14, y + 12))
     surface.blit(_scenario_font(13).render(name, True, ACCENT), (x + 14, y + 42))
+    if governing:
+        from client.desktop.panels.governing_campaign_ui import draw_back
+        draw_back(surface, world, _scenario_font(11), x=x, y=y, width=w)
 
     cur_y = y + 68
 
@@ -1382,7 +1396,7 @@ def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
     if decision_scope == 'district':
         local = district_metrics(district) if district else None
         econ_local = district_snapshot(world, district) if district else None
-        if (local and not world.get('scenario_district_options_briefed')
+        if (local and not governing and not world.get('scenario_district_options_briefed')
                 and not world.get('scenario_warning_modal')
                 and not world.get('scenario_bookend_modal')):
             district_name = getattr(district, 'scenario_location', None) or getattr(district, 'display_name', district.name)

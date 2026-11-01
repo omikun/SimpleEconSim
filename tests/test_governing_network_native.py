@@ -9,6 +9,18 @@ from unittest.mock import patch
 from governing_network import KEY, mode, project
 
 
+def without_recording_references(value):
+    # Native restore forks the causal recorder and emits a branch event. The
+    # new branch's future event IDs intentionally differ; keep every decision,
+    # person, material value and financial operation reference in the comparison.
+    if isinstance(value, dict):
+        return {key: without_recording_references(item) for key, item in value.items()
+                if key != 'trace_event_id'}
+    if isinstance(value, list):
+        return [without_recording_references(item) for item in value]
+    return value
+
+
 class GoverningNetworkNativeTests(unittest.TestCase):
     def test_verification_relabels_run_identity_without_hiding_event_or_money_changes(self):
         from scripts.verify_governing_network import normalize_trace_identity
@@ -23,7 +35,7 @@ class GoverningNetworkNativeTests(unittest.TestCase):
         self.assertNotEqual(left['cash'], later['cash'])
         self.assertNotEqual(left['other_uuid'], later['other_uuid'])
 
-    def test_wrong_scenario_and_unreleased_governing_mode_fail_before_generation(self):
+    def test_wrong_scenario_and_unknown_mode_fail_before_generation(self):
         import client.desktop.engine as primary
         import worldview_engine as legacy
         for engine in (primary, legacy):
@@ -31,7 +43,7 @@ class GoverningNetworkNativeTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     engine.build_world_view(governing_network_mode='observe')
                 with self.assertRaises(ValueError):
-                    engine.build_world_view(scenario_id='egypt_1877', governing_network_mode='governing')
+                    engine.build_world_view(scenario_id='egypt_1877', governing_network_mode='future')
                 generation.assert_not_called()
 
     def test_native_checkpoint_preserves_observation_and_continues_the_same_network(self):
@@ -41,19 +53,29 @@ class GoverningNetworkNativeTests(unittest.TestCase):
         previous = get_map_topology()
         self.addCleanup(set_map_topology, previous)
         set_map_topology('voronoi')
-        world = build_world_view(scenario_id='egypt_1877', governing_network_mode='observe')
-        step_world(world)
-        saved = deepcopy(world['scenario_state'][KEY])
-        with tempfile.TemporaryDirectory() as directory:
-            manifest = save_world(world, directory, engine_module='client.desktop.engine')
-            step_world(world)
-            expected = deepcopy(world['scenario_state'][KEY])
-            restored = restore_world(manifest, Path(directory) / 'continued')
-            self.assertEqual(mode(restored), 'observe')
-            self.assertEqual(saved, restored['scenario_state'][KEY])
-            self.assertEqual(project(restored)['turn'], restored['turn'])
-            step_world(restored)
-            self.assertEqual(expected, restored['scenario_state'][KEY])
+        for selected_mode in ('observe', 'governing'):
+            with self.subTest(mode=selected_mode):
+                world = build_world_view(scenario_id='egypt_1877', governing_network_mode=selected_mode)
+                step_world(world)
+                saved = deepcopy(world['scenario_state'][KEY])
+                saved_flags = {p.id: deepcopy(getattr(p, '_strike_sources', None))
+                               for tile in world['tiles'] for p in tile.agents}
+                with tempfile.TemporaryDirectory() as directory:
+                    manifest = save_world(world, directory, engine_module='client.desktop.engine')
+                    step_world(world)
+                    expected = deepcopy(world['scenario_state'][KEY])
+                    from scripts.verify_governing_network import sampled_digest
+                    expected_material = sampled_digest(world)
+                    restored = restore_world(manifest, Path(directory) / 'continued')
+                    self.assertEqual(mode(restored), selected_mode)
+                    self.assertEqual(saved, restored['scenario_state'][KEY])
+                    self.assertEqual(saved_flags, {p.id: getattr(p, '_strike_sources', None)
+                                                  for tile in restored['tiles'] for p in tile.agents})
+                    self.assertEqual(project(restored)['turn'], restored['turn'])
+                    step_world(restored)
+                    self.assertEqual(without_recording_references(expected),
+                                     without_recording_references(restored['scenario_state'][KEY]))
+                    self.assertEqual(expected_material, sampled_digest(restored))
 
 
 if __name__ == '__main__':

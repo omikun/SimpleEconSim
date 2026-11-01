@@ -230,11 +230,15 @@ def record_workforce_availability(region, t: int):
         return {}
     workforce_event_ids = {}
     collective_event_ids = {}
+    community_events = []
     for event in getattr(region, 'collective_log', ()):
         if event.get('turn') != t or event.get('trace_event_id') is None:
             continue
         collective_event_ids.setdefault(event.get('firm_id'), []).append(
             event['trace_event_id'])
+        if event.get('scope') == 'community':
+            community_events.append((event['trace_event_id'],
+                                     set(event.get('facts', {}).get('participant_ids', []))))
     for firm in getattr(region, 'agents', ()):
         if not getattr(firm, 'is_corporation', False):
             continue
@@ -269,7 +273,13 @@ def record_workforce_availability(region, t: int):
         capped_schedule_total = sum(min(MAX_LEGAL_SHIFT_HOURS, row['scheduled_hours'])
                                     for row in worker_rows)
         available_total = sum(row['effective_hours'] for row in worker_rows)
-        cause_ids = collective_event_ids.get(firm.id, [])
+        cause_ids = list(collective_event_ids.get(firm.id, []))
+        if community_events:
+            from strike_status import has_source, source
+            network_workers = {e.id for e in employees
+                               if has_source(e, source('network', region))}
+            cause_ids.extend(event_id for event_id, participants in community_events
+                             if participants & network_workers and event_id not in cause_ids)
         event_id = emit(
             region, kind='labor_workforce_availability', record_class='calculation',
             phase='local',

@@ -191,6 +191,8 @@ def step_world(world):
             color = DESTROY_C
         ticker_push(world, turn, kind, text, color)
 
+    from governing_network import prepare_turn as prepare_network_turn
+    prepare_network_turn(world, t)
     violations, claim_events = sim_engine.step_turn(
         t, tiles, nations=nations, pair_orders=pair_orders,
         currencies=currencies, on_event=on_event, ledger_exempt=True,

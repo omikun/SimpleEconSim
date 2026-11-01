@@ -393,6 +393,10 @@ def prepare_world(world: dict, *, governing_network_mode='off') -> dict:
     from scenario_debt import initialize as initialize_debt
     initialize_debt(world)
     egypt.government.food_inventory = world["scenario_state"]["public_maize_stock_units"]
+    capital_food_site = next((tile for tile in egypt.tiles if getattr(tile, 'scenario_location', None) == 'Cairo'), egypt.tiles[0])
+    egypt.government.bind_food_site(capital_food_site)
+    for tile in egypt.tiles:
+        tile.food_opening_mode = 'authored'
     # The sovereign can spend only its own cash. Move the generated surplus to
     # private Egyptian holders so the opening debt decision requires receipts
     # or a concession without creating or destroying currency.
@@ -563,12 +567,17 @@ def _trace_default_legitimacy_loss(nation, *, before, turn, reason,
         cause_event_ids=cause_event_ids or None)
 
 
+def _governing_nation_name(world):
+    from governing_network import is_governing
+    return 'Egypt' if is_governing(world) else world.get('player_nation_name')
+
+
 def apply_action(world: dict, action_id: str) -> tuple[bool, str]:
     """Resolve a scenario choice against simulation state and record its cost."""
     if not is_scenario_id(world.get("scenario_id")):
         return False, "This decision is only available in the Egypt 1877 scenario."
     state = world.get("scenario_state", {})
-    nation = next((n for n in world.get("nations", []) if n.name == world.get("player_nation_name")), None)
+    nation = next((n for n in world.get("nations", []) if n.name == _governing_nation_name(world)), None)
     if nation is None:
         return False, "The scenario government is unavailable."
     turn = int(world.get("turn", 0))
@@ -630,7 +639,13 @@ def apply_action(world: dict, action_id: str) -> tuple[bool, str]:
         households.sort(key=lambda a: (a.inv_get(Goods.food),
                                        float(getattr(a, "cash", 0.0)),
                                        -deficit_fraction(a)))
-        recipients = households[:available]
+        local_allocations = {tile.name: int(nation.government.food_at(tile)) // ration_size for tile in nation.tiles}
+        recipients = []
+        for person in households:
+            site = next(tile for tile in nation.tiles if person in tile.agents)
+            if local_allocations[site.name] > 0 and len(recipients) < available:
+                recipients.append(person)
+                local_allocations[site.name] -= 1
         if not recipients:
             _trace_national_maize_release(
                 world, nation, operation_id=operation_id, turn=turn,
@@ -643,20 +658,20 @@ def apply_action(world: dict, action_id: str) -> tuple[bool, str]:
         from nutrition import queue_emergency_meal
         transfer_event_ids = []
         for person in recipients:
-            queue_before = int(getattr(person, 'emergency_food_units', 0))
+            queue_before = person.inv_get(Goods.food, 0)
             queue_emergency_meal(person, ration_size)
             person_tile = next((tile for tile in nation.tiles
                                 if person in getattr(tile, 'agents', ())),
                                getattr(nation, 'capital', None))
             stock_at_start = int(nation.government.food_inventory)
-            nation.government.food_inventory -= ration_size
+            nation.government.add_food(person_tile, -ration_size)
             transfer_id = _trace_national_maize_ration(
                 person_tile, operation_id=f'{operation_id}:{person.id}',
                 turn=turn, nation=nation, recipient=person, units=ration_size,
                 stock_before=stock_at_start,
                 stock_after=int(nation.government.food_inventory),
                 queue_before=queue_before,
-                queue_after=int(getattr(person, 'emergency_food_units', 0)))
+                queue_after=person.inv_get(Goods.food, 0))
             if transfer_id:
                 transfer_event_ids.append(transfer_id)
         state["public_maize_stock_units"] = nation.government.food_inventory
@@ -863,6 +878,16 @@ def apply_action(world: dict, action_id: str) -> tuple[bool, str]:
     from scenario_situation import queue_creditor_reaction
     queue_creditor_reaction(world, action_id)
     record_change(world, action_id, status_before, snapshot(world))
+    # The compact governing view handles debt inline. Resolve the same pending
+    # warning as the legacy modal so it cannot silently block later phases.
+    if (action_id in ('pay_remittance', 'concede_revenue', 'defer_remittance', 'default_remittance')
+            and (world.get('scenario_warning_modal') or {}).get('kind') == 'debt_due'):
+        from governing_network import is_governing
+        if is_governing(world):
+            world['scenario_warning_modal'] = None
+            from scenario_situation import advance_creditor_reactions
+            advance_creditor_reactions(world, turn, ticker_push)
+            finish_due_campaign(world)
     try:
         from economy.true_cost_ledger import get_decision_tracker
         get_decision_tracker().record_decision(action_id, turn=turn)
@@ -876,7 +901,7 @@ def advance_scenario(world: dict, turn: int, ticker_push, on_phase=None) -> None
     if not is_scenario_id(world.get("scenario_id")):
         return
     state = world.setdefault("scenario_state", {})
-    nation = next((n for n in world.get("nations", []) if n.name == world.get("player_nation_name")), None)
+    nation = next((n for n in world.get("nations", []) if n.name == _governing_nation_name(world)), None)
     if nation is None:
         return
     state["turns_remaining"] = max(0, campaign_horizon(world) - turn)
@@ -920,6 +945,10 @@ def advance_scenario(world: dict, turn: int, ticker_push, on_phase=None) -> None
         nation.legitimacy = max(0.0, legitimacy_before - 0.15)
         from scenario_debt import default as default_debt
         default_events = default_debt(world)
+        from governing_network import is_governing
+        if (is_governing(world)
+                and (world.get('scenario_warning_modal') or {}).get('kind') == 'debt_due'):
+            world['scenario_warning_modal'] = None
         _trace_default_legitimacy_loss(
             nation, before=legitimacy_before, turn=turn,
             reason='missed_debt_service_window', cause_event_ids=default_events)
@@ -997,7 +1026,7 @@ def classify_outcome(world: dict, metrics: dict | None = None) -> str:
     """Select one declared ending from measured control, debt, and welfare."""
     state = world.get('scenario_state', {})
     nation = next((n for n in world.get('nations', [])
-                   if n.name == world.get('player_nation_name')), None)
+                   if n.name == _governing_nation_name(world)), None)
     if nation is None:
         return 'breakdown'
     metrics = metrics if metrics is not None else _outcome_metrics(nation)
@@ -1090,7 +1119,7 @@ def finish_due_campaign(world: dict) -> None:
     if world.get('scenario_warning_modal'):
         return
     nation = next((n for n in world.get('nations', [])
-                   if n.name == world.get('player_nation_name')), None)
+                   if n.name == _governing_nation_name(world)), None)
     if nation is None:
         return
     metrics = _outcome_metrics(nation)
@@ -1133,7 +1162,7 @@ def _finish_scenario(world: dict, nation, outcome: str, turn: int, metrics: dict
 def build_debrief(world: dict, outcome: str, metrics: dict | None = None) -> dict:
     """Summarize the ending and cite the player's decisions and measured state."""
     from scenario_political_economy import stock as warehouse_stock
-    nation = next((n for n in world.get("nations", []) if n.name == world.get("player_nation_name")), None)
+    nation = next((n for n in world.get("nations", []) if n.name == _governing_nation_name(world)), None)
     metrics = metrics or (_outcome_metrics(nation) if nation else {})
     state = world.get("scenario_state", {})
     from scenario_status import snapshot

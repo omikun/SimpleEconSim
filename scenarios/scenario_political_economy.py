@@ -11,6 +11,8 @@ from finance_trace import (account_ref, cash_transfer_contract,
                            transfer_contract)
 from goods import Goods
 from nutrition import deficit_fraction
+from strike_status import set_striking, source, clear_all, has_source
+from governing_network import is_governing
 from treasury_trace import begin_public_change,finish_public_change
 
 
@@ -1102,7 +1104,9 @@ def _foreclose(world, tile, cultivator, row, *, cause_event_ids=None):
                 scenario_strikers = _economy(world)['scenario_strikers_by_tile'][tile.name]
                 if cultivator.id in scenario_strikers:
                     scenario_strikers.remove(cultivator.id)
-                    cultivator.is_striking = False
+                    set_striking(cultivator, source('scenario', tile), False, region=tile)
+                    if is_governing(world):
+                        set_striking(cultivator, source('network', tile), False, region=tile)
                 deposit = float(tile.bank.deposits.get(cultivator, 0.0))
                 if deposit > 0:
                     tile.bank.Withdraw(
@@ -1145,7 +1149,7 @@ def _foreclose(world, tile, cultivator, row, *, cause_event_ids=None):
                 _economy(world)['migrations'].append(record.copy())
 
 
-def _organize(world, tile):
+def _legacy_recruit(world, tile):
     econ = _economy(world)
     row = econ['collective_by_tile'][tile.name]
     people = _households(tile)
@@ -1165,14 +1169,25 @@ def _organize(world, tile):
     previous = set(econ['scenario_strikers_by_tile'].get(tile.name, []))
     for agent in people:
         if agent.id in previous and agent.id not in recruits_by_id:
-            agent.is_striking = False
+            set_striking(agent, source('scenario', tile), False, region=tile)
     for agent in petitioners:
         if agent.id not in recruits_by_id:
             continue
-        agent.is_striking = True
+        set_striking(agent, source('scenario', tile), True, region=tile)
     econ['scenario_strikers_by_tile'][tile.name] = sorted(recruits_by_id)
     row['strikers'] = sum(bool(getattr(a, 'is_striking', False)) for a in people)
     row['support'] = 1.0 - exp(-row['petitioners'] / max(1, len(people)))
+
+
+def _organize(world, tile):
+    econ = _economy(world)
+    row = econ['collective_by_tile'][tile.name]
+    people = _households(tile)
+    if is_governing(world):
+        from governing_collectives import sync_counts
+        sync_counts(world, tile)
+    else:
+        _legacy_recruit(world, tile)
     # Households redistribute only their own food; public stocks are untouched.
     donors = [a for a in people if a.inv_get(Goods.food, 0) >= 8
               and deficit_fraction(a) == 0]
@@ -1496,7 +1511,7 @@ def apply_action(world, nation, action_id, tile=None):
                          'price_premium_over_local_food': (
                              price / _price(region) if price > 0 else None),
                          'unrest_before': unrest_before,
-                         'unrest_after': float(region.unrest_level)})
+                         'unrest_after': float(getattr(region, 'unrest_level', 0.0))})
             operation_ids.append(operation_id)
             if grain_event_id is not None:
                 grain_event_ids.append(grain_event_id)
@@ -1703,6 +1718,14 @@ def apply_action(world, nation, action_id, tile=None):
         turn = int(world['turn'])
         operation_id = f'district-bargain:{tile.name}:{turn}'
         strikers = [a for a in people if getattr(a, 'is_striking', False)]
+        governing = is_governing(world)
+        network_petitioners = []
+        if governing:
+            from governing_collectives import active_petitioners
+            strikers = [a for a in people if has_source(a, source('network', tile))]
+            network_petitioners = active_petitioners(world, tile)
+            if not network_petitioners and not strikers:
+                return False, 'No network petition or walkout is active in this district.'
         if not strikers and not collective['petitioners']:
             _trace_worker_bargain(
                 tile, nation, operation_id=operation_id, turn=turn,
@@ -1721,21 +1744,30 @@ def apply_action(world, nation, action_id, tile=None):
                         'petitioners_before': int(collective['petitioners']),
                         'employer_ids_considered': []})
             return False, 'No local owner or employer is available to bargain.'
+        if governing and sum(min(5., max(0., float(a.cash)) * .02) for a in employers) <= 0:
+            _trace_worker_bargain(
+                tile, nation, operation_id=operation_id, turn=turn,
+                success=False, reason='owners_cannot_fund_worker_terms',
+                inputs={'active_striker_ids': [str(a.id) for a in strikers],
+                        'employer_ids_considered': [str(a.id) for a in employers]})
+            return False, 'The local owners cannot fund a payment; no settlement was delivered.'
 
         petitioners_before = int(collective['petitioners'])
         recorded_strikers_before = int(collective['strikers'])
         settlement_until_before = int(collective['settlement_until_turn'])
         recorded_scenario_strikers_before = [
             str(agent_id) for agent_id in econ['scenario_strikers_by_tile'][tile.name]]
-        unrest_before = float(tile.unrest_level)
+        unrest_before = float(getattr(tile, 'unrest_level', 0.0))
         legitimacy_before = float(nation.legitimacy)
         wage_event_ids = []
         source_legs = []
+        wage_changes = {}
         payments = 0.0
         for employer in employers:
             wage_before = float(employer.wage)
             cash_before = float(employer.cash)
             wage_after = min(20.0, wage_before + .5)
+            wage_changes[employer.id] = wage_after - wage_before
             grant = min(5.0, max(0.0, cash_before) * .02)
             employer.wage = wage_after
             _trace_cash_write = _trace_public_begin(None, employer)
@@ -1780,6 +1812,9 @@ def apply_action(world, nation, action_id, tile=None):
             if wage_event_id is not None:
                 wage_event_ids.append(wage_event_id)
         recipients = strikers or people[:max(1, min(len(people), collective['petitioners']))]
+        if governing:
+            participant_ids = {a.id for a in strikers + network_petitioners}
+            recipients = [a for a in people if a.id in participant_ids]
         currency = (getattr(tile, 'home_currency', None)
                     or getattr(nation, 'currency', None) or 'local_currency')
         recipient_allocations = []
@@ -1790,7 +1825,8 @@ def apply_action(world, nation, action_id, tile=None):
             agent.cash += amount
             _trace_public_finish(_trace_cash_write, 'scenario_political_economy:apply_action',
                                  inputs={"source_writer": 'scenario_political_economy.py:apply_action:bbe7f7ab6d396320:1'})
-            agent.is_striking = False
+            if not governing:
+                set_striking(agent, source('scenario', tile), False, region=tile)
             recipient_allocations.append({
                 'agent_id': str(agent.id), 'amount': float(amount),
                 'cash_before': cash_before, 'cash_after': float(agent.cash),
@@ -1800,11 +1836,21 @@ def apply_action(world, nation, action_id, tile=None):
             tile, operation_id=operation_id, turn=turn, currency=currency,
             total=float(payments), source_legs=source_legs,
             recipients=recipient_allocations)
-        collective['strikers'] = 0
-        collective['petitioners'] = max(0, collective['petitioners'] // 2)
+        accepted = {}
+        if governing:
+            from governing_collectives import settlement_acceptors, record_settlement
+            accepted = settlement_acceptors(world, tile, recipients, payments / len(recipients), wage_changes)
+            for agent in recipients:
+                if str(agent.id) in accepted:
+                    set_striking(agent, source('network', tile), False, region=tile)
+            record_settlement(world, tile, accepted, payments, recipients)
+        collective['strikers'] = (sum(bool(getattr(a, 'is_striking', False)) for a in people)
+                                  if governing else 0)
+        collective['petitioners'] = (len(network_petitioners) if governing
+                                     else max(0, collective['petitioners'] // 2))
         collective['settlement_until_turn'] = turn + 3
         econ['scenario_strikers_by_tile'][tile.name] = []
-        tile.unrest_level *= exp(-.12)
+        tile.unrest_level = float(getattr(tile, 'unrest_level', 0.0)) * exp(-.12)
         nation.legitimacy = min(1.0, float(nation.legitimacy) + .02)
         outcome_inputs = {
             'active_striker_ids': [str(a.id) for a in strikers],
@@ -1842,6 +1888,9 @@ def apply_action(world, nation, action_id, tile=None):
             tile, nation, operation_id=operation_id, turn=turn, success=True,
             reason='strike_or_petition_settled', inputs=outcome_inputs,
             cause_event_ids=causes or None)
+        if governing:
+            return True, (f'Owners paid {payments:.1f} to {len(recipients)} petitioners and raised wage offers. '
+                          f'{len(accepted)} accepted a ceasefire; other disputes can continue.')
         return True, f'Owners in {_name(tile)} raised offered wages by 0.5 and paid {payments:.1f} to petitioners; the local strike ended.'
     if action_id == 'district_break_strike':
         from unrest import apply_repression
@@ -1883,7 +1932,10 @@ def apply_action(world, nation, action_id, tile=None):
             trace_event_ids=repression_event_ids)
         for agent in people:
             if agent.is_striking:
-                agent.is_striking = False
+                clear_all(agent, region=tile)
+        if is_governing(world):
+            from governing_collectives import record_repression
+            record_repression(world, tile, injured)
         collective['injuries'] += injured
         collective['strikers'] = 0
         econ['scenario_strikers_by_tile'][tile.name] = []

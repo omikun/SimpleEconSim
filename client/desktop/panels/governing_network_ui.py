@@ -38,7 +38,7 @@ def draw_society_observation(surface, world, font_for_pixels, *, top, mouse_pos=
         surface.blit(body.render('Show communities', True, TEXT), (x + 10, y + 7))
         register_target(world, rect, 'toggle_society_observation', scope='guided')
         return
-    panel = pygame.Rect(x, y, width, 396)
+    panel = pygame.Rect(x, y, width, 452 if info['mode'] == 'governing' else 396)
     register_target(world, panel, 'society_observation_body', scope='guided')
     pygame.draw.rect(surface, BACKGROUND, panel, border_radius=7)
     pygame.draw.rect(surface, (103, 119, 143), panel, 1, border_radius=7)
@@ -60,12 +60,22 @@ def draw_society_observation(surface, world, font_for_pixels, *, top, mouse_pos=
         for i, line in enumerate(_lines(community['explanation'], small, card.w - 18)):
             surface.blit(small.render(line, True, DIM), (card.x + 9, card.y + 50 + i * 15))
         current_y += 94
-    for i, line in enumerate(_lines(
-            'Observation only. Existing politics still decides petitions and strikes.', small, width - 24)):
+    footer = ('People organize themselves; respond through policy.' if info['mode'] == 'governing' else
+              'Observation only. Existing politics still decides petitions and strikes.')
+    if info['mode'] == 'governing':
+        next_count = sum(p['planned_strikers'] for p in info['locations'])
+        footer = f'{info["network_strikers"]} in walkouts now; {next_count} plan one next turn.'
+    for i, line in enumerate(_lines(footer, small, width - 24)):
         surface.blit(small.render(line, True, DIM), (x + 12, current_y + 3 + i * 15))
+    if info['mode'] == 'governing':
+        for i, line in enumerate(_lines(info['recent_explanation'], small, width - 24)[:3]):
+            surface.blit(small.render(line, True, ACCENT), (x + 12, current_y + 39 + i * 15))
 
 
 def handle_society_action(world, action):
+    from client.desktop.panels.governing_campaign_ui import handle_action
+    if handle_action(world, action):
+        return True
     if action == 'society_observation_body':
         return True
     if action != 'toggle_society_observation' or project(world) is None:

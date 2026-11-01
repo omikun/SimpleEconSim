@@ -21,6 +21,8 @@ Implements the class struggle dynamics from gdd.md (§7.3, §8, §12):
 """
 
 from __future__ import annotations
+
+from strike_status import set_striking, clear_all, has_non_network_source, source
 from treasury_trace import begin_public_change, finish_public_change
 import random
 from dataclasses import dataclass, field
@@ -216,7 +218,7 @@ class PopularResistanceManager:
                 for a in getattr(tile, 'agents', []):
                     if a.id in state.revolt_participants:
                         setattr(a, 'in_revolt', False)
-                        setattr(a, 'is_striking', False)
+                        set_striking(a, source('enclosure', tile), False, region=tile)
                 state.enclosure_stage = "dormant"
                 state.revolt_participants.clear()
             return events
@@ -230,7 +232,7 @@ class PopularResistanceManager:
                 for a in getattr(tile, 'agents', []):
                     if a.id in state.revolt_participants:
                         setattr(a, 'in_revolt', False)
-                        setattr(a, 'is_striking', False)
+                        set_striking(a, source('enclosure', tile), False, region=tile)
                 state.enclosure_stage = "dormant"
                 state.revolt_participants.clear()
                 state.target_plot_id = None
@@ -355,7 +357,7 @@ class PopularResistanceManager:
 
                 for a in selected:
                     setattr(a, 'in_revolt', True)
-                    setattr(a, 'is_striking', True)
+                    set_striking(a, source('enclosure', tile), True, region=tile)
 
                 state.revolt_participants = [a.id for a in selected]
                 state.followers = list(state.revolt_participants)
@@ -390,7 +392,7 @@ class PopularResistanceManager:
         # Maintain labor withholding
         for a in participants:
             setattr(a, 'in_revolt', True)
-            setattr(a, 'is_striking', True)
+            set_striking(a, source('enclosure', tile), True, region=tile)
 
         # Feed marchers via charity or sympathizers
         state.sympathizer_food_donated = self._feed_revolt_participants(tile, participants, t, world)
@@ -428,7 +430,7 @@ class PopularResistanceManager:
                 joined = more_peasants[:max(1, int(len(more_peasants) * 0.3))]
                 for a in joined:
                     setattr(a, 'in_revolt', True)
-                    setattr(a, 'is_striking', True)
+                    set_striking(a, source('enclosure', tile), True, region=tile)
                     state.revolt_participants.append(a.id)
                     participants.append(a)
 
@@ -504,7 +506,7 @@ class PopularResistanceManager:
             # Disperse marchers back to normal life
             for a in participants:
                 setattr(a, 'in_revolt', False)
-                setattr(a, 'is_striking', False)
+                set_striking(a, source('enclosure', tile), False, region=tile)
             state.enclosure_stage = "dormant"
             state.revolt_participants.clear()
             state.target_plot_id = None
@@ -745,7 +747,7 @@ class PopularResistanceManager:
         if total_enforcers >= len(participants) * 2 and rioter_violence < 0.4 and garrison_soldiers == 0:
             for a in participants:
                 setattr(a, 'in_revolt', False)
-                setattr(a, 'is_striking', False)
+                set_striking(a, source('enclosure', tile), False, region=tile)
             state.enclosure_stage = "dormant"
             state.revolt_participants.clear()
             factions = getattr(getattr(tile, 'factions', None), 'factions', {})
@@ -770,7 +772,7 @@ class PopularResistanceManager:
             for v in victims:
                 settle_external_death(tile, t, v, 'state_violence')
                 setattr(v, 'in_revolt', False)
-                setattr(v, 'is_striking', False)
+                clear_all(v, region=tile)
 
             # Chilling effect state terror
             state.terror_cooldown = 10
@@ -782,7 +784,7 @@ class PopularResistanceManager:
 
             for s in survivors:
                 setattr(s, 'in_revolt', False)
-                setattr(s, 'is_striking', False)
+                set_striking(s, source('enclosure', tile), False, region=tile)
                 s.mem_push('mem_casualties', 2.0)
 
             owner = getattr(tile, 'owner_nation', None)
@@ -824,11 +826,11 @@ class PopularResistanceManager:
         for v in victims:
             settle_external_death(tile, t, v, 'political_clash')
             setattr(v, 'in_revolt', False)
-            setattr(v, 'is_striking', False)
+            clear_all(v, region=tile)
 
         for s in survivors:
             setattr(s, 'in_revolt', False)
-            setattr(s, 'is_striking', False)
+            set_striking(s, source('enclosure', tile), False, region=tile)
             s.mem_push('mem_casualties', 1.0)
             s.mem_push('mem_promises', 1.0)
 
@@ -868,7 +870,7 @@ class PopularResistanceManager:
         if not workers:
             return events
 
-        strikers = [a for a in workers if getattr(a, 'is_striking', False)]
+        strikers = [a for a in workers if has_non_network_source(a)]
         strike_rate = len(strikers) / len(workers)
         unrest = getattr(tile, 'unrest_level', 0.0)
         state = self.get_state(tile.name)
@@ -1305,7 +1307,7 @@ class PopularResistanceManager:
             for a in sympathizers:
                 if a.id in state.followers:
                     setattr(a, 'in_revolt', True)
-                    setattr(a, 'is_striking', True)
+                    set_striking(a, source('enclosure', tile), True, region=tile)
             state.enclosure_stage = "organizing"
             state.stage_turn = t
             ev = {
@@ -1570,7 +1572,7 @@ class PopularResistanceManager:
             death_trace_inputs=({'assassination_operation_id': operation_id}
                                 if operation_id else None))
         setattr(leader, 'in_revolt', False)
-        setattr(leader, 'is_striking', False)
+        clear_all(leader, region=tile)
 
         sympathizers = [
             a for a in getattr(tile, 'agents', [])
@@ -1608,7 +1610,7 @@ class PopularResistanceManager:
 
             for a in sympathizers:
                 setattr(a, 'in_revolt', False)
-                setattr(a, 'is_striking', False)
+                set_striking(a, source('enclosure', tile), False, region=tile)
 
             msg = f"SHADOW STRIKE: Rebel leader {state.leader_name} was assassinated in {tile.name}! Without organizational roots, the movement shatters and followers scatter."
             if world:
@@ -1646,7 +1648,7 @@ class PopularResistanceManager:
         for a in sympathizers:
             if a.id in state.followers:
                 setattr(a, 'in_revolt', True)
-                setattr(a, 'is_striking', True)
+                set_striking(a, source('enclosure', tile), True, region=tile)
                 a.mem_push('mem_casualties', 2.0)
                 a.mem_push('mem_promises', 2.0)
 

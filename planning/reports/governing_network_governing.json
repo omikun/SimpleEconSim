@@ -1,0 +1,1190 @@
+{
+  "date": "2026-11-01",
+  "scope": "First active governing slice, milestone 3; partial milestone-4 validation",
+  "source_snapshot": {
+    "snapshot": "/private/tmp/regnum-governing-final-n4bd7e0o",
+    "source_sha256": "af701038c5068f4e0b41123850d9dbe87f840b42731d3064b739bb1c4ed5c1bc",
+    "file_count": 707,
+    "basis": "Original frozen economic source; overlay final governing changes only."
+  },
+  "source_archive": "outputs/governing_network/governing-final-sources.zip",
+  "source_note": "Original frozen shared economic source with final governing changes overlaid; unrelated work remains outside this commit.",
+  "tests": {
+    "attempted": 80,
+    "passed": 79,
+    "failed": 1,
+    "governing_tests_passed": 40,
+    "baseline_failure": "tests.test_scenario_private_grain_release_trace.PrivateGrainReleaseTraceTests.test_private_grain_purchase_is_candidate_source_for_later_meal",
+    "baseline_evidence": "Same missing candidate purchase event in isolated active source and a copy with the governing changes reverted. Earlier workplace suite also had ten no-employed-firm fixture errors on both active and pre-change sources."
+  },
+  "active_checks": {
+    "passed": true,
+    "steps": 7,
+    "recording_parity": [
+      {
+        "engine": "client.desktop.engine",
+        "route": "buy",
+        "sampled_equal": true,
+        "presentation_equal": true,
+        "network_equal": true,
+        "notices_equal": true,
+        "outcome_equal": true,
+        "decisions_equal": true
+      },
+      {
+        "engine": "client.desktop.engine",
+        "route": "requisition",
+        "sampled_equal": true,
+        "presentation_equal": true,
+        "network_equal": true,
+        "notices_equal": true,
+        "outcome_equal": true,
+        "decisions_equal": true
+      },
+      {
+        "engine": "client.desktop.engine",
+        "route": "market",
+        "sampled_equal": true,
+        "presentation_equal": true,
+        "network_equal": true,
+        "notices_equal": true,
+        "outcome_equal": true,
+        "decisions_equal": true
+      },
+      {
+        "engine": "worldview_engine",
+        "route": "buy",
+        "sampled_equal": true,
+        "presentation_equal": true,
+        "network_equal": true,
+        "notices_equal": true,
+        "outcome_equal": true,
+        "decisions_equal": true
+      },
+      {
+        "engine": "worldview_engine",
+        "route": "requisition",
+        "sampled_equal": true,
+        "presentation_equal": true,
+        "network_equal": true,
+        "notices_equal": true,
+        "outcome_equal": true,
+        "decisions_equal": true
+      },
+      {
+        "engine": "worldview_engine",
+        "route": "market",
+        "sampled_equal": true,
+        "presentation_equal": true,
+        "network_equal": true,
+        "notices_equal": true,
+        "outcome_equal": true,
+        "decisions_equal": true
+      }
+    ],
+    "fresh_process_replay": {
+      "digests": true,
+      "economic_final": true,
+      "observations": true,
+      "diagnostic_digest": true,
+      "decisions": true,
+      "notices": true,
+      "campaign_outcome": true
+    },
+    "distinct_policy_routes": {
+      "client.desktop.engine": true,
+      "worldview_engine": true
+    },
+    "limitations": "One authored seed. Automated consistency does not establish human usability or fun."
+  },
+  "observation_regression": {
+    "passed": true,
+    "comparisons": [
+      {
+        "engine": "client.desktop.engine",
+        "route": "buy",
+        "traced": false,
+        "equal": true,
+        "turn_count": 8,
+        "sampled_equal": true,
+        "economic_equal": true,
+        "decisions_equal": true
+      },
+      {
+        "engine": "client.desktop.engine",
+        "route": "buy",
+        "traced": true,
+        "equal": true,
+        "turn_count": 8,
+        "sampled_equal": true,
+        "economic_equal": true,
+        "decisions_equal": true
+      },
+      {
+        "engine": "client.desktop.engine",
+        "route": "requisition",
+        "traced": false,
+        "equal": true,
+        "turn_count": 8,
+        "sampled_equal": true,
+        "economic_equal": true,
+        "decisions_equal": true
+      },
+      {
+        "engine": "client.desktop.engine",
+        "route": "requisition",
+        "traced": true,
+        "equal": true,
+        "turn_count": 8,
+        "sampled_equal": true,
+        "economic_equal": true,
+        "decisions_equal": true
+      },
+      {
+        "engine": "client.desktop.engine",
+        "route": "market",
+        "traced": false,
+        "equal": true,
+        "turn_count": 8,
+        "sampled_equal": true,
+        "economic_equal": true,
+        "decisions_equal": true
+      },
+      {
+        "engine": "client.desktop.engine",
+        "route": "market",
+        "traced": true,
+        "equal": true,
+        "turn_count": 8,
+        "sampled_equal": true,
+        "economic_equal": true,
+        "decisions_equal": true
+      },
+      {
+        "engine": "worldview_engine",
+        "route": "buy",
+        "traced": false,
+        "equal": true,
+        "turn_count": 8,
+        "sampled_equal": true,
+        "economic_equal": true,
+        "decisions_equal": true
+      },
+      {
+        "engine": "worldview_engine",
+        "route": "buy",
+        "traced": true,
+        "equal": true,
+        "turn_count": 8,
+        "sampled_equal": true,
+        "economic_equal": true,
+        "decisions_equal": true
+      },
+      {
+        "engine": "worldview_engine",
+        "route": "requisition",
+        "traced": false,
+        "equal": true,
+        "turn_count": 8,
+        "sampled_equal": true,
+        "economic_equal": true,
+        "decisions_equal": true
+      },
+      {
+        "engine": "worldview_engine",
+        "route": "requisition",
+        "traced": true,
+        "equal": true,
+        "turn_count": 8,
+        "sampled_equal": true,
+        "economic_equal": true,
+        "decisions_equal": true
+      },
+      {
+        "engine": "worldview_engine",
+        "route": "market",
+        "traced": false,
+        "equal": true,
+        "turn_count": 8,
+        "sampled_equal": true,
+        "economic_equal": true,
+        "decisions_equal": true
+      },
+      {
+        "engine": "worldview_engine",
+        "route": "market",
+        "traced": true,
+        "equal": true,
+        "turn_count": 8,
+        "sampled_equal": true,
+        "economic_equal": true,
+        "decisions_equal": true
+      }
+    ],
+    "traced_untraced_diagnostics": [
+      {
+        "engine": "client.desktop.engine",
+        "route": "buy",
+        "equal": true
+      },
+      {
+        "engine": "client.desktop.engine",
+        "route": "requisition",
+        "equal": true
+      },
+      {
+        "engine": "client.desktop.engine",
+        "route": "market",
+        "equal": true
+      },
+      {
+        "engine": "worldview_engine",
+        "route": "buy",
+        "equal": true
+      },
+      {
+        "engine": "worldview_engine",
+        "route": "requisition",
+        "equal": true
+      },
+      {
+        "engine": "worldview_engine",
+        "route": "market",
+        "equal": true
+      }
+    ]
+  },
+  "active_final_samples": [
+    {
+      "engine": "client.desktop.engine",
+      "route": "buy",
+      "turn": 8,
+      "treasury": 136.15811026702806,
+      "underfed": 459,
+      "organized": 446,
+      "network_walkouts": 297,
+      "public_maize": 0,
+      "campaign_outcome": null,
+      "pending_warning": null
+    },
+    {
+      "engine": "client.desktop.engine",
+      "route": "requisition",
+      "turn": 8,
+      "treasury": 225.5,
+      "underfed": 459,
+      "organized": 445,
+      "network_walkouts": 284,
+      "public_maize": 0,
+      "campaign_outcome": null,
+      "pending_warning": null
+    },
+    {
+      "engine": "client.desktop.engine",
+      "route": "market",
+      "turn": 8,
+      "treasury": 201.752583,
+      "underfed": 455,
+      "organized": 443,
+      "network_walkouts": 298,
+      "public_maize": 0,
+      "campaign_outcome": null,
+      "pending_warning": null
+    },
+    {
+      "engine": "worldview_engine",
+      "route": "buy",
+      "turn": 8,
+      "treasury": 136.15811026702806,
+      "underfed": 459,
+      "organized": 446,
+      "network_walkouts": 297,
+      "public_maize": 0,
+      "campaign_outcome": null,
+      "pending_warning": null
+    },
+    {
+      "engine": "worldview_engine",
+      "route": "requisition",
+      "turn": 8,
+      "treasury": 225.5,
+      "underfed": 459,
+      "organized": 445,
+      "network_walkouts": 284,
+      "public_maize": 0,
+      "campaign_outcome": null,
+      "pending_warning": null
+    },
+    {
+      "engine": "worldview_engine",
+      "route": "market",
+      "turn": 8,
+      "treasury": 201.752583,
+      "underfed": 455,
+      "organized": 443,
+      "network_walkouts": 298,
+      "public_maize": 0,
+      "campaign_outcome": null,
+      "pending_warning": null
+    }
+  ],
+  "rendered_ui": {
+    "buy": {
+      "passed": true,
+      "route": "buy",
+      "commands": [
+        {
+          "turn": 1,
+          "action": "release_maize",
+          "rationale": "Feed people from existing public stocks.",
+          "ui_label": "Distribute maize",
+          "ui_cost": "110 households \u00b7 440 maize",
+          "result": "Issued next-meal maize rations to 110 households from the public reserve."
+        },
+        {
+          "turn": 2,
+          "action": "buy_private_grain",
+          "rationale": "Compare treasury payment, property seizure and cash-dependent private sales.",
+          "ui_label": "Buy private maize",
+          "ui_cost": "80 maize \u00b7 89.3 treasury",
+          "result": "Bought 80 private maize units for 89.3 treasury units; owners received the cash."
+        },
+        {
+          "turn": 3,
+          "action": "release_maize",
+          "rationale": "Acquired public grain still needs distribution.",
+          "ui_label": "Distribute maize",
+          "ui_cost": "20 households \u00b7 80 maize",
+          "result": "Issued next-meal maize rations to 20 households from the public reserve."
+        },
+        {
+          "turn": 6,
+          "action": "pay_remittance",
+          "rationale": "Debt is due; use an available existing fiscal response.",
+          "ui_label": "Pay debt service",
+          "ui_cost": "200 treasury",
+          "result": "Paid 200 in debt service; 400 remains due."
+        }
+      ],
+      "snapshots": [
+        {
+          "turn": 1,
+          "treasury": 235.0,
+          "public_maize": 440,
+          "private_maize": 20,
+          "organized": 108,
+          "walkouts": 0,
+          "planned": 53,
+          "underfed": 138,
+          "explanation": "Contacts help residents act together. Petitions do not stop work.",
+          "debt": "upcoming",
+          "ending": null
+        },
+        {
+          "turn": 2,
+          "treasury": 262.3125,
+          "public_maize": 0,
+          "private_maize": 90,
+          "organized": 0,
+          "walkouts": 13,
+          "planned": 0,
+          "underfed": 0,
+          "explanation": "5 people in Alexandria have a next meal and skipped the planned walkout.",
+          "debt": "upcoming",
+          "ending": null
+        },
+        {
+          "turn": 3,
+          "treasury": 200.28311026702804,
+          "public_maize": 80,
+          "private_maize": 3,
+          "organized": 41,
+          "walkouts": 0,
+          "planned": 2,
+          "underfed": 91,
+          "explanation": "The network walkout in Alexandria stopped; other disputes can continue.",
+          "debt": "upcoming",
+          "ending": null
+        },
+        {
+          "turn": 4,
+          "treasury": 227.53311026702804,
+          "public_maize": 0,
+          "private_maize": 2,
+          "organized": 143,
+          "walkouts": 2,
+          "planned": 63,
+          "underfed": 182,
+          "explanation": "2 people in Nile Delta joined a walkout: unmet needs, shared contacts and enough resources to hold out.",
+          "debt": "upcoming",
+          "ending": null
+        },
+        {
+          "turn": 5,
+          "treasury": 254.78311026702804,
+          "public_maize": 0,
+          "private_maize": 2,
+          "organized": 215,
+          "walkouts": 63,
+          "planned": 99,
+          "underfed": 285,
+          "explanation": "43 people in Nile Delta joined a walkout: unmet needs, shared contacts and enough resources to hold out.",
+          "debt": "upcoming",
+          "ending": null
+        },
+        {
+          "turn": 6,
+          "treasury": 281.97061026702806,
+          "public_maize": 0,
+          "private_maize": 0,
+          "organized": 288,
+          "walkouts": 99,
+          "planned": 180,
+          "underfed": 432,
+          "explanation": "3 people in Nile Valley joined a walkout: unmet needs, shared contacts and enough resources to hold out.",
+          "debt": "unpaid",
+          "ending": null
+        },
+        {
+          "turn": 7,
+          "treasury": 109.09561026702806,
+          "public_maize": 0,
+          "private_maize": 0,
+          "organized": 407,
+          "walkouts": 180,
+          "planned": 297,
+          "underfed": 447,
+          "explanation": "4 people in Alexandria joined a walkout: unmet needs, shared contacts and enough resources to hold out.",
+          "debt": "upcoming",
+          "ending": null
+        },
+        {
+          "turn": 8,
+          "treasury": 136.15811026702806,
+          "public_maize": 0,
+          "private_maize": 0,
+          "organized": 446,
+          "walkouts": 297,
+          "planned": 379,
+          "underfed": 459,
+          "explanation": "37 people in Alexandria joined a walkout: unmet needs, shared contacts and enough resources to hold out.",
+          "debt": "upcoming",
+          "ending": null
+        }
+      ],
+      "notices": [],
+      "political_upkeep_actions": 0,
+      "note": "Actual policy buttons and economic turns; no forced actors, resources or victory."
+    },
+    "requisition": {
+      "passed": true,
+      "route": "requisition",
+      "commands": [
+        {
+          "turn": 1,
+          "action": "release_maize",
+          "rationale": "Feed people from existing public stocks.",
+          "ui_label": "Distribute maize",
+          "ui_cost": "110 households \u00b7 440 maize",
+          "result": "Issued next-meal maize rations to 110 households from the public reserve."
+        },
+        {
+          "turn": 2,
+          "action": "requisition_private_grain",
+          "rationale": "Compare treasury payment, property seizure and cash-dependent private sales.",
+          "ui_label": "Requisition maize",
+          "ui_cost": "80 maize \u00b7 no payment",
+          "result": "Requisitioned 80 private maize units for public relief; owners protest and legitimacy fell."
+        },
+        {
+          "turn": 3,
+          "action": "release_maize",
+          "rationale": "Acquired public grain still needs distribution.",
+          "ui_label": "Distribute maize",
+          "ui_cost": "20 households \u00b7 80 maize",
+          "result": "Issued next-meal maize rations to 20 households from the public reserve."
+        },
+        {
+          "turn": 6,
+          "action": "pay_remittance",
+          "rationale": "Debt is due; use an available existing fiscal response.",
+          "ui_label": "Pay debt service",
+          "ui_cost": "200 treasury",
+          "result": "Paid 200 in debt service; 400 remains due."
+        }
+      ],
+      "snapshots": [
+        {
+          "turn": 1,
+          "treasury": 235.0,
+          "public_maize": 440,
+          "private_maize": 20,
+          "organized": 108,
+          "walkouts": 0,
+          "planned": 53,
+          "underfed": 138,
+          "explanation": "Contacts help residents act together. Petitions do not stop work.",
+          "debt": "upcoming",
+          "ending": null
+        },
+        {
+          "turn": 2,
+          "treasury": 262.3125,
+          "public_maize": 0,
+          "private_maize": 90,
+          "organized": 0,
+          "walkouts": 13,
+          "planned": 0,
+          "underfed": 0,
+          "explanation": "5 people in Alexandria have a next meal and skipped the planned walkout.",
+          "debt": "upcoming",
+          "ending": null
+        },
+        {
+          "turn": 3,
+          "treasury": 289.625,
+          "public_maize": 80,
+          "private_maize": 3,
+          "organized": 41,
+          "walkouts": 0,
+          "planned": 2,
+          "underfed": 91,
+          "explanation": "The network walkout in Alexandria stopped; other disputes can continue.",
+          "debt": "upcoming",
+          "ending": null
+        },
+        {
+          "turn": 4,
+          "treasury": 316.875,
+          "public_maize": 0,
+          "private_maize": 2,
+          "organized": 143,
+          "walkouts": 2,
+          "planned": 62,
+          "underfed": 182,
+          "explanation": "2 people in Nile Delta joined a walkout: unmet needs, shared contacts and enough resources to hold out.",
+          "debt": "upcoming",
+          "ending": null
+        },
+        {
+          "turn": 5,
+          "treasury": 344.125,
+          "public_maize": 0,
+          "private_maize": 2,
+          "organized": 213,
+          "walkouts": 62,
+          "planned": 98,
+          "underfed": 285,
+          "explanation": "42 people in Nile Delta joined a walkout: unmet needs, shared contacts and enough resources to hold out.",
+          "debt": "upcoming",
+          "ending": null
+        },
+        {
+          "turn": 6,
+          "treasury": 371.375,
+          "public_maize": 0,
+          "private_maize": 0,
+          "organized": 287,
+          "walkouts": 98,
+          "planned": 178,
+          "underfed": 433,
+          "explanation": "3 people in Nile Valley joined a walkout: unmet needs, shared contacts and enough resources to hold out.",
+          "debt": "unpaid",
+          "ending": null
+        },
+        {
+          "turn": 7,
+          "treasury": 198.5,
+          "public_maize": 0,
+          "private_maize": 0,
+          "organized": 399,
+          "walkouts": 178,
+          "planned": 284,
+          "underfed": 447,
+          "explanation": "4 people in Alexandria joined a walkout: unmet needs, shared contacts and enough resources to hold out.",
+          "debt": "upcoming",
+          "ending": null
+        },
+        {
+          "turn": 8,
+          "treasury": 225.5,
+          "public_maize": 0,
+          "private_maize": 0,
+          "organized": 445,
+          "walkouts": 284,
+          "planned": 373,
+          "underfed": 459,
+          "explanation": "36 people in Alexandria joined a walkout: unmet needs, shared contacts and enough resources to hold out.",
+          "debt": "upcoming",
+          "ending": null
+        }
+      ],
+      "notices": [],
+      "political_upkeep_actions": 0,
+      "note": "Actual policy buttons and economic turns; no forced actors, resources or victory."
+    },
+    "market": {
+      "passed": true,
+      "route": "market",
+      "commands": [
+        {
+          "turn": 1,
+          "action": "release_maize",
+          "rationale": "Feed people from existing public stocks.",
+          "ui_label": "Distribute maize",
+          "ui_cost": "110 households \u00b7 440 maize",
+          "result": "Issued next-meal maize rations to 110 households from the public reserve."
+        },
+        {
+          "turn": 2,
+          "action": "open_private_grain_market",
+          "rationale": "Compare treasury payment, property seizure and cash-dependent private sales.",
+          "ui_label": "Open private sales",
+          "ui_cost": "90 maize currently reserved",
+          "result": "Allowed private grain sales: 26.061 units reached households that could pay; holders continue to set the price."
+        },
+        {
+          "turn": 6,
+          "action": "pay_remittance",
+          "rationale": "Debt is due; use an available existing fiscal response.",
+          "ui_label": "Pay debt service",
+          "ui_cost": "200 treasury",
+          "result": "Paid 200 in debt service; 400 remains due."
+        }
+      ],
+      "snapshots": [
+        {
+          "turn": 1,
+          "treasury": 235.0,
+          "public_maize": 440,
+          "private_maize": 20,
+          "organized": 108,
+          "walkouts": 0,
+          "planned": 53,
+          "underfed": 138,
+          "explanation": "Contacts help residents act together. Petitions do not stop work.",
+          "debt": "upcoming",
+          "ending": null
+        },
+        {
+          "turn": 2,
+          "treasury": 262.3125,
+          "public_maize": 0,
+          "private_maize": 90,
+          "organized": 0,
+          "walkouts": 13,
+          "planned": 0,
+          "underfed": 0,
+          "explanation": "5 people in Alexandria have a next meal and skipped the planned walkout.",
+          "debt": "upcoming",
+          "ending": null
+        },
+        {
+          "turn": 3,
+          "treasury": 289.625,
+          "public_maize": 0,
+          "private_maize": 0,
+          "organized": 38,
+          "walkouts": 0,
+          "planned": 2,
+          "underfed": 88,
+          "explanation": "The network walkout in Alexandria stopped; other disputes can continue.",
+          "debt": "upcoming",
+          "ending": null
+        },
+        {
+          "turn": 4,
+          "treasury": 316.875,
+          "public_maize": 0,
+          "private_maize": 0,
+          "organized": 153,
+          "walkouts": 2,
+          "planned": 78,
+          "underfed": 195,
+          "explanation": "2 people in Nile Delta joined a walkout: unmet needs, shared contacts and enough resources to hold out.",
+          "debt": "upcoming",
+          "ending": null
+        },
+        {
+          "turn": 5,
+          "treasury": 344.065938,
+          "public_maize": 0,
+          "private_maize": 0,
+          "organized": 216,
+          "walkouts": 78,
+          "planned": 105,
+          "underfed": 283,
+          "explanation": "54 people in Nile Delta joined a walkout: unmet needs, shared contacts and enough resources to hold out.",
+          "debt": "upcoming",
+          "ending": null
+        },
+        {
+          "turn": 6,
+          "treasury": 371.003438,
+          "public_maize": 0,
+          "private_maize": 0,
+          "organized": 292,
+          "walkouts": 105,
+          "planned": 180,
+          "underfed": 429,
+          "explanation": "3 people in Nile Valley joined a walkout: unmet needs, shared contacts and enough resources to hold out.",
+          "debt": "unpaid",
+          "ending": null
+        },
+        {
+          "turn": 7,
+          "treasury": 197.94093800000002,
+          "public_maize": 0,
+          "private_maize": 0,
+          "organized": 401,
+          "walkouts": 180,
+          "planned": 300,
+          "underfed": 445,
+          "explanation": "4 people in Alexandria joined a walkout: unmet needs, shared contacts and enough resources to hold out.",
+          "debt": "upcoming",
+          "ending": null
+        },
+        {
+          "turn": 8,
+          "treasury": 231.72164200000003,
+          "public_maize": 0,
+          "private_maize": 0,
+          "organized": 444,
+          "walkouts": 300,
+          "planned": 371,
+          "underfed": 456,
+          "explanation": "36 people in Alexandria joined a walkout: unmet needs, shared contacts and enough resources to hold out.",
+          "debt": "upcoming",
+          "ending": null
+        }
+      ],
+      "notices": [],
+      "political_upkeep_actions": 0,
+      "note": "Actual policy buttons and economic turns; no forced actors, resources or victory."
+    }
+  },
+  "limitations": [
+    "One authored seed; three policy routes, not a search for an optimal winning strategy.",
+    "Short UI and active parity routes stop at turn 8; the long primary buy run reaches natural breakdown on turn 17.",
+    "No human fun/usability result. Substantial hunger persists in the tested routes.",
+    "Coarse authored organization contacts; no personal representative mandate or autonomous merchant bargaining.",
+    "Existing government transitions remain authoritative; displaced-player opposition is not implemented.",
+    "Shared source has unrelated baseline test failures; this is not a clean-branch release certification."
+  ],
+  "long_simulation": {
+    "requested_steps": 19,
+    "final_turn": 17,
+    "outcome": "breakdown",
+    "notices": [
+      {
+        "turn": 17,
+        "kind": "breakdown",
+        "action": "scenario_rescue_tax"
+      },
+      {
+        "turn": 17,
+        "kind": "breakdown",
+        "action": "accept_breakdown"
+      }
+    ],
+    "pending_warning": null,
+    "final_observation": {
+      "turn": 17,
+      "mode": "governing",
+      "communities": [
+        {
+          "id": "households",
+          "title": "Cultivators and workers",
+          "count": 526,
+          "concern": "471/526 underfed; 28.3 unpaid taxes",
+          "explanation": "Food and tax pressure can unite households. Relief helps only when food reaches people.",
+          "underfed": 471,
+          "arrears": 28.28,
+          "private_maize": 0,
+          "requisitioned": 0
+        },
+        {
+          "id": "holders",
+          "title": "Grainholders and landowners",
+          "count": 14,
+          "concern": "0 maize held; 0 seized so far",
+          "explanation": "Buying pays owners; seizure takes stocks without payment.",
+          "underfed": 13,
+          "arrears": 0.0,
+          "private_maize": 0,
+          "requisitioned": 0
+        },
+        {
+          "id": "merchants",
+          "title": "Merchants and exporters",
+          "count": 30,
+          "concern": "Private warehouse sales are held",
+          "explanation": "Opening sales allows trade; households still need money to buy.",
+          "underfed": 24,
+          "arrears": 0.0,
+          "private_maize": 0,
+          "requisitioned": 0
+        }
+      ],
+      "journal_id": "governing-observation:17",
+      "diagnostic": "Petitions and next-turn strikes follow real conditions and organization.",
+      "public_maize": 0,
+      "treasury": 113.10967226702807,
+      "disputes": [
+        {
+          "id": "food",
+          "title": "Food access petition",
+          "count": 441,
+          "tile": "c973",
+          "name": "Alexandria",
+          "striking": 245
+        },
+        {
+          "id": "arrears",
+          "title": "Unpaid tax petition",
+          "count": 29,
+          "tile": "c547",
+          "name": "Nile Delta",
+          "striking": 2
+        }
+      ],
+      "locations": [
+        {
+          "tile": "c321",
+          "name": "Upper Egypt",
+          "petitioners": 71,
+          "striking": 38,
+          "planned_strikers": 32
+        },
+        {
+          "tile": "c547",
+          "name": "Nile Delta",
+          "petitioners": 102,
+          "striking": 42,
+          "planned_strikers": 31
+        },
+        {
+          "tile": "c731",
+          "name": "Nile Valley",
+          "petitioners": 81,
+          "striking": 55,
+          "planned_strikers": 54
+        },
+        {
+          "tile": "c932",
+          "name": "Cairo",
+          "petitioners": 82,
+          "striking": 58,
+          "planned_strikers": 60
+        },
+        {
+          "tile": "c973",
+          "name": "Alexandria",
+          "petitioners": 107,
+          "striking": 88,
+          "planned_strikers": 87
+        }
+      ],
+      "recent_explanation": "88 people in Alexandria joined a walkout: unmet needs, shared contacts and enough resources to hold out.",
+      "organized_people": 443,
+      "network_strikers": 281
+    }
+  },
+  "superseded_check": "An earlier 20-turn matrix preceded the debt-warning lifecycle fix. Final reported results use actual urgent-dialog responses.",
+  "long_rendered_ui": {
+    "passed": true,
+    "route": "buy",
+    "commands": [
+      {
+        "turn": 1,
+        "action": "release_maize",
+        "rationale": "Feed people from existing public stocks.",
+        "ui_label": "Distribute maize",
+        "ui_cost": "110 households \u00b7 440 maize",
+        "result": "Issued next-meal maize rations to 110 households from the public reserve."
+      },
+      {
+        "turn": 2,
+        "action": "buy_private_grain",
+        "rationale": "Compare treasury payment, property seizure and cash-dependent private sales.",
+        "ui_label": "Buy private maize",
+        "ui_cost": "80 maize \u00b7 89.3 treasury",
+        "result": "Bought 80 private maize units for 89.3 treasury units; owners received the cash."
+      },
+      {
+        "turn": 3,
+        "action": "release_maize",
+        "rationale": "Acquired public grain still needs distribution.",
+        "ui_label": "Distribute maize",
+        "ui_cost": "20 households \u00b7 80 maize",
+        "result": "Issued next-meal maize rations to 20 households from the public reserve."
+      },
+      {
+        "turn": 6,
+        "action": "pay_remittance",
+        "rationale": "Debt is due; use an available existing fiscal response.",
+        "ui_label": "Pay debt service",
+        "ui_cost": "200 treasury",
+        "result": "Paid 200 in debt service; 400 remains due."
+      },
+      {
+        "turn": 11,
+        "action": "pay_remittance",
+        "rationale": "Debt is due; use an available existing fiscal response.",
+        "ui_label": "Pay debt service",
+        "ui_cost": "200 treasury",
+        "result": "Paid 200 in debt service; 200 remains due."
+      },
+      {
+        "turn": 16,
+        "action": "pay_remittance",
+        "rationale": "Debt is due; use an available existing fiscal response.",
+        "ui_label": "Pay debt service",
+        "ui_cost": "200 treasury",
+        "result": "Paid 200 in debt service; 0 remains due."
+      }
+    ],
+    "snapshots": [
+      {
+        "turn": 1,
+        "treasury": 235.0,
+        "public_maize": 440,
+        "private_maize": 20,
+        "organized": 108,
+        "walkouts": 0,
+        "planned": 53,
+        "underfed": 138,
+        "explanation": "Contacts help residents act together. Petitions do not stop work.",
+        "debt": "upcoming",
+        "ending": null
+      },
+      {
+        "turn": 2,
+        "treasury": 262.3125,
+        "public_maize": 0,
+        "private_maize": 90,
+        "organized": 0,
+        "walkouts": 13,
+        "planned": 0,
+        "underfed": 0,
+        "explanation": "5 people in Alexandria have a next meal and skipped the planned walkout.",
+        "debt": "upcoming",
+        "ending": null
+      },
+      {
+        "turn": 3,
+        "treasury": 200.28311026702804,
+        "public_maize": 80,
+        "private_maize": 3,
+        "organized": 41,
+        "walkouts": 0,
+        "planned": 2,
+        "underfed": 91,
+        "explanation": "The network walkout in Alexandria stopped; other disputes can continue.",
+        "debt": "upcoming",
+        "ending": null
+      },
+      {
+        "turn": 4,
+        "treasury": 227.53311026702804,
+        "public_maize": 0,
+        "private_maize": 2,
+        "organized": 143,
+        "walkouts": 2,
+        "planned": 63,
+        "underfed": 182,
+        "explanation": "2 people in Nile Delta joined a walkout: unmet needs, shared contacts and enough resources to hold out.",
+        "debt": "upcoming",
+        "ending": null
+      },
+      {
+        "turn": 5,
+        "treasury": 254.78311026702804,
+        "public_maize": 0,
+        "private_maize": 2,
+        "organized": 215,
+        "walkouts": 63,
+        "planned": 99,
+        "underfed": 285,
+        "explanation": "43 people in Nile Delta joined a walkout: unmet needs, shared contacts and enough resources to hold out.",
+        "debt": "upcoming",
+        "ending": null
+      },
+      {
+        "turn": 6,
+        "treasury": 281.97061026702806,
+        "public_maize": 0,
+        "private_maize": 0,
+        "organized": 288,
+        "walkouts": 99,
+        "planned": 180,
+        "underfed": 432,
+        "explanation": "3 people in Nile Valley joined a walkout: unmet needs, shared contacts and enough resources to hold out.",
+        "debt": "unpaid",
+        "ending": null
+      },
+      {
+        "turn": 7,
+        "treasury": 109.09561026702806,
+        "public_maize": 0,
+        "private_maize": 0,
+        "organized": 407,
+        "walkouts": 180,
+        "planned": 297,
+        "underfed": 447,
+        "explanation": "4 people in Alexandria joined a walkout: unmet needs, shared contacts and enough resources to hold out.",
+        "debt": "upcoming",
+        "ending": null
+      },
+      {
+        "turn": 8,
+        "treasury": 136.15811026702806,
+        "public_maize": 0,
+        "private_maize": 0,
+        "organized": 446,
+        "walkouts": 297,
+        "planned": 379,
+        "underfed": 459,
+        "explanation": "37 people in Alexandria joined a walkout: unmet needs, shared contacts and enough resources to hold out.",
+        "debt": "upcoming",
+        "ending": null
+      },
+      {
+        "turn": 9,
+        "treasury": 163.22061026702806,
+        "public_maize": 0,
+        "private_maize": 0,
+        "organized": 422,
+        "walkouts": 378,
+        "planned": 361,
+        "underfed": 439,
+        "explanation": "74 people in Alexandria joined a walkout: unmet needs, shared contacts and enough resources to hold out.",
+        "debt": "upcoming",
+        "ending": null
+      },
+      {
+        "turn": 10,
+        "treasury": 188.21061026702807,
+        "public_maize": 0,
+        "private_maize": 0,
+        "organized": 415,
+        "walkouts": 361,
+        "planned": 342,
+        "underfed": 435,
+        "explanation": "66 people in Alexandria joined a walkout: unmet needs, shared contacts and enough resources to hold out.",
+        "debt": "upcoming",
+        "ending": null
+      },
+      {
+        "turn": 11,
+        "treasury": 212.9868232670281,
+        "public_maize": 0,
+        "private_maize": 0,
+        "organized": 417,
+        "walkouts": 341,
+        "planned": 318,
+        "underfed": 448,
+        "explanation": "65 people in Alexandria joined a walkout: unmet needs, shared contacts and enough resources to hold out.",
+        "debt": "unpaid",
+        "ending": null
+      },
+      {
+        "turn": 12,
+        "treasury": 63.06451126702808,
+        "public_maize": 0,
+        "private_maize": 0,
+        "organized": 424,
+        "walkouts": 315,
+        "planned": 320,
+        "underfed": 451,
+        "explanation": "58 people in Alexandria joined a walkout: unmet needs, shared contacts and enough resources to hold out.",
+        "debt": "upcoming",
+        "ending": null
+      },
+      {
+        "turn": 13,
+        "treasury": 94.54662226702808,
+        "public_maize": 0,
+        "private_maize": 0,
+        "organized": 438,
+        "walkouts": 320,
+        "planned": 327,
+        "underfed": 451,
+        "explanation": "59 people in Alexandria joined a walkout: unmet needs, shared contacts and enough resources to hold out.",
+        "debt": "upcoming",
+        "ending": null
+      },
+      {
+        "turn": 14,
+        "treasury": 146.0986522670281,
+        "public_maize": 0,
+        "private_maize": 0,
+        "organized": 448,
+        "walkouts": 327,
+        "planned": 306,
+        "underfed": 462,
+        "explanation": "77 people in Alexandria joined a walkout: unmet needs, shared contacts and enough resources to hold out.",
+        "debt": "upcoming",
+        "ending": null
+      },
+      {
+        "turn": 15,
+        "treasury": 263.53617126702807,
+        "public_maize": 0,
+        "private_maize": 0,
+        "organized": 431,
+        "walkouts": 301,
+        "planned": 295,
+        "underfed": 446,
+        "explanation": "82 people in Alexandria joined a walkout: unmet needs, shared contacts and enough resources to hold out.",
+        "debt": "upcoming",
+        "ending": null
+      },
+      {
+        "turn": 16,
+        "treasury": 286.65506826702807,
+        "public_maize": 0,
+        "private_maize": 0,
+        "organized": 432,
+        "walkouts": 295,
+        "planned": 281,
+        "underfed": 445,
+        "explanation": "90 people in Alexandria joined a walkout: unmet needs, shared contacts and enough resources to hold out.",
+        "debt": "unpaid",
+        "ending": null
+      },
+      {
+        "turn": 17,
+        "treasury": 113.10967226702807,
+        "public_maize": 0,
+        "private_maize": 0,
+        "organized": 443,
+        "walkouts": 281,
+        "planned": 264,
+        "underfed": 471,
+        "explanation": "88 people in Alexandria joined a walkout: unmet needs, shared contacts and enough resources to hold out.",
+        "debt": "paid",
+        "ending": "breakdown"
+      }
+    ],
+    "notices": [
+      {
+        "turn": 17,
+        "kind": "breakdown",
+        "action": "scenario_rescue_tax"
+      },
+      {
+        "turn": 17,
+        "kind": "breakdown",
+        "action": "accept_breakdown"
+      }
+    ],
+    "political_upkeep_actions": 0,
+    "note": "Actual policy buttons and economic turns; no forced actors, resources or victory."
+  },
+  "raw_evidence": {
+    "active_matrix": "outputs/governing_network/governing-final-verification.json",
+    "observation_regression": "outputs/governing_network/observation-final-regression.json",
+    "long_simulation": "outputs/governing_network/governing-final-long.json"
+  }
+}

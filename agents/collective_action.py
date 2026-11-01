@@ -6,6 +6,8 @@ are appended to a region's ordered collective_log for later run inspection.
 """
 
 from __future__ import annotations
+
+from strike_status import set_striking, has_source, source, tracked
 from treasury_trace import begin_public_change as _trace_public_begin, finish_public_change as _trace_public_finish
 
 from dataclasses import dataclass, field
@@ -161,7 +163,7 @@ def _start(region, firm, org, employees, supporters, t):
     org.strikes.append(strike)
     org.active_strike_id = strike.id
     for person in supporters:
-        person.is_striking = True
+        set_striking(person, source('workplace', region, firm), True, region=region)
     firm.is_on_strike = True
     _event(region, t, 'strike_started', firm, strike_id=strike.id,
            message=f'{len(supporters)} workers at {getattr(firm, "company_name", firm.id)} withhold labor.',
@@ -239,7 +241,7 @@ def _offer(region, firm, org, strike, employees, t):
         agreement.pay_rate = proposed_wage
         agreement.hours = proposed_hours
         agreement.pay_mode = 'cash'
-        person.is_striking = False
+        set_striking(person, source('workplace', region, firm), False, region=region)
     firm.is_on_strike = False
     strike.status = 'review'
     strike.review_turn = t + 2
@@ -269,7 +271,7 @@ def step_collectives(region, t):
             continue
         for pid in previous.participant_ids:
             if pid in people:
-                people[pid].is_striking = False
+                set_striking(people[pid], source('workplace', region, firm_id), False, region=region)
         previous.status = 'ended'
         _resolve_org(region, firm_id, old_org, previous, t, 'firm_closed')
     for firm in sorted((a for a in region.agents if a.alive and a.is_corporation),
@@ -320,14 +322,16 @@ def step_collectives(region, t):
             for pid in active.participant_ids:
                 person = people.get(pid)
                 if person is None or person.employer is not firm:
+                    if person is not None and tracked(person):
+                        set_striking(person, source('workplace', region, firm), False, region=region)
                     continue
-                if not person.is_striking:
+                if not has_source(person, source('workplace', region, firm)):
                     _event(region, t, 'participant_left', firm, strike_id=active.id,
                            message=f'Worker {pid} no longer withholds labor.',
                            person_id=pid, reason='external_change')
                     continue
                 if not _can_endure(person, region):
-                    person.is_striking = False
+                    set_striking(person, source('workplace', region, firm), False, region=region)
                     _event(region, t, 'participant_left', firm, strike_id=active.id,
                            message=f'Worker {pid} returns under material pressure.',
                            person_id=pid, reason='needs_shortfall')

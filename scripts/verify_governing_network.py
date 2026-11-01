@@ -96,7 +96,7 @@ def run_campaign(engine_name, mode, route, steps, traced, graph_output=None):
     np.random.seed(1877)
     rand._idx = rand._capacity
     state = world['scenario_state']
-    observations, decisions, digests = [], [], []
+    observations, decisions, digests, notices = [], [], [], []
     policies = {
         1: 'release_maize',
         2: {'buy': 'buy_private_grain', 'requisition': 'requisition_private_grain',
@@ -105,6 +105,11 @@ def run_campaign(engine_name, mode, route, steps, traced, graph_output=None):
     }
     digests.append(dict(turn=int(world['turn']), sampled=sampled_digest(world)))
     for _ in range(steps):
+        if mode == 'governing':
+            from scripts.governing_campaign_driver import resolve_notices
+            notices.extend(resolve_notices(world))
+            if state.get('ending'):
+                break
         turn = int(world['turn'])
         decision = policies.get(turn)
         if (turn >= state['payment_window_turn']
@@ -119,8 +124,10 @@ def run_campaign(engine_name, mode, route, steps, traced, graph_output=None):
             # meal or observation reward, and the two modes must fail alike.
             decisions.append(dict(turn=turn, action=decision, success=ok, message=message))
         engine.step_world(world)
+        if mode == 'governing':
+            notices.extend(resolve_notices(world))
         digests.append(dict(turn=int(world['turn']), sampled=sampled_digest(world)))
-        if mode == 'observe':
+        if mode in ('observe', 'governing'):
             info = project(world)
             # Full member IDs stay in the saved sidecar and canonical economic
             # graph. Keep this human-readable route report compact.
@@ -138,6 +145,8 @@ def run_campaign(engine_name, mode, route, steps, traced, graph_output=None):
             sort_keys=True, separators=(',', ':')).encode()).hexdigest()
     return dict(engine=engine_name, mode=mode, route=route, traced=traced,
                 steps=steps, digests=digests, decisions=decisions,
+                notices=notices, campaign_outcome=state.get('ending'),
+                pending_warning=(world.get('scenario_warning_modal') or {}).get('kind'),
                 observations=observations, diagnostic_digest=diagnostic_digest,
                 economic_final=economic_digest(world, graph_output))
 

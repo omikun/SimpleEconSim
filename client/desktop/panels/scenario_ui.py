@@ -328,6 +328,17 @@ def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
     if world.get('scenario_state', {}).get('ending'):
         _draw_egypt_scenario_debrief(surface, world)
         return
+    from governing_network import is_governing
+    if is_governing(world):
+        if world.get('_ui_governing_all_policies'):
+            from worldview_scenario_ui import _draw_egypt_scenario_panel as draw_full
+            draw_full(surface, world, mouse_pos)
+        else:
+            from client.desktop.panels.governing_campaign_ui import draw_panel
+            draw_panel(surface, world, _scenario_font,
+                       x=MAP_RIGHT + 10, y=TOP_BAR_H + 14, width=WIDTH - MAP_RIGHT - 20,
+                       height=HEIGHT - TOP_BAR_H - TICKER_H - 28, mouse_pos=mouse_pos)
+        return
     from ui_targets import register_target
     x, y, w = MAP_RIGHT + 10, TOP_BAR_H + 14, WIDTH - MAP_RIGHT - 20
     h = HEIGHT - TOP_BAR_H - TICKER_H - 28
@@ -548,6 +559,9 @@ def draw_settings_dialog(surface, world: dict, font_small, mouse_pos=None) -> No
 
 def guided_ui_hit(pos, world: dict) -> bool:
     """Handle Guided composition and settings actions."""
+    from client.desktop.panels.governing_campaign_ui import handle_warning
+    if handle_warning(pos, world):
+        return True
     from ui_targets import find_target
     target = find_target(world, pos, scope='settings' if world.get('settings_open') else 'guided')
     if target is None:

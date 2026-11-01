@@ -1,9 +1,7 @@
-"""Read-only society observations for the Egypt governing experiment.
+"""Versioned observations and opt-in coordination for the Egypt experiment.
 
-Everything stored here is a projection of existing actors or a shadow network
-diagnostic. No balance, strike flag, political score or authoritative RNG is
-written. Governing effects deliberately remain gated until strike ownership is
-unified (see the implementation register).
+Observe mode remains read-only. Governing mode plans autonomous participation;
+the existing labor and scenario handlers own its actual material effects.
 """
 
 from __future__ import annotations
@@ -16,7 +14,8 @@ from nutrition import deficit_fraction
 
 
 VERSION = 1
-MODES = ('off', 'observe')
+GOVERNING_VERSION = 2
+MODES = ('off', 'observe', 'governing')
 KEY = 'governing_network'
 COMMUNITIES = {
     'households': 'Cultivators and workers',
@@ -36,21 +35,27 @@ HISTORY_LIMIT = 24
 
 def validate_creation_mode(selected_mode, scenario_id):
     if selected_mode not in MODES:
-        raise ValueError('Governing effects are not enabled yet. Choose off or observe.')
+        raise ValueError('Choose off, observe or governing for the network experiment.')
     if selected_mode != 'off' and scenario_id != 'egypt_1877':
-        raise ValueError('The society observation experiment currently supports Egypt 1877.')
+        raise ValueError('The governing-network experiment currently supports Egypt 1877.')
 
 
 def mode(world):
     state = world.get('scenario_state', {}).get(KEY)
     if state is None:
         return 'off'  # An old save keeps its original behavior.
-    if state.get('version') != VERSION or state.get('mode') != 'observe':
+    expected = {'observe': VERSION, 'governing': GOVERNING_VERSION}.get(state.get('mode'))
+    if expected is None or state.get('version') != expected:
         raise ValueError('Unsupported governing-network state; no conversion was applied.')
     if state.get('scenario_id') != world.get('scenario_id'):
         raise ValueError('Governing-network state belongs to another scenario.')
     validate_state(state)
     return state['mode']
+
+
+def is_governing(world):
+    state = world.get('scenario_state', {}).get(KEY)
+    return bool(state and state.get('mode') == 'governing' and mode(world) == 'governing')
 
 
 def validate_state(state):
@@ -78,11 +83,32 @@ def validate_state(state):
             if any(not isfinite(node['pressure'][channel])
                    or not 0 <= node['pressure'][channel] <= 1 for channel in CHANNELS):
                 raise ValueError('Invalid network pressure.')
+        allowed_bases = {'authored_association_contact'}
+        if state['mode'] == 'governing':
+            allowed_bases.add('competing_grain_claim')
         for edge in edges.values():
             if (edge['source'] not in nodes or edge['target'] not in nodes
                     or not isfinite(edge['weight']) or not 0 <= edge['weight'] <= 1
-                    or edge['basis'] != 'authored_association_contact'):
+                    or edge['basis'] not in allowed_bases):
                 raise ValueError('Invalid authored organization contact.')
+        if state['mode'] == 'governing':
+            if state['last_applied_turn'] not in (state['last_turn'], state['last_turn'] + 1):
+                raise ValueError('Invalid network participation boundary.')
+            if set(state['pending']) != set(obs['districts']):
+                raise ValueError('Missing network district intent.')
+            for tile_id, intent in state['pending'].items():
+                members = set(obs['districts'][tile_id]['members']['households'])
+                petitions, strikes = intent['petition_ids'], intent['strike_ids']
+                if (len(set(petitions)) != len(petitions) or len(set(strikes)) != len(strikes)
+                        or not set(strikes) <= set(petitions) <= members
+                        or intent['effective_turn'] != state['last_turn'] + 1
+                        or intent['observation_id'] != state['history'][-1]['id']
+                        or set(intent['individual']) != {str(pid) for pid in members}):
+                    raise ValueError('Invalid network participation references.')
+            for organization in state['organizations'].values():
+                if any(not isfinite(organization[key]) or not 0 <= organization[key] <= 1
+                       for key in ('cohesion', 'delivery_trust')):
+                    raise ValueError('Invalid organization memory.')
     except (KeyError, TypeError) as error:
         raise ValueError('Incomplete governing-network observation state.') from error
 
@@ -101,13 +127,17 @@ def initialize(world, selected_mode='off'):
     observation = observe(world)
     nodes, edges = initial_graph(observation)
     world['scenario_state'][KEY] = {
-        'version': VERSION, 'mode': 'observe', 'scenario_id': 'egypt_1877',
+        'version': GOVERNING_VERSION if selected_mode == 'governing' else VERSION,
+        'mode': selected_mode, 'scenario_id': 'egypt_1877',
         'topology_basis': 'authored_scenario_contacts_v1',
         'last_turn': 1, 'observation': observation,
         'nodes': nodes, 'edges': edges, 'history': [],
         'diagnostics': diagnostics(nodes, edges),
     }
     _record(world, opening=True)
+    if selected_mode == 'governing':
+        from governing_collectives import initialize as initialize_collectives
+        initialize_collectives(world)
 
 
 def _nation(world):
@@ -323,6 +353,7 @@ def advance(world):
     if turn != state['last_turn'] + 1:
         raise ValueError('Society observation needs one update per completed turn.')
     observation = observe(world)
+    previous = state['observation']
     old_nodes = state['nodes']
     nodes, _ = initial_graph(observation)
     for node_id, node in nodes.items():
@@ -337,12 +368,30 @@ def advance(world):
                              node['community'])['sources']
         for key, node in nodes.items()
     }
-    values, terms = propagate(nodes, edges, sources)
+    governing = state['mode'] == 'governing'
+    if governing:
+        from governing_collectives import augment, diffuse
+        augment(world, observation)
+        values, terms, sources = diffuse(nodes, edges, sources, observation)
+    else:
+        values, terms = propagate(nodes, edges, sources)
     for key in nodes:
         nodes[key]['pressure'] = values[key]
     state.update(last_turn=turn, observation=observation, nodes=nodes, edges=edges,
                  diagnostics=diagnostics(nodes, edges))
     _record(world, terms=terms)
+    if governing:
+        for key in state['history'][-1]['inputs']:
+            state['history'][-1]['inputs'][key]['sources'] = sources[key]
+        from governing_collectives import plan
+        plan(world, previous=previous)
+
+
+def prepare_turn(world, turn):
+    """Consume yesterday's coordination before today's economic work."""
+    if is_governing(world):
+        from governing_collectives import begin_turn
+        begin_turn(world, turn)
 
 
 def _record(world, opening=False, terms=None):
@@ -395,7 +444,11 @@ def project(world):
                               concern=concern, explanation=explanation,
                               underfed=underfed, arrears=arrears,
                               private_maize=maize, requisitioned=seized))
-    return dict(turn=obs['turn'], mode='observe', communities=summaries,
+    result = dict(turn=obs['turn'], mode=state['mode'], communities=summaries,
                 journal_id=state['history'][-1]['id'],
                 diagnostic='Experimental contacts; pressure does not change petitions or strikes.',
                 public_maize=obs['public_maize'], treasury=obs['treasury'])
+    if state['mode'] == 'governing':
+        from governing_collectives import presentation
+        result.update(presentation(world))
+    return result

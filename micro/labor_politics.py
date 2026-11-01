@@ -21,6 +21,7 @@ from treasury_trace import begin_public_change as _trace_public_begin, finish_pu
 
 from typing import Tuple, List, Dict, Any, Optional
 from goods import Goods
+from strike_status import clear_all
 
 #: Default statutory workday cap before reform
 DEFAULT_WORKDAY_CAP = 16.0
@@ -249,7 +250,7 @@ def evaluate_uprising_pressure(nation, t: int) -> List[Dict[str, Any]]:
                 for a in getattr(tile, 'agents', []):
                     if getattr(a, 'is_striking', False):
                         cleared_strike_ids.append(str(a.id))
-                        a.is_striking = False
+                        clear_all(a, region=tile)
                         a.mem_push('mem_casualties', 1.0)
                         a.mem_push('mem_promises', 1.0)
                 tile.unrest_level = max(0.0, getattr(tile, 'unrest_level', 0.0) - 0.15)

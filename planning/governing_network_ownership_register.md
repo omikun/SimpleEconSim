@@ -1,8 +1,25 @@
 # Governing network: first integration contract and ownership register
 
-Date: October 30, 2026.
+Updated: November 1, 2026.
 
-This records milestones 1–2 of the [governing plan](governing_network_implementation_plan.md). The implemented slice observes Egypt's existing economy and shows its three civilian communities. It runs a small experimental pressure graph alongside the campaign. It does **not** change recruitment, legitimacy, unrest, production, government replacement or victory conditions. Milestones 3–4 remain the next governing delivery; the opposition phase remains later.
+This records the observation and first active governing slices of the [governing plan](governing_network_implementation_plan.md). `Observe` retains the read-only contract below. `Governing` replaces scenario recruitment with autonomous network coordination, executed through existing labor and scenario handlers. It introduces no separate economic ledger, action currency or government-transition resolver. Human usability and balance remain milestone-4 gates; opposition remains later.
+
+## Active governing contract
+
+| Responsibility | Owner and boundary |
+|---|---|
+| Frozen material facts and graph | `governing_network` retains current actor references and a bounded 24-observation journal. Version-1 observe is unchanged; version-2 governing adds participation state. |
+| Autonomous household coordination | `governing_collectives` evaluates individual food/arrears grievances, shared pressure, contacts, cohesion, delivery trust, risk, repression memory and survival resources. Stable personal differences consume no economic RNG. Petitions are demands now; strikes are intentions for the following turn. |
+| Next-turn execution | Both native engines call `prepare_turn` before `sim_engine.step_turn`. Live location, need, actual rations/stocks, work availability, survival capacity and settlement conditions are rechecked. Each intent is consumed once. Existing production and payroll read the resulting Boolean; no extra output penalty is applied. |
+| Strike ownership | `agents/strike_status.py` holds namespaced sources for enrolled actors. Workplace and enclosure settlements remove their own source. Network bargains remove only consenting participants' network source. Explicit whole-person repression clears all affected sources. Off/observe actors keep the legacy Boolean and gain no registry. |
+| Generic escalation | Network-only withholding does not also count toward the generic route-wide general-strike freeze. Independent workplace/resistance sources can still cause it. |
+| Existing scenario recruitment and mutual aid | In governing mode `_organize` uses actual network participants rather than legacy hunger-only recruits. The same handler still transfers real automatic mutual-aid food. Off/observe use `_legacy_recruit`. |
+| Funded local bargaining | Existing owners fund cash grants and wage offers through existing transfers. Zero-funded terms fail before wages or political rewards change. Actual recipients decide individually whether to accept a three-turn ceasefire; worsening needs can break it. Existing campaign unrest/legitimacy consequences occur once. No representative binds all followers. |
+| Material policy and authority | `governing_actions` previews read-only real costs and routes to the existing action dispatcher. Foreign map inspection does not change the player's Egyptian treasury authority. One existing major decision per turn remains. |
+| Causal chain | Native plan → consumed participation → actual firm workforce hours → production events are linked. The network journal records pressure sources, contact/opposition terms and individual thresholds. UI explanations use observed participation reasons and actual payment receipts. |
+| Player interface | The shared governing view exposes grain routes, up to two common demand cards, local terms/arrears responses and all four due debt choices. All policies/back and scrolling retain the fuller existing campaign decisions. Urgent scenario dialogs retain their existing choices and input priority in the primary client; inline debt responses clear the resolved warning instead of stalling later phases. Ordinary option announcements stay suppressed. No recurring rally action is added. |
+
+The active graph adds the authored Nile Valley–Cairo contact and local household/holder counteredges. Friendly pressure diffuses synchronously; opposing pressure reduces the other side's field within a bounded budget. Owner property pressure follows actual seizures with decaying memory. Owner influence is currently counterpressure rather than an independent economic veto; merchants do not yet have autonomous bargaining. These authored group contacts are a coarse first integration, not a complete personal relationship network.
 
 ## One authority per material effect
 
@@ -21,7 +38,7 @@ This records milestones 1–2 of the [governing plan](governing_network_implemen
 | Succession/deposition | Existing core regime and scenario political transition paths | No displaced-player identity or second transition executor yet. |
 | Experiment state | `scenarios/governing_network.py` | Versioned, serializable observation sidecar only; authoritative state remains outside it. |
 
-## Strike-writer audit and the next mutation gate
+## Original strike-writer audit and its resolution
 
 `is_striking` is one shared Boolean with several independent writers:
 
@@ -31,9 +48,9 @@ This records milestones 1–2 of the [governing plan](governing_network_implemen
 - `micro/labor_politics.py` can clear strikes through national armed strikebreaking.
 - `agents/agent.py` initializes the flag. `micro/region_production.py` uses it to exclude workers from actual production, including independent producers.
 
-Simply replacing `_organize` recruitment would leave overlapping sources vulnerable to clearing each other's flags. Simply adding new network recruits could also trigger generic escalation in addition to their actual withheld work. The observation implementation changes **none** of these writers.
+Simply replacing `_organize` recruitment would leave overlapping sources vulnerable to clearing each other's flags. Simply adding new network recruits could also trigger generic escalation in addition to their actual withheld work. The source registry and escalation boundary above address these problems only for enrolled governing actors. The migrated writers retain their legacy behavior outside governing mode.
 
-Before enabling the `governing` mode, implement an explicit source/participant contract: ending one organization must not end another's continuing strike, national repression must deliberately settle the sources it affects, and a network petition must not trigger a production penalty. Prove overlapping-source tests and the actual labor consumption boundary before shipping network-driven recruitment. This is an engineering exit gate, not a request for additional user permission.
+Focused tests now exercise actual workplace offers, enclosure dissolution, overlapping sources, deliberate repression and native withheld-hours/zero-output causal links. A connected-versus-fragmented fixture changes actual participation under equal hardship. Quiet society, funded next meals, individually rejected bargains and unfunded failure paths are covered. See the [active-phase report](reports/governing_network_governing.md) for executed results and baseline limitations.
 
 ## Turn order
 
@@ -45,7 +62,7 @@ Before enabling the `governing` mode, implement an explicit source/participant c
 
 Consequently the UI labels its data “after turn N food and taxes,” not a final forecast of the later political phases. Between-turn policy selections do not rewrite this completed observation. Opening conditions are recorded at campaign creation without pretending an economic turn has already run.
 
-Both `client.desktop.engine` and the legacy `worldview_engine` use this shared scenario boundary. A future governing cohort should be prepared from a frozen observation and consumed before the **next** turn's relevant labor step. It must not retroactively remove completed work or run a second leadership check.
+Both `client.desktop.engine` and the legacy `worldview_engine` use this shared scenario boundary. Governing mode consumes the previous frozen intent immediately before step 1, then plans the next cohort after step 4. It does not retroactively remove completed work or run a second leadership check.
 
 ## Three views of the same population
 
@@ -63,7 +80,7 @@ Each district has up to three organization nodes, referencing the real membershi
 
 The observer computes directed reachability and weak components. A synchronous diffusion step carries old pressure one contact at a time and retains memory. Its receive budget bounds the sum of contact weights, so high degree cannot make pressure explode. For each channel it records old pressure, the material contribution, individual contact contributions, empty-membership adjustment and the result. Those terms reconstruct the update.
 
-Food, arrears, property and trade remain separate diagnostic channels. This first slice does not yet model opposing-channel competition, actual organizing capacity, autonomous political bargaining or collective-action thresholds. A connected-versus-fragmented graph changes the **diagnostic propagation**, not mobilization in the real economy. Do not describe that as a completed network-effects gameplay test.
+Food, arrears, property and trade remain separate channels. In observe mode they are diagnostics only. Governing mode adds the opposing terms, organization memory and actual participation described above; it retains exact pressure contributions for reconstruction. The observation report's connected/fragmented test establishes propagation; the governing test separately establishes a change in actual work-withholding participants.
 
 ## Minimal grain-crisis storyboard
 
@@ -77,15 +94,15 @@ Food, arrears, property and trade remain separate diagnostic channels. This firs
 
 The rendered community panel is the milestone-1 UI mock made concrete: three concerns visible over the existing terrain, beside the unchanged campaign decisions. Hiding it changes presentation only. No individual inspector or graph lesson is required to read those concerns.
 
-The audit also found two different existing scenario interfaces: the primary desktop has a shorter decision panel, while the legacy worldview panel exposes the private-grain routes and more campaign responses. This slice shares the observation overlay across both; it does not silently merge those clients. The three-policy verification uses the real scenario action dispatcher. The rendered primary-client playthrough exercises its existing reserve-release button. Milestone 3 must expose the grain routes and relevant dispute responses coherently in the primary client's normal decisions before claiming a playable integrated governing loop.
+The audit found two different existing scenario interfaces: the primary desktop had a shorter decision panel, while the legacy worldview panel exposed more policies. Governing mode now shares a compact policy/dispute view between both and exposes the full existing policy panel through All policies. Rendered primary-client playthroughs exercise the real purchase, seizure and private-sales buttons alongside reserve distribution and debt responses.
 
 ## Modes, persistence and journal
 
-At scenario creation, `off` preserves prior behavior and `observe` enables this slice. `governing` is deliberately rejected until the recruitment gate above is passed. The desktop option is `--scenario egypt-1877 --ui-mode guided --governing-network observe`; the programmatic creation argument is `governing_network_mode='observe'` on either native builder. Restart preserves the selected creation option.
+At scenario creation, `off` preserves prior behavior, `observe` enables read-only diagnostics and `governing` enables the active slice. The desktop option is `--scenario egypt-1877 --ui-mode guided --governing-network governing`; use `observe` for comparison. Either native builder accepts the corresponding `governing_network_mode`. Restart preserves the selected creation option.
 
 An otherwise compatible save with no sidecar remains off; the existing native checkpoint's source-version checks still apply. Version 1 stores the selected mode, scenario identity, frozen actor IDs and material inputs, graph, diagnostics and a bounded 24-observation journal. It fits the existing native checkpoint graph. Mode/version/reference validation rejects unsupported or inconsistent state instead of silently converting it. There is no live mode switch in Settings.
 
-The diagnostic journal has its own deterministic observation IDs. It deliberately does not emit new events into the authoritative trace clock: some existing business-operation IDs include that clock's sequence. Actual grain transaction receipts remain available in the frozen input snapshot. This boundary lets observing remain observational even for trace identity. The journal does not claim that every concurrent change was caused by the most recent policy.
+The diagnostic journal has its own deterministic observation IDs. Observe mode emits no extra authoritative trace events: some business-operation IDs include that clock's sequence. Governing mode additionally emits actual plan/participation decisions into the native trace, linking real food-intake causes when available and actual workforce outcomes. Native checkpoint restore deliberately forks recording identity; continuation tests retain all material/decision values while excluding only new native `trace_event_id` references. The journal does not claim every concurrent change was caused by the most recent policy.
 
 ## Verification and remaining work
 
@@ -93,4 +110,4 @@ The focused tests cover read-only behavior, RNG preservation, real/overlapping m
 
 `scripts.verify_governing_network` compares three real grain-policy routes with observations off/on, tracing off/on and both native engines, in fresh processes with fixed Python, NumPy and hash seeds. It compares all sampled economic metrics each turn and the complete canonical economic graph, including RNG and gameplay globals, at the end. In addition to the repository's existing canonical normalization, it removes the documented observation sidecar and relabels the exact native recorder run UUID, retaining event sequence suffixes and all quantities. The [verification report](reports/governing_network_observation.md) records the executed results.
 
-Milestone 3 still requires the strike-source contract, opposing pressure and actual autonomous participation, next-turn intent consumption, and a small number of integrated dispute responses. Milestone 4 still requires materially different full policy routes and human usability evidence. Neither a diagnostic graph nor deterministic replay establishes that governing is fun. Loss-and-return remains milestone 5.
+The first milestone-3 governing loop is implemented. Milestone 4 has automated route, counterfactual and rendered-control evidence, with results and scope in the [active report](reports/governing_network_governing.md). Human usability and balancing remain open. Neither deterministic replay nor a rendered script establishes that governing is fun. Loss-and-return remains milestone 5.

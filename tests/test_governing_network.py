@@ -215,7 +215,7 @@ class GoverningNetworkTests(unittest.TestCase):
         self.assertEqual(world['scenario_state'][network.KEY], copied['scenario_state'][network.KEY])
 
     def test_future_modes_versions_live_conversion_and_invalid_references_fail_closed(self):
-        for selection in ('governing', 'invalid'):
+        for selection in ('future', 'invalid'):
             with self.assertRaises(ValueError):
                 network.initialize(fixture(), selection)
         with self.assertRaises(ValueError):
@@ -228,6 +228,8 @@ class GoverningNetworkTests(unittest.TestCase):
         network.initialize(world, 'observe')
         with self.assertRaisesRegex(ValueError, 'new campaign'):
             network.initialize(world, 'off')
+        with self.assertRaisesRegex(ValueError, 'new campaign'):
+            network.initialize(world, 'governing')
         state = world['scenario_state'][network.KEY]
         state['nodes']['a:households']['member_ids'] = [999]
         with self.assertRaises(ValueError):
