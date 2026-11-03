@@ -1,0 +1,7 @@
+{
+  "micro/foraging.py": "7dfe113c34b59e004c99e9664fafda2662a2c373f9ba6bb750d91b97abf8a25d",
+  "micro/work_allocation.py": "b941b8df983f7c635ca95efbac2a4665b601ff03130e5424a774bac08bafc2eb",
+  "micro/region/core.py": "afd0f6ec15aa14c3a9b69bc2834af86e92bdce1d3e7468fc3236836f3050b0c1",
+  "micro/households.py": "e55ba52336f6e9662fee1e28a858952fd86af37d1f97a68b90307da3f09f1f2d",
+  "micro/land_tenure.py": "acc7235011235a9b573d1d2ffd1db3bc23c8c67bc10d52feb39e8b735327e50b"
+}

@@ -1,0 +1,24 @@
+{
+  "seed": 4243,
+  "turns": 60,
+  "initial_residents": 70,
+  "treatment_yield_factor_at_turn_16": 2,
+  "source_before": "642fa60b2fcd071b3239c886e627718e4a112cdc8869637c48460d2184c2e6aa",
+  "python_hash_seed": "unset",
+  "cases": {
+    "higher_productivity": {
+      "path": "planning/reports/abundance_distribution_recheck_20261030/higher_productivity_4243.json",
+      "exit_code": 0,
+      "stdout": "{\"seed\": 4243, \"turns\": 60, \"productivity_at_turn_16\": 2.0, \"cash_conservation_violations\": []}",
+      "stderr": ""
+    },
+    "control": {
+      "path": "planning/reports/abundance_distribution_recheck_20261030/control_4243.json",
+      "exit_code": 0,
+      "stdout": "{\"seed\": 4243, \"turns\": 60, \"productivity_at_turn_16\": 1.0, \"cash_conservation_violations\": []}",
+      "stderr": ""
+    }
+  },
+  "source_after": "642fa60b2fcd071b3239c886e627718e4a112cdc8869637c48460d2184c2e6aa",
+  "source_unchanged": true
+}

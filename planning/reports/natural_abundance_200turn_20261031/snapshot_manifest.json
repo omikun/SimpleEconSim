@@ -1,0 +1,22 @@
+{
+  "snapshot_root": "/private/tmp/natural-abundance-200turn-20261031-ypso41zf",
+  "source_signature": "0c16a014de22e1d033aaefb05c5a5cc124d9bca12c145233d53d352f5b7f8bae",
+  "python": "/Users/sli/Code/venv/bin/python",
+  "copied_folders": [
+    "core",
+    "agents",
+    "micro",
+    "macro",
+    "meso",
+    "economy",
+    "terrain",
+    "scenarios",
+    "trace",
+    "sim_server",
+    "scripts",
+    "people_network",
+    "client/worldview",
+    "tests"
+  ],
+  "python_hash_seed": "0"
+}

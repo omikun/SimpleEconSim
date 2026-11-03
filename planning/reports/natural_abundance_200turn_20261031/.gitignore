@@ -1,0 +1,2 @@
+# Transient progress, rather than accepted observations.
+*.progress.json

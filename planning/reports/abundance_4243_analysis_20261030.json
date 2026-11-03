@@ -1,0 +1,74 @@
+{
+  "seed": 4243,
+  "run": "higher_productivity_4243",
+  "windows": [
+    {
+      "turns": [
+        1,
+        10
+      ],
+      "population": 72.4,
+      "food_produced": 153,
+      "food_price": 0.9671,
+      "food_stock": 747.4,
+      "prepared_food_produced": 0.9,
+      "prepared_food_price": 3.5151,
+      "calorie_deficit_share_percent": 0.4286
+    },
+    {
+      "turns": [
+        21,
+        30
+      ],
+      "population": 133.3,
+      "food_produced": 505.3,
+      "food_price": 0.7576,
+      "food_stock": 3646.6,
+      "prepared_food_produced": 12.3,
+      "prepared_food_price": 11.7352,
+      "calorie_deficit_share_percent": 5.6778
+    },
+    {
+      "turns": [
+        31,
+        40
+      ],
+      "population": 182.4,
+      "food_produced": 437.1,
+      "food_price": 0.6561,
+      "food_stock": 6086.3,
+      "prepared_food_produced": 24.4,
+      "prepared_food_price": 12.1198,
+      "calorie_deficit_share_percent": 7.248
+    },
+    {
+      "turns": [
+        41,
+        50
+      ],
+      "population": 246.3,
+      "food_produced": 380.4,
+      "food_price": 0.5826,
+      "food_stock": 6341.8,
+      "prepared_food_produced": 17.4,
+      "prepared_food_price": 10.1539,
+      "calorie_deficit_share_percent": 10.5125
+    },
+    {
+      "turns": [
+        51,
+        60
+      ],
+      "population": 289.4,
+      "food_produced": 221.5,
+      "food_price": 0.5214,
+      "food_stock": 4913.9,
+      "prepared_food_produced": 7.5,
+      "prepared_food_price": 13.2396,
+      "calorie_deficit_share_percent": 13.9398
+    }
+  ],
+  "raw_food_produced_total": 19617,
+  "prepared_food_produced_total": 673,
+  "first_processing_turn": 8
+}

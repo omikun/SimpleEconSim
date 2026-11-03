@@ -130,7 +130,7 @@ def canonical_state(tiles,nations,*,extra=None):
                     omitted['settled_sale_receipt_event_ids']+=1
                     continue
                 if skip(k,event,'source_link_status' in value,set(value)=={'turn','value','event_id'}):continue
-                if k=='sequence' and 'turn' in value and isinstance(v,int):v=sequence_ranks[v]
+                if k=='sequence' and 'turn' in value and isinstance(v,int):v=sequence_ranks[journal_scopes[id(value)],v]
                 if k=='source_id' and 'kind' in value and 'amount' in value and (v is None or
                         isinstance(v,str) and re.match(r'^(?:desktop-)?[0-9a-f]{32}(?:-[0-9]+)?:',v)):
                     omitted[k]+=1;continue
@@ -154,14 +154,18 @@ def canonical_state(tiles,nations,*,extra=None):
             result['fields']={name:encode(item) for name,item in sorted(fields.items()) if not skip(name)}
         objects[number]=result
     discovered=set()
-    to_discover=[{'tiles':tiles,'nations':nations,'globals':globals_state,'extra':extra}]
+    # Current-world journals share one clock. Retained globals can contain an
+    # earlier world's independent clock; its numbers must not interleave ranks
+    # with this world's records when optional tracing inserts extra gaps.
+    journal_scopes={}
+    to_discover=[(globals_state,'retained'),(extra,'world'),(nations,'world'),(tiles,'world')]
     while to_discover:
-        value=to_discover.pop()
+        value,scope=to_discover.pop()
         if isinstance(value,types.FunctionType):
             if id(value) not in discovered:
                 discovered.add(id(value))
-                to_discover.extend((value.__defaults__,value.__kwdefaults__,value.__dict__))
-                to_discover.extend(cell.cell_contents for cell in value.__closure__ or ())
+                to_discover.extend((item,scope) for item in (value.__defaults__,value.__kwdefaults__,value.__dict__))
+                to_discover.extend((cell.cell_contents,scope) for cell in value.__closure__ or ())
             continue
         if isinstance(value,(str,bytes,int,float,bool,type(None),Enum,np.ndarray,np.generic,
                              type,types.BuiltinFunctionType,types.ModuleType,re.Pattern)):
@@ -170,19 +174,22 @@ def canonical_state(tiles,nations,*,extra=None):
         discovered.add(id(value))
         if isinstance(value,dict):
             items=list(value.items())
-            if 'turn' in value and isinstance(value.get('sequence'),int):journal_sequences.add(value['sequence'])
+            if 'turn' in value and isinstance(value.get('sequence'),int):
+                journal_scopes[id(value)]=scope
+                journal_sequences.add((scope,value['sequence']))
         elif isinstance(value,(list,tuple,deque,set,frozenset)):
-            to_discover.extend(reversed(list(value)));continue
+            to_discover.extend((item,scope) for item in reversed(list(value)));continue
         else:items=list(fields_of(value).items())
         for name,item in items:
             if isinstance(name,str) and (name in OBSERVATIONAL_FIELDS or name.startswith('_trace_') or name.endswith(('_trace_event_id','_trace_event_ids','_trace_id','_trace_ids'))):continue
             if name in {'intent_id','project_id','bill_id','contract_id','petition_id'} or (name=='id' and isinstance(item,str) and item.startswith('bill_')):register(item)
-        to_discover.extend(item for name,item in reversed(items) if not (isinstance(name,str) and (name in OBSERVATIONAL_FIELDS or name.startswith('_trace_') or name.endswith(('_trace_event_id','_trace_event_ids','_trace_id','_trace_ids')))))
+        to_discover.extend((item,scope) for name,item in reversed(items) if not (isinstance(name,str) and (name in OBSERVATIONAL_FIELDS or name.startswith('_trace_') or name.endswith(('_trace_event_id','_trace_event_ids','_trace_id','_trace_ids')))))
     if identities:
         pattern=re.compile(r'(?<![0-9a-f])(?:'+'|'.join(re.escape(value) for value in sorted(identities,key=len,reverse=True))+r')(?![0-9a-f])')
     # Tracing inserts records into the shared journal clock. Preserve exact
     # relative order and ties across journals while removing those inserted gaps.
-    sequence_ranks={value:index for index,value in enumerate(sorted(journal_sequences),1)}
+    sequence_ranks={(scope,value):index for scope in ('world','retained')
+                    for index,value in enumerate(sorted(v for s,v in journal_sequences if s==scope),1)}
     root=encode({'tiles':tiles,'nations':nations,'globals':globals_state,'extra':extra,
                  'python_rng':random.getstate(),'numpy_rng':np.random.get_state()})
     while pending:

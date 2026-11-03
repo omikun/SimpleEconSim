@@ -1,0 +1,201 @@
+{
+  "source_signature": "0c16a014de22e1d033aaefb05c5a5cc124d9bca12c145233d53d352f5b7f8bae",
+  "seeds": [
+    {
+      "seed": 4243,
+      "population_end": 368,
+      "crop_rotation_discovered_turn": 53,
+      "food_technology_installations_ever": 0,
+      "known_technologies_end": 7,
+      "farm_food_mean_first_20": 108.15,
+      "farm_food_mean_last_20": 342.0,
+      "forage_share_last_20": 0.7488618005580849,
+      "food_quote_mean_first_20": 1.0626517728951312,
+      "food_quote_mean_last_20": 3.177176526684644,
+      "paid_food_vwap_first_20": 1.026417756940926,
+      "paid_food_vwap_last_20": 2.9803245049917924,
+      "underfed_share_last_20": 0.034493101379724056,
+      "starvation_deaths": 3,
+      "prepared_food_output_first_20": 322,
+      "prepared_food_output_last_20": 0,
+      "farm_practice_gain_end": 0.06772834149449936,
+      "farm_adult_share_end": 0.967391304347826,
+      "same_outcomes_as_initial_live_run": true
+    },
+    {
+      "seed": 4242,
+      "population_end": 410,
+      "crop_rotation_discovered_turn": 46,
+      "food_technology_installations_ever": 0,
+      "known_technologies_end": 5,
+      "farm_food_mean_first_20": 101.95,
+      "farm_food_mean_last_20": 428.4,
+      "forage_share_last_20": 0.7344408628812298,
+      "food_quote_mean_first_20": 1.0776210049714414,
+      "food_quote_mean_last_20": 2.440590921918242,
+      "paid_food_vwap_first_20": 1.049059276745639,
+      "paid_food_vwap_last_20": 2.28676310853305,
+      "underfed_share_last_20": 0.024140168721609345,
+      "starvation_deaths": 17,
+      "prepared_food_output_first_20": 313,
+      "prepared_food_output_last_20": 48,
+      "farm_practice_gain_end": 0.06746170267418816,
+      "farm_adult_share_end": 0.9408284023668639,
+      "same_outcomes_as_initial_live_run": true
+    },
+    {
+      "seed": 4244,
+      "population_end": 404,
+      "crop_rotation_discovered_turn": 61,
+      "food_technology_installations_ever": 0,
+      "known_technologies_end": 8,
+      "farm_food_mean_first_20": 112.2,
+      "farm_food_mean_last_20": 390.2,
+      "forage_share_last_20": 0.7452670061365714,
+      "food_quote_mean_first_20": 1.089014402574109,
+      "food_quote_mean_last_20": 3.2927400351103424,
+      "paid_food_vwap_first_20": 1.0136123622759856,
+      "paid_food_vwap_last_20": 2.9887082950496167,
+      "underfed_share_last_20": 0.02598468271334792,
+      "starvation_deaths": 9,
+      "prepared_food_output_first_20": 251,
+      "prepared_food_output_last_20": 9,
+      "farm_practice_gain_end": 0.0729477369727416,
+      "farm_adult_share_end": 0.9555555555555556,
+      "same_outcomes_as_initial_live_run": true
+    }
+  ],
+  "seed_4243_constraint_periods": [
+    {
+      "turns": [
+        1,
+        20
+      ],
+      "withheld_farmers_share": 0.0,
+      "inventory_full_farmers_share": 0.03483870967741935,
+      "eligible_farmers_share": 0.9651612903225807,
+      "pollution_revolt_farmers_share": 0.0,
+      "successful_operations_per_farm_worker_snapshot": 0.3574193548387097,
+      "earned_practice_per_farm_worker_snapshot": 0.26806451612903226
+    },
+    {
+      "turns": [
+        21,
+        40
+      ],
+      "withheld_farmers_share": 0.0,
+      "inventory_full_farmers_share": 0.00909090909090909,
+      "eligible_farmers_share": 0.990909090909091,
+      "pollution_revolt_farmers_share": 0.0,
+      "successful_operations_per_farm_worker_snapshot": 0.3784090909090909,
+      "earned_practice_per_farm_worker_snapshot": 0.2838068181818182
+    },
+    {
+      "turns": [
+        41,
+        60
+      ],
+      "withheld_farmers_share": 0.0,
+      "inventory_full_farmers_share": 0.0,
+      "eligible_farmers_share": 1.0,
+      "pollution_revolt_farmers_share": 0.0,
+      "successful_operations_per_farm_worker_snapshot": 0.4445064138315672,
+      "earned_practice_per_farm_worker_snapshot": 0.3333798103736754
+    },
+    {
+      "turns": [
+        61,
+        80
+      ],
+      "withheld_farmers_share": 0.3247110621904238,
+      "inventory_full_farmers_share": 0.000825536598789213,
+      "eligible_farmers_share": 0.674463401210787,
+      "pollution_revolt_farmers_share": 0.3247110621904238,
+      "successful_operations_per_farm_worker_snapshot": 0.2754540451293341,
+      "earned_practice_per_farm_worker_snapshot": 0.20659053384700055
+    },
+    {
+      "turns": [
+        81,
+        100
+      ],
+      "withheld_farmers_share": 0.7350381814952939,
+      "inventory_full_farmers_share": 0.035872846741253774,
+      "eligible_farmers_share": 0.2290889717634523,
+      "pollution_revolt_farmers_share": 0.7350381814952939,
+      "successful_operations_per_farm_worker_snapshot": 0.0747646954359794,
+      "earned_practice_per_farm_worker_snapshot": 0.05607352157698455
+    },
+    {
+      "turns": [
+        101,
+        120
+      ],
+      "withheld_farmers_share": 0.8547671840354767,
+      "inventory_full_farmers_share": 0.01979727589483687,
+      "eligible_farmers_share": 0.1254355400696864,
+      "pollution_revolt_farmers_share": 0.8544504276211593,
+      "successful_operations_per_farm_worker_snapshot": 0.0378523915109281,
+      "earned_practice_per_farm_worker_snapshot": 0.028587266392144442
+    },
+    {
+      "turns": [
+        121,
+        140
+      ],
+      "withheld_farmers_share": 0.9059356136820925,
+      "inventory_full_farmers_share": 0.0006706908115358819,
+      "eligible_farmers_share": 0.09339369550637157,
+      "pollution_revolt_farmers_share": 0.9059356136820925,
+      "successful_operations_per_farm_worker_snapshot": 0.03437290409121395,
+      "earned_practice_per_farm_worker_snapshot": 0.02577967806841046
+    },
+    {
+      "turns": [
+        141,
+        160
+      ],
+      "withheld_farmers_share": 0.8769579165880355,
+      "inventory_full_farmers_share": 0.002453293074164937,
+      "eligible_farmers_share": 0.12058879033779958,
+      "pollution_revolt_farmers_share": 0.8769579165880355,
+      "successful_operations_per_farm_worker_snapshot": 0.04151726740894508,
+      "earned_practice_per_farm_worker_snapshot": 0.031137950556708812
+    },
+    {
+      "turns": [
+        161,
+        180
+      ],
+      "withheld_farmers_share": 0.6324335723323492,
+      "inventory_full_farmers_share": 0.05630535638970898,
+      "eligible_farmers_share": 0.3112610712779418,
+      "pollution_revolt_farmers_share": 0.6324335723323492,
+      "successful_operations_per_farm_worker_snapshot": 0.0919443272880641,
+      "earned_practice_per_farm_worker_snapshot": 0.06895824546604808
+    },
+    {
+      "turns": [
+        181,
+        200
+      ],
+      "withheld_farmers_share": 0.25373737373737376,
+      "inventory_full_farmers_share": 0.1507070707070707,
+      "eligible_farmers_share": 0.5955555555555555,
+      "pollution_revolt_farmers_share": 0.25373737373737376,
+      "successful_operations_per_farm_worker_snapshot": 0.16686868686868686,
+      "earned_practice_per_farm_worker_snapshot": 0.12515151515151515
+    }
+  ],
+  "seed_4243_adoption_decision_counts": {
+    "no_operating_workforce": 297,
+    "no_realized_demand": 4
+  },
+  "accepted_as_abundance": false,
+  "checks": {
+    "all_600_turns_complete": true,
+    "currency_audit_violations": 0,
+    "negative_inventory_failures": 0,
+    "observer_replay_exact": true
+  }
+}

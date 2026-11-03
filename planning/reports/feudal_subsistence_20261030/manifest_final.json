@@ -1,0 +1,29 @@
+{
+  "source_before": "523424bd1fc495b8e49a789025008bba4dfc4e4b9bfad5e1082b1e10def4902e",
+  "source_after": "523424bd1fc495b8e49a789025008bba4dfc4e4b9bfad5e1082b1e10def4902e",
+  "cases": [
+    {
+      "case": "higher_productivity",
+      "seed": 4243,
+      "productivity": 2,
+      "outcomes_identical_to_saved": true,
+      "cash_violations": 0
+    },
+    {
+      "case": "control",
+      "seed": 4243,
+      "productivity": 1,
+      "outcomes_identical_to_saved": true,
+      "cash_violations": 0
+    },
+    {
+      "case": "higher_productivity",
+      "seed": 4242,
+      "productivity": 2,
+      "outcomes_identical_to_saved": true,
+      "cash_violations": 0
+    }
+  ],
+  "note": "Final-source confirmation after a checkpoint journal-clock normalization repair; economic observations match the original acceptance runs exactly.",
+  "source_unchanged": true
+}

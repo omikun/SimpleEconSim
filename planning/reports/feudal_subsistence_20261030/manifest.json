@@ -1,0 +1,28 @@
+{
+  "cases": [
+    {
+      "case": "higher_productivity",
+      "seed": 4243,
+      "productivity": 2,
+      "file": "higher_productivity_4243.json",
+      "exit_code": 0
+    },
+    {
+      "case": "control",
+      "seed": 4243,
+      "productivity": 1,
+      "file": "control_4243.json",
+      "exit_code": 0
+    },
+    {
+      "case": "higher_productivity",
+      "seed": 4242,
+      "productivity": 2,
+      "file": "higher_productivity_4242.json",
+      "exit_code": 0
+    }
+  ],
+  "source_before": "cf8b8b06a08abd899170371e2664770df8154242cd44501788a428d47200b59c",
+  "source_after": "cf8b8b06a08abd899170371e2664770df8154242cd44501788a428d47200b59c",
+  "source_unchanged": true
+}

@@ -1,0 +1,24 @@
+{
+  "turn": 18,
+  "local_food": 0.084,
+  "requested_debit": 1,
+  "site": "Abundance parish",
+  "status": "failed",
+  "error": "Insufficient local institutional food",
+  "source_signature_before": "0bfa603b7899cc50208290523fa37df7dd0376352196018ec0567d738431c5d6",
+  "source_signature_after": "0bfa603b7899cc50208290523fa37df7dd0376352196018ec0567d738431c5d6",
+  "reviewed_source_sha256": {
+    "scripts/food_growth.py": "dbca225c8fd7a8aaa36140301a590b89ec2f0fc7511e34c2fe41941ae348a3b4",
+    "scripts/audit_natural_abundance.py": "03614d21313b73124707cb717666a5f81e85fc61486a33304839d74868b60903",
+    "scripts/review_food_growth.py": "dc6841f1c5748c5f5461cead6014a6608e41f79340d2ea00a38f76e254cd7bc4",
+    "tests/test_food_growth.py": "c5add391134a8ecd1c3653b059b937001b1deff7c69c5e295600375d347d7e07",
+    "micro/agriculture.py": "f8b73771fde5e308401ec7221cb4f780ac49b39568981c72e65b729b5bf39605",
+    "micro/work_allocation.py": "7285db44a8f8794c9de6b2e141753d55faee6c96b2ada1a1200f6ff789ab66df",
+    "micro/foraging.py": "3c5f8cf7fabec0021fce1065e31f2fb645d2de56d428bf314efe64a510463c68",
+    "micro/pollution_response.py": "17e3ce5770118bed22e0f4321177796575d300e77229eefb690d57e3718d7874",
+    "economy/technology_adoption.py": "ff2763a5443ef2d6d25966b4e12f0323f14e3e9afb004e8be4ff3cb3a926aa05",
+    "agents/demographics_reproduction.py": "6614d3fcfb324a2774cf2dafe671a9f9741072f7c094aab7bcf8b49c0c335f29",
+    "macro/government.py": "51c6d34bbf9ec09d7574528521ba62cb23fc67ed3a58309863fcec359bfb06ef",
+    "core/food_store.py": "99813d57f7e4999e6cdd69b33e50d52724c2e0350dcaef00d5538518489c15c3"
+  }
+}

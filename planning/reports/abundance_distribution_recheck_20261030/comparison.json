@@ -1,0 +1,54 @@
+{
+  "higher_productivity": {
+    "all_recorded_outcomes_identical": true,
+    "differing_turns": [],
+    "before": {
+      "final_population": 304,
+      "final_underfed": 45,
+      "final_underfed_percent": 14.802631578947368,
+      "mean_final20_underfed_percent": 12.226143016435154,
+      "final_food_stock": 4125.0,
+      "final_grain_reference_price": 0.4956134154695985,
+      "total_prepared_food": 673,
+      "underfed_person_turns": 907,
+      "cash_audit_violations": 0
+    },
+    "after": {
+      "final_population": 304,
+      "final_underfed": 45,
+      "final_underfed_percent": 14.802631578947368,
+      "mean_final20_underfed_percent": 12.226143016435154,
+      "final_food_stock": 4125.0,
+      "final_grain_reference_price": 0.4956134154695985,
+      "total_prepared_food": 673,
+      "underfed_person_turns": 907,
+      "cash_audit_violations": 0
+    }
+  },
+  "control": {
+    "all_recorded_outcomes_identical": true,
+    "differing_turns": [],
+    "before": {
+      "final_population": 231,
+      "final_underfed": 57,
+      "final_underfed_percent": 24.675324675324674,
+      "mean_final20_underfed_percent": 34.0424498184954,
+      "final_food_stock": 33.0,
+      "final_grain_reference_price": 1.1123451230249948,
+      "total_prepared_food": 321,
+      "underfed_person_turns": 1967,
+      "cash_audit_violations": 0
+    },
+    "after": {
+      "final_population": 231,
+      "final_underfed": 57,
+      "final_underfed_percent": 24.675324675324674,
+      "mean_final20_underfed_percent": 34.0424498184954,
+      "final_food_stock": 33.0,
+      "final_grain_reference_price": 1.1123451230249948,
+      "total_prepared_food": 321,
+      "underfed_person_turns": 1967,
+      "cash_audit_violations": 0
+    }
+  }
+}

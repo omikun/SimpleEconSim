@@ -1,0 +1,133 @@
+[
+  {
+    "event_id": "foraging-inequality-4243:245551",
+    "turn": 77,
+    "kind": "disease_onset_assessment",
+    "record_class": "outcome",
+    "subject": {
+      "type": "tile",
+      "id": "Abundance parish",
+      "agent_id": 104
+    },
+    "metric_id": "health.disease_incidence",
+    "unit": "cases",
+    "before": 0,
+    "after": 1,
+    "inputs": {
+      "risk_checks": {
+        "waterborne": {
+          "risk": 0.1026561634256052,
+          "capped_risk": 0.1026561634256052,
+          "draw": 0.02064634614518923,
+          "contracted": true
+        }
+      },
+      "newly_contracted": [
+        "waterborne"
+      ],
+      "active_diseases": [
+        "waterborne"
+      ],
+      "nutrition_density": 1.0,
+      "hungry_steps": 0.0,
+      "water_pollution": 45.6640408564013,
+      "air_pollution": 0.0,
+      "pesticide_residue": 0.0,
+      "sewer": false,
+      "germ_theory": false,
+      "pharmaceutical_chemistry": false,
+      "biological_pest_control": false
+    },
+    "formula_id": "disease.exposure_risk.v1"
+  },
+  {
+    "event_id": "foraging-inequality-4243:245988",
+    "turn": 77,
+    "kind": "medical_treatment_unaffordable",
+    "record_class": "outcome",
+    "subject": {
+      "type": "tile",
+      "id": "Abundance parish",
+      "agent_id": 104,
+      "disease": "waterborne"
+    },
+    "metric_id": "health.medical_treatment",
+    "unit": "treatment",
+    "before": 1,
+    "after": 1,
+    "inputs": {
+      "treatment_cost": 20.0,
+      "patient_cash": 0.0,
+      "public_care_available": false,
+      "public_funds_available": 19.24633398629404,
+      "reason": "patient_and_available_public_funds_below_cost"
+    }
+  },
+  {
+    "event_id": "foraging-inequality-4243:246149",
+    "turn": 77,
+    "kind": "pollution_health_assessment",
+    "after": 0.4666666666666667
+  },
+  {
+    "event_id": "foraging-inequality-4243:250760",
+    "turn": 78,
+    "kind": "commons_foraging",
+    "record_class": "outcome",
+    "subject": {
+      "type": "agent",
+      "id": 104,
+      "tile": "Abundance parish"
+    },
+    "metric_id": "labor.temporary_activity",
+    "unit": "turn_share",
+    "after": 0.25,
+    "formula_id": "commons.forage_activity.v1",
+    "inputs": {
+      "food_units": 4,
+      "good": "food",
+      "emergency_fallback": false,
+      "emergency_turn_share": 0.05,
+      "access": 0.5,
+      "turn": 78
+    }
+  },
+  {
+    "event_id": "foraging-inequality-4243:251191",
+    "turn": 78,
+    "kind": "independent_production_zero",
+    "record_class": "outcome",
+    "subject": {
+      "type": "agent",
+      "id": 104,
+      "tile": "Abundance parish",
+      "good": "food"
+    },
+    "metric_id": "goods.production",
+    "unit": "units",
+    "before": 0,
+    "after": 0,
+    "formula_id": "production.independent_zero.v1",
+    "cause_event_ids": null,
+    "inputs": {
+      "reason": "pollution_illness_revolt",
+      "agent_id": 104,
+      "output_good": "food",
+      "pollution_health_state": {
+        "turn": 77,
+        "stage": "revolt",
+        "rate": 0.4666666666666667,
+        "resident_count": 330,
+        "affected_count": 154,
+        "disease_counts": {
+          "waterborne": 154
+        },
+        "petition_threshold": 0.05,
+        "revolt_threshold": 0.2,
+        "assessment_event_id": "foraging-inequality-4243:246149",
+        "actor_104_is_in_revolt_participants": true,
+        "participant_count": 111
+      }
+    }
+  }
+]

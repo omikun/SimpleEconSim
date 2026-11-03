@@ -91,5 +91,20 @@ class SemanticStateTests(unittest.TestCase):
         right.journal[0]['sequence']=3
         self.assertNotEqual(self.state([left]),self.state([right]))
 
+    def test_retained_world_clock_does_not_interleave_current_journal_ranks(self):
+        retained={'journal':[{'turn':1,'sequence':90,'amount':11}]}
+        left=SimpleNamespace(journal=[{'turn':2,'sequence':20,'amount':5},
+                                      {'turn':2,'sequence':100,'amount':7}])
+        right=SimpleNamespace(journal=[{'turn':2,'sequence':1,'amount':5},
+                                       {'turn':2,'sequence':2,'amount':7}])
+        with patch('simulation_checkpoint.capture_globals',return_value=(retained,{})):
+            expected=canonical_state([left],[])['graph']
+            self.assertEqual(expected,canonical_state([right],[])['graph'])
+            right.journal[0]['sequence']=3
+            self.assertNotEqual(expected,canonical_state([right],[])['graph'])
+            right.journal[0]['sequence']=1
+            retained['journal'][0]['amount']=12
+            self.assertNotEqual(expected,canonical_state([right],[])['graph'])
+
 
 if __name__=='__main__':unittest.main()

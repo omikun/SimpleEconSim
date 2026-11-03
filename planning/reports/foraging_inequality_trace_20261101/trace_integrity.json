@@ -1,0 +1,16 @@
+{
+  "verification": {
+    "rows": 1011335,
+    "checkpoints": 0,
+    "sha256": "0b2a2816d99d956b6b523155edf453efb83697dc266ec0c77b299b1dd2c8587e",
+    "event_records": 1011156,
+    "coverage_groups": 3580,
+    "virtual_samples": 3759
+  },
+  "extracted_counts": {
+    "household_food_intake": 22796,
+    "medical_care_payment": 813,
+    "birth": 827,
+    "estate_company_dissolved": 3
+  }
+}
