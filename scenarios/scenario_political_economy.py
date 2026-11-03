@@ -1479,11 +1479,11 @@ def apply_action(world, nation, action_id, tile=None):
             owner_food_before = int(owner.inv_get(Goods.food, 0))
             owner_cash_before = float(owner.cash)
             treasury_before = float(treasury.cash)
-            public_food_before = int(nation.government.food_inventory)
+            public_food_before = nation.government.food_at(region)
             unrest_before = float(getattr(region, 'unrest_level', 0.0))
             owner.inv_add(Goods.food, -units)
             _set_reserved(world, region, reserved_before - units)
-            nation.government.food_inventory += units
+            nation.government.add_food(region, units)
             if price:
                 grain_public_change=begin_public_change(region,treasury)
                 treasury.cash -= units * price
@@ -1502,7 +1502,7 @@ def apply_action(world, nation, action_id, tile=None):
                 owner_food_before=owner_food_before,
                 owner_food_after=int(owner.inv_get(Goods.food, 0)),
                 public_food_before=public_food_before,
-                public_food_after=int(nation.government.food_inventory),
+                public_food_after=nation.government.food_at(region),
                 details={'unit_price': price, 'warehouse_reserve_before': reserved_before,
                          'warehouse_reserve_after': _reserved(world, region),
                          'treasury_cash_before': treasury_before,

@@ -86,6 +86,12 @@ _recipes_init = {
         'commodity': Goods.gov, 'production': 0, 'numInput': 0, 'price': 1,
         'maxtotalprod': 0, 'maxinv': 0,
     },
+    Goods.prepared_food: {
+        'commodity': Goods.prepared_food, 'production': 4, 'input': Goods.food,
+        'numInput': 4, 'price': 1.75, 'maxtotalprod': 2000, 'maxinv': 16,
+        'setup_good': Goods.furniture, 'setup_units': 1,
+        'household_use': True,
+    },
 }
 
 for _g, _r in _recipes_init.items():

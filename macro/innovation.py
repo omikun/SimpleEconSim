@@ -142,6 +142,7 @@ class Technology:
     tier_dependencies: dict[int, list[str]] = field(default_factory=dict)
     incumbent_guild: str = ""
     protectionist_law: str = ""
+    source_urls: list[str] = field(default_factory=list)
 
     def __post_init__(self):
         override = _HISTORICAL_AVENUE_OVERRIDES.get(self.tech_id, {})
@@ -608,6 +609,10 @@ TECH_CATALOG: dict[str, Technology] = {
 
 
 # -----------------------------------------------------------------------------
+from productivity_technologies import expand_catalog, AGRONOMY_LEARNING, MANUFACTURING_LEARNING
+expand_catalog(TECH_CATALOG, Technology, TechDomain, TileResource,
+               _eval_food_bottleneck, _eval_wage_labor_bottleneck)
+
 # Innovation Manager (Global Simulation State)
 # -----------------------------------------------------------------------------
 
@@ -633,7 +638,10 @@ def _learning_sample(tile, field_name, good=None, *, owner=...):
             'source_metric_id': 'goods.production' if field_name == 'production_log' else None}
 
 
-class InnovationSystem:
+from engineering import EngineeringMixin
+
+
+class InnovationSystem(EngineeringMixin):
     """Orchestrator for domain practice, induced bottlenecks, bounties, and trade diffusion."""
 
     def __init__(self):
@@ -772,18 +780,17 @@ class InnovationSystem:
         }
 
     def set_subsidy_mode(self, nation: Nation, tech_id: str, mode: str, t: int = 0) -> tuple[bool, str]:
-        """Switch prototype operating mode between 'commercial' (0x cost), 'standard' (1x -> 0.5x XP), and 'crash' (4x -> 1.0x XP)."""
+        """Legacy controls commission budgeted engineering, without an XP multiplier."""
         if tech_id not in TECH_CATALOG or mode not in ('commercial', 'standard', 'crash'):
             return False, f"Invalid tech '{tech_id}' or subsidy mode '{mode}'."
-        tech = TECH_CATALOG[tech_id]
-        if mode in ('standard', 'crash') and not self.has_tech(nation.name, tech_id):
-            bounty_amt = 75.0 if mode == 'standard' else 300.0
-            has_bounty = any(b.nation_name == nation.name and b.tech_id == tech_id for b in self.active_bounties)
-            if not has_bounty and hasattr(nation, 'treasury'):
-                self.post_royal_bounty(nation, tech_id, bounty_amt, t)
-        self.tech_subsidy_mode.setdefault(nation.name, {})[tech_id] = mode
-        label = {'commercial': 'Commercial (1.0x ROI)', 'standard': 'Standard 1x Subsidy (0.5x XP)', 'crash': 'Crash 4x Mandate (1.0x XP)'}[mode]
-        return True, f"{nation.name} set '{tech.name}' operating mode to {label}."
+        # Backward-compatible commands now commission real resource-funded work.
+        budget, objective = {'commercial': (0, 'balanced'),
+                             'standard': (25, 'balanced'),
+                             'crash': (100, 'performance')}[mode]
+        ok, message = self.set_engineering_program(nation, tech_id, budget, objective, t=t)
+        if ok:
+            self.tech_subsidy_mode.setdefault(nation.name, {})[tech_id] = mode
+        return ok, message
 
     def attempt_tech_espionage(self, stealer: Nation, tech_id: str, t: int = 0,
                                target_nation: Nation | None = None,
@@ -911,57 +918,8 @@ class InnovationSystem:
         return True, msg
 
     def step_refinement(self, nations: list[Nation], t: int) -> list[dict]:
-        """Advance domestic Tinkering/Refinement XP (0..100, Tiers 1..4) for discovered technologies."""
-        from innovation_trace import record_refinement_progress
-
-        events = []
-        for n in nations:
-            discovered = self.get_discovered_techs(n.name)
-            if not discovered or not getattr(n, 'tiles', ()):
-                continue
-            nat_ref = self.tech_refinement_xp.setdefault(n.name, {})
-            for tech_id in sorted(discovered):
-                tech = TECH_CATALOG.get(tech_id)
-                if not tech:
-                    continue
-                before_xp = float(nat_ref.get(tech_id, 1.0))
-                if before_xp >= 100.0:
-                    continue
-                prev_tier = self.get_tech_tier(n.name, tech_id)
-                factors = self.evaluate_avenue_factors(n, tech_id)
-                mode = self.get_subsidy_mode(n.name, tech_id)
-
-                if mode == 'commercial':
-                    roi = factors['wage_ratio'] * (factors['prox_mult'] / 2.0)
-                    base_ref = 0.8 if roi < 1.2 else 2.5 * (factors['wage_ratio'] / 2.0) * (factors['prox_mult'] / 2.0)
-                elif mode == 'standard':
-                    base_ref = 3.2 * 0.5
-                else:  # crash (4x cost -> full 1.0x adjacency speed)
-                    base_ref = 3.2 * 1.35
-
-                increment = base_ref * (factors['supply_mult'] / 1.5) * (factors['net_mult'] / 1.2)
-                blockade = self.get_guild_blockade(n, tech_id)
-                if blockade.get('active'):
-                    increment *= 0.25
-
-                # Check Tier 3 prerequisite sibling tech gate (60 XP threshold)
-                tier3_deps = tech.tier_dependencies.get(3, [])
-                missing_tier3 = [dep for dep in tier3_deps if dep not in discovered]
-                cap_xp = 59.0 if missing_tier3 else 100.0
-
-                after_xp = min(cap_xp, before_xp + max(0.0, increment))
-                nat_ref[tech_id] = after_xp
-                record_refinement_progress(
-                    n, tech_id, t, before_xp, after_xp, increment, cap_xp=cap_xp,
-                    subsidy_mode=mode, guild_blockade_active=bool(blockade.get('active')),
-                    avenue_id=factors.get('active_avenue'))
-
-                new_tier = self.get_tech_tier(n.name, tech_id)
-                if new_tier > prev_tier:
-                    msg = f"REFINEMENT TIER {new_tier}: {n.name} refined '{tech.name}' to Tier {new_tier} ({after_xp:.0f} XP)!"
-                    ev = {'t': t, 'nation': n.name, 'tech_id': tech_id, 'tech_name': tech.name, 'tier': new_tier, 'event': 'REFINEMENT', 'message': msg}
-                    events.append(ev)
-        return events
+        """Refine from actual operation and delivered engineering, never elapsed time."""
+        return self.step_engineering_refinement(nations, t)
 
     def post_royal_bounty(self, nation: Nation, tech_id: str, bounty_amount: float, t: int) -> bool:
         """Sovereign posts a cash prize from treasury to incentivize a breakthrough."""
@@ -1012,41 +970,45 @@ class InnovationSystem:
                 nat_xp.setdefault(d.value, 0.0)
             opening_xp = dict(nat_xp)
 
-            # 1. Agronomy: Calibrated so ~200 food/turn yields ~3.0 XP/turn
-            food_samples = [_learning_sample(r, 'production_log', Goods.food) for r in nat_tiles]
-            food_produced = sum(row['quantity'] for row in food_samples)
-            nat_xp[TechDomain.AGRONOMY.value] += food_produced * 0.015
+            def production_terms(weights):
+                terms = []
+                for good, coefficient in weights.items():
+                    samples = [_learning_sample(r, 'production_log', good) for r in nat_tiles]
+                    terms.append({'quantity': sum(row['quantity'] for row in samples),
+                                  'coefficient': coefficient, 'source': good.name + '_output',
+                                  'tile_samples': samples})
+                return terms
+
+            # Practice includes every modeled farming and husbandry profession.
+            farm_terms = production_terms(AGRONOMY_LEARNING)
+            nat_xp[TechDomain.AGRONOMY.value] += sum(term['quantity'] * term['coefficient'] for term in farm_terms)
             record_learning(n, TechDomain.AGRONOMY.value,
                             opening_xp[TechDomain.AGRONOMY.value],
                             nat_xp[TechDomain.AGRONOMY.value],
-                            [{'quantity': food_produced, 'coefficient': 0.015,
-                              'source': 'food_output', 'tile_samples': food_samples}], turn=t)
+                            farm_terms, turn=t)
 
-            # 2. Manufacturing: Timber and Furniture production (~2.5 XP/turn)
-            wood_samples = [_learning_sample(r, 'production_log', Goods.wood) for r in nat_tiles]
-            furniture_samples = [_learning_sample(r, 'production_log', Goods.furniture) for r in nat_tiles]
-            wood_p = sum(row['quantity'] for row in wood_samples)
-            furn_p = sum(row['quantity'] for row in furniture_samples)
-            nat_xp[TechDomain.MANUFACTURING.value] += (wood_p * 0.02 + furn_p * 0.035)
+            # Mining, processing and craft work can develop their own machinery.
+            manufacturing_terms = production_terms(MANUFACTURING_LEARNING)
+            nat_xp[TechDomain.MANUFACTURING.value] += sum(
+                term['quantity'] * term['coefficient'] for term in manufacturing_terms)
             record_learning(n, TechDomain.MANUFACTURING.value,
                             opening_xp[TechDomain.MANUFACTURING.value],
                             nat_xp[TechDomain.MANUFACTURING.value],
-                            [{'quantity': wood_p, 'coefficient': 0.02,
-                              'source': 'wood_output', 'tile_samples': wood_samples},
-                             {'quantity': furn_p, 'coefficient': 0.035,
-                              'source': 'furniture_output', 'tile_samples': furniture_samples}], turn=t)
+                            manufacturing_terms, turn=t)
 
             # 3. Civil Engineering: Freight volume across terrain (~2.0 XP/turn)
             exports_by_tile = [[_learning_sample(r, 'export_vol', good)
                                 for good in r.export_vol if r.export_vol[good]] for r in nat_tiles]
             export_samples = [row for rows in exports_by_tile for row in rows]
             trade_vol = sum(sum(row['quantity'] for row in rows) for rows in exports_by_tile)
-            nat_xp[TechDomain.CIVIL_ENGINEERING.value] += trade_vol * 0.02
+            transport_terms = production_terms({Goods.transport: 0.02})
+            nat_xp[TechDomain.CIVIL_ENGINEERING.value] += trade_vol * 0.02 + sum(
+                term['quantity'] * term['coefficient'] for term in transport_terms)
             record_learning(n, TechDomain.CIVIL_ENGINEERING.value,
                             opening_xp[TechDomain.CIVIL_ENGINEERING.value],
                             nat_xp[TechDomain.CIVIL_ENGINEERING.value],
                             [{'quantity': trade_vol, 'coefficient': 0.02,
-                              'source': 'export_units', 'tile_samples': export_samples}], turn=t)
+                              'source': 'export_units', 'tile_samples': export_samples}] + transport_terms, turn=t)
 
             # 4. Finance: Commercial transactions & tax collections (~1.5 XP/turn)
             tax_samples = [_learning_sample(r, 'tax_revenue_log', owner=r.gov) for r in nat_tiles]

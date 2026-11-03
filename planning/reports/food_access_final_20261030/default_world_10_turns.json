@@ -1,0 +1,206 @@
+{
+  "source_signature": "fdf616204664b019db4e2eda124f91b87ff32b43962a013cbaea4557f61631f0",
+  "turns": [
+    {
+      "turn": 1,
+      "nations": [
+        {
+          "name": "United States",
+          "population": 343,
+          "underfed": 14
+        },
+        {
+          "name": "China",
+          "population": 523,
+          "underfed": 22
+        },
+        {
+          "name": "Japan",
+          "population": 524,
+          "underfed": 21
+        }
+      ]
+    },
+    {
+      "turn": 2,
+      "nations": [
+        {
+          "name": "United States",
+          "population": 342,
+          "underfed": 36
+        },
+        {
+          "name": "China",
+          "population": 522,
+          "underfed": 79
+        },
+        {
+          "name": "Japan",
+          "population": 523,
+          "underfed": 40
+        }
+      ]
+    },
+    {
+      "turn": 3,
+      "nations": [
+        {
+          "name": "United States",
+          "population": 342,
+          "underfed": 0
+        },
+        {
+          "name": "China",
+          "population": 522,
+          "underfed": 0
+        },
+        {
+          "name": "Japan",
+          "population": 523,
+          "underfed": 2
+        }
+      ]
+    },
+    {
+      "turn": 4,
+      "nations": [
+        {
+          "name": "United States",
+          "population": 342,
+          "underfed": 0
+        },
+        {
+          "name": "China",
+          "population": 521,
+          "underfed": 0
+        },
+        {
+          "name": "Japan",
+          "population": 522,
+          "underfed": 0
+        }
+      ]
+    },
+    {
+      "turn": 5,
+      "nations": [
+        {
+          "name": "United States",
+          "population": 341,
+          "underfed": 0
+        },
+        {
+          "name": "China",
+          "population": 521,
+          "underfed": 0
+        },
+        {
+          "name": "Japan",
+          "population": 522,
+          "underfed": 0
+        }
+      ]
+    },
+    {
+      "turn": 6,
+      "nations": [
+        {
+          "name": "United States",
+          "population": 341,
+          "underfed": 0
+        },
+        {
+          "name": "China",
+          "population": 521,
+          "underfed": 0
+        },
+        {
+          "name": "Japan",
+          "population": 522,
+          "underfed": 0
+        }
+      ]
+    },
+    {
+      "turn": 7,
+      "nations": [
+        {
+          "name": "United States",
+          "population": 340,
+          "underfed": 0
+        },
+        {
+          "name": "China",
+          "population": 520,
+          "underfed": 0
+        },
+        {
+          "name": "Japan",
+          "population": 521,
+          "underfed": 0
+        }
+      ]
+    },
+    {
+      "turn": 8,
+      "nations": [
+        {
+          "name": "United States",
+          "population": 359,
+          "underfed": 0
+        },
+        {
+          "name": "China",
+          "population": 542,
+          "underfed": 0
+        },
+        {
+          "name": "Japan",
+          "population": 543,
+          "underfed": 0
+        }
+      ]
+    },
+    {
+      "turn": 9,
+      "nations": [
+        {
+          "name": "United States",
+          "population": 381,
+          "underfed": 1
+        },
+        {
+          "name": "China",
+          "population": 568,
+          "underfed": 0
+        },
+        {
+          "name": "Japan",
+          "population": 568,
+          "underfed": 2
+        }
+      ]
+    },
+    {
+      "turn": 10,
+      "nations": [
+        {
+          "name": "United States",
+          "population": 401,
+          "underfed": 0
+        },
+        {
+          "name": "China",
+          "population": 596,
+          "underfed": 0
+        },
+        {
+          "name": "Japan",
+          "population": 592,
+          "underfed": 0
+        }
+      ]
+    }
+  ],
+  "currency_violations": []
+}

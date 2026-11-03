@@ -769,6 +769,11 @@ def main():
                     if world.get('progress_panel_open') and PANEL_X <= mx <= PANEL_X + PANEL_W:
                         world['progress_scroll'] = max(0, world.get('progress_scroll', 0) - event.y)
                         _mark_dirty(world)
+                    elif world.get('science_panel_open') and world.get('science_detail_tech') and PANEL_X <= mx <= PANEL_X + PANEL_W:
+                        world['engineering_detail_scroll'] = max(0, min(
+                            world.get('engineering_detail_scroll_max', 0),
+                            world.get('engineering_detail_scroll', 0) - event.y * 40))
+                        _mark_dirty(world)
                     elif mx >= MAP_RIGHT and world.get('_ui_governing_all_policies'):
                         from client.desktop.panels.governing_campaign_ui import scroll
                         if scroll(world, event.y):

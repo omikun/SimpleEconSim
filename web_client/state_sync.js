@@ -45,7 +45,7 @@
             }
           }
         }
-        if (onCommandResult) await onCommandResult(result);
+        if (onCommandResult && !options.silent) await onCommandResult(result);
         return result;
       }
 

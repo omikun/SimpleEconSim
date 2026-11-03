@@ -70,8 +70,8 @@ BUILDING_RECIPES: dict[str, BuildingRecipe] = {
         required_goods={Goods.wood: 4},
         construction_workers=2,
         staff_required={Goods.food: 2},
-        production_bonuses={Goods.food: 1.25},
-        description='Improves grain storage and municipal food security (+25% Food output).'
+        production_bonuses={},
+        description='Adds 1,200 grain units of covered storage; preserves harvests between seasons.'
     ),
     'sawmill': BuildingRecipe(
         name='sawmill',
@@ -294,6 +294,8 @@ class Building:
         self.region_name = region_name
         self.staff_ids: list[int] = []
         self.operational_efficiency: float = 1.0
+        self.technology_designs = dict(getattr(recipe, 'technology_designs', {}))
+        self.private_owner_id = None
 
     @property
     def display_name(self) -> str:
@@ -301,11 +303,28 @@ class Building:
 
     @property
     def production_bonuses(self) -> dict:
+        from innovation import TECH_CATALOG
         eff = self.operational_efficiency
-        if eff >= 1.0:
-            return self.recipe.production_bonuses
-        # Scale bonuses by operational efficiency
-        return {g: 1.0 + (mult - 1.0) * eff for g, mult in self.recipe.production_bonuses.items()}
+        if getattr(self, 'retrofit_project_id', None):
+            return {}
+        bonuses = dict(self.recipe.production_bonuses)
+        designs = getattr(self, 'technology_designs', {})
+        primary = getattr(self.recipe, 'technology_id', None)
+        if primary == 'steam_engines':
+            # Old saves may contain the temporary all-profession experiment.
+            allowed = {Goods(g) for g in TECH_CATALOG[primary].production_modifiers}
+            bonuses = {g: value for g, value in bonuses.items() if g in allowed}
+        if primary in designs:
+            factor = 0.35 + 0.65 * designs[primary] / 4.0
+            bonuses = {g: 1.0 + (mult - 1.0) * factor for g, mult in bonuses.items()}
+        for tid, tier in designs.items():
+            tech = TECH_CATALOG.get(tid)
+            if tech:
+                for good, mult in tech.production_modifiers.items():
+                    if Goods(good) in bonuses or tid == primary:
+                        design_bonus = 1.0 + (mult - 1.0) * (0.35 + 0.65 * tier / 4.0)
+                        bonuses[Goods(good)] = max(bonuses.get(Goods(good), 1.0), design_bonus)
+        return {g: 1.0 + (mult - 1.0) * eff for g, mult in bonuses.items()}
 
     def step_operational_staffing(self, region: Region, t: int):
         """Hires and retains living workers to operate the facility at full efficiency."""
@@ -402,6 +421,11 @@ class ConstructionProject:
     def step(self, t: int, world: dict = None) -> Building | None:
         """Advance construction by 1 turn using real-time resources and navvy labor."""
         if self.status in ('completed', 'cancelled'):
+            if self.status == 'cancelled':
+                for field in ('retrofit_target', 'replacement_target'):
+                    target = getattr(self, field, None)
+                    if target is not None:
+                        target.retrofit_project_id = None
             return None
 
         progress_before = float(self.progress_pct)
@@ -418,6 +442,17 @@ class ConstructionProject:
         if self.contractor is not None:
             for g, needed in req_goods.items():
                 cur_deliv = self.materials_delivered.get(g, 0)
+                if getattr(self.recipe, 'technology_designs', {}) and cur_deliv < needed:
+                    # A contractor can supply its own stock without paying itself.
+                    own_units = min(needed - cur_deliv, max(0, int(self.contractor.inv_get(g, 0))))
+                    if own_units:
+                        from engineering import consume_engineering_input
+                        p = max(0.01, float(self.region.recipes.get(g, {}).get('price', 1)))
+                        consume_engineering_input(self.region, self.contractor, self.contractor,
+                                                  g, own_units, own_units * p, t, self.project_id, None)
+                        cur_deliv += own_units
+                        self.materials_delivered[g] = cur_deliv
+                        materials_bought[g.name] = own_units
                 if cur_deliv < needed:
                     to_buy = needed - cur_deliv
                     # Check regional market price and attempt purchase
@@ -425,6 +460,31 @@ class ConstructionProject:
                     p = g_recipe.get('price', 4.0)
                     can_afford = int(self.contractor.cash // max(0.5, p))
                     buy_qty = min(to_buy, can_afford)
+                    if getattr(self.recipe, 'technology_designs', {}):
+                        # New technology projects procure physical stock. The
+                        # contractor pays the actual suppliers; no cash sink.
+                        from engineering import _stockists, _pay, consume_engineering_input
+                        nation = getattr(self.region, 'owner_nation', None)
+                        if nation is None:
+                            missing_materials = True
+                            continue
+                        sellers = _stockists(self.region, g, self.contractor)
+                        for seller_index, seller in enumerate(sellers):
+                            units = min(buy_qty, int(seller.inv_get(g, 0)))
+                            if units <= 0:
+                                continue
+                            payment = _pay(self.region, nation, self.contractor, seller,
+                                 units * p, t, self.project_id,
+                                 'engineering_construction_materials', f'{g.name}:{seller_index}', good=g, quantity=units)
+                            consume_engineering_input(self.region, self.contractor, seller, g, units,
+                                                      units * p, t, self.project_id, payment)
+                            self.materials_delivered[g] = self.materials_delivered.get(g, 0) + units
+                            materials_spend += units * p
+                            materials_bought[g.name] = materials_bought.get(g.name, 0) + units
+                            buy_qty -= units
+                        if self.materials_delivered.get(g, 0) < needed:
+                            missing_materials = True
+                        continue
                     if buy_qty > 0:
                         total_cost = buy_qty * p
                         _trace_cash_write = _trace_public_begin(None, self.contractor)
@@ -460,6 +520,9 @@ class ConstructionProject:
                     and not getattr(a, 'is_government', False)
                     and a.employer is None
                     and a.id not in self.navvy_ids
+                    and (getattr(self, 'private_owner_id', None) is None or not any(
+                        getattr(a, flag, False) for flag in
+                        ('is_native_child', 'is_lord', 'is_trader', 'military_unit_id')))
                 ]
                 for c in candidates[:needed_w]:
                     c.employer = self.contractor
@@ -525,7 +588,8 @@ class ConstructionProject:
                          'contractor_cash_after': self.contractor.cash if self.contractor else 0.0})
 
         # Check for Stalling
-        if total_req_mat > 0 and total_deliv_mat == 0:
+        if total_req_mat > 0 and (total_deliv_mat == 0 or (
+                getattr(self.recipe, 'technology_designs', {}) and total_deliv_mat < total_req_mat)):
             self.status = 'stalled'
             self.stall_reason = "missing_materials"
             msg = (f"[STALLED] Construction of {self.recipe.display_name} in {self.region.name} "
@@ -565,8 +629,38 @@ class ConstructionProject:
                 built_turn=t,
                 region_name=self.region.name
             )
+            building.private_owner_id = getattr(self, 'private_owner_id', None)
+            replacement = getattr(self, 'replacement_target', None)
+            if replacement is not None:
+                if replacement in self.region.buildings:
+                    index = self.region.buildings.index(replacement)
+                    self.region.buildings[index] = building
+                replacement.retrofit_project_id = None
+            retrofit = getattr(self, 'retrofit_target', None)
+            if retrofit is not None:
+                retrofit.technology_designs = {**getattr(retrofit, 'technology_designs', {}),
+                                              **getattr(self.recipe, 'technology_designs', {})}
+                retrofit.retrofit_project_id = None
+                building = retrofit
+            if getattr(building, 'technology_designs', {}):
+                from run_trace import emit
+                rows = [r for r in getattr(self.region, 'technology_manufactures', ()) if r['turn'] == t]
+                for tid, tier in self.recipe.technology_designs.items():
+                    installed_id = emit(self.region, kind='engineering_design_installed', record_class='outcome',
+                        phase='projects', subject={'type': 'tile/project', 'id': self.project_id,
+                                                  'tile': self.region.name, 'tech_id': tid},
+                        metric_id='innovation.installed_generation', unit='generation', after=tier,
+                        inputs={'turn': t, 'recipe': self.recipe.name,
+                                'materials_delivered': {g.name: q for g, q in self.materials_delivered.items()},
+                                'navvy_ids': list(self.navvy_ids), 'retrofit': retrofit is not None,
+                                'action': getattr(self, 'adoption_action', 'public'),
+                                'private_owner_id': getattr(self, 'private_owner_id', None)})
+                    rows.append({'tech_id': tid, 'generation': tier, 'turn': t,
+                                 'cause_event_ids': [installed_id] if installed_id else []})
+                self.region.technology_manufactures = rows
             if hasattr(self.region, 'buildings'):
-                self.region.buildings.append(building)
+                if retrofit is None and replacement is None:
+                    self.region.buildings.append(building)
 
             if self.contractor is not None:
                 self.contractor.projects_completed = getattr(self.contractor, 'projects_completed', 0) + 1
@@ -612,3 +706,7 @@ class ConstructionProject:
     def __repr__(self):
         return (f"ConstructionProject({self.recipe.name} in {self.region.name}, "
                 f"{self.progress_pct:.1f}%, status={self.status})")
+
+
+from engineering import register_recipes
+register_recipes()

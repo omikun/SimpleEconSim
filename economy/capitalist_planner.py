@@ -1993,6 +1993,9 @@ class EliteCapitalistPlanner:
                 p_in = float(recipes.get(in_good, {}).get('price', 0.0)) if req_qty > 0 else 0.0
                 production = float(r.get('production', 1.0))
                 gross_output_value = p_out * production
+                from abundance import enabled as abundance_enabled, funded_demand
+                if abundance_enabled(region):
+                    gross_output_value = p_out * min(production, funded_demand(region, g))
                 input_cost = p_in * req_qty
                 raw_margin = gross_output_value - input_cost
                 margin = raw_margin

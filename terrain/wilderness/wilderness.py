@@ -6,9 +6,8 @@ keeping region.py lean.  Functions take a Region instance (duck-typed), so
 this module never imports region.py — no import cycle.
 
 Rulings locked with the user (2026-08-13/14):
-  - Homesteaders forage ``+1 food`` every ``FORAGE_INTERVAL`` turns, and ONLY
-    while they live on an unclaimed tile.  Foraging never happens on claimed
-    tiles.
+  - Homesteaders gather finite commons food using the same bounded work,
+    household provisioning, nutrition and mortality rules as other residents.
   - A homesteader who lands on a claimed tile immediately LOSES homesteader
     status (``is_homesteader`` cleared, ``homestead_since`` reset).
   - Unclaimed tiles are currency-less (``home_currency=None``), with no bank,
@@ -20,12 +19,12 @@ Rulings locked with the user (2026-08-13/14):
     stay in the wallet (no FX conversion ever).
 """
 
+# Legacy import compatibility; gathering now runs through the work ledger each turn.
+FORAGE_INTERVAL = 3
+
 import forex as fx
 from goods import Goods
 
-
-# Homesteaders on an UNCLAIMED tile forage +1 food every this many turns.
-FORAGE_INTERVAL = 3
 
 
 # =============================================================================
@@ -91,7 +90,7 @@ import foraging as _foraging
 
 
 def forage(region, t):
-    """Homesteaders on an unclaimed tile forage (+1 food) on schedule."""
+    """Gather from renewable commons using actual household work."""
     return _foraging.forage_tile(region, t)
 
 
@@ -151,7 +150,30 @@ def step_wilderness(region, t):
     """
     from wilderness_trace import quiet
     minimal_trace = quiet(region)
+    from food_economy import begin_turn, prepare_work, finish_turn
+    from households import allocate, human
+    from nutrition import basic_food_units, update_dependent_need
+    from work_allocation import finish
+    from demographics_consumption import consume_daily_food
+    from demographics_estate import handle_death
+    from types import SimpleNamespace
+    begin_turn(region, t)
+    for person in region.agents:
+        update_dependent_need(person, t)
+    prepare_work(region, t)
     foraged = forage(region, t)
+    finish(region, t)
+    allocate(region, t)
+    region.food_turn_need = sum(basic_food_units(a) for a in region.agents if human(a))
+    context = SimpleNamespace(source_region=region, cost_of_living=region.cost_of_living,
+                              bank=None, default_gov=None, charity=None)
+    for person in list(region.agents):
+        if not human(person):
+            continue
+        consume_daily_food(person, region=region, turn=t)
+        if handle_death(context, t, person, region.agents):
+            region.agents.remove(person)
+    finish_turn(region, t)
     if not minimal_trace and getattr(region, '_run_trace', None) is not None:
         from micro.region.stepper import _trace_profession_population
         profession_groups = {good: [] for good in region.goods}

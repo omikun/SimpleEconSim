@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 
 from run_trace import RunTrace, verify
+from tests.food_fixtures import stock_defense_site
 from scenario_projects import (advance, cancel_project, damage_project,
                                get_project, repair_project, start_project)
 from worldview_engine import build_world_view
@@ -26,6 +27,7 @@ class MemoryTrace:
 
 def _fixture(*, traced=True):
     world = build_world_view(scenario_id='egypt_1877')
+    stock_defense_site(world)
     world['turn'] = 1
     trace = MemoryTrace()
     clock = {'turn': 1, 'phase': 'scenario_projects', 'next': 1}
@@ -159,8 +161,7 @@ class StrategicProjectLifecycleTraceTests(unittest.TestCase):
         self.assertEqual(sum(row['after'] - row['before'] for row in transfers), 6)
         self.assertEqual(stock_before - int(egypt.government.food_inventory), 6)
         self.assertEqual({row['inputs']['source_inventory_after'] for row in transfers},
-                         {int(next(n for n in world['nations'] if n.name == 'Egypt')
-                              .government.food_inventory)})
+                         {int(egypt.government.food_at(next(t for t in egypt.tiles if t.name == world['scenario_state']['geography']['sites']['Tel el Kebir']['tile'])))})
         operating = self._row(trace, 'advance', turn=3,
                               reason='operating_upkeep_paid')
         self.assertEqual(set(operating['inputs']['crew_food_event_ids']),
@@ -187,6 +188,7 @@ class StrategicProjectLifecycleTraceTests(unittest.TestCase):
         food_world, food_trace = _fixture()
         self.assertTrue(start_project(food_world, 'canal_line', 'Tel el Kebir')[0])
         egypt = next(nation for nation in food_world['nations'] if nation.name == 'Egypt')
+        egypt.government.food_by_site_milli.clear()
         egypt.government.food_inventory = 0
         project = get_project(food_world, 'canal_line', 'Tel el Kebir')
         for turn in (2, 3):

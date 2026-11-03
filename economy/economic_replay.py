@@ -37,6 +37,7 @@ def replay(row):
     if formula=='water.capacity_rainfall_maintenance.v1':return i['capacity']*i['rainfall']*i['canal_condition']
     if formula=='rent.obligation_settlement.v1':return sum(claim['paid'] for claim in i['paid_claims'])
     if formula=='rent.active_obligations.v1':return sum(claim['balance'] for claim in i['active_rent_claims'])
+    if formula=='market.food_fill.v1':return i['submitted']-i['unfilled']
     if formula=='market.zero_order_tally.v1':
         return sum(len(group['orders']) for field in ('buyers_by_reason','sellers_by_reason') for group in i[field])
     if formula=='market.discriminatory_clear.v2':return sum(sale['quantity'] for sale in i['settled_sales'])
@@ -120,11 +121,25 @@ def replay(row):
         return min(1.0,i['hostile_adjacent_strength']/max(i['denominator_floor'],i['local_strength']+i['local_strength_buffer']))
     if formula=='commons.forage_activity.v1':
         return i['emergency_turn_share'] if i.get('emergency_fallback',False) else min(0.25,i['food_units']/16.0)
+    if formula=='commons.forage_activity.v2':
+        return min(i['available_work'], min(i['requested_food'], i['commons_stock_before']) / i['yield_per_work_turn'])
+    if formula=='agriculture.harvest.v2':
+        from food_inventory import milli
+        return milli(max(0, i['potential'] * min(1, i['harvest_work'] / max(.001, i['harvest_required_work'])) - i['harvested_before'])) / 1000
     if formula=='production.independent.v1':
-        return int(round(i['base_production']*i['terrain_multiplier']*i['tenure_multiplier'])) if i['draw']<i['success_probability'] else 0
+        return int(round(i['base_production']*i['terrain_multiplier']*i['tenure_multiplier']*i.get('practice_multiplier',1))) if i['draw']<i['success_probability'] else 0
+    if formula=='production.practice.v1':return before+i['work_completed']
+    if formula=='production.workshop.v1':return min(max(0,int(i['throughput'])),max(0,int((i['input_inventory_before']-i['protected_meals'])/i['input_per_output'])),i['storage_room'])
+    if formula in ('nutrition.prepared_food.v1','demand.household_use.v1'):return before-i['units_consumed']
+    if formula=='demand.funded_basket.v1':return sum(r['quantity']*r['limit'] for r in i['orders'].values())
     if formula=='feudal_tribute.inventory_share_transfer.v1':
         payer=i['transfer_contract']['payer_account']
         return int(max(0,payer['balance_before']-i['protected_food_reserve'])*i['tribute_rate'])
+    if formula=='feudal_tribute.harvest_share_transfer.v2':
+        payer=i['transfer_contract']['payer_account']
+        return min(int(i['new_harvest_units']*max(0,min(1,i['tribute_rate']))),max(0,payer['balance_before']-i['protected_food_reserve']))
+    if formula=='feudal_tribute.estate_relief.v1':
+        return min(i['basic_meal_gap'],max(0,i['donor_inventory_before']-i['donor_household_reserve']))
     if formula=='feudal_tribute.reference_valuation.v1':return sum(v['quantity']*v['reference_price'] for v in i['valuations'])
     if formula=='market.clear_plus_public_buyers.v1':return i['private_units']+i['charity_units']+i['government_units']
     if formula=='gdp.sum_output_times_reference_price.v1':return sum(v['units']*v['reference_price'] for v in i['goods'].values())
@@ -205,6 +220,10 @@ def replay(row):
         return i['base_delay']+i['queue_depth_before_load']//max(1,i['capacity_per_unit'])
     if formula=='ecology.downstream_advection.v1':return min(100.0,before+(i['source_pollution_before_emission']+i['source_emission'])*i['advection_fraction']/i['downstream_tile_count'])
     if formula=='ecology.soil_balance.v1':return clamp(before+i['regeneration_rate']-i['extraction_rate'],row['constraints']['lower_bound'],row['constraints']['upper_bound'])
+    if formula=='ecology.soil_balance.v2':
+        balance=i['regeneration_rate']-i['extraction_rate']
+        change=balance*i['degradation_scale'] if balance<0 else balance
+        return clamp(before+change,row['constraints']['lower_bound'],row['constraints']['upper_bound'])
     if formula=='ecology.nutrition_transition.v1':return before+(i['target_density']-before)*i['blend_fraction']
     if formula=='ecology.air_emissions_dispersion.v1':return clamp(before*(1-i['dispersion_fraction'])+i['raw_emission_after_controls'],0.0,100.0)
     if formula=='ecology.water_emissions_advection.v1':return clamp(before*(1-i['dispersion_fraction'])+i['raw_emission']-i['downstream_advection'],0.0,100.0)

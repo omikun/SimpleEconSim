@@ -76,6 +76,10 @@ class TestCapitalistPropagation(unittest.TestCase):
             name='Common Fields'
         )
         self.tile.tenure.plots = [plot]
+        plot.tenant_ids = [a.id for a in self.tile.agents if not a.is_lord and not a.is_government]
+        for tenant in self.tile.agents:
+            if tenant.id in plot.tenant_ids:
+                tenant.assigned_plot_id = plot.plot_id
 
         # Initially without luxuries on the market, shadow price of cash is baseline
         lambda_initial = planner.calculate_shadow_price_cash(lord, self.tile)
@@ -92,6 +96,7 @@ class TestCapitalistPropagation(unittest.TestCase):
         self.assertGreater(lambda_shock, lambda_initial)
 
         # 3. Lord plans: discovers that enclosing plot for pasture or mandating corvée yields cash
+        self.tile.demand_log[Goods.wool] = [12.0]  # buyers must fund the expected proceeds
         plan_res = planner.plan_and_execute_elite(lord, self.tile, t=5)
         self.assertIsNotNone(plan_res['action_taken'])
         # Verify an enclosure or corvée operator was executed
@@ -117,6 +122,7 @@ class TestCapitalistPropagation(unittest.TestCase):
         capitalist = self.tile.agents[0]
         initialize_agent(capitalist, Goods.furniture, 0, 10, 300.0)
         capitalist.is_lord = False
+        self.tile.demand_log[Goods.cloth] = [20.0]
 
         # Run capitalist planning: incorporates or expands firm in profitable sector (e.g. cloth, iron, fine_textiles)
         res = planner.plan_and_execute_elite(capitalist, self.tile, t=5)
@@ -133,17 +139,24 @@ class TestCapitalistPropagation(unittest.TestCase):
         worker.social_class = 'dispossessed'
         worker.assigned_plot_id = None
         worker.employer = None
+        worker.calorie_deficit_kcal = 500
 
-        # Execute labor cohort for worker's turn
+        # A funded offer must exceed the usable independent livelihood.
+        firm.wage = 100
+        firm.cash = 10000
+
+        # Execute the common career phase.
         non_elites = scheduler.get_non_elites(self.tile)
         worker_idx = non_elites.index(worker)
         n_groups = scheduler.calculate_n_groups(len(non_elites))
         cohort_res = scheduler.step_labor_cohort(self.tile, t=worker_idx)
-        # Verify worker got hired or reallocated to the capitalist's sector
-        self.assertIsNotNone(worker.employer)
-        self.assertEqual(worker.employer.id, firm.id)
-        self.assertEqual(worker.output, firm.output)
-        self.assertEqual(worker.wage, firm.wage)
+        # Vacancies can fill before this particular worker is considered.
+        # Verify that funded jobs actually attracted members of the cohort.
+        self.assertGreater(len(firm.employees), 0)
+        self.assertTrue(any(employee in non_elites for employee in firm.employees))
+        self.assertTrue(all(employee.employer is firm for employee in firm.employees))
+        self.assertTrue(all(employee.output == firm.output for employee in firm.employees))
+        self.assertTrue(all(employee.wage == firm.wage for employee in firm.employees))
 
     def test_04_cadence_and_subsecond_cohort_timing(self):
         """Verify elite cadence (5 turns / novelty) and that non-elite cohorts execute in < 1 second."""
@@ -171,7 +184,8 @@ class TestCapitalistPropagation(unittest.TestCase):
         step_result = scheduler.step_labor_cohort(self.tile, t=0)
         elapsed = time.perf_counter() - start
         self.assertLess(elapsed, 1.0, f"Cohort execution took {elapsed:.4f}s, exceeding 1s requirement!")
-        self.assertGreater(step_result['n_groups'], 1)
+        self.assertEqual(step_result['n_groups'], 1)
+        self.assertEqual(step_result['deferred'], 0)
 
     def test_05_zero_hardcoding_extensibility(self):
         """Verify dynamic injection of a completely novel commodity and operator at runtime.
@@ -211,10 +225,13 @@ class TestCapitalistPropagation(unittest.TestCase):
         can_exec, msg = custom_op.can_agent_execute(agent, self.tile)
         self.assertTrue(can_exec, f"Agent should be able to execute novel operator: {msg}")
 
-        # Verify net return estimation recognizes the new luxury's prestige rating
+        # Commercial production needs buyers; prestige is earned by consumption.
+        net_ret = custom_op.estimate_net_return(agent, self.tile, shadow_price_cash=2.0)
+        self.assertLess(net_ret, 0.0)
+        self.tile.demand_log['astral_silk'] = [1.0]
         net_ret = custom_op.estimate_net_return(agent, self.tile, shadow_price_cash=2.0)
         self.assertGreater(net_ret, 0.0)
-        self.assertAlmostEqual(net_ret, 35.0 - (10.0 * 2.0 + 3.0 * 1.0 * 2.0), delta=5.0)
+        self.assertAlmostEqual(net_ret, 80.0 * 2.0 - (10.0 * 2.0 + 3.0 * 1.0 * 2.0), delta=5.0)
 
     def test_06_ecological_and_biome_gating(self):
         """Verify that agricultural and mining operators respect ecological and climate constraints."""
@@ -342,8 +359,8 @@ class TestCapitalistPropagation(unittest.TestCase):
         damped_expected_wool = TransformationGraph.compute_expected_price(self.tile, Goods.wool)
         self.assertLess(damped_expected_wool, initial_expected_wool * 0.5)
 
-        # 4. Lord 2 evaluates investment. Because wool return is damped, Lord 2
-        # chooses an alternative sector (e.g. corvee cotton or war capitalism) instead of wool!
+        # 4. Without a funded alternative market, Lord 2 waits rather than
+        # replacing an unprofitable wool investment with another unsold crop.
         lord2 = self.tile.agents[1]
         lord2.is_lord = True
         initialize_agent(lord2, Goods.food, 0, 10, 50.0)
@@ -351,7 +368,7 @@ class TestCapitalistPropagation(unittest.TestCase):
         self.tile.tenure.plots[1].tenure = TenureStatus.FEUDAL
 
         res2 = planner.plan_and_execute_elite(lord2, self.tile, t=5)
-        self.assertIsNotNone(res2['action_taken'])
+        self.assertIsNone(res2['action_taken'])
         # Lord 2 does NOT enclose for pasture again due to cobweb damping!
         self.assertNotEqual(res2['action_taken'], 'OPERATOR_EXECUTED_ENCLOSE_PLOT_FOR_PASTURE')
 
@@ -437,47 +454,21 @@ class TestCapitalistPropagation(unittest.TestCase):
         final_total_cash = sum(a.cash for a in self.tile.agents)
         self.assertAlmostEqual(init_total_cash, final_total_cash, places=5)
 
-    def test_12_event_driven_starving_commoner_fast_path(self):
-        """Verify Issue-10: Event-driven fast-path allows starving/dispossessed commoners to bypass cohort latency."""
+    def test_12_hungry_and_wealthy_commoners_share_one_career_phase(self):
+        """All adults are considered; savings and cohort timing cannot exclude hunger."""
         labor_engine = LaborMobilityScheduler(base_batch_size=5)
-
-        # Clear existing non-elites and setup 12 commoners so there are at least 3 cohorts
-        non_elites = labor_engine.get_non_elites(self.tile)
-        self.assertGreaterEqual(len(non_elites), 6)
-
-        # Set up a factory with an open vacancy
-        firm = Agent(0)
-        firm.is_corporation = True
-        firm.is_lord = False
-        initialize_agent(firm, Goods.cloth, 0, 0, 50.0)
-        firm.wage = 2.50
-        firm.max_employees = 2
-        firm.employees = []
-        self.tile.agents.append(firm)
-
-        # Pick an agent who would normally NOT be in cohort 0 (e.g. index 1 when n_groups >= 2)
-        total_non_elites = len(non_elites)
-        n_groups = labor_engine.calculate_n_groups(total_non_elites)
-        self.assertGreaterEqual(n_groups, 2)
-
-        # Select agent at index 1 (belongs to cohort 1, not cohort 0)
-        starving_worker = non_elites[1]
+        workers = labor_engine.get_non_elites(self.tile, 0)
+        self.assertGreaterEqual(len(workers), 6)
+        starving_worker = workers[1]
         starving_worker.employer = None
-        starving_worker.hungry_steps = 2 # Acute hunger
-        starving_worker.social_class = 'dispossessed'
-
-        # Execute cohort on turn t=0 (cohort index 0 is active)
-        res = labor_engine.step_labor_cohort(self.tile, t=0)
-
-        # Starving worker was not in cohort 0, but emergency fast-path prioritized them!
-        self.assertGreater(res['emergency_fast_path_count'], 0)
-        starving_realloc = [r for r in res['reallocations'] if r.get('agent_id') == starving_worker.id]
-        self.assertEqual(len(starving_realloc), 1)
-        self.assertEqual(starving_realloc[0]['type'], 'HIRED_BY_FIRM')
-        self.assertTrue(starving_realloc[0]['is_emergency_fast_path'])
-        self.assertEqual(starving_worker.employer, firm)
-        self.assertEqual(starving_worker.wage, 2.50)
-        self.assertLess(res['elapsed_sec'], 1.0)
+        starving_worker.hungry_steps = 3
+        starving_worker.cash = 500
+        result = labor_engine.step_labor_cohort(self.tile, 0)
+        self.assertEqual(result['n_groups'], 1)
+        self.assertEqual(result['deferred'], 0)
+        self.assertTrue(any(row['person_id'] == starving_worker.id
+                            for row in self.tile.career_choice_log))
+        self.assertTrue(labor_engine.step_labor_cohort(self.tile, 0)['already_processed'])
 
     def test_13_coerced_plantation_labor_regime(self):
         """Verify Issue-08: War Capitalism coerced labor, human commodification, zero-wage extraction & attrition."""

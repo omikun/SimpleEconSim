@@ -192,6 +192,8 @@ def draw_gov_panel(surface, world, font, font_small, mouse_pos=None):
         _draw_left_province_scope(surface, world, pinned, province, nation, cur_y, x, w, font, font_small, mx, my)
     else:
         _draw_left_nation_scope(surface, world, pinned, nation, cur_y, x, w, font, font_small, mx, my)
+    from client.desktop.panels.production_needs import draw as draw_production_needs
+    draw_production_needs(surface, world, font, font_small, mouse_pos)
 
 
 def _draw_left_frontier_scope(surface, world, region, start_y, x, w, font, font_small, mx, my):
@@ -242,7 +244,7 @@ def _draw_left_city_scope(surface, world, region, nation, start_y, x, w, font, f
     ubi_active = getattr(rgov, 'ubi_enabled', getattr(rgov, 'ubi_active', False))
 
     # 1. Municipal Treasury & Stats Card
-    card1_h = 76
+    card1_h = 280
     c1_rect = (x + 8, start_y, w - 16, card1_h)
     pygame.draw.rect(surface, CARD_BG, c1_rect, border_radius=5)
     pygame.draw.rect(surface, CARD_BORDER, c1_rect, 1, border_radius=5)
@@ -250,8 +252,47 @@ def _draw_left_city_scope(surface, world, region, nation, start_y, x, w, font, f
     surface.blit(get_icon('municipal', 14), (x + 16, start_y + 8))
     surface.blit(font_small.render(f"Municipal Treasury: ${tile_cash:,.0f}", True, (120, 240, 150)), (x + 34, start_y + 7))
     surface.blit(font_small.render(f"Tax Rate: {tax_rate*100:.1f}%  •  Protest: {protest_e:.2f}", True, (220, 230, 245)), (x + 16, start_y + 26))
-    food_inv = getattr(rgov, 'food_inventory', getattr(rgov, 'food_reserve', 0.0)) if rgov else 0.0
+    food_inv = rgov.food_at(region) if rgov else 0.0
     surface.blit(font_small.render(f"Hungry Citizens: {hungry}  •  Food Inv: {food_inv:.1f}", True, (245, 180, 80)), (x + 16, start_y + 44))
+    from food_security import diagnose_tile
+    food_access = diagnose_tile(region)
+    supply = food_access['production_units_last_turn'] + food_access['foraged_units_last_turn']
+    surface.blit(font_small.render(
+        f"Food: {supply:.0f} gathered / {food_access['minimum_meal_units']:.0f} needed",
+        True, (220, 230, 245)), (x + 16, start_y + 62))
+    surface.blit(font_small.render(
+        f"For sale {food_access['food_available_for_sale']:.0f} · Company stocks {food_access['company_food_units']:.0f}",
+        True, (220, 230, 245)), (x + 16, start_y + 80))
+    surface.blit(font_small.render(
+        f"Public {food_inv:.0f} · Granary {food_access['granary_food_units']:.0f} · Transit {food_access['food_in_transit']:.0f}",
+        True, (220, 230, 245)), (x + 16, start_y + 98))
+    surface.blit(font_small.render(
+        f"Adult meal ~${food_access['meal_reference_cost']:.1f}",
+        True, (220, 230, 245)), (x + 16, start_y + 116))
+    surface.blit(font_small.render(
+        f"Cannot afford meals: {food_access['unaffordable_residents']}",
+        True, (220, 230, 245)), (x + 16, start_y + 134))
+    reason_text = '; '.join(food_access['access_reasons'])
+    # Clip the explanation to this card; complete quantities remain above.
+    while reason_text and font_small.size(reason_text)[0] > w - 35:
+        reason_text = reason_text[:-2]
+    surface.blit(font_small.render(reason_text, True, (245, 180, 80)), (x + 16, start_y + 152))
+    career = getattr(region, 'career_transition_state', {})
+    farm = career.get('budgets', {}).get('food', {})
+    surface.blit(font_small.render(
+        f"Farm workers {farm.get('population', 0)} · Protected {career.get('minimum', 4)}",
+        True, (220, 230, 245)), (x + 16, start_y + 170))
+    surface.blit(font_small.render(
+        f"Career exits {farm.get('used', 0)}/{farm.get('quota', 0)} allowed · Held back {farm.get('blocked', 0)}",
+        True, (220, 230, 245)), (x + 16, start_y + 188))
+
+    support = food_access.get('farm_support_adult_equivalents')
+    capacity_text = 'Converted stocks: review crop outlook' if (food_access.get('initialization') or {}).get('migration_assumptions') else 'Awaiting full crop cycle' if support is None else f"Farms support {support:.1f} adult equivalents"
+    for offset, text in enumerate((capacity_text,
+            f"Residents need {food_access['resident_adult_equivalents']:.1f}; other residents {food_access['other_resident_adult_equivalents']:.1f}",
+            f"Farm work {food_access['effective_farm_work']:.1f}; next harvest {food_access['turns_until_harvest']}t",
+            f"Latest stock change {food_access.get('latest_turn', {}).get('stock_change', 0):+.1f}")):
+        surface.blit(font_small.render(text, True, (190, 225, 160)), (x + 16, start_y + 206 + offset * 17))
 
     cur_y = start_y + card1_h + 8
 
@@ -304,8 +345,8 @@ def _draw_left_city_scope(surface, world, region, nation, start_y, x, w, font, f
                   world=world, region=region, nation=nation)
 
     d2_rect = (x + 16, cur_y + 56, w - 32, 26)
-    _draw_gov_btn(surface, d2_rect, "Subsidize Farming ($100)" if tile_cash >= 100 else "Subsidize Farming ($100) [Short]", font_small, mx, my,
-                  'city_farm_subsidy', region, enabled=True, icon_kind='farm',
+    _draw_gov_btn(surface, d2_rect, "Economic Needs / Funded Support", font_small, mx, my,
+                  'city_production_needs', region, enabled=True, icon_kind='farm',
                   color=(120, 240, 150) if tile_cash >= 100 else (245, 180, 80),
                   world=world, region=region, nation=nation)
 
@@ -618,6 +659,9 @@ def _draw_left_nation_scope(surface, world, region, nation, start_y, x, w, font,
 def gov_panel_hit(pos, world) -> bool:
     """Handle click interactions on the Left Governance Panel and registered buttons."""
     global _GOV_BUTTONS
+    from client.desktop.panels.production_needs import hit as hit_production_needs
+    if hit_production_needs(pos, world):
+        return True
 
     # Left Dock Buttons when closed
     from client.desktop.panels.left_dock import left_dock_buttons_hit
@@ -683,6 +727,10 @@ def gov_panel_hit(pos, world) -> bool:
 
 def _execute_gov_policy(world: dict, act_id: str, target: any):
     """Execute triggered policy decree and notify world engine ticker."""
+    if act_id == 'city_production_needs':
+        from client.desktop.panels.production_needs import open_dialog
+        open_dialog(world, target)
+        return
     if act_id in {'city_toggle_ubi', 'city_farm_subsidy',
                   'city_safety_patrol', 'prov_pave_highway',
                   'prov_healthcare', 'nat_science_prize'}:

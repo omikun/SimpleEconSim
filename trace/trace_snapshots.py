@@ -829,6 +829,16 @@ def sample(tiles, nations, *, labor_censuses=None, full=False):
             for tech_id, progress in innovation_system.diffusion_progress.get(nation.name, {}).items():
                 values[('innovation.diffusion_progress', nation.name, tech_id)] = (
                     {**subject, 'tech_id': tech_id}, 'progress_fraction', float(progress))
+            for tech_id, xp in innovation_system.tech_refinement_xp.get(nation.name, {}).items():
+                values[('innovation.refinement_xp', nation.name, tech_id)] = (
+                    {**subject, 'tech_id': tech_id}, 'refinement_xp', float(xp))
+            for tech_id, generations in getattr(innovation_system, 'tech_commercial_maturity', {}).get(nation.name, {}).items():
+                for generation, maturity in generations.items():
+                    values[('innovation.commercial_maturity', nation.name, tech_id, generation)] = (
+                        {**subject, 'tech_id': tech_id, 'generation': generation}, 'percent', float(maturity))
+            for tech_id, progress in getattr(innovation_system, 'engineering_discovery', {}).get(nation.name, {}).items():
+                values[('innovation.prototype_progress', nation.name, tech_id)] = (
+                    {**subject, 'tech_id': tech_id}, 'percent', float(progress))
             for index, bounty in enumerate(innovation_system.active_bounties):
                 if bounty.nation_name == nation.name:
                     bounty_id = (bounty._trace_operation_id or

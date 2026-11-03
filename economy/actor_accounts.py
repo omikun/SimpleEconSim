@@ -8,7 +8,8 @@ from __future__ import annotations
 from goods import Goods
 
 
-_NONCASH_EVENTS = {'production', 'input_consumed', 'scrip_wage',
+_NONCASH_EVENTS = {'production', 'input_consumed', 'household_consumption', 'scrip_wage',
+                   'estate_food_relief', 'feudal_tribute',
                    'scrip_store_sale', 'scrip_food_credit', 'bank_deposit_haircut',
                    'bank_debt_inheritance', 'bank_debt_writeoff',
                    'company_debt_writeoff',

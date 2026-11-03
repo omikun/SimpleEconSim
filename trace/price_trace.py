@@ -7,7 +7,7 @@ read or modify simulation objects, so a failed replay exposes a trace defect.
 import math
 
 
-def replay_reference(inputs):
+def replay_reference(inputs, *, dated=False):
     prior = inputs['prior_reference']
     demand_ratio = inputs['demand_ratio']
     inflation = 0.25 * math.tanh(demand_ratio - 1.0)
@@ -23,11 +23,22 @@ def replay_reference(inputs):
     samples = inputs['recent_market_price_samples']
     mean = sum(samples) / len(samples) if samples else None
     blended = 0.7 * move + 0.3 * mean if mean is not None else move
+    if dated:
+        rows = inputs['paid_observations']
+        weights = [2 ** (-(inputs['observation_turn'] - row['turn']) /
+                          inputs['observation_half_life']) for row in rows]
+        samples = [row['paid'] / row['quantity'] for row in rows]
+        mean = sum(p * w for p, w in zip(samples, weights)) / sum(weights) if weights else None
+        blend = .3 * max(weights, default=0.0)
+        blended = (1 - blend) * move + blend * mean if mean is not None else move
+        blended = max(prior * .9125, min(prior * 1.125, blended))
     if inputs.get('input_quantity', 0) > 0 and inputs.get('production_quantity', 0) > 0:
         floor = max(0.1, inputs['input_quantity'] * inputs['input_price']
                     / inputs['production_quantity'])
     else:
         floor = 1.0
+    if inputs.get('market_floor') is not None:
+        floor = inputs['market_floor']
     final = max(0.1, min(50.0, max(floor, blended)))
     return {'inflation_term': inflation, 'scarcity': scarcity,
             'bounded_influence': influence, 'target': target,
@@ -42,6 +53,8 @@ def replay_decay(inputs):
         floor = inputs['input_quantity'] * inputs['input_price'] / inputs['production_quantity']
     else:
         floor = 1.0
+    if inputs.get('market_floor') is not None:
+        floor = inputs['market_floor']
     if price > floor * 1.05:
         price = max(floor, price * 0.95)
     return max(floor, price)
@@ -114,8 +127,8 @@ def replay_living_basket(inputs):
 
 def replay_event(row):
     formula = row.get('formula_id')
-    if formula == 'market.reference.v1':
-        expected = replay_reference(row['inputs'])['final']
+    if formula in ('market.reference.v1', 'market.reference.v2'):
+        expected = replay_reference(row['inputs'], dated=formula.endswith('.v2'))['final']
     elif formula in ('market.decay.v1', 'econsim.price_decay.v1'):
         expected = replay_decay(row['inputs'])
     elif formula == 'market.transport.v1':
@@ -154,6 +167,8 @@ def replay_event(row):
     elif formula == 'scenario.market_vwap.v1':
         i = row['inputs']
         expected = i['total_paid'] / i['quantity']
+    elif formula == 'market.food_fill.v1':
+        expected = row['inputs']['submitted'] - row['inputs']['unfilled']
     elif formula == 'market.local_bid.v1':
         i = row['inputs']
         expected = i['reference'] * (1.0 + max(
@@ -163,6 +178,8 @@ def replay_event(row):
             expected = min(expected, i['input_value_ceiling'])
         if i.get('trader_net_value') is not None:
             expected = min(expected, max(0.0, i['trader_net_value']))
+        if i.get('household_budget_limit') is not None:
+            expected = min(expected, i['household_budget_limit'])
     elif formula == 'market.sum_bids.v1':
         expected = sum(item['quantity']
                        for item in row['inputs']['bid_quantities'])
@@ -319,7 +336,8 @@ def replay_event(row):
                      'innovation.trade_diffusion.v1',
                      'innovation.diffusion_adoption_reset.v1',
                      'innovation.bounty_reservation.v1', 'innovation.bounty_removal.v1',
-                     'innovation.refinement_xp.v1'):
+                     'innovation.refinement_xp.v1',
+                     'engineering.prototype.v1', 'engineering.maturity.v1'):
         from innovation_trace import replay_formula
         expected = replay_formula(formula, row['inputs'])
     elif formula in ('factions.support_history.v1', 'factions.grievance_history_decay.v1'):

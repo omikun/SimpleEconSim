@@ -143,12 +143,16 @@ class TransformationOperator:
             return self.estimate_return_hook(agent, region, shadow_price_cash)
 
         gross_value = 0.0
+        from abundance import enabled, funded_demand
+        commercial = enabled(region) and self.category in ('enclosure', 'corvee', 'artisan', 'capitalist')
         # Value of outputs (using rational expected price E[P_{t+k}])
         for g, qty in self.output_goods.items():
+            if commercial:
+                qty = min(qty, funded_demand(region, g))
             p = TransformationGraph.compute_expected_price(region, g)
             spec = TransformationGraph.get_commodity_spec(g)
             prestige = spec.prestige_rating if spec else 0.0
-            if prestige > 0:
+            if prestige > 0 and not commercial:
                 gross_value += prestige * qty
             else:
                 gross_value += p * qty * shadow_price_cash
@@ -209,6 +213,10 @@ class TransformationGraph:
             p_trend = ema
         elif hasattr(region, 'recipes') and good in region.recipes:
             p_trend = float(region.recipes[good].get('price', 1.0))
+        else:
+            spec = cls.get_commodity_spec(good)
+            if spec is not None:
+                p_trend = float(spec.base_price)
 
         # Check pending unharvested or newly committed capacity
         pending = 0.0
@@ -302,6 +310,7 @@ def initialize_default_transformation_ontology():
     # 1. Register Commodities
     specs = [
         CommoditySpec(Goods.food, "Food / Grain", 'subsistence', base_price=1.0, subsistence_value=1.0),
+        CommoditySpec(Goods.prepared_food, "Prepared Meals", 'manufacture', base_price=1.75, subsistence_value=1.0),
         CommoditySpec(Goods.wood, "Timber / Wood", 'raw_material', base_price=1.0),
         CommoditySpec(Goods.furniture, "Furniture", 'manufacture', base_price=25.0),
         CommoditySpec(Goods.transport, "Transport Haulage", 'intermediate', base_price=1.0),

@@ -250,7 +250,7 @@ def _draw_left_city_scope(surface, world, region, nation, start_y, x, w, font, f
     surface.blit(get_icon('municipal', 14), (x + 16, start_y + 8))
     surface.blit(font_small.render(f"Municipal Treasury: ${tile_cash:,.0f}", True, (120, 240, 150)), (x + 34, start_y + 7))
     surface.blit(font_small.render(f"Tax Rate: {tax_rate*100:.1f}%  •  Protest: {protest_e:.2f}", True, (220, 230, 245)), (x + 16, start_y + 26))
-    food_inv = getattr(rgov, 'food_inventory', getattr(rgov, 'food_reserve', 0.0)) if rgov else 0.0
+    food_inv = rgov.food_at(region) if rgov else 0.0
     surface.blit(font_small.render(f"Hungry Citizens: {hungry}  •  Food Inv: {food_inv:.1f}", True, (245, 180, 80)), (x + 16, start_y + 44))
 
     cur_y = start_y + card1_h + 8

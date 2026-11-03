@@ -21,6 +21,7 @@ class Goods(IntEnum):
     rum = auto()
     foreign_luxuries = auto()
     none = auto()
+    prepared_food = auto()  # Appended: existing serialized commodity IDs stay stable.
 
 
 # Profession display characters (one per Goods value)
@@ -45,5 +46,6 @@ profession = {
     Goods.rum: 'V',              # Distiller / Vintner
     Goods.foreign_luxuries: 'L', # Luxury Merchant
     Goods.none: '-',
+    Goods.prepared_food: 'M',
 }
 

@@ -50,7 +50,12 @@ class Region:
                  wilderness: bool = False, wilderness_pop: int = None,
                  institutions=None, seat_gov=True):
         self.name = name
+        self.food_opening_mode = 'authored' if wilderness else 'balanced'
+        self.seasonal_phase_offset = 7  # turn 1 starts just after harvest
+        self.agricultural_area = max(0, number_of_agents * .6)
+        self.commons_capacity = 240.0 if wilderness else max(0, number_of_agents * .8)
         self.wilderness = wilderness
+        self.abundance_enabled = True
         if wilderness:
             self.wilderness_pop = (random.randint(0, 50) if wilderness_pop is None
                                    else int(wilderness_pop))
@@ -191,7 +196,7 @@ class Region:
         self.infant_fatalities_log: list = []
         self.deaths_this_turn: int = 0
         self.deaths_by_cause_this_turn: dict = {}
-        self.granary_stock: float = 25.0  # physical buffer stock smoothing seasonal harvests
+        self.granary_stock: float = 0.0 if wilderness else 25.0
         self.farming_regime: str = 'rotation'  # 'rotation' (Four-Field) | 'intensive' (Monoculture) | 'feudal'
         self.public_healthcare_decree: bool = False  # municipal healthcare mandate
 
@@ -326,6 +331,27 @@ class Region:
     # ------------------------------------------------------------------
     # Institutions (v3 province model)
     # ------------------------------------------------------------------
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self.abundance_enabled = state.get('abundance_enabled', True)
+        if 'abundance_enabled' in state:
+            return  # Preserve lazy dictionaries and their aliases in current checkpoints.
+        good = Goods.prepared_food
+        if good not in self.recipes:
+            from micro.region.helpers import _recipes_init
+            self.recipes[good] = copy.deepcopy(_recipes_init[good])
+        if good not in self.goods:
+            self.goods.append(good)
+        for name in ('population_log', 'hungry_log', 'demand_ratio_log',
+                     'market_demand_ratio_chart_log', 'demand_log', 'supply_log',
+                     'inventory_log', 'per_capita_inventory', 'production_log',
+                     'cash_log', 'gini_log', 'price_log', 'sold_log',
+                     'gdp_by_profession_log', 'export_vol', 'export_val',
+                     'import_vol', 'import_val', 'price_spread_log', '_trade_prices'):
+            getattr(self, name, {}).setdefault(good, [])
+        if hasattr(self, '_price_ref'):
+            self._price_ref.setdefault(good, self.recipes[good]['price'])
 
     @property
     def bank(self):

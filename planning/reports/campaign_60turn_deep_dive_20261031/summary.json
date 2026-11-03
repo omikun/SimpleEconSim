@@ -1,0 +1,53 @@
+{
+  "focus": "first 60 turns of the saved responsive_4243 100-turn campaign",
+  "acceptance_matches": true,
+  "source_signature": "864b77683f8b21eee3c152fdd90db087afd0f4c2b3bcb19b46ba1a968637db05",
+  "current_source_matches": true,
+  "reported_population_start": 75,
+  "reported_population_end": 90,
+  "births": 33,
+  "recorded_deaths": {
+    "starvation": 11,
+    "age_or_health": 7,
+    "disease": 5
+  },
+  "company_to_person_ids": [
+    79,
+    107,
+    119,
+    125,
+    126
+  ],
+  "surviving_company_people": [
+    79,
+    125
+  ],
+  "former_company_deaths": [
+    {
+      "id": 107,
+      "turn": 50,
+      "cause": "starvation"
+    },
+    {
+      "id": 119,
+      "turn": 58,
+      "cause": "starvation"
+    },
+    {
+      "id": 126,
+      "turn": 59,
+      "cause": "starvation"
+    }
+  ],
+  "human_population_end": 88,
+  "human_deaths": {
+    "starvation": 8,
+    "age_or_health": 7,
+    "disease": 5
+  },
+  "farmers_start": 44,
+  "farmers_end": 48,
+  "farmers_minimum": 11,
+  "farm_food_produced": 2067,
+  "food_foraged": 17720
+}

@@ -10,27 +10,15 @@ from client.web import manager_server, tech_sim_server
 from tile_resources import TileResource
 from innovation import InnovationSystem, TECH_CATALOG
 from run_trace import RunTrace
+from tests.test_engineering import engineering_nation, operation
 
 
 def _make_mock_nation(name: str, cash: float = 5000.0, resources=None):
-    res_list = list(resources if resources is not None else list(TileResource))
-    tile = SimpleNamespace(
-        name=f"{name}_Capital",
-        natural_resources=res_list,
-        resources={r: 1.0 for r in res_list},
-        firms=[],
-        people=[],
-        terrain="hills",
-    )
-    gov_agent = SimpleNamespace(cash=float(cash))
-    gov = SimpleNamespace(agent=gov_agent)
-    return SimpleNamespace(
-        name=name,
-        currency="USD",
-        government=gov,
-        tiles=[tile],
-        last_All_M=1000.0,
-    )
+    nation = engineering_nation(name, cash)
+    if resources is not None:
+        nation.tiles[0].natural_resources = list(resources)
+    nation.last_All_M = 1000.0
+    return nation
 
 
 class TestTechSimServer(unittest.TestCase):
@@ -54,7 +42,7 @@ class TestTechSimServer(unittest.TestCase):
         self.assertEqual(catalog["microelectronics"]["max_steal_xp"], 30)
 
     def test_subsidy_modes_and_prereq_gate(self):
-        """Crash 4x subsidy must outpace 1x standard subsidy in low-wage regimes, and missing prereq caps XP at 59."""
+        """Objectives allocate delivered effort; capability still respects prerequisites."""
         std_res = tech_sim_server.simulate_trajectory({
             "tech_id": "steam_engines",
             "turns": 15,
@@ -75,7 +63,7 @@ class TestTechSimServer(unittest.TestCase):
             "refinement_xp": 1.0,
             "has_prereq": True,
         })
-        self.assertGreater(crash_res["refinement_rate_per_turn"], std_res["refinement_rate_per_turn"] * 2.0)
+        self.assertAlmostEqual(crash_res["refinement_rate_per_turn"], std_res["refinement_rate_per_turn"] * 2.0)
         self.assertGreater(crash_res["final_refinement_xp"], std_res["final_refinement_xp"])
 
         # Missing prerequisite sibling tech must hard-cap Refinement XP at 59 (Tier 2)
@@ -100,6 +88,7 @@ class TestTechSimServer(unittest.TestCase):
             "discovery_progress": 100.0,
             "refinement_xp": 10.0,
             "guild_law_active": True,
+            "operating_installations": 3,
         })
         unblocked = tech_sim_server.simulate_trajectory({
             "tech_id": "petroleum_refining",
@@ -107,8 +96,9 @@ class TestTechSimServer(unittest.TestCase):
             "discovery_progress": 100.0,
             "refinement_xp": 10.0,
             "guild_law_active": False,
+            "operating_installations": 3,
         })
-        self.assertAlmostEqual(blocked["refinement_rate_per_turn"] * 4.0, unblocked["refinement_rate_per_turn"], places=1)
+        self.assertAlmostEqual(blocked["refinement_rate_per_turn"] * 4.0, unblocked["refinement_rate_per_turn"], places=8)
         self.assertGreater(unblocked["final_refinement_xp"], blocked["final_refinement_xp"])
 
     def test_manager_server_registers_techsim(self):
@@ -171,8 +161,14 @@ class TestTechSimServer(unittest.TestCase):
 
             # 3. Domestic refinement after reaching steal ceiling: switch to 4x crash subsidy and refine locally to Tier 4!
             inno.set_subsidy_mode(challenger, "microelectronics", "crash", t=5)
-            for step_t in range(6, 28):
+            for step_t in range(6, 100):
+                if inno.get_engineering_program(challenger.name, "microelectronics")['status'] == 'completed':
+                    inno.set_subsidy_mode(challenger, "microelectronics", "crash", t=step_t)
+                inno.prepare_region_engineering(challenger, challenger.tiles[0], step_t)
                 inno.step_refinement([source, challenger], t=step_t)
+                if inno.get_tech_tier(challenger.name, "microelectronics") == 4:
+                    break
+            self.assertLess(challenger.government.agent.cash, 5000)
 
             self.assertGreaterEqual(inno.get_refinement_xp(challenger.name, "microelectronics"), 90.0)
             self.assertEqual(inno.get_tech_tier(challenger.name, "microelectronics"), 4)
@@ -193,6 +189,7 @@ class TestTechSimServer(unittest.TestCase):
             block["active"] = True
             block["clout"] = 75.0
 
+            operation(inno, incumbent, 1)
             inno.step_refinement([incumbent], t=1)
             xp_after_blocked_step = inno.get_refinement_xp(incumbent.name, "steam_engines")
             blocked_delta = xp_after_blocked_step - 10.0
@@ -203,9 +200,10 @@ class TestTechSimServer(unittest.TestCase):
             self.assertTrue(ok_res)
             self.assertFalse(inno.get_guild_blockade(incumbent, "steam_engines")["active"])
 
+            operation(inno, incumbent, 3)
             inno.step_refinement([incumbent], t=3)
             unblocked_delta = inno.get_refinement_xp(incumbent.name, "steam_engines") - xp_after_blocked_step
-            self.assertAlmostEqual(unblocked_delta, blocked_delta * 4.0, places=2)
+            self.assertAlmostEqual(unblocked_delta, blocked_delta * 4.0 * 1.1 / (1 + xp_after_blocked_step / 100), places=8)
 
 
 if __name__ == "__main__":

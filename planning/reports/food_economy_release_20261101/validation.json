@@ -1,0 +1,25 @@
+{
+  "source_signature": "0e694b15dbd478043ae164c34d69ec4c90090e5b1a7a3a19950cabbc9f8b73f8",
+  "unit_tests": 213,
+  "scenario_tests": 80,
+  "checkpoint_tests": 5,
+  "total_tests": 298,
+  "matrix_runs": 18,
+  "matrix_turns_each": 100,
+  "food_residuals": 0,
+  "matrix_currency_violations": 0,
+  "balanced_turns": 300,
+  "stressed_turns": 300,
+  "browser_viewports": [
+    {
+      "width": 1440,
+      "height": 1000
+    },
+    {
+      "width": 390,
+      "height": 844
+    }
+  ],
+  "native_modal_verified": true,
+  "stress_balance_passed": false
+}

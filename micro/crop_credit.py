@@ -84,8 +84,8 @@ def settle_offtake_contracts(region, turn):
         good = next((g for g in region.recipes if getattr(g, 'name', str(g)) == good_name), None)
         if grower is None or buyer is None or good is None or not grower.alive or not buyer.alive:
             continue
-        available = sum(max(0, int(r['quantity'])) for r in receipts
-                        if r['person_id'] == grower.id and r['good'] == good)
+        from harvest_claims import available as claimable_harvest
+        available = claimable_harvest(region, grower, good, turn)
         take = min(available, int(contract.get('remaining', 0)))
         if good_name == 'food':
             take = min(take, max(0, int(grower.inv_get(good, 0)) - 4))
@@ -197,8 +197,8 @@ def settle_crop_liens(region, turn):
         creditor = agents.get(claim.creditor_id)
         if tenant is None or creditor is None or not tenant.alive or not creditor.alive:
             continue
-        available = sum(r['quantity'] for r in receipts
-                        if r['person_id'] == tenant.id and r['good'] == getattr(claim, 'lien_good', None))
+        from harvest_claims import available as claimable_harvest
+        available = claimable_harvest(region, tenant, getattr(claim, 'lien_good', None), turn)
         take = min(max(0, available), int(available * getattr(claim, 'lien_share', 0.0)))
         good = getattr(claim, 'lien_good', None)
         if take <= 0 or good is None:
@@ -263,8 +263,8 @@ def settle_crop_shares(region, turn):
         if tenant is None or landlord is None or not tenant.alive or not landlord.alive:
             continue
         good = getattr(tenant, 'output', None)
-        quantity = sum(r['quantity'] for r in receipts
-                       if r['person_id'] == tenant.id and r['good'] == good)
+        from harvest_claims import available as claimable_harvest
+        quantity = claimable_harvest(region, tenant, good, turn)
         take = min(quantity, int(quantity * agreement.crop_share))
         if take <= 0 or good is None:
             continue

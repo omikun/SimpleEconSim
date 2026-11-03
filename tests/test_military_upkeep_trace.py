@@ -34,6 +34,7 @@ def _scenario_personnel_fixture(*, traced=True):
                     register=False)
     region = Region('Cairo', t=0, number_of_agents=0)
     region.recipes[Goods.food]['price'] = 3.0
+    region.household_food_reserve_turns = 0
     nation.add_tile(region)
     seller = _agent(501, Goods.food, cash=10.0)
     seller.inv_add(Goods.food, 12)

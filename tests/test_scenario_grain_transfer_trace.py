@@ -2,6 +2,7 @@ import unittest
 from types import SimpleNamespace
 
 from agent import Agent, initialize_agent
+from tests.food_fixtures import LocatedGovernment
 from goods import Goods
 from scenario_political_economy import (_buy_harvest, _sell_to_households,
                                          apply_action)
@@ -144,7 +145,8 @@ class ScenarioGrainTransferTraceTests(unittest.TestCase):
         owner = _person(300, cash=5.0, food=20, lord=True)
         trace_world, tile, owner, trace, economy = _fixture([owner], reserve=12)
         treasury_agent = _person(301, cash=100.0, food=0, output=Goods.gov)
-        government = SimpleNamespace(agent=treasury_agent, food_inventory=0)
+        government = LocatedGovernment(agent=treasury_agent, food_inventory=0)
+        government.bind_food_site(tile)
         nation = SimpleNamespace(name='Egypt', currency='EGP', government=government,
                                  tiles=[tile], legitimacy=0.6)
         tile.owner_nation = nation

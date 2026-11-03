@@ -79,6 +79,10 @@ def handle_reproduction(ctx, t, agent, agents, new_agents):
                         agent.last_reproduction = t
                         food_to_give = min(1, agent.inv_get(Goods.food))
                         agent.inv_add(Goods.food, -food_to_give)
+                        if reg is not None and food_to_give:
+                            from food_accounts import record
+                            record(reg, 'birth_food_cost', food_to_give, source=agent,
+                                   reason='failed_birth_provisions')
                         return 0
 
         agent.last_reproduction = t
@@ -86,6 +90,13 @@ def handle_reproduction(ctx, t, agent, agents, new_agents):
         new_agent.is_native_child = True
         new_agent.calorie_need_kcal = 1000.0
         new_agent.parent = agent
+        new_agent.assigned_plot_id = getattr(agent, 'assigned_plot_id', None)
+        home_region = getattr(ctx, 'source_region', None)
+        tenure = getattr(home_region, 'tenure', None)
+        if tenure is not None and new_agent.assigned_plot_id is not None:
+            home_plot = tenure.find_plot(new_agent.assigned_plot_id)
+            if home_plot is not None and new_agent.id not in home_plot.tenant_ids:
+                home_plot.tenant_ids.append(new_agent.id)
         new_agent.origin_nation = getattr(agent, 'origin_nation', None)
         new_agent.home_currency = (getattr(ctx.source_region, 'home_currency', None)
                                    if getattr(ctx, 'source_region', None) else None) \

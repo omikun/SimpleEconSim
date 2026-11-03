@@ -274,6 +274,10 @@ class Agent:
         self._extra_attrs = None
 
     def __setattr__(self, name, value):
+        if name in ('inventory', 'inventory_export', 'inventory_foreign') and isinstance(value, list):
+            from food_inventory import FoodInventory
+            if not isinstance(value, FoodInventory):
+                value = FoodInventory(value)
         try:
             object.__setattr__(self, name, value)
         except AttributeError:
@@ -295,6 +299,23 @@ class Agent:
                     extra = {}
                     object.__setattr__(self, '_extra_attrs', extra)
                 extra[name] = value
+
+    def __setstate__(self, state):
+        """Extend commodity wallets when loading a save predating new goods."""
+        attributes, slots = state if isinstance(state, tuple) else (None, state)
+        for name, value in {**(attributes or {}), **slots}.items():
+            object.__setattr__(self, name, value)
+        for name in ('inventory', 'inventory_export', 'inventory_foreign', 'cost_basis'):
+            wallet = getattr(self, name, None)
+            if isinstance(wallet, list) and len(wallet) < _NUM_GOODS:
+                wallet.extend([0] * (_NUM_GOODS - len(wallet)))
+            if name != 'cost_basis' and isinstance(wallet, list):
+                from food_inventory import FoodInventory
+                if not isinstance(wallet, FoodInventory):
+                    object.__setattr__(self, name, FoodInventory(wallet))
+        for wallet in getattr(self, 'parked_foreign', {}).values():
+            if isinstance(wallet, list) and len(wallet) < _NUM_GOODS:
+                wallet.extend([0] * (_NUM_GOODS - len(wallet)))
 
     def __getattr__(self, name):
         if name.startswith('bid_') or name.startswith('ask_'):
@@ -364,10 +385,12 @@ class Agent:
     def inv_set(self, good, value):
         """Set inventory[good.value] or custom_inventory[good]."""
         if type(good) is Goods or isinstance(good, Goods):
+            self._retire_production(good, value - self.inventory[good])
             self.inventory[good] = value
             return
         g_enum = Goods.__members__.get(good if type(good) is str else str(good))
         if g_enum is not None:
+            self._retire_production(g_enum, value - self.inventory[g_enum])
             self.inventory[g_enum] = value
         else:
             cust = self.custom_inventory
@@ -379,10 +402,12 @@ class Agent:
     def inv_add(self, good, delta):
         """Add delta to inventory[good.value] or custom_inventory[good]."""
         if type(good) is Goods or isinstance(good, Goods):
+            self._retire_production(good, delta)
             self.inventory[good] += delta
             return
         g_enum = Goods.__members__.get(good if type(good) is str else str(good))
         if g_enum is not None:
+            self._retire_production(g_enum, delta)
             self.inventory[g_enum] += delta
         else:
             cust = self.custom_inventory
@@ -390,6 +415,12 @@ class Agent:
                 cust = {}
                 self.custom_inventory = cust
             cust[str(good)] = cust.get(str(good), 0) + delta
+
+    def _retire_production(self, good, delta):
+        if delta < 0:
+            book = getattr(self, 'unclaimed_production', None)
+            if book and good.name in book:
+                book[good.name] = max(0, round(book[good.name] + delta, 3))
 
     # ---- Same for cost_basis ----
     def cost_get(self, good, default=0.0):

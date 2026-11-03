@@ -17,6 +17,9 @@ class NileRepairFoodResultTraceTests(unittest.TestCase):
         world['turn'] = 1
         tile = next(tile for tile in world['tiles']
                     if getattr(tile, 'scenario_location', None) == 'Nile Delta')
+        tile.seasonal_phase_offset = 0
+        from food_economy import begin_turn, prepare_work
+        from work_allocation import finish
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / 'nile-food-outcome.ctr'
             trace = RunTrace(path, 'nile-food-outcome-test')
@@ -42,10 +45,15 @@ class NileRepairFoodResultTraceTests(unittest.TestCase):
             owner.cash = 10000.0
             producer.inv_set(Goods.food, 100)
 
+            for turn in range(1, 5):
+                clock['turn'] = turn
+                begin_turn(tile, turn)
+                prepare_work(tile, turn)
+                finish(tile, turn)
+                produce(tile, turn)
             world['turn'] = 4
             clock['turn'] = 4
             advance(world)
-            produce(tile, 4)
             record_food_results(world)
 
             outcomes = trace.query(metric_id='scenario.nile_repair_outcome')

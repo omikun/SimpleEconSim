@@ -261,6 +261,8 @@ class TestCoercionGDDAdherence(unittest.TestCase):
     def test_militant_serfs_withhold_feudal_tribute(self):
         """Serfs in high unrest withhold tribute unless landlord has armed force."""
         tile = Region("Serf_Village", 0)
+        tile.household_food_reserve_turns = 0
+        tile.seasonal_phase_offset = 0
         tenure = TileTenure()
         tile.tenure = tenure
 
@@ -274,23 +276,27 @@ class TestCoercionGDDAdherence(unittest.TestCase):
 
         serf = Agent(0)
         initialize_agent(serf, Goods.food, 0, 0, 0.0)
-        serf.inv_set(Goods.food, 10)  # Has 10 food
+        serf.inv_set(Goods.food, 20)
         tile.agents.append(serf)
+        serf.assigned_plot_id = plot.plot_id
+        plot.tenant_ids = [serf.id]
+        tile.production_receipts = [{'turn': 7, 'person_id': serf.id, 'good': Goods.food, 'quantity': 12}]
 
         # High protest energy and no force -> tribute withheld
         tile.protest_energy_log = [6.0]
         tile.military_units = []
         tile.police_employed = 0
 
-        res = collect_tribute(tile, self.t)
+        res = collect_tribute(tile, 7)
         self.assertEqual(res, {})
-        self.assertEqual(serf.inv_get(Goods.food), 10)
+        self.assertEqual(serf.inv_get(Goods.food), 20)
 
         # Add armed garrison -> tribute extracted
         garrison = MilitaryUnit("garrison", "Kingdom", tile.name, soldiers=15, morale=1.0)
         tile.military_units.append(garrison)
 
-        res2 = collect_tribute(tile, self.t)
+        tile.production_receipts = [{'turn': 17, 'person_id': serf.id, 'good': Goods.food, 'quantity': 12}]
+        res2 = collect_tribute(tile, 17)
         self.assertIn(lord.id, res2)
         self.assertGreater(lord.inv_get(Goods.food), 0)
 

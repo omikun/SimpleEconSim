@@ -164,8 +164,8 @@ def apply_action(world, nation, action_id):
         return success, message
 
     if action_id == 'district_relief':
-        stock_before = int(nation.government.food_inventory)
-        available = min(10, int(nation.government.food_inventory) // 4)
+        stock_before = int(nation.government.food_at(tile))
+        available = min(10, int(nation.government.food_at(tile)) // 4)
         people = sorted((agent for agent in tile.agents
                          if getattr(agent, 'alive', True) and deficit_fraction(agent) > 0
                          and not getattr(agent, 'is_government', False)
@@ -186,17 +186,17 @@ def apply_action(world, nation, action_id):
         ration_operation_id = (f'district-relief:{tile.name}:{turn}:'
                                f'{stock_before}')
         for agent in recipients:
-            queue_before = int(getattr(agent, 'emergency_food_units', 0))
+            queue_before = agent.inv_get(Goods.food, 0)
             queue_emergency_meal(agent, 4)
-            stock_at_start = int(nation.government.food_inventory)
-            nation.government.food_inventory -= 4
+            stock_at_start = int(nation.government.food_at(tile))
+            nation.government.add_food(tile, -4)
             transfer_id = _trace_district_ration(
                 tile, operation_id=f'{ration_operation_id}:{agent.id}',
                 turn=turn, nation=nation, recipient=agent, units=4,
                 stock_before=stock_at_start,
-                stock_after=int(nation.government.food_inventory),
+                stock_after=int(nation.government.food_at(tile)),
                 queue_before=queue_before,
-                queue_after=int(getattr(agent, 'emergency_food_units', 0)))
+                queue_after=agent.inv_get(Goods.food, 0))
             if transfer_id:
                 transfer_event_ids.append(transfer_id)
         world['scenario_state']['public_maize_stock_units'] = nation.government.food_inventory
@@ -204,7 +204,7 @@ def apply_action(world, nation, action_id):
             True, f'Issued next-meal rations to {len(recipients)} underfed households in {name}; used {4 * len(recipients)} public maize units.',
             reason='rations_queued', operation_key=f'stock-{stock_before}',
             inputs={'public_food_inventory_before': stock_before,
-                    'public_food_inventory_after': int(nation.government.food_inventory),
+                    'public_food_inventory_after': int(nation.government.food_at(tile)),
                     'rations_queued': len(recipients),
                     'food_units_used': 4 * len(recipients),
                     'recipient_ids': [agent.id for agent in recipients]},

@@ -1,128 +1,24 @@
-"""
-migration.py — real agent movement for v3_wilderness (Call of Capital).
+"""Delayed household migration after loss of viable local subsistence.
 
-M1.5 emitted a score-only migration intent log; this module turns that into
-ACTUAL conserved movement.  Each turn, a claimed tile under pressure pushes a
-bounded number of residents toward the best adjacent tile.  Every leg is a
-pure transfer:
-
-  - cash  : withdrawn from the origin bank / hand cash, carried to the dest,
-  - goods : inventory moves with the agent,
-  - citizenship: origin gov loses the citizen, dest gov gains it,
-  - homeland: ``origin_nation`` NEVER changes (only citizenship moves) — this
-    is what keeps the 50% claim rule meaningful.
-
-Landing rules (locked with the user):
-  - unclaimed tile   -> ``wilderness.enter_wilderness``: walletize cash,
-                        is_homesteader=True.
-  - claimed tile     -> ``wilderness.enter_claimed``: de-cash the tile's
-                        currency, homesteader status LOST.
-  - homesteading is a POOR person's route: company owners and wealthy agents
-    never become homesteaders (they may still move between claimed tiles).
-
-Cooldown: an agent cannot move again within ``MIGRATION_COOLDOWN`` turns
-(``last_migration_turn``), preventing ping-pong between two tiles.
-
-Conservation: origin-currency cash is walletized BEFORE the destination resets
-``home_currency`` (enter_wilderness sets it to None, whose walletize no-ops),
-so the withdrawn deposit stays visible to ``audit_currency_total``.
+Goods and money move with real people. Movement is open unless an explicit
+law restricts it; destination commons capacity is reserved before travel.
 """
 
-import random
 import forex as fx
 import wilderness as wd
 
 
-# Bounds for one turn of migration.
-MIGRATION_COOLDOWN = 20            # turns an agent must wait between moves
-# The M1.5 intent score saturates around 0-1.5 in practice (wage memory +
-# a small price differential); 3.0 never fired, so no homesteaders ever
-# appeared.  0.2 = any non-trivial distress starts pushing; per-tile max +
-# cooldown keep movement bounded.
-MIGRATION_PRESSURE_THRESHOLD = 0.2 # source ``_migration_intent_score`` gate
-MIGRATION_MAX_PER_TILE = 3         # resignations per source tile per turn
-# Homesteading is a poor person's route: agents with total wealth above this
-# cap never settle wilderness (they may still move between claimed tiles).
-MIGRATION_MAX_WEALTH = 60.0
-
-
-def _homestead_eligible(agent):
-    """May *agent* become a homesteader on an unclaimed tile?
-
-    Ruling: company owners and wealthy agents never homestead — only the poor
-    go the homesteader route.  ``company_owned`` marks the founder/owner of a
-    corporation; ``wealth()`` is cash + deposits + inventory - debt.
-    """
-    if getattr(agent, 'company_owned', None) is not None:
-        return False
-    if getattr(agent, 'is_government', False):
-        return False
-    if getattr(agent, 'is_corporation', False):
-        return False
-    if agent.wealth() > MIGRATION_MAX_WEALTH:
-        return False
-    return True
-
-
-def _score_wilderness_attractiveness(tile) -> float:
-    """Attractiveness of an unclaimed wilderness tile for homesteaders/pioneers."""
-    score = 10.0
-    # Natural mineral resources (iron ore, coal, rare minerals create mining rushes into mountains)
-    resources = getattr(tile, 'natural_resources', set())
-    for r in resources:
-        r_val = getattr(r, 'value', str(r))
-        if r_val in ('iron_ore', 'rare_minerals', 'coal_seam'):
-            score += 20.0  # Big pioneer mineral rush pull
-        elif r_val in ('arable_silt', 'pasture_flax'):
-            score += 10.0
-    # Carrying capacity headroom: pioneers prefer rich territory with low congestion
-    current_pop = getattr(tile, 'wilderness_pop', 0) + sum(1 for a in getattr(tile, 'agents', []) if getattr(a, 'is_homesteader', False))
-    score += max(0.0, 40.0 - current_pop * 0.4)
-    return score
+MIGRATION_COOLDOWN = 20
+MIGRATION_MAX_PER_TILE = 3
 
 
 def _pick_destination(source, agent):
-    """Best adjacent tile for *agent* to move to (None if none qualify).
-
-    Preference order:
-      1. unclaimed wilderness neighbors (frontier homesteading) — ONLY if the
-         agent is homestead-eligible (poor, not an owner);
-      2. claimed neighbors NOT of the agent's origin nation (foreign move);
-      3. claimed neighbors of the same nation (internal move, lowest pull).
-    """
-    best_wild = None
-    best_wild_score = -1e9
-    best_foreign = None
-    best_same = None
-    for other in source.neighbors.values():
-        if other is source or getattr(other, 'is_ocean', False) or getattr(other, 'elevation', 0.0) < 0.0:
-            continue
-        if getattr(other, 'wilderness', False):
-            w_score = _score_wilderness_attractiveness(other)
-            if w_score > best_wild_score:
-                best_wild = other
-                best_wild_score = w_score
-            continue
-        owner = getattr(other, 'owner_nation', None)
-        me = getattr(agent, 'origin_nation', None)
-        if owner is None:
-            continue
-
-        # Phase 1: Settlement Laws (Poor Relief Act)
-        # Dispossessed paupers without capital are barred from settling in foreign parishes
-        is_pauper = (getattr(agent, 'social_class', None) == 'dispossessed' or agent.wealth() <= 10.0)
-        if is_pauper and owner.name != me:
-            continue  # Blocked by Settlement Laws
-
-        if owner.name != me:
-            if best_foreign is None:
-                best_foreign = other
-        else:
-            if best_same is None:
-                best_same = other
-    if best_wild is not None and _homestead_eligible(agent):
-        return best_wild
-    return best_foreign or best_same
+    """Compatibility query using the same explicit movement-law interface."""
+    from foraging import capacity, commons_access
+    candidates = [tile for tile in source.neighbors.values() if tile is not source
+                  and not getattr(tile, 'is_ocean', False) and commons_access(tile) > 0
+                  and movement_policy(source, tile, agent)[0]]
+    return max(candidates, key=lambda tile: (capacity(tile), tile.name), default=None)
 
 
 def _withdraw_origin(origin, agent, t=None):
@@ -189,134 +85,140 @@ def migrate_one(t, source, agent, destination):
     return True
 
 
-def run_migrations(t, regions, rng=None):
-    """One turn of real migration across *regions* (v3).
+def movement_policy(source, destination, person):
+    """Future law interface: a declared restriction needs actual enforcement."""
+    for tile in (source, destination):
+        policy = getattr(tile, 'movement_policy', {})
+        enforcement = max(0, min(1, float(policy.get('enforcement', 0))))
+        restricted = policy.get('permit_required', False) and not getattr(person, 'movement_permit', False)
+        if policy.get('closed', False) and enforcement >= 1:
+            return False, 'denied_passage'
+        if restricted and enforcement > 0:
+            return False, 'deterred_by_movement_law'
+    return True, 'permitted'
 
-    For each CLAIMED tile whose ``_migration_intent_score()`` clears the
-    pressure threshold, move up to ``MIGRATION_MAX_PER_TILE`` eligible
-    residents toward the best adjacent tile.  Wilderness tiles never push
-    (natives are a scalar; homesteaders stay put on their claim).
 
-    Eligibility: adult (age>20) non-corp, non-gov, non-trader, unemployed
-    residents past the cooldown.  Homesteader destinations additionally
-    require the agent to be poor and not a company owner.
-
-    Returns the list of migration events: {t, agent_id, from, to, via}.
-    """
-    rng = rng if rng is not None else random
+def arrive_subsistence_moves(t, regions):
+    lookup = {r.name: r for r in regions}
     events = []
     for source in regions:
-        if getattr(source, 'wilderness', False):
-            continue
-        if not source.agents:
-            continue
-        if getattr(source, 'gov', None) is None:
-            continue
-        from region_logistics import migration_intent_components
-        pressure = migration_intent_components(source)
-        score = pressure['score']
-        from run_trace import emit
-        # Observe only at the real gate evaluation: the same score helper is
-        # also used by UI previews, which must never create trace evidence.
-        price_sources=[]
-        recorder=getattr(source,'_run_trace',None)
-        getter=getattr(recorder,'latest_reference_price_event_id',None)
-        if callable(getter) and source.neighbors:
-            from goods import Goods
-            for tile in [source,*source.neighbors.values()]:
-                if getattr(tile,'recipes',None) and Goods.food in tile.recipes:
-                    ident=getter(str(tile.name),'food')
-                    if ident and ident not in price_sources:price_sources.append(ident)
-        intent_event = emit(source, kind='migration_push_decision', record_class='calculation',
-                            subject={'type': 'tile', 'id': source.name},
-                            metric_id='people.migration_pressure', unit='score',
-                            after=score, formula_id='migration.pressure_gate.v1',
-                            cause_event_ids=price_sources,
-                            inputs={'threshold': MIGRATION_PRESSURE_THRESHOLD,
-                                    'population': len(source.agents),
-                                    'wage_memory_average': pressure['average_wage_memory'],
-                                    'wage_distress_term': pressure['wage_intent'],
-                                    'local_food_price': pressure['local_food_price'],
-                                    'neighbor_food_price_average': pressure['average_neighbor_food_price'],
-                                    'food_price_differential': pressure['food_price_differential'],
-                                    'risk_tolerance_average': pressure['average_risk_tolerance'],
-                                    'formula': '0.5*wage_distress + food_price_differential*(0.5+risk)'},
-                            constraints={'threshold': MIGRATION_PRESSURE_THRESHOLD,
-                                         'passed': score >= MIGRATION_PRESSURE_THRESHOLD})
-        if score < MIGRATION_PRESSURE_THRESHOLD:
-            continue
-        pool = [
-            a for a in source.agents
-            if getattr(a, 'alive', True)
-            and not getattr(a, 'is_corporation', False)
-            and not getattr(a, 'is_government', False)
-            and not getattr(a, 'is_trader', False)
-            and not getattr(a, 'in_workhouse', False)
-            and getattr(a, 'employer', None) is None
-            and a.age(t) > 20
-            and t - getattr(a, 'last_migration_turn', 0) >= MIGRATION_COOLDOWN
-        ]
-        if not pool:
-            emit(source, kind='migration_no_eligible_residents', record_class='outcome',
-                 subject={'type': 'tile', 'id': source.name},
-                 metric_id='people.migration', unit='people', before=len(source.agents),
-                 after=len(source.agents), cause_event_ids=[intent_event] if intent_event else [],
-                 inputs={'intent_score': score, 'eligible_residents': 0})
-            continue
-        rng.shuffle(pool)
+        pending = []
+        for move in getattr(source, 'subsistence_journeys', []):
+            if move['arrival_turn'] > t:
+                pending.append(move)
+                continue
+            destination = lookup.get(move['destination'])
+            if destination is None:
+                pending.append(move)
+                continue
+            for person in list(source.agents):
+                if person.id not in move['member_ids'] or not person.alive:
+                    continue
+                employer = getattr(person, 'employer', None)
+                if employer is not None:
+                    if person in employer.employees:
+                        employer.employees.remove(person)
+                    person.employer = None
+                    agreement = getattr(person, 'labor_agreement', None)
+                    if agreement:
+                        agreement.active = False
+                if migrate_one(t, source, person, destination):
+                    person.previous_plot_id = person.assigned_plot_id
+                    person.assigned_plot_id = None
+                    person.subsistence_arrival_turn = t
+                    person.subsistence_travel_work = .5
+                    person.subsistence_journey = None
+                    events.append({'t': t, 'agent_id': person.id, 'from': source.name,
+                                   'to': destination.name, 'via': 'subsistence', 'planned': False})
+                    from run_trace import emit
+                    emit(source, kind='subsistence_migration_arrival', record_class='outcome',
+                         subject={'type': 'agent', 'id': person.id, 'tile': source.name},
+                         metric_id='people.migration', unit='people', after=1,
+                         inputs={'destination': destination.name, 'arrival_turn': t,
+                                 'departure_turn': move['departure_turn'], 'food_carried': person.inv_get(__import__('goods').Goods.food, 0)})
+        source.subsistence_journeys = pending
+    return events
+
+
+def run_migrations(t, regions, rng=None):
+    """Plan one-turn household moves after loss of viable local subsistence."""
+    from households import rebuild, demand, human, food
+    from nutrition import basic_food_units
+    from foraging import capacity, commons_access, potential
+    from career_transitions import working_adult, profession
+    from run_trace import emit
+    reserved = {}
+    for source in regions:
+        for move in getattr(source, 'subsistence_journeys', []):
+            reserved[move['destination']] = reserved.get(move['destination'], 0) + move['meal_need']
+    events = []
+    for source in regions:
+        rebuild(source, t)
         moved = 0
-        no_destination = 0
-        rejected = 0
-        for agent in pool:
+        for row in source.households.values():
             if moved >= MIGRATION_MAX_PER_TILE:
                 break
-            dest = _pick_destination(source, agent)
-            if dest is None:
-                no_destination += 1
+            person = next((a for a in source.agents if a.id == row['buyer_id']), None)
+            if person is None or not working_adult(person, t) or getattr(person, 'subsistence_journey', None):
                 continue
-            via = 'homestead' if getattr(dest, 'wilderness', False) else 'settle'
-            source_population = len(source.agents)
-            destination_population = (getattr(dest, 'wilderness_pop', 0)
-                                      + sum(1 for resident in getattr(dest, 'agents', [])
-                                            if getattr(resident, 'is_homesteader', False))
-                                      if getattr(dest, 'wilderness', False)
-                                      else len(dest.agents))
-            carried_wealth = float(agent.wealth())
-            carried_cash = float(getattr(agent, 'cash', 0.0))
-            if migrate_one(t, source, agent, dest):
-                emit(source, kind='migration_departure', record_class='outcome',
-                     subject={'type': 'tile', 'id': source.name},
-                     metric_id='people.migration', unit='people',
-                     before=source_population, after=len(source.agents),
-                     cause_event_ids=[intent_event] if intent_event else [],
-                     inputs={'agent_id': agent.id, 'destination': dest.name, 'via': via,
-                             'intent_score': score, 'eligible_pool_size': len(pool),
-                             'selection': 'shuffled_eligible_pool',
-                             'wealth_before': carried_wealth, 'cash_before': carried_cash})
-                emit(dest, kind='migration_arrival', record_class='outcome',
-                     subject={'type': 'tile', 'id': dest.name},
-                     metric_id='people.migration_in', unit='people',
-                     before=destination_population,
-                     after=(getattr(dest, 'wilderness_pop', 0)
-                            + sum(1 for resident in getattr(dest, 'agents', [])
-                                  if getattr(resident, 'is_homesteader', False))
-                            if getattr(dest, 'wilderness', False) else len(dest.agents)),
-                     cause_event_ids=[intent_event] if intent_event else [],
-                     inputs={'agent_id': agent.id, 'origin': source.name, 'via': via,
-                             'wealth_carried': carried_wealth, 'cash_before': carried_cash})
-                events.append({'t': t, 'agent_id': agent.id,
-                               'from': source.name, 'to': dest.name,
-                               'via': via, 'intent_score': score,
-                               'eligible_pool_size': len(pool)})
-                moved += 1
-            else:
-                rejected += 1
-        emit(source, kind='migration_push_result', record_class='outcome',
-             subject={'type': 'tile', 'id': source.name},
-             metric_id='people.migration', unit='people', before=0, after=moved,
-             cause_event_ids=[intent_event] if intent_event else [],
-             inputs={'intent_score': score, 'eligible_pool_size': len(pool),
-                     'movement_limit': MIGRATION_MAX_PER_TILE,
-                     'no_valid_destination_count': no_destination,
-                     'movement_rejected_count': rejected})
+            family = [a for a in source.agents if a.id in row['members'] and human(a)]
+            meal_need = sum(basic_food_units(a) for a in family)
+            # Use the actual closing gap and inability to buy the next meal.
+            missing = max(0, meal_need - sum(food(a) for a in family))
+            bank = getattr(source, 'bank', None)
+            funds = person.cash + (bank.deposits.get(person, 0) if bank and not getattr(bank, 'is_frozen', False) else 0)
+            price = max(.01, source.recipes[__import__('goods').Goods.food]['price'])
+            local_food = sum(potential(a, source) for a in family)
+            from food_access import food_surplus
+            offered = sum(food_surplus(a, source) for a in source.agents if a not in family)
+            purchased = min(offered, max(0, funds) / price)
+            if not missing or purchased + local_food >= missing:
+                continue
+            if t - person.last_migration_turn < MIGRATION_COOLDOWN and person.last_migration_turn > 0:
+                continue
+            # A funded local vacancy is an avenue; speculative quotes are not.
+            from labor_choice import evaluate_offer
+            state = getattr(source, 'career_transition_state', {})
+            old = profession(person)
+            budget = state.get('budgets', {}).get(old.name if old else '', {})
+            departure_possible = old is None or budget.get('used', 0) < budget.get('quota', 0)
+            if purchased > 0 and departure_possible and any(
+                   f.is_corporation and not getattr(f, 'business_closed', False)
+                   and evaluate_offer(person, f, source, t, career_phase=True).accepted
+                   and f.wage / price + local_food >= missing
+                   for f in source.agents):
+                continue
+            choices = []
+            for dest in sorted(source.neighbors.values(), key=lambda r: r.name):
+                if dest is source or getattr(dest, 'is_ocean', False) or commons_access(dest) <= 0:
+                    continue
+                from terrain_edges import get_edge_manager
+                edges = get_edge_manager()
+                if edges is not None and edges.get_friction(source.name, dest.name) == float('inf'):
+                    continue
+                allowed, reason = movement_policy(source, dest, person)
+                if not allowed:
+                    source.subsistence_migration_log = [*getattr(source, 'subsistence_migration_log', []),
+                        {'turn': t, 'person_id': person.id, 'destination': dest.name, 'reason': reason}][-100:]
+                    continue
+                local = sum(max(0, basic_food_units(a) - food(a)) for a in dest.agents if human(a))
+                spare = capacity(dest, t) - local - reserved.get(dest.name, 0)
+                if spare >= meal_need:
+                    choices.append((spare, dest.name, dest))
+            if not choices:
+                continue
+            _, _, destination = max(choices, key=lambda item: (item[0], item[1]))
+            move = {'departure_turn': t, 'arrival_turn': t + 1, 'destination': destination.name,
+                    'member_ids': list(row['members']), 'meal_need': meal_need,
+                    'reason': 'commons_closed' if commons_access(source) <= 0 else 'local_subsistence_failed'}
+            source.subsistence_journeys = [*getattr(source, 'subsistence_journeys', []), move]
+            for member in family:
+                member.subsistence_journey = dict(move)
+            reserved[destination.name] = reserved.get(destination.name, 0) + meal_need
+            emit(source, kind='subsistence_migration_planned', record_class='decision',
+                 subject={'type': 'agent', 'id': person.id, 'tile': source.name},
+                 metric_id='people.migration_intent', unit='people', after=len(family), inputs=move)
+            events.append({'t': t, 'agent_id': person.id, 'from': source.name,
+                           'to': destination.name, 'via': 'subsistence', 'planned': True})
+            moved += 1
     return events

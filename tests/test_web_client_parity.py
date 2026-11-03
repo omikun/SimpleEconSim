@@ -187,6 +187,32 @@ class TestWebClientParity(unittest.TestCase):
         }))
         self.assertTrue(res['success'], res)
 
+    def test_engineering_preview_funding_and_stop(self):
+        from copy import deepcopy
+        from innovation import get_innovation_system
+        n = next(n for n in self.sim.nations if n.name == self.sim.player_nation_name)
+        system = get_innovation_system()
+        self.sim.serialize_world()  # Initialize the existing guild state once.
+        cash = n.government.agent.cash
+        state = deepcopy(system.__dict__)
+        payload = {'tech_id': 'crop_rotation', 'objective': 'performance',
+                   'budget': 25, 'host': n.tiles[0].name}
+        result = self.sim.execute_command(CommandMessage(CommandType.RESEARCH_TECH,
+                                          {'action': 'preview_engineering', **payload}))
+        self.assertTrue(result['success'], result)
+        self.assertIn('forecast', result['engineering'])
+        self.assertEqual(system.__dict__, state)
+        self.assertEqual(n.government.agent.cash, cash)
+        result = self.sim.execute_command(CommandMessage(CommandType.RESEARCH_TECH,
+                                          {'action': 'set_engineering', **payload}))
+        self.assertTrue(result['success'], result)
+        self.assertEqual(system.get_engineering_program(n.name, 'crop_rotation')['budget'], 25)
+        result = self.sim.execute_command(CommandMessage(CommandType.RESEARCH_TECH,
+                                          {'action': 'set_engineering', **payload, 'budget': 0}))
+        self.assertTrue(result['success'], result)
+        self.assertEqual(system.get_engineering_program(n.name, 'crop_rotation')['status'], 'inactive')
+        self.assertEqual(n.government.agent.cash, cash)
+
     def test_recruit_command(self):
         p_nat = self.sim.player_nation_name
         tile = [t for t in self.sim.tiles if getattr(t, 'owner_nation', None) and t.owner_nation.name == p_nat][0]

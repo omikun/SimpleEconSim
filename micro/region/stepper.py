@@ -33,7 +33,8 @@ def _profession_population_members(region: Any) -> dict:
     members = {getattr(group, 'name', str(group)): {} for group in region.goods}
     members['trader'] = {}
     for agent in getattr(region, 'agents', ()):
-        if getattr(agent, 'is_trader', False):
+        if (not getattr(agent, 'alive', True) or getattr(agent, 'is_corporation', False)
+                or getattr(agent, 'is_government', False) or getattr(agent, 'is_trader', False)):
             continue
         output = getattr(agent, 'output', None)
         if output == Goods.food:
@@ -79,6 +80,10 @@ def step_economy(region: Any, t: int):
     """Per-tile economy and institutional flows."""
     legacy = getattr(region, 'province', None) is None
     region._last_turn = t
+    if getattr(region, '_food_closed_turn', None) == t:
+        return
+    from food_economy import begin_turn as begin_food_turn
+    begin_food_turn(region, t)
     if (getattr(region, '_run_trace', None) is not None
             and not hasattr(region, '_trace_profession_members')):
         region._trace_profession_members = _profession_population_members(region)
@@ -167,8 +172,10 @@ def step_economy(region: Any, t: int):
                                          regions=(region,))
         audit_cash(region, t, "charity_done")
 
-    # Labor market
-    new_companies = _labor.run_labour(region, t)
+    # Freeze profession counts before any hiring or founder conversion.
+    from career_transitions import begin_turn as begin_career_turn, step_careers
+    begin_career_turn(region, t)
+    new_companies = _labor.run_labour(region, t, defer_careers=True)
     if new_companies:
         region.agents.extend(new_companies)
 
@@ -180,14 +187,15 @@ def step_economy(region: Any, t: int):
         from economy import LaborMobilityScheduler
         region.labor_scheduler = LaborMobilityScheduler()
 
-    planner_enabled = not getattr(region, 'scenario_owner_policy', False)
+    planner_enabled = getattr(region, 'owner_planning_enabled', not getattr(region, 'scenario_owner_policy', False))
+    mobility_enabled = getattr(region, 'labor_mobility_enabled', not getattr(region, 'scenario_owner_policy', False))
     region.elite_planner.record_planning_phase_gate(region, t, planner_enabled)
     if planner_enabled:
         has_new_items = region.elite_planner.check_new_market_items(region)
         for a in list(region.agents):
             if region.elite_planner.should_run_planning(a, region, t, has_new_items):
                 region.elite_planner.plan_and_execute_elite(a, region, t)
-        region.labor_scheduler.step_labor_cohort(region, t)
+    step_careers(region, t, independent=mobility_enabled)
     audit_cash(region, t, "labour_done")
 
     # Workplace participation must be decided before food allocation and output.
@@ -199,8 +207,18 @@ def step_economy(region: Any, t: int):
     region.sabotage_log.append(res_info['smashed_this_turn'])
     audit_cash(region, t, "resistance_done")
 
-    # Workers allocate this turn to paid work or subsistence foraging, not both.
-    _forage.forage_tile(region, t)
+    # Inputs and real working-capital advances settle before work is committed.
+    from production_policy import prepare_programs
+    prepare_programs(region, t)
+    _market.trade(region, t, defer_food_price=True)
+    audit_cash(region, t, "inputs_and_business_sales_done")
+
+    # Workers share one turn between production and local subsistence.
+    from food_economy import prepare_work
+    prepare_work(region, t)
+    region.food_foraged_this_turn = _forage.forage_tile(region, t)
+    from work_allocation import finish as finish_work_plan
+    finish_work_plan(region, t)
 
     # Capital goods machinery depreciation (operational wear-and-tear)
     from economy import apply_machinery_depreciation
@@ -209,7 +227,8 @@ def step_economy(region: Any, t: int):
     # Production
     from collective_action import record_production
     from supply_rights import allocate_seasonal_water
-    allocate_seasonal_water(region, t)
+    if getattr(region, 'water_allocation_turn', None) != t:
+        allocate_seasonal_water(region, t)
     firm_inventory_before = {a.id: a.inv_get(a.output, 0) for a in region.agents
                              if a.alive and a.is_corporation}
     _prod.produce(region, t)
@@ -229,8 +248,7 @@ def step_economy(region: Any, t: int):
     settle_crop_liens(region, t)
     settle_crop_shares(region, t)
 
-    # Trade & Route export posting
-    _market.trade(region, t)
+    # Dispatch goods actually acquired in the input/business market.
     _logistics.post_exports_to_route(region)
     audit_cash(region, t, "trade_done")
 
@@ -254,6 +272,10 @@ def step_economy(region: Any, t: int):
         region, t,
         settlement_trace_event_ids_by_origin=obligation_settlement_trace_ids,
         payment_trace_event_ids_by_origin=obligation_payment_trace_ids)
+    _market.food_after_payroll(region, t)
+    from production_policy import settle_programs
+    settle_programs(region, t)
+    _prod.release_emergency_food(region, t)
     rent_coll = sum(e['paid'] for e in claim_events if e['origin'] == 'rent')
     rent_arr = sum(c.balance for c in getattr(region, 'cash_obligations', [])
                    if c.origin == 'rent' and c.status == 'active')
@@ -373,6 +395,8 @@ def step_economy(region: Any, t: int):
     # Demographics & Lifecycle
     prior_agents = list(region.agents)
     next_agents = live(region, t)
+    from agriculture import settle_succession
+    settle_succession(region, prior_agents, next_agents)
     surviving_ids = {a.id for a in next_agents}
     for firm in prior_agents:
         if not getattr(firm, 'is_corporation', False):
@@ -396,6 +420,10 @@ def step_economy(region: Any, t: int):
                 if departed.id in plot.tenant_ids:
                     plot.tenant_ids.remove(departed.id)
     region.agents = next_agents
+    from households import rebuild as rebuild_households
+    rebuild_households(region, t)
+    from food_economy import finish_turn as finish_food_turn
+    finish_food_turn(region, t)
     region.trader_agents = [a for a in region.agents if a.is_trader]
     from collective_action import record_essential_needs
     record_essential_needs(region, t)
@@ -459,10 +487,7 @@ def step_economy(region: Any, t: int):
     except Exception:
         pass
 
-    # Charity food distribution
-    if legacy:
-        region.charity.distribute_food(t, region.agents, regions=(region,))
-        audit_cash(region, t, "charity_food_done")
+    # Charity distributes through Live before meals and mortality in all modes.
 
     # Metrics, Factions & Unrest
     log_metrics(region, t)
@@ -691,18 +716,18 @@ def live(region: Any, t: int):
                     and not (getattr(agent, 'is_native_child', False) and agent.age(t) < 14)
                     and trader_count < max_traders
                     and rand.random() < 0.5):
-                _logistics.make_trader_internal(region, agent)
-                trader_count += 1
-                loginfo(t, f"{agent.name()} inherited trader from parent {parent.name()}")
+                if _logistics.make_trader_internal(region, agent):
+                    trader_count += 1
+                    loginfo(t, f"{agent.name()} inherited trader from parent {parent.name()}")
             elif (not agent.is_trader
                   and not (getattr(agent, 'is_native_child', False) and agent.age(t) < 14)
                   and has_arbitrage
                   and (agent.cash < 20 or agent.hungry_steps > 0)
                   and trader_count < max_traders
                   and rand.random() < 0.003):
-                _logistics.make_trader_internal(region, agent)
-                trader_count += 1
-                loginfo(t, f"{agent.name()} switched to trader (cash=${agent.cash:.0f})")
+                if _logistics.make_trader_internal(region, agent):
+                    trader_count += 1
+                    loginfo(t, f"{agent.name()} switched to trader (cash=${agent.cash:.0f})")
 
     return result
 
@@ -810,7 +835,13 @@ def log_metrics(region: Any, t: int):
     total_inv_trader = 0.0
 
     for a in agents:
-        if a.is_trader:
+        if a.is_trader or not a.alive:
+            continue
+        if a.is_corporation:
+            if a.output in total_cash_by_output:
+                total_cash_by_output[a.output] += a.cash
+            if a.output in total_inv_by_output:
+                total_inv_by_output[a.output] += a.inv_get(a.output, 0)
             continue
         if a.output == Goods.food:
             food_agents.append(a)
@@ -854,7 +885,7 @@ def log_metrics(region: Any, t: int):
                  after=region.inventory_log[g][-1],
                  formula_id='inventory.sum_producer_holdings.v1',
                  inputs={'holdings': [{'agent_id': a.id, 'units': a.inv_get(g, 0)}
-                                     for a in grp]})
+                                     for a in agents if a.alive and not a.is_trader and a.output == g]})
             non_prod = [a.inv_get(g, 0) for a in agents if a.output != g and not a.is_trader]
             region.per_capita_inventory[g].append(mean(non_prod) if non_prod else 0)
             region.price_log[g].append(region.recipes[g]['price'])

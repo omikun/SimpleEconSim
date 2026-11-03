@@ -666,6 +666,12 @@ def make_trader_internal(region, agent):
     """Set an agent's fields to make them a trader."""
     from labor_choice import record_labor_status
     turn = int(getattr(region, '_last_turn', 0) or 0)
+    # Trading retains the remembered livelihood, but removes this adult from
+    # productive work. It must not bypass the shared departure ceiling.
+    if getattr(region, 'career_transition_state', None) is not None:
+        from career_transitions import permit_change
+        if not permit_change(region, agent, Goods.none, turn, 'entered_trading'):
+            return False
     best_good = Goods.food
     best_gap = -1.0
     dest = region.destination_region
@@ -703,3 +709,4 @@ def make_trader_internal(region, agent):
     agent.parked_foreign = {}
     for rt in all_routes(region):
         rt.reclaim(agent)
+    return True

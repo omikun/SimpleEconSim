@@ -1492,6 +1492,16 @@ def _execute_world_policy_spending(world, action_id, target):
         return False
 
     turn = int(world.get('turn', 0))
+    if action_id == 'city_farm_subsidy':
+        from production_policy import submit
+        try:
+            submit(target, 'working_capital', 'food', 100, 100, 3, turn)
+            message = f'Funded productive farm advances in {target.name}; $100 reserved for up to 3 turns.'
+        except ValueError as error:
+            message = str(error)
+        from client.desktop.engine import ticker_push
+        ticker_push(world, turn, 'POLICY', message, (120, 220, 140))
+        return True
     if scope == 'tile':
         government = getattr(target, 'gov', None)
         source = getattr(government, 'agent', None)

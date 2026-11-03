@@ -875,8 +875,9 @@ def audit_currency_total(regions, currency):
     seen_reserves = set()
     for r in regions:
         bank = getattr(r, 'bank', None)
+        local_accounts = list(r.agents) + [a for a in getattr(r, 'unclaimed_estates', ()) if a not in r.agents]
         if r.home_currency == currency:
-            total += sum(a.cash for a in r.agents)
+            total += sum(a.cash for a in local_accounts)
             if bank is not None and id(bank) not in seen_banks:
                 seen_banks.add(id(bank))
                 total += bank.equity
@@ -886,7 +887,7 @@ def audit_currency_total(regions, currency):
                 seen_charities.add(id(charity))
                 total += charity.agent.cash
         # Foreign currency held by this region's agents (wallets)
-        total += sum(fx_balance(a, currency) for a in r.agents)
+        total += sum(fx_balance(a, currency) for a in local_accounts)
         # Foreign currency held by this region's bank (reserves) — once per bank
         # per CURRENCY (runs for every currency, unlike the home-equity block).
         if bank is not None and id(bank) not in seen_reserves:

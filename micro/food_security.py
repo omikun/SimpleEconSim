@@ -7,103 +7,14 @@ from goods import Goods
 from nutrition import basic_food_units
 
 
-def forecast_commons_food(person, tile) -> int:
-    """Read the same customary access and yield rule used by foraging."""
-    from foraging import BASE_FORAGE_YIELD, can_forage
-    from livelihood_access import effective_access
-
-    if not can_forage(person, tile):
-        return 0
-    access = effective_access(person, tile, 'commons_food')
-    fertility = tile.terrain.get(Goods.food, 1.0)
-    return min(4, max(1, int(BASE_FORAGE_YIELD * access * fertility)))
+def forecast_commons_food(person, tile):
+    from foraging import potential
+    return potential(person, tile)
 
 
-def diagnose_tile(tile) -> dict:
-    """Read the current household food position before the next turn begins."""
-    residents = [a for a in getattr(tile, 'agents', [])
-                 if a.alive and not a.is_corporation and not a.is_government
-                 and not getattr(a, 'military_unit_id', None)]
-    population = len(residents)
-    food_in_hands = sum(max(0, a.inv_get(Goods.food, 0)) for a in residents)
-    government_food = max(0, getattr(tile.gov, 'food_inventory', 0))
-    forage = {a.id: forecast_commons_food(a, tile) for a in residents}
-    forecast_forage = sum(forage.values())
-    minimum_meal = sum(basic_food_units(a) for a in residents)
-    missing_meals = sum(max(0, basic_food_units(a) - a.inv_get(Goods.food, 0) - forage[a.id])
-                        for a in residents)
-    underfed = sum(a.calorie_deficit_kcal > 0 for a in residents)
-    producers = sum(a.output == Goods.food and a.employer is None
-                    and not (getattr(a, 'is_native_child', False)
-                             and a.age(getattr(tile, '_last_turn', 0)) < 14)
-                    for a in residents)
-    production_log = getattr(tile, 'production_log', {}).get(Goods.food, [])
-    estimated_harvest = (production_log[-1] if production_log else
-                         producers * tile.recipes[Goods.food]['production'] * 0.65)
-    # Require evidence across the full ten-turn crop cycle. Compare cycle
-    # production with cycle demand, then include food households can actually
-    # reach now (household/public stocks and customary foraging).
-    cycle_turns = 10
-    observed_cycle_turns = min(cycle_turns, len(production_log))
-    cycle_production = sum(production_log[-cycle_turns:])
-    cycle_demand = minimum_meal * cycle_turns
-    accessible_buffer = food_in_hands + government_food
-    projected_cycle_margin = cycle_production - cycle_demand + accessible_buffer
-    projected_with_commons_margin = (projected_cycle_margin
-                                     + forecast_forage * cycle_turns)
-    # Commons foraging helps households survive today, but cannot prove that
-    # enclosure is safe because enclosure would remove that same food route.
-    food_buffer_proven = (len(production_log) >= cycle_turns
-                          and projected_cycle_margin >= cycle_demand * 0.1
-                          and underfed / max(1, population) < 0.03)
-    enclosure_risk = bool(population and not food_buffer_proven
-                          and getattr(getattr(tile, 'tenure', None), 'feudal_fraction', 0) > 0)
-    expected_gap = max(0, minimum_meal - food_in_hands - forecast_forage
-                       - estimated_harvest
-                       - government_food)
-    underfed_share = underfed / max(1, population)
-    shortage = (estimated_harvest < minimum_meal * 0.8
-                and (expected_gap > 0 or underfed_share >= 0.15))
-    access = underfed_share >= 0.15 or missing_meals > minimum_meal * 0.2
-    if shortage and access:
-        diagnosis = 'shortage_and_access'
-    elif shortage:
-        diagnosis = 'shortage'
-    elif access:
-        diagnosis = 'access'
-    else:
-        diagnosis = 'stable'
-    emergency = bool(population and (
-        expected_gap >= minimum_meal * 0.1
-        or missing_meals > minimum_meal * 0.2
-        or underfed_share >= 0.15
-        or getattr(tile, 'deaths_this_turn', 0) > 0))
-    return {
-        'tile': tile.name,
-        'residents': population,
-        'food_producers': producers,
-        'minimum_meal_units': minimum_meal,
-        'household_food_units': food_in_hands,
-        'forecast_commons_food_units': forecast_forage,
-        'government_food_units': government_food,
-        'missing_meal_units': missing_meals,
-        'recent_food_production': round(float(estimated_harvest), 2),
-        'crop_cycle_turns': cycle_turns,
-        'observed_crop_cycle_turns': observed_cycle_turns,
-        'crop_cycle_production': round(float(cycle_production), 2),
-        'crop_cycle_meal_demand': round(float(cycle_demand), 2),
-        'accessible_food_buffer': round(float(accessible_buffer), 2),
-        'projected_crop_cycle_margin': round(float(projected_cycle_margin), 2),
-        'forecast_commons_cycle_food': round(float(forecast_forage * cycle_turns), 2),
-        'projected_crop_cycle_margin_with_commons': round(float(projected_with_commons_margin), 2),
-        'food_buffer_proven': food_buffer_proven,
-        'enclosure_risk': enclosure_risk,
-        'projected_supply_gap': round(float(expected_gap), 2),
-        'underfed_residents': underfed,
-        'underfed_share': round(underfed_share, 4),
-        'diagnosis': diagnosis,
-        'emergency': emergency,
-    }
+def diagnose_tile(tile):
+    from food_outlook import snapshot
+    return snapshot(tile)
 
 
 def enact_nation_food_response(nation, turn: int) -> list[dict]:

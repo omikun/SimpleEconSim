@@ -11,6 +11,83 @@
   const DEFAULT_HEX_SIZE = 50.0;
   const uiUtils = window.CoCUIUtils;
   const { escapeHtml, safeClassToken, safeCssColor } = uiUtils;
+  function foodAccessSummary(food) {
+    if (!food) return '—';
+    const amount = key => Number(food[key] || 0).toLocaleString(undefined, { maximumFractionDigits: 1 });
+    const supply = Number(food.production_units || 0) + Number(food.foraged_units || 0);
+    return `<div>${amount('underfed')} underfed · ${amount('unaffordable_residents')} cannot afford meals</div>
+      <div>${supply.toLocaleString()} food supplied / ${amount('meal_need_units')} needed</div>
+      <details><summary>Food access details</summary>
+      <div>For sale ${amount('offered_units')} · Company stocks ${amount('company_units')} · Granary ${amount('granary_units')}</div>
+      <div>Households ${amount('household_units')} · Public ${amount('public_units')} · Charity ${amount('charity_units')} · In transit ${amount('in_transit_units')}</div>
+      <div>Adult meal ~$${amount('meal_cost_min')}–${amount('meal_cost_max')} · Average stated wage $${amount('mean_employee_wage')}</div>
+      <div>${amount('aid_units_last_turn')} public food units delivered · ${amount('emergency_tiles')} emergency districts</div>
+      <div>${escapeHtml((food.access_reasons || []).join('; '))}</div></details>`;
+  }
+  function renderFoodEconomy(tile, anchor) {
+    if (!tile.food_support || !anchor) return;
+    let panel = document.getElementById('food-economy-panel');
+    if (!panel) {
+      panel = document.createElement('section');
+      panel.id = 'food-economy-panel';
+      panel.className = 'food-economy-panel';
+      anchor.insertAdjacentElement('afterend', panel);
+    }
+    if (panel.dataset.tile !== tile.name) {
+      panel.dataset.tile = tile.name;
+      panel.innerHTML = `<div class="food-support-metrics"></div><details class="economic-needs"><summary>Economic needs and public support</summary>
+        <div class="economic-needs-table"></div>
+        <p class="production-program-scope"></p><form class="production-program-form">
+          <label>Program<select name="kind"><option value="procurement">Buy a public reserve</option><option value="working_capital">Productive loans</option><option value="seasonal_hiring">Fund seasonal farm work</option><option value="relief">Buy and distribute meal relief</option></select></label>
+          <label>Commodity<select name="good"></select></label>
+          <label>Quantity<input name="quantity" type="number" min="0.01" step="0.01" value="10" required></label>
+          <label>Maximum budget<input name="budget" type="number" min="0.01" step="0.01" value="25" required></label>
+          <label>Duration (turns)<input name="duration" type="number" min="1" max="30" value="2" required></label>
+          <p class="program-preview">The local treasury reserves the full budget now. Procurement buys real deliveries; loans must be repaid; seasonal hiring pays actual work. Unspent funds return on completion or expiry. Loan quantity is principal; hiring quantity is work turns.</p>
+          <button type="submit">Fund program</button>
+        </form><div class="production-program-history"></div></details>`;
+      const form = panel.querySelector('form');
+      const select = form.elements.good;
+      (tile.production_needs || []).forEach(row => {
+        const option = document.createElement('option');
+        option.value = row.good; option.textContent = row.good.replaceAll('_', ' '); select.append(option);
+      });
+      form.addEventListener('submit', event => {
+        event.preventDefault();
+        sendCommand('PRODUCTION_PROGRAM', {tile: panel.dataset.tile,
+          kind: form.elements.kind.value, good: select.value,
+          quantity: Number(form.elements.quantity.value), budget: Number(form.elements.budget.value),
+          duration: Number(form.elements.duration.value)});
+      });
+      form.elements.kind.addEventListener('change', () => {
+        if (['seasonal_hiring', 'relief'].includes(form.elements.kind.value)) select.value = 'food';
+      });
+    }
+    const scenarioAllows = worldState?.production_programs_allowed !== false;
+    const ownsDistrict = !worldState?.player_nation || tile.nation === worldState.player_nation;
+    panel.querySelector('form').hidden = !scenarioAllows || !ownsDistrict;
+    panel.querySelector('.production-program-scope').textContent = !scenarioAllows
+      ? 'Use the scenario’s decisions to direct public spending.'
+      : !ownsDistrict ? 'Select one of your nation’s districts to fund a program.' : '';
+    const f = tile.food_support, latest = f.latest_turn || {};
+    const num = value => Number(value || 0).toLocaleString(undefined, {maximumFractionDigits: 1});
+    const support = f.farm_support_adult_equivalents == null ? 'Awaiting harvest observations' :
+      `Farms support ${num(f.farm_support_adult_equivalents)} adult-equivalents after seed and local losses; residents need ${num(f.resident_adult_equivalents)}`;
+    panel.querySelector('.food-support-metrics').innerHTML = `<strong>Food support</strong>
+      ${f.initialization?.migration_assumptions ? '<p>Converted legacy stocks: crop history was unavailable, so no standing crop or harvest was added. Review the reserve forecast; a new campaign provides a balanced opening.</p>' : ''}
+      <div>${num(f.primary_farmers)} primary farmers · ${num(f.effective_farm_work)} effective farm work this turn</div>
+      <div>${escapeHtml(support)} <span class="text-dim">(${num(f.support_window_turns)} observed turns)</span></div>
+      <div>Farmers need ${num(f.farmer_adult_equivalents)}; other residents need ${num(f.other_resident_adult_equivalents)}. Farm surplus supports ${f.support_for_others == null ? '—' : num(f.support_for_others)} others.</div>
+      <div>Latest turn ${num(latest.turn)}: farms +${num(latest.farm_production)}, commons +${num(latest.commons_production)}, ordinary meals need ${num(latest.ordinary_need)}, eaten ${num(latest.meals_consumed)}.</div>
+      <div>Stocks ${Number(latest.stock_change) >= 0 ? '+' : ''}${num(latest.stock_change)} · Seed ${num(latest.seed_use)} · Losses ${num(latest.losses)}</div>
+      <div>Next harvest in ${num(f.turns_until_harvest)} turns · Expected ${num(f.expected_harvest)} food</div>
+      <div>${f.first_projected_gap == null ? 'Projected stocks last through the forecast.' : `Projected reserve gap at turn ${num(f.first_projected_gap)} (before potential commons).`}</div>
+      <div>${escapeHtml((f.access_reasons || []).join('; '))}</div>
+      <p class="text-dim">Seasonal harvests use stored grain between harvests. A production deficit can coexist with covered meals. Commons and imports are separate from farms' support capacity.</p>`;
+    panel.querySelector('.economic-needs-table').innerHTML = `<div class="economic-table-scroll"><table><thead><tr><th>Good</th><th>Workers</th><th title="Food uses the crop outlook; other goods use recent production.">Output / need</th><th>Stocks</th><th>Constraint</th></tr></thead><tbody>${(tile.production_needs || []).map(row => `<tr><td>${escapeHtml(row.good.replaceAll('_', ' '))}</td><td>${num(row.workers)}</td><td>${num(row.output_per_turn)} / ${num(row.requirements_per_turn)}</td><td>${num(row.stocks)}</td><td>${escapeHtml(row.constraint.replaceAll('_', ' '))}</td></tr>`).join('')}</tbody></table></div>`;
+    panel.querySelector('.production-program-history').innerHTML = (tile.production_programs || []).slice(-5).map(row =>
+      `<div>${escapeHtml(row.kind.replaceAll('_', ' '))}: ${escapeHtml(row.status)} · delivered ${num(row.delivered)}/${num(row.quantity)} · spent ${num(row.spent)}/${num(row.budget)} · expires T${num(row.expires_turn)}</div>`).join('');
+  }
   const hexGeo = window.CoCHexGeometry;
   const { axialToPixel, pixelToAxial, drawHexPolygon } = hexGeo || {};
   const voronoiGeo = window.CoCVoronoiGeometry;
@@ -1951,7 +2028,10 @@
   function openLeftDrawer(suiteName) {
     hideMacroTooltip();
     activeLeftDrawer = suiteName;
-    if (leftDrawer) leftDrawer.classList.remove('closed');
+    if (leftDrawer) {
+      leftDrawer.classList.remove('closed');
+      leftDrawer.dataset.suite = suiteName;
+    }
 
     document.querySelectorAll('.dock-tab-btn').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.drawer === suiteName);
@@ -2544,6 +2624,9 @@
 
   // ---------------- Suite 5: Science & Tech Tree ----------------
 
+  const scienceDrafts = new Map();
+  const scienceExpanded = new Set();
+
   function renderScienceTechs() {
     const rRibbon = document.getElementById('science-resources-ribbon');
     const tList = document.getElementById('science-tech-list');
@@ -2576,26 +2659,70 @@
       const isMastered = (statusStr === 'MASTERED');
       const tier = Number(tech.tier || 0);
       const refXp = Number(tech.refinement_xp || 0);
-      const subMode = String(tech.subsidy_mode || 'commercial');
+      const engineering = tech.engineering || {};
+      const program = engineering.program || {};
+      const nationKey = worldState.player_nation_name || worldState.player_nation || '';
+      const draftKey = `${nationKey}:${tech.id}`;
+      const draft = scienceDrafts.get(draftKey) || {
+        objective: program.objective || 'performance',
+        budget: program.budget || 25,
+        host: program.host || (engineering.hosts || []).slice().sort((a, b) => b.workshop_capacity - a.workshop_capacity)[0]?.name || ''
+      };
+      const turns = value => value == null ? 'No current progress' : value === 0 ? 'Reached' : `~${value} turns`;
+      const forecast = engineering.forecast || {};
       const gBlock = tech.guild_blockade || {};
       const prereqList = tech.prerequisites || tech.prereqs || [];
       const avenuesList = (tech.avenues || []).map(a => a.name).join(' • ');
 
       card.innerHTML = `
         <div class="card-top">
-          <span class="card-title">🔬 ${escapeHtml(tech.name)} <small style="opacity:0.8;">(Tier ${tier}/4 • ${refXp.toFixed(0)} XP)</small></span>
-          <span class="card-badge ${safeClassToken(statusStr.toLowerCase(), 'locked')}">${escapeHtml(statusStr)}</span>
+          <span class="card-title">🔬 ${escapeHtml(tech.name)}</span>
+          <span class="card-badge ${safeClassToken(statusStr.toLowerCase(), 'locked')}">${isMastered ? `CAPABILITY ${tier}/4` : escapeHtml(statusStr)}</span>
         </div>
         <div class="card-desc">${escapeHtml(tech.description || 'Scientific discovery expanding industrial production.')}</div>
+        ${(tech.productivity_effects || []).length ? `<div class="card-desc">Installed equipment helps: ${(tech.productivity_effects || []).map(e => `${escapeHtml(e.good.replaceAll('_', ' '))} +${Math.round((e.frontier_multiplier - 1) * 100)}%`).join(' · ')}. Listed gains are at frontier capability; earlier designs give smaller gains.</div>` : ''}
         ${avenuesList ? `<div class="card-meta-row" style="font-size:11px;opacity:0.85;"><span>Avenues: ${escapeHtml(avenuesList)}</span></div>` : ''}
         <div class="card-meta-row">
           <span>Prerequisites: ${escapeHtml(prereqList.length ? prereqList.join(', ') : 'None')}</span>
           <span>Steal Cap: Tier ${Number(tech.max_steal_tier || 3)} (${Number(tech.max_steal_xp || 65)} XP)</span>
         </div>
+        <div class="engineering-tracks">
+          <label>Capability · ${escapeHtml(engineering.capability_name || 'Undiscovered')}
+            <progress max="100" value="${refXp}" aria-label="Technical capability"></progress>
+          </label>
+          <label>Commercial maturity · ${escapeHtml(engineering.maturity_name || 'Experimental')}
+            <progress max="100" value="${Number(engineering.maturity || 0)}" aria-label="Commercial maturity of current design"></progress>
+          </label>
+          <div class="card-desc">${Number(engineering.operating_installations || 0)} operating installations · ${Math.round(Number(engineering.utilization || 0) * 100)}% utilization</div>
+        </div>
+        <details class="engineering-detail" ${scienceExpanded.has(draftKey) ? 'open' : ''}>
+          <summary>Engineering program & adoption</summary>
+          <div class="engineering-form">
+            <label>Objective<select class="eng-objective">
+              <option value="performance">Develop a new capability</option>
+              <option value="economy" ${!isMastered ? 'disabled' : ''}>Make existing designs economical</option>
+              <option value="balanced">Improve both</option>
+            </select></label>
+            <label>Budget per turn<input class="eng-budget" type="number" min="0" max="1000000" step="1" value="${Number(draft.budget)}"></label>
+            <label>Host region<select class="eng-host">${(engineering.hosts || []).map(h => `<option value="${escapeHtml(h.name)}">${escapeHtml(h.label || h.name)}${h.workshop_capacity ? ` · ${h.workshop_capacity} workshop shifts` : ' · no workshop'}</option>`).join('')}</select></label>
+          </div>
+          <div class="eng-forecast card-desc" aria-live="polite"></div>
+          <div class="card-meta-row engineering-actions">
+            <button class="btn btn-secondary btn-sm eng-preview">Preview program</button>
+            <button class="btn btn-primary btn-sm eng-apply">Fund to next milestone</button>
+            <button class="btn btn-secondary btn-sm eng-stop" ${program.status !== 'active' ? 'disabled' : ''}>Stop public funding</button>
+            <button class="btn btn-secondary btn-sm eng-workshop">Build testing workshop</button>
+          </div>
+          <p class="card-desc">Program: ${escapeHtml(program.status || 'inactive')} · Last turn spent ${Number(engineering.last_public_spend || 0).toFixed(0)}. Workers and supplies are paid only when experiments can run. Industry continues independently.</p>
+          ${isMastered ? `<div class="engineering-adoption"><strong>Deploy current design</strong>
+            <p class="card-desc">Firms invest when settled sales justify the cost, downtime and financing. Better designs need construction before they improve output.</p>
+            ${(engineering.commercial_decisions || []).map(d => `<div class="card-desc"><strong>${escapeHtml(d.firm)}</strong>${d.installed_generation ? ` · Installed tier ${Number(d.installed_generation)}` : ''}<br>Turn ${Number(d.turn)}: ${escapeHtml(d.reason_text)}${d.project_status ? ` · ${escapeHtml(d.project_status.replaceAll('_', ' '))}` : ''}<br>Estimate: ${Number(d.cost).toFixed(0)} investment · ${Number(d.expected_gain_per_turn).toFixed(1)}/turn extra receipts${d.payback_turns != null ? ` · ~${Number(d.payback_turns).toFixed(0)} turns payback` : ''}${d.constraint ? `<br>${escapeHtml(d.constraint)}` : ''}</div>`).join('')}
+            <div class="card-meta-row engineering-actions"><button class="btn btn-secondary btn-sm eng-pilot">Build pilot installation (${Number(worldState.build_recipes?.[tech.prototype_recipe]?.cost || 0).toFixed(0)})</button></div>
+            ${(tech.adoption_options || []).map((a, i) => `<div class="card-desc">${escapeHtml(a.building)} · ${escapeHtml(a.tile_label || a.tile)}<br>Retrofit: ${a.cost} · At least ${a.downtime_turns} turns offline · Extra output value: ~${a.gross_value_per_turn}/turn${a.gross_payback_turns ? ` · Gross payback ~${a.gross_payback_turns} turns` : ''}<br><button class="btn btn-secondary btn-sm eng-retrofit" data-index="${i}">Commission retrofit</button></div>`).join('')}
+            <p class="card-desc">Output estimates use recent production and prices; they exclude changing input and labor costs. New capability needs a paid installation or retrofit.</p>
+          </div>` : ''}
+        </details>
         <div class="card-meta-row" style="gap:6px;flex-wrap:wrap;margin-top:6px;">
-          <button class="btn btn-secondary btn-sm btn-sub-mode" data-mode="commercial" style="${subMode === 'commercial' ? 'border-color:#38bdf8;' : ''}">🏪 Commercial (1x ROI)</button>
-          <button class="btn btn-secondary btn-sm btn-sub-mode" data-mode="standard" style="${subMode === 'standard' ? 'border-color:#fbbf24;' : ''}">🏛️ 1x State (0.5x XP)</button>
-          <button class="btn btn-secondary btn-sm btn-sub-mode" data-mode="crash" style="${subMode === 'crash' ? 'border-color:#c084fc;' : ''}">🚀 4x Crash (1.0x XP)</button>
           <button class="btn btn-secondary btn-sm btn-steal-tech">🕵️ Steal +1 Tier</button>
           ${!isMastered ? `
             <button class="btn btn-secondary btn-sm btn-pledge-prize" data-tech="${escapeHtml(tech.id)}">
@@ -2613,11 +2740,46 @@
         ` : ''}
       `;
 
-      card.querySelectorAll('.btn-sub-mode').forEach(btn => {
-        btn.addEventListener('click', () => {
-          sendCommand('RESEARCH_TECH', { action: 'set_subsidy', tech_id: tech.id, mode: btn.getAttribute('data-mode') });
-        });
+      const objective = card.querySelector('.eng-objective');
+      const budget = card.querySelector('.eng-budget');
+      const host = card.querySelector('.eng-host');
+      objective.value = draft.objective;
+      host.value = draft.host;
+      const readDraft = () => ({ objective: objective.value, budget: Number(budget.value), host: host.value });
+      const showForecast = e => {
+        const f = e.forecast || {};
+        const target = objective.value === 'economy' ? 'economy' : 'capability';
+        const milestones = target === 'economy' ? 'Lower manufacturing cost' : (isMastered ? 'Next capability milestone' : 'Working prototype');
+        card.querySelector('.eng-forecast').textContent = `${milestones}: ${turns(f[`${target}_turns`])}. Industry alone: ${turns(f[`${target}_turns_without_program`])}. Estimated public spending ${Number(e.expected_spend || 0).toFixed(0)}/turn. ${e.constraint || ''} ${f.conditional || ''}`;
+      };
+      showForecast(engineering);
+      let previewSequence = 0;
+      const preview = async () => {
+        const values = readDraft();
+        scienceDrafts.set(draftKey, values);
+        if (!budget.checkValidity()) return;
+        const sequence = ++previewSequence;
+        const result = await api.sendCommand('RESEARCH_TECH', { action: 'preview_engineering', tech_id: tech.id, ...values }, { silent: true });
+        if (sequence === previewSequence && result?.engineering) showForecast(result.engineering);
+      };
+      [objective, budget, host].forEach(el => el.addEventListener('change', preview));
+      card.querySelector('details').addEventListener('toggle', event => {
+        if (event.currentTarget.open) scienceExpanded.add(draftKey);
+        else scienceExpanded.delete(draftKey);
       });
+      card.querySelector('.eng-preview').addEventListener('click', preview);
+      card.querySelector('.eng-apply').addEventListener('click', async () => {
+        if (!budget.checkValidity()) { budget.reportValidity(); return; }
+        await sendCommand('RESEARCH_TECH', { action: 'set_engineering', tech_id: tech.id, ...readDraft() });
+        scienceDrafts.delete(draftKey);
+      });
+      card.querySelector('.eng-stop').addEventListener('click', () => sendCommand('RESEARCH_TECH', { action: 'set_engineering', tech_id: tech.id, ...readDraft(), budget: 0 }));
+      card.querySelector('.eng-workshop').addEventListener('click', () => sendCommand('BUILD_PROJECT', { tile: host.value, building: 'engineering_workshop' }));
+      card.querySelector('.eng-pilot')?.addEventListener('click', () => sendCommand('BUILD_PROJECT', { tile: host.value, building: tech.prototype_recipe }));
+      card.querySelectorAll('.eng-retrofit').forEach(btn => btn.addEventListener('click', () => {
+        const option = tech.adoption_options[Number(btn.dataset.index)];
+        sendCommand('RESEARCH_TECH', { action: 'retrofit', tech_id: tech.id, tile: option.tile, building_index: option.building_index });
+      }));
 
       const stealBtn = card.querySelector('.btn-steal-tech');
       if (stealBtn) {
@@ -3854,7 +4016,14 @@
           .sort((a, b) => Number(b[1]) - Number(a[1])).slice(0, 3)
           .map(([name, n]) => `${escapeHtml(name)} ${Number(n) || 0}`).join(' · ');
         causeEl.innerHTML = `Primary livelihoods: ${livelihoods || 'No adult livelihoods recorded'} · Hungry ${Number(counts.hungry_adults) || 0} · Foraging ${Number(counts.foraging_adults) || 0} (${Number(counts.average_foraged_food) || 0} food/adult) · Temporary work ${Math.round((Number(counts.average_temporary_work_share) || 0) * 100)}% of an adult turn on average`;
+        const transitions = institution.career_transitions;
+        if (transitions) {
+          const rows = Object.entries(transitions.budgets || {}).map(([name, row]) =>
+            `<tr><td>${escapeHtml(name)}</td><td>${Number(row.population) || 0}</td><td>${Number(row.minimum) || 0}</td><td>${Number(row.quota) || 0}</td><td>${Number(row.used) || 0}</td><td>${Number(row.blocked) || 0}</td></tr>`).join('');
+          causeEl.innerHTML += `<details class="career-transition-summary"><summary>Career moves · Turn ${Number(transitions.turn) || 0}</summary><p>People retain viable livelihoods. Persistent difficulty covering necessities, meal failure, or livelihood loss triggers a search. Permanent moves share a departure limit that slows near the protected minimum.</p><table><thead><tr><th>Profession</th><th>Starting workers</th><th>Protected</th><th>Can leave</th><th>Left</th><th>Held back</th></tr></thead><tbody>${rows}</tbody></table></details>`;
+        }
       }
+      renderFoodEconomy(tile, causeEl);
       const lawsEl = document.getElementById('labor-law-status');
       if (lawsEl) {
         const laws = institution.laws || {};
@@ -4030,7 +4199,7 @@
                 ${isTile ? `<td>${escapeHtml(n.province || '—')}</td>` : ''}
                 <td class="text-gold">$${Math.round(n.treasury_cash || 0).toLocaleString()} ${tDelta} ${isCountry ? `<button class="btn btn-secondary btn-xs btn-treasury-why" data-nat="${escapeHtml(n.name)}">Why $?</button>` : ''}</td>
                 <td>${(n.population || 0).toLocaleString()}</td>
-                <td>${n.food_security ? `${Number(n.food_security.underfed || 0).toLocaleString()} underfed${Number(n.food_security.emergency_tiles || 0) ? ` · emergency in ${Number(n.food_security.emergency_tiles)} districts` : ''}${Number(n.food_security.enclosure_moratoria || 0) ? ` · commons protected in ${Number(n.food_security.enclosure_moratoria)} districts` : ''}${Number(n.food_security.aid_units_last_turn || 0) ? ` · ${Number(n.food_security.aid_units_last_turn).toLocaleString()} food units delivered` : ''}${Number(n.food_security.levy_units_last_turn || 0) ? ` · ${Number(n.food_security.levy_units_last_turn).toLocaleString()} levied` : ''}` : '—'}</td>
+                <td class="food-access-summary">${foodAccessSummary(n.food_security)}</td>
                 <td class="text-cyan">$${Math.round(n.gdp || 0).toLocaleString()}</td>
                 <td><span class="badge-unrest ${safeClassToken((n.unrest_stage || 'calm').toLowerCase(), 'calm')}">${escapeHtml(n.unrest_stage || 'Calm')}</span></td>
                 <td><strong class="text-gold">${escapeHtml(n.credit_rating || 'BBB')}</strong></td>

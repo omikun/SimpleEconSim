@@ -23,6 +23,7 @@ Models:
 from __future__ import annotations
 from goods import Goods
 from random_cache import rand
+from soil_dynamics import SOIL_DEGRADATION_SCALE, soil_change
 
 
 def apply_great_stink_legitimacy_loss(nation, capital_tile, turn):
@@ -197,7 +198,8 @@ def step_tile_externalities(region, t: int) -> dict:
         regen_rate *= 0.30
 
     max_fertility = 1.35 if (regime == 'rotation' and 'arable_silt' in getattr(region, 'terrain', {})) else (1.25 if regime == 'rotation' else 1.10)
-    region.soil_fertility = max(0.20, min(max_fertility, region.soil_fertility - extraction_rate + regen_rate))
+    region.soil_fertility = max(0.20, min(max_fertility,
+        region.soil_fertility + soil_change(extraction_rate, regen_rate)))
 
     # -------------------------------------------------------------------------
     # 2. Food Nutritional Density Dynamics
@@ -344,8 +346,9 @@ def step_tile_externalities(region, t: int) -> dict:
     emit(region, kind='soil_fertility_update', record_class='calculation',
          subject=subject, metric_id='ecology.soil_fertility', unit='ratio',
          before=before_ecology['soil_fertility'], after=region.soil_fertility,
-         formula_id='ecology.soil_balance.v1',
+         formula_id='ecology.soil_balance.v2',
          inputs={'extraction_rate': extraction_rate, 'regeneration_rate': regen_rate,
+                 'degradation_scale': SOIL_DEGRADATION_SCALE,
                  'farming_regime': regime, 'enclosed_fraction': enclosed,
                  'food_producers': food_producers, 'farm_corporations': farm_corps,
                  'fertilizer_used': use_fert, 'rotation': has_rotation,

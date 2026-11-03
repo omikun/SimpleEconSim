@@ -56,8 +56,8 @@ class FoodIntakeTraceTests(unittest.TestCase):
         inputs = event['inputs']
         self.assertEqual(inputs['outcome'], 'shortfall')
         self.assertEqual(inputs['food_sources'], {
-            'emergency_ration_queue': 2,
-            'household_inventory': 1,
+            'emergency_ration_queue': 0,
+            'household_inventory': 3,
             'foreign_trader_inventory': 0,
             'export_trader_inventory': 0})
         self.assertEqual(inputs['food_shortfall_units'], 1)
@@ -66,7 +66,7 @@ class FoodIntakeTraceTests(unittest.TestCase):
         self.assertEqual(inputs['energy_reserve_before_kcal'], INITIAL_RESERVE_KCAL)
         self.assertEqual(inputs['energy_reserve_after_kcal'],
                          INITIAL_RESERVE_KCAL - 500.0)
-        self.assertEqual(inputs['household_food_inventory_before'], 1)
+        self.assertEqual(inputs['household_food_inventory_before'], 3)
         self.assertEqual(inputs['household_food_inventory_after'], 0)
         self.assertEqual(person.emergency_food_units, 0)
 

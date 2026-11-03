@@ -38,6 +38,28 @@ def step_turn(t: int, tiles: list, nations: list = None,
         trace_clock['phase'] = 'strategy'
     if nations is None:
         nations = []
+    for nation in nations:
+        if nation.tiles:
+            nation.government.bind_food_site(nation.tiles[0])
+    from food_economy import prepare_region as prepare_food_region
+    for tile in tiles:
+        prepare_food_region(tile, t)
+    from food_audit import open_turn as open_food_audit
+    food_audit_opening = open_food_audit(tiles, nations, t)
+    from migration import arrive_subsistence_moves
+    arrive_subsistence_moves(t, tiles)
+    # Deliver previously dispatched cargo before any region plans or eats.
+    advanced_routes = set()
+    for tile in tiles:
+        for route in tile._all_routes():
+            if id(route) not in advanced_routes:
+                advanced_routes.add(id(route))
+                route.advance()
+                route.deliver_pending()
+    from food_economy import begin_turn as begin_food_turn
+    for tile in tiles:
+        if not getattr(tile, 'wilderness', False):
+            begin_food_turn(tile, t)
     trace_recorder = next((getattr(tile, '_run_trace', None) for tile in tiles
                            if getattr(tile, '_run_trace', None) is not None), None)
     if trace_recorder is not None and trace_clock is not None:
@@ -76,6 +98,8 @@ def step_turn(t: int, tiles: list, nations: list = None,
         ai = getattr(n, 'ai', None)
         if ai is not None and hasattr(ai, 'decide_turn'):
             ai.decide_turn(t, tiles, nations, diplomacy)
+            from production_policy import decide_nation
+            decide_nation(n, t)
 
     # 0b. Strategic Intents & Construction Projects
     if nations:
@@ -106,7 +130,7 @@ def step_turn(t: int, tiles: list, nations: list = None,
     _provinces = [p for n in nations for p in getattr(n, 'provinces', [])]
     _prov_tiles = {r.name: r for p in _provinces for r in p.tiles}
     from food_logistics import national_relief_enabled, prepare_food_relief
-    if any(national_relief_enabled(nation) for nation in nations):
+    if _provinces:
         prepare_food_relief(_provinces, t)
     for p in _provinces:
         p.step(t)
@@ -121,11 +145,6 @@ def step_turn(t: int, tiles: list, nations: list = None,
     # 3. Advance routes and deliver in-transit cargo
     if trace_clock is not None:
         trace_clock['phase'] = 'trade'
-    for r in tiles:
-        for rt in r._all_routes():
-            rt.advance()
-            rt.deliver_pending()
-
     # 3b. Inter-regional trade epidemic transmission (The Great Pestilence)
     from disease import step_trade_epidemic_transmission
     step_trade_epidemic_transmission(tiles, t)
@@ -207,8 +226,8 @@ def step_turn(t: int, tiles: list, nations: list = None,
             cleanup_labor(region)
     if on_event:
         for ev in mig_events:
-            on_event(t, 'MIGRATE',
-                     f"MIGRATE a{ev['agent_id']} {ev['from']} -> {ev['to']} ({ev['via']})")
+            on_event(t, 'MIGRATION_PLAN',
+                     f"Migration planned a{ev['agent_id']} {ev['from']} -> {ev['to']}; arrival next turn")
 
     # 8. Claims check & application
     claim_events = check_and_apply_claims(t, tiles, nations) if nations else []
@@ -412,4 +431,8 @@ def step_turn(t: int, tiles: list, nations: list = None,
                               (export_event_id, import_event_id)
                               if event_id is not None])
 
+    from food_audit import close_turn as close_food_audit
+    audit = close_food_audit(tiles, nations, food_audit_opening)
+    for tile in tiles:
+        tile.food_conservation_history = [*getattr(tile, 'food_conservation_history', ()), audit][-300:]
     return violations, claim_events

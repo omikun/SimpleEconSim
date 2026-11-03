@@ -73,24 +73,18 @@ def apply_declarative_effects(world: dict, effects: Dict[str, Any], context: Dic
 
     # 3. Resource & Food Distribution (Inventory Conservation)
     if 'distribute_food' in effects:
-        rule = effects['distribute_food']
-        max_units = int(rule.get('max_units', 30))
-        available_food = int(getattr(player.government, 'food_inventory', 0))
-        distribute_qty = min(max_units, available_food)
-        if distribute_qty > 0:
-            households = [a for tile in player.tiles for a in getattr(tile, 'agents', [])
-                          if getattr(a, 'alive', True) and not getattr(a, 'is_government', False)
-                          and not getattr(a, 'is_corporation', False) and not getattr(a, 'is_trader', False)]
-            # Prioritize hungry households with least cash
-            households.sort(key=lambda a: (0 if getattr(a, 'hungry_steps', 0) > 0 else 1,
-                                           float(getattr(a, 'cash', 0.0))))
-            recipients = households[:distribute_qty]
-            for person in recipients:
+        remaining = int(effects['distribute_food'].get('max_units', 30))
+        for tile in player.tiles:
+            player.government.bind_food_site(tile)
+            people = sorted((a for a in tile.agents if a.alive and not a.is_government
+                             and not a.is_corporation and not a.is_trader),
+                            key=lambda a: (-a.hungry_steps, a.cash, a.id))
+            count = min(remaining, int(player.government.food_at(tile)), len(people))
+            for person in people[:count]:
                 person.inv_add(Goods.food, 1)
-                if getattr(person, 'hungry_steps', 0) > 0:
-                    person.hungry_steps = 0
-            player.government.food_inventory -= len(recipients)
-            state['public_maize_stock_units'] = player.government.food_inventory
+            player.government.add_food(tile, -count)
+            remaining -= count
+        state['public_maize_stock_units'] = player.government.food_inventory
 
     if 'set_export_fraction' in effects:
         fraction = _clamp(float(effects['set_export_fraction']))

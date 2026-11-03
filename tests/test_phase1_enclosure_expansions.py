@@ -150,7 +150,9 @@ class TestPhase1EnclosureExpansions(unittest.TestCase):
 
         # Food multiplier should be penalized by pasture fraction (0.8 * 0.75 = 0.60 reduction -> 0.40)
         food_mult = _prod.terrain_bonus(tile, Goods.food)
-        self.assertLess(food_mult, 1.0)
+        self.assertEqual(food_mult, 1.0)
+        from agriculture import ensure_operations
+        self.assertEqual(sum(f['area'] for f in ensure_operations(tile, 1).values()), 0)
 
         # Produce phase: landlord receives first-class Goods.wool
         wool_before = lord.inv_get(Goods.wool, 0)

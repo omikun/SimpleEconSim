@@ -4,7 +4,7 @@ tech_sim_server.py — Standalone Web & REST Server for the Emergent Tech Tree &
 
 Provides both:
   1. An interactive browser/mobile UI on port 8082 (default) for testing multi-avenue discovery,
-     factor-price emergence, state subsidies (0.5x vs 4x crash cost), +1 tier espionage ceilings
+     factor-price emergence, operation and funded engineering, +1 tier espionage ceilings
      with local refinement, and incumbent guild legislative blockades.
   2. Live synchronization with `macro/innovation.py` (`TECH_CATALOG`) plus REST API endpoints:
        • GET  /api/health   — Server status and catalog sync metadata
@@ -220,6 +220,12 @@ def build_dynamic_catalog() -> dict:
             ],
         }
 
+    from goods import Goods
+    for tech_id, tech in TECH_CATALOG.items():
+        catalog[tech_id]['productivity_effects'] = [
+            {'good': Goods(good).name, 'frontier_multiplier': value}
+            for good, value in tech.production_modifiers.items()]
+        catalog[tech_id]['source_urls'] = list(getattr(tech, 'source_urls', ()))
     return catalog
 
 
@@ -234,86 +240,114 @@ def simulate_trajectory(params: dict) -> dict:
         tech_key = "steam_engines"
     tech = catalog[tech_key]
 
+    from engineering import refinement_rates, tier_for_xp, build_cost_factor
     turns = max(1, min(200, int(params.get("turns", 20))))
-    prox_mult = float(params.get("prox_mult", 4.0))
-    crisis_active = bool(params.get("crisis_active", True))
-    wage_ratio = float(params.get("wage_ratio", 3.0))
-    supply_mult = float(params.get("supply_mult", 2.0))
-    net_mult = float(params.get("net_mult", 1.8))
-    inst_mult = float(params.get("inst_mult", 1.5))
-    subsidy_mode = str(params.get("subsidy_mode", "commercial"))
-    guild_law_active = bool(params.get("guild_law_active", False))
-    has_prereq = bool(params.get("has_prereq", True))
+    mode = str(params.get("subsidy_mode", "commercial"))
+    budget = max(0.0, float(params.get("engineering_budget", {"commercial": 0, "standard": 25, "crash": 100}.get(mode, 0))))
+    objective = str(params.get("engineering_objective", "performance" if mode == "crash" else "balanced"))
+    if objective not in ("performance", "economy", "balanced"):
+        raise ValueError("Invalid engineering objective")
+    xp = max(0.0, min(100.0, float(params.get("refinement_xp", 0))))
+    discovery = max(0.0, min(100.0, float(params.get("discovery_progress", 0))))
+    if discovery >= 100:
+        xp = max(1.0, xp)
+    maturity = {int(g): max(0.0, min(100.0, float(v)))
+                for g, v in params.get("maturity_by_generation", {}).items()}
+    generation = max(1, tier_for_xp(xp))
+    previous = max((g for g in maturity if g < generation), default=None)
+    maturity.setdefault(generation, maturity[previous] * 0.35 ** (generation - previous)
+                         if previous else float(params.get("commercial_maturity", 0)))
+    installed_generation = max(1, int(params.get("installed_generation", generation)))
+    treasury = max(0.0, float(params.get("treasury", 5000)))
+    private_cash = max(0.0, float(params.get("private_cash", 500)))
+    stock = max(0, int(params.get("experiment_stock", 1000)))
+    capacity = max(0, min(100, int(params.get("workshop_capacity", 3))))
+    workers = max(0, min(100, int(params.get("engineering_workers", 3))))
+    unit_cost = max(0.01, float(params.get("experiment_unit_cost", 5)))
+    installed = max(0.0, float(params.get("operating_installations", 0)))
+    utilization = min(1.5, max(0.0, float(params.get("utilization", 1))))
     has_input = bool(params.get("has_input", True))
-    discovery_progress = float(params.get("discovery_progress", 0.0))
-    refinement_xp = float(params.get("refinement_xp", 0.0))
-
-    crisis_mult = 2.5 if crisis_active else 0.6
-    effective_incentive = wage_ratio * (prox_mult / 2.0)
-    if subsidy_mode == "standard":
-        effective_incentive = max(effective_incentive, 1.2)
-    elif subsidy_mode == "crash":
-        effective_incentive = max(effective_incentive, 4.0)
-
-    drift = 1.0 * net_mult
-    emergence_rate = drift + (prox_mult * crisis_mult * (effective_incentive / 2.0) * supply_mult * net_mult * inst_mult) * 0.45
-
-    if subsidy_mode == "commercial":
-        base_ref = 0.8 if (wage_ratio * prox_mult < 1.2) else 2.5 * (wage_ratio / 2.0) * (prox_mult / 2.0)
-    elif subsidy_mode == "standard":
-        base_ref = 3.2 * 0.5
-    else:  # crash (4x cost -> 1.0x competitive speed)
-        base_ref = 3.2 * 1.35
-
-    refinement_rate = base_ref * (supply_mult / 1.5) * (net_mult / 1.2)
+    has_prereq = bool(params.get("has_prereq", True))
+    blocked = bool(params.get("guild_law_active", False))
+    target = float(params.get("program_capability_target", next((v for v in (1, 25, 60, 90, 100) if xp < v), 100)))
+    cost_target = float(params.get("program_maturity_target", min(100, maturity[generation] + 20)))
+    funded_generation = int(params.get("program_generation", generation))
+    active = bool(params.get("program_active", True)) and budget > 0
+    repeat = bool(params.get("repeat_program", False))
+    crisis_mult = 2.5 if params.get("crisis_active", True) else 0.6
+    prox = float(params.get("prox_mult", 4))
+    wages = float(params.get("wage_ratio", 3))
+    net = float(params.get("net_mult", 1.8))
+    organic = max(0.5, net + prox * crisis_mult * (wages * prox / 4) * float(params.get("supply_mult", 2)) * net * float(params.get("inst_mult", 1.5)) * 0.45)
     if not has_input:
-        refinement_rate = 0.0
-    if guild_law_active:
-        emergence_rate *= 0.45
-        refinement_rate *= 0.25
-
-    history = []
-    for step_idx in range(1, turns + 1):
-        discovered = discovery_progress >= 100.0 or refinement_xp > 0.0
-        if not discovered:
-            discovery_progress = min(100.0, discovery_progress + max(0.5, emergence_rate))
-            if discovery_progress >= 100.0:
-                refinement_xp = max(refinement_xp, 1.0)
+        organic = 0.0
+    if blocked:
+        organic *= 0.45
+    history, first_rates = [], None
+    last_spend = 0.0
+    for step_index in range(1, turns + 1):
+        cap_done = xp >= target
+        cost_done = maturity.get(funded_generation, 0) >= cost_target
+        already_done = cap_done if objective == 'performance' else cost_done if objective == 'economy' else cap_done and cost_done
+        if already_done and not repeat:
+            active = False
+        slots = min(capacity, workers, stock) if has_input else 0
+        effort = min(slots, int(min(budget, treasury) // unit_cost)) if active else 0
+        private_budget = max(0.0, float(params.get("private_budget", 0))) if installed * utilization else 0
+        private_effort = min(slots - effort, int(min(private_budget, private_cash) // unit_cost))
+        last_spend = round(effort * unit_cost, 2)
+        treasury -= last_spend
+        private_cash -= private_effort * unit_cost
+        stock -= effort + private_effort
+        rates = refinement_rates(installations=installed if has_input else 0,
+            utilization=utilization, readiness=1 if has_input else 0,
+            capability=xp, public_effort=effort, private_effort=private_effort,
+            objective=objective, blockaded=blocked)
+        if first_rates is None:
+            first_rates = dict(rates)
+        if xp <= 0 and discovery < 100:
+            discovery = min(100, discovery + organic + 3 * effort * (0.25 if blocked else 1))
+            if discovery >= 100:
+                xp = 1.0
         else:
-            next_xp = refinement_xp + max(0.0, refinement_rate)
-            if not has_prereq and next_xp >= 60.0:
-                next_xp = 59.0
-            refinement_xp = min(100.0, next_xp)
-
-        tier = 0
-        if discovery_progress >= 100.0 or refinement_xp > 0.0:
-            if refinement_xp < 25.0:
-                tier = 1
-            elif refinement_xp < 60.0:
-                tier = 2
-            elif refinement_xp < 90.0:
-                tier = 3
-            else:
-                tier = 4
-
-        history.append({
-            "step": step_idx,
-            "tier": tier,
-            "discovery_progress": round(discovery_progress, 2),
-            "refinement_xp": round(refinement_xp, 2),
-        })
-
-    return {
-        "status": "ok",
-        "tech_id": tech_key,
-        "tech_name": tech["name"],
-        "emergence_rate_per_turn": round(max(0.5, emergence_rate), 2),
-        "refinement_rate_per_turn": round(max(0.0, refinement_rate), 2),
-        "final_tier": history[-1]["tier"],
-        "final_discovery_progress": history[-1]["discovery_progress"],
-        "final_refinement_xp": history[-1]["refinement_xp"],
-        "history": history,
-    }
+            cap = 100 if has_prereq else max(xp, 59)
+            xp = max(xp, min(cap, xp + rates["capability"]))
+            operating = refinement_rates(installations=installed if has_input else 0,
+                utilization=utilization, capability=xp, blockaded=blocked)["maturity"]
+            public_maturity = refinement_rates(public_effort=effort, objective=objective,
+                capability=xp, blockaded=blocked)["maturity"]
+            private_maturity = refinement_rates(private_effort=private_effort,
+                capability=xp, blockaded=blocked)["maturity"]
+            for design, amount in ((installed_generation, operating),
+                                   (funded_generation, public_maturity), (generation, private_maturity)):
+                maturity[design] = min(100, maturity.get(design, 0) + amount)
+        next_generation = max(1, tier_for_xp(xp))
+        if next_generation != generation:
+            maturity.setdefault(next_generation, maturity.get(generation, 0) * 0.35 ** (next_generation - generation))
+            generation = next_generation
+        reached_cap = xp >= target
+        reached_cost = maturity.get(funded_generation, 0) >= cost_target
+        reached = reached_cap if objective == "performance" else reached_cost if objective == "economy" else reached_cap and reached_cost
+        if active and reached and not repeat:
+            active = False
+        history.append({"step": step_index, "tier": tier_for_xp(xp),
+            "discovery_progress": round(discovery, 4), "refinement_xp": round(xp, 4),
+            "commercial_maturity": round(maturity.get(generation, 0), 4),
+            "treasury": round(treasury, 2), "public_spent": last_spend,
+            "private_spent": private_effort * unit_cost, "delivered_effort": effort,
+            "experiment_stock": stock, "program_active": active})
+    return {"status": "ok", "tech_id": tech_key, "tech_name": tech["name"],
+        "emergence_rate_per_turn": round(organic, 4),
+        "refinement_rate_per_turn": first_rates["capability"],
+        "maturity_rate_per_turn": first_rates["maturity"],
+        "final_tier": tier_for_xp(xp), "final_discovery_progress": discovery,
+        "final_refinement_xp": xp, "final_commercial_maturity": maturity.get(generation, 0),
+        "build_cost_factor": build_cost_factor(maturity.get(generation, 0)),
+        "maturity_by_generation": maturity, "treasury": round(treasury, 2),
+        "private_cash": private_cash, "experiment_stock": stock, "program_active": active,
+        "program_capability_target": target, "program_maturity_target": cost_target,
+        "program_generation": funded_generation, "installed_generation": installed_generation, "expected_spend": history[0]["public_spent"],
+        "history": history}
 
 
 # ---------------------------------------------------------------------------
@@ -483,7 +517,7 @@ SIMULATOR_HTML = """<!DOCTYPE html>
           <a href="http://localhost:8000" id="manager-link" style="color:var(--sky); font-size:12px; text-decoration:none; font-weight:600;">⚙️ Open Server Control Center (:8000)</a>
         </div>
         <h1>Emergent Multi-Avenue Discovery, Refinement &amp; Guild Leapfrog Simulator</h1>
-        <p class="muted">Test multi-avenue catalysts, 0.5x vs 4x state subsidies, +1 tier espionage ceilings with local refinement, and incumbent guild legislation.</p>
+        <p class="muted">Test multi-avenue catalysts, operation, technical capability and commercial maturity, +1 tier espionage ceilings with local refinement, and incumbent guild legislation.</p>
       </div>
 
       <div class="stats-row">
@@ -682,30 +716,39 @@ SIMULATOR_HTML = """<!DOCTYPE html>
           <!-- State Subsidy vs Commercial Mode -->
           <div class="space-y" style="border-top:1px solid var(--border); padding-top:10px;">
             <div class="flex-between" style="font-size:12px;">
-              <strong>Prototype Operating &amp; Subsidy Mode</strong>
+              <strong>Engineering program</strong>
               <span class="muted" id="subsidy-cost-badge">+15g Tax/t</span>
             </div>
             <button onclick="setSubsidyMode('commercial')" id="btn-sub-commercial" style="width:100%; text-align:left;" class="flex-between">
               <div>
-                <div style="font-weight:700;">Commercially Competitive (Private)</div>
-                <div class="muted">1.0x XP (Scales with Wage/Fuel &amp; Adjacency; stalls if unprofitable)</div>
+                <div style="font-weight:700;">No public program</div>
+                <div class="muted">Operation generates learning; idle equipment generates none.</div>
               </div>
-              <strong style="color:var(--emerald);">+Tax</strong>
+              <strong style="color:var(--emerald);">0g</strong>
             </button>
             <button onclick="setSubsidyMode('standard')" id="btn-sub-standard" style="width:100%; text-align:left;" class="flex-between">
               <div>
-                <div style="font-weight:700;">Standard State Subsidy (1x Cost)</div>
-                <div class="muted">Generates 0.5x XP regardless of low wages, at 1x Treasury upkeep</div>
+                <div style="font-weight:700;">Workshop program · budget ceiling 25g/turn</div>
+                <div class="muted">Pays for delivered workshop labor and experiment supplies.</div>
               </div>
               <strong style="color:var(--amber);">-25g/t</strong>
             </button>
             <button onclick="setSubsidyMode('crash')" id="btn-sub-crash" style="width:100%; text-align:left;" class="flex-between">
               <div>
-                <div style="font-weight:700;">Crash State Mandate (4x Cost)</div>
-                <div class="muted">Pays 4x cost to replicate full 1.0x commercial/adjacency speed!</div>
+                <div style="font-weight:700;">National program · budget ceiling 100g/turn</div>
+                <div class="muted">Staffing and supplies constrain how much can actually be spent.</div>
               </div>
               <strong style="color:var(--rose);">-100g/t</strong>
             </button>
+          </div>
+
+          <div class="subcard space-y">
+            <label>Engineering objective<select id="eng-objective" onchange="setSubsidyMode(state.subsidyMode)"><option value="performance">Develop capability</option><option value="economy">Make designs economical</option><option value="balanced">Improve both</option></select></label>
+            <label>Operating installations<input id="eng-installations" type="number" min="0" max="1000" value="0" onchange="updateUI()"></label>
+            <label>Utilization (%)<input id="eng-utilization" type="number" min="0" max="150" value="100" onchange="updateUI()"></label>
+            <label>Available skilled engineers<input id="eng-workers" type="number" min="0" max="100" value="3" onchange="updateUI()"></label>
+            <div id="eng-maturity" class="muted"></div>
+            <div class="muted">Three workshop shifts maximum per turn. Each shift consumes one experiment bundle and costs 5g in this controlled scenario. Turn advancement uses the live Python engineering rules.</div>
           </div>
 
           <!-- Step Turn Controls -->
@@ -907,6 +950,13 @@ SIMULATOR_HTML = """<!DOCTYPE html>
       state.avenueIndex = 0;
       state.discoveryProgress = 0;
       state.refinementXP = 0;
+      state.maturityByGeneration = {};
+      state.installedGeneration = 1;
+      state.experimentStock = 1000;
+      state.programActive = true;
+      state.programTarget = null;
+      state.maturityTarget = null;
+      state.programGeneration = null;
       state.frontierBypass = false;
       document.getElementById("catalog-dropdown").value = techKey;
 
@@ -950,88 +1000,89 @@ SIMULATOR_HTML = """<!DOCTYPE html>
 
     function setSubsidyMode(mode) {
       state.subsidyMode = mode;
+      state.programActive = true;
+      state.programTarget = null;
+      state.maturityTarget = null;
+      state.programGeneration = null;
       updateUI();
+    }
+
+    let engineeringPreview = null;
+    let previewRequest = 0;
+    let stepping = false;
+
+    function engineeringParams(turns = 1) {
+      const proxStep = Number(document.getElementById("slider-prox").value);
+      return {
+        tech_id: state.techKey, turns, subsidy_mode: state.subsidyMode,
+        engineering_objective: document.getElementById("eng-objective").value,
+        operating_installations: Number(document.getElementById("eng-installations").value),
+        utilization: Number(document.getElementById("eng-utilization").value) / 100,
+        engineering_workers: Number(document.getElementById("eng-workers").value),
+        workshop_capacity: 3, experiment_stock: state.experimentStock ?? 1000,
+        treasury: state.gold, discovery_progress: state.discoveryProgress,
+        refinement_xp: state.refinementXP, maturity_by_generation: state.maturityByGeneration || {},
+        program_active: state.programActive ?? true, installed_generation: state.installedGeneration || 1,
+        ...(state.programTarget == null ? {} : {program_capability_target: state.programTarget}),
+        ...(state.maturityTarget == null ? {} : {program_maturity_target: state.maturityTarget}),
+        ...(state.programGeneration == null ? {} : {program_generation: state.programGeneration}),
+        prox_mult: proxStep === 3 ? 4 : proxStep === 2 ? 1 : 0.2,
+        crisis_active: document.getElementById("toggle-crisis").checked,
+        wage_ratio: Number(document.getElementById("slider-wage").value),
+        supply_mult: Number(document.getElementById("slider-supply").value),
+        net_mult: Number(document.getElementById("slider-net").value) * (state.frontierBypass ? 0.75 : 1),
+        inst_mult: Number(document.getElementById("slider-inst").value),
+        has_prereq: document.getElementById("chk-prereq-tech").checked,
+        has_input: document.getElementById("chk-input-res").checked,
+        guild_law_active: state.guildLawActive
+      };
     }
 
     function calculateRates() {
-      const proxStep = parseInt(document.getElementById("slider-prox").value, 10);
-      const proxMult = proxStep === 3 ? 4.0 : proxStep === 2 ? 1.0 : 0.2;
-      const crisisActive = document.getElementById("toggle-crisis").checked;
-      const crisisMult = crisisActive ? 2.5 : 0.6;
-      const wageRatio = parseFloat(document.getElementById("slider-wage").value);
-      const supplyMult = parseFloat(document.getElementById("slider-supply").value);
-      let netMult = parseFloat(document.getElementById("slider-net").value);
-      if (state.frontierBypass) netMult *= 0.75;
-      const instMult = parseFloat(document.getElementById("slider-inst").value);
-
-      let effectiveIncentive = wageRatio * (proxMult / 2.0);
-      if (state.subsidyMode === "standard") effectiveIncentive = Math.max(effectiveIncentive, 1.2);
-      else if (state.subsidyMode === "crash") effectiveIncentive = Math.max(effectiveIncentive, 4.0);
-
-      const drift = 1.0 * netMult;
-      let emergenceRate = drift + (proxMult * crisisMult * (effectiveIncentive / 2.0) * supplyMult * netMult * instMult) * 0.45;
-
-      let baseRefinement = 0;
-      if (state.subsidyMode === "commercial") {
-        baseRefinement = (wageRatio * proxMult < 1.2) ? 0.8 : 2.5 * (wageRatio / 2.0) * (proxMult / 2.0);
-      } else if (state.subsidyMode === "standard") {
-        baseRefinement = 3.2 * 0.5;
-      } else if (state.subsidyMode === "crash") {
-        baseRefinement = 3.2 * 1.35;
-      }
-
-      let refinementRate = baseRefinement * (supplyMult / 1.5) * (netMult / 1.2);
-      const hasPrereq = document.getElementById("chk-prereq-tech").checked;
-      const hasInput = document.getElementById("chk-input-res").checked;
-      if (!hasInput) refinementRate = 0;
-
-      if (state.guildLawActive) {
-        emergenceRate *= 0.45;
-        refinementRate *= 0.25;
-      }
-
-      return { proxMult, crisisActive, wageRatio, supplyMult, netMult, instMult, emergenceRate: Math.max(0.5, emergenceRate), refinementRate: Math.max(0, refinementRate), hasPrereq, hasInput };
+      const p = engineeringParams();
+      return {proxMult:p.prox_mult, crisisActive:p.crisis_active, wageRatio:p.wage_ratio,
+        supplyMult:p.supply_mult, netMult:p.net_mult, instMult:p.inst_mult,
+        hasPrereq:p.has_prereq, hasInput:p.has_input,
+        emergenceRate:engineeringPreview?.emergence_rate_per_turn || 0,
+        refinementRate:engineeringPreview?.refinement_rate_per_turn || 0};
     }
 
-    function stepTurns(n) {
-      const tech = TECH_DATA[state.techKey];
-      for (let i = 0; i < n; i++) {
-        state.turn += 1;
-        const rates = calculateRates();
+    async function simulate(params) {
+      const response = await fetch('/api/simulate', {method:'POST',
+        headers:{'Content-Type':'application/json'}, body:JSON.stringify(params)});
+      if (!response.ok) throw new Error('Simulation request failed');
+      const result = await response.json();
+      if (result.status !== 'ok') throw new Error(result.error || 'Simulation failed');
+      return result;
+    }
 
-        if (state.subsidyMode === "commercial") state.gold += 15;
-        else if (state.subsidyMode === "standard") {
-          if (state.gold >= 25) state.gold -= 25;
-          else { state.subsidyMode = "commercial"; logEvent("Treasury depleted! Reverted to Commercial mode."); }
-        } else if (state.subsidyMode === "crash") {
-          if (state.gold >= 100) state.gold -= 100;
-          else { state.subsidyMode = "standard"; logEvent("Treasury low! Downshifted from 4x Crash Mandate to 1x Standard Subsidy."); }
-        }
-        state.pol = Math.min(200, state.pol + 2);
-
-        const wasDiscovered = state.discoveryProgress >= 100 || state.refinementXP > 0;
-        if (!wasDiscovered) {
-          state.discoveryProgress = Math.min(100, state.discoveryProgress + rates.emergenceRate);
-          if (state.discoveryProgress >= 100) {
-            state.refinementXP = 1;
-            const av = tech.avenues[state.avenueIndex];
-            logEvent(`Turn ${state.turn}: Discovered Tier 1 Prototype [${av.prototype}] via ${av.name}!`);
-          }
-        } else {
-          const prevTier = getTierFromXP(state.refinementXP, true);
-          let nextXP = state.refinementXP + rates.refinementRate;
-          if (!rates.hasPrereq && nextXP >= 60) {
-            nextXP = 59;
-            if (i === n - 1) logEvent(`Refinement capped at 59 XP (Tier 2)! Requires [${tech.prereq_name}] for Tier 3.`);
-          }
-          state.refinementXP = Math.min(100, nextXP);
-          const newTier = getTierFromXP(state.refinementXP, true);
-          if (newTier > prevTier) {
-            logEvent(`Turn ${state.turn}: Domestic Tinkering refined ${tech.name} to Tier ${newTier} (${Math.floor(state.refinementXP)} XP)!`);
-          }
-        }
-      }
-      updateUI();
+    async function stepTurns(n) {
+      if (stepping) return;
+      stepping = true;
+      try {
+        const params = engineeringParams(n);
+        const key = state.techKey;
+        const result = await simulate(params);
+        if (key !== state.techKey) return;
+        state.turn += n;
+        state.discoveryProgress = result.final_discovery_progress;
+        state.refinementXP = result.final_refinement_xp;
+        state.gold = result.treasury;
+        state.maturityByGeneration = result.maturity_by_generation;
+        state.experimentStock = result.experiment_stock;
+        state.programActive = result.program_active;
+        state.programTarget = result.program_capability_target;
+        state.maturityTarget = result.program_maturity_target;
+        state.programGeneration = result.program_generation;
+        state.installedGeneration = result.installed_generation;
+        state.pol = Math.min(200, state.pol + 2 * n);
+        const spent = result.history.reduce((sum, r) => sum + r.public_spent, 0);
+        logEvent(`Turn ${state.turn}: capability ${state.refinementXP.toFixed(1)}, commercial maturity ${result.final_commercial_maturity.toFixed(1)}%. Engineering spent ${spent.toFixed(0)}g; ${state.experimentStock} experiment bundles remain.`);
+        if (!result.program_active && params.program_active && params.subsidy_mode !== 'commercial') logEvent('Program milestone reached. Public spending stopped; operation continues. Select a funding level to commission the next milestone.');
+        engineeringPreview = result;
+        updateUI();
+      } catch (error) { logEvent(error.message); }
+      finally { stepping = false; }
     }
 
     function attemptEspionage() {
@@ -1102,6 +1153,13 @@ SIMULATOR_HTML = """<!DOCTYPE html>
     function resetTechProgress() {
       state.discoveryProgress = 0;
       state.refinementXP = 0;
+      state.maturityByGeneration = {};
+      state.installedGeneration = 1;
+      state.experimentStock = 1000;
+      state.programActive = true;
+      state.programTarget = null;
+      state.maturityTarget = null;
+      state.programGeneration = null;
       state.turn = 1;
       logEvent("Reset technology progress to Turn 1 (Tier 0).");
       updateUI();
@@ -1121,6 +1179,16 @@ SIMULATOR_HTML = """<!DOCTYPE html>
     }
 
     function updateUI() {
+      renderUI();
+      const request = ++previewRequest;
+      simulate(engineeringParams()).then(result => {
+        if (request !== previewRequest) return;
+        engineeringPreview = result;
+        renderUI();
+      }).catch(error => logEvent(error.message));
+    }
+
+    function renderUI() {
       const tech = TECH_DATA[state.techKey];
       const rates = calculateRates();
 
@@ -1173,16 +1241,17 @@ SIMULATOR_HTML = """<!DOCTYPE html>
       document.getElementById("refinement-bar").style.width = `${refXP}%`;
 
       const refNote = document.getElementById("refinement-rate-note");
-      if (!isDiscovered) refNote.textContent = "Complete Phase 1 Discovery (or Steal Tier 1) to earn Tinkering XP.";
+      if (!isDiscovered) refNote.textContent = "Develop or acquire a working prototype. Funded experiments can help.";
       else if (!rates.hasInput) refNote.textContent = "HALTED: Missing Physical Input Resources (+0.0 XP/turn).";
       else if (!rates.hasPrereq && state.refinementXP >= 59) refNote.textContent = `CAPPED AT 59 XP: Requires [${tech.prereq_name}] for Tier 3!`;
-      else refNote.textContent = `Active Tinkering: +${rates.refinementRate.toFixed(1)} XP / turn ${state.guildLawActive ? "(Throttled to 25% by Guild Law!)" : ""}`;
+      else refNote.textContent = `Operation & delivered engineering: +${rates.refinementRate.toFixed(1)} XP / turn ${state.guildLawActive ? "(Throttled to 25% by Guild Law!)" : ""}`;
 
       ["commercial", "standard", "crash"].forEach(m => {
         document.getElementById(`btn-sub-${m}`).classList.toggle("active-choice", state.subsidyMode === m);
       });
       document.getElementById("subsidy-cost-badge").textContent =
-        state.subsidyMode === "commercial" ? "+15g Tax/t" : state.subsidyMode === "standard" ? "-25g/t (0.5x XP)" : "-100g/t (4x Cost -> 1.0x XP)";
+        `Expected spending ${Number(engineeringPreview?.expected_spend || 0).toFixed(0)}g/t`;
+      document.getElementById("eng-maturity").textContent = `Commercial maturity: ${Number(state.maturityByGeneration?.[Math.max(1, currentTier)] || 0).toFixed(1)}% · ${state.experimentStock ?? 1000} experiment bundles · Program ${state.programActive === false ? 'completed' : state.subsidyMode === 'commercial' ? 'inactive' : 'active'}`;
 
       const downContainer = document.getElementById("downstream-list");
       downContainer.innerHTML = "";
@@ -1295,7 +1364,11 @@ class TechSimHTTPRequestHandler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._send_json({"status": "error", "message": str(exc)}, status_code=400)
                 return
-            res = simulate_trajectory(params)
+            try:
+                res = simulate_trajectory(params)
+            except (ValueError, TypeError, OverflowError) as exc:
+                self._send_json({'status': 'error', 'message': str(exc)}, status_code=400)
+                return
             self._send_json(res)
             return
 

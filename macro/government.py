@@ -130,7 +130,10 @@ def _record_public_cash_transfer(region, turn, kind, payer, recipient, amount,
         cause_event_ids=cause_event_ids)
 
 
-class Government:
+from food_store import FoodStore
+
+
+class Government(FoodStore):
     """A government entity with its own Agent for proper bank interactions.
 
     Population policy attributes (all disabled by default) can be tuned per
@@ -786,7 +789,7 @@ class Government:
         emergency_target = (max(0, int(self.emergency_meal_target))
                             if self.emergency_food_policy else 0)
         max_inventory = max(self.target_food_reserve * 2, emergency_target)
-        space = max_inventory - self.food_inventory
+        space = max_inventory - self.food_at(trace_region)
         if space <= 0:
             return 0
 
@@ -795,7 +798,7 @@ class Government:
             return 0
 
         affordable = gov_wealth // food_price
-        needed = max(0, max(self.target_food_reserve, emergency_target) - self.food_inventory)
+        needed = max(0, max(self.target_food_reserve, emergency_target) - self.food_at(trace_region))
         purchase_limit = (max(current_desired, emergency_target)
                           if self.emergency_food_policy else current_desired)
         potential_bid = min(space, affordable, purchase_limit, needed)
@@ -813,9 +816,9 @@ class Government:
 
         return potential_bid
 
-    def receive_food(self, quantity):
+    def receive_food(self, quantity, region=None):
         """Record food purchased during trade."""
-        self.food_inventory += quantity
+        self.add_food(region, quantity)
 
     def pay_for_food(self, cost, *, trace_region=None):
         """Deduct cash for food purchased."""
@@ -846,6 +849,8 @@ class Government:
 
         Returns total food given.
         """
+        if region is not None:
+            self.bind_food_site(region)
         child_max_age = self.get_child_food_aid_max_age()
         if getattr(self, '_food_aid_turn', -1) != t:
             self.food_aid_last_turn = 0
@@ -856,7 +861,7 @@ class Government:
         cumulative_aid_before = int(self.food_aid_last_turn)
         if self.emergency_food_policy and region is not None:
             self._levy_emergency_food(t, agents, region)
-        inventory_before = self.food_inventory
+        inventory_before = self.food_at(region)
         operation_region = getattr(region, 'name', self.name)
         operation_id = (f'government-food-aid:{operation_region}:{int(t)}:'
                         f'{cumulative_aid_before}')
@@ -873,34 +878,34 @@ class Government:
                            key=lambda a: (-a.hungry_steps, a.energy_reserve_kcal,
                                           a.inv_get(Goods.food, 0), a.id))
             for agent in needy:
-                if self.food_inventory <= 0:
+                if self.food_at(region) <= 0:
                     break
                 missing = max(0, appetite_units(agent) - agent.inv_get(Goods.food, 0))
-                given = min(missing, self.food_inventory)
+                given = min(missing, self.food_at(region))
                 if given:
-                    government_food_before = float(self.food_inventory)
+                    government_food_before = float(self.food_at(region))
                     recipient_food_before = float(agent.inv_get(Goods.food, 0))
-                    self.food_inventory -= given
+                    self.add_food(region, -given)
                     agent.inv_add(Goods.food, given)
                     agent.food_aid_received_this_turn = (
                         getattr(agent, 'food_aid_received_this_turn', 0) + given)
                     transfer = {
                         'agent_id': agent.id, 'units': given,
                         'government_food_before': government_food_before,
-                        'government_food_after': float(self.food_inventory),
+                        'government_food_after': float(self.food_at(region)),
                         'recipient_food_before': recipient_food_before,
                         'recipient_food_after': float(agent.inv_get(Goods.food, 0)),
                     }
                     event_id = self._trace_food_aid_recipient(
                         t, region, operation_id, len(transfers), agent, given,
-                        government_food_before, float(self.food_inventory),
+                        government_food_before, float(self.food_at(region)),
                         recipient_food_before, float(agent.inv_get(Goods.food, 0)),
                         emergency=True)
                     if event_id is not None:
                         transfer['trace_event_id'] = event_id
                         recipient_event_ids.append(event_id)
                     transfers.append(transfer)
-            total_food_given = inventory_before - self.food_inventory
+            total_food_given = inventory_before - self.food_at(region)
             self.food_aid_last_turn += total_food_given
             self._trace_food_aid(t, inventory_before, transfers, region,
                                  operation_id=operation_id,
@@ -916,23 +921,23 @@ class Government:
 
         # 1. Children: feed all if we have enough food
         for child in children:
-            if self.food_inventory <= 0:
+            if self.food_at(region) < 1:
                 break
-            government_food_before = float(self.food_inventory)
+            government_food_before = float(self.food_at(region))
             recipient_food_before = float(child.inv_get(Goods.food, 0))
-            self.food_inventory -= 1
+            self.add_food(region, -1)
             child.inv_add(Goods.food, 1)
             total_food_given += 1
             transfer = {
                 'agent_id': child.id, 'units': 1,
                 'government_food_before': government_food_before,
-                'government_food_after': float(self.food_inventory),
+                'government_food_after': float(self.food_at(region)),
                 'recipient_food_before': recipient_food_before,
                 'recipient_food_after': float(child.inv_get(Goods.food, 0)),
             }
             event_id = self._trace_food_aid_recipient(
                 t, region, operation_id, len(transfers), child, 1,
-                government_food_before, float(self.food_inventory),
+                government_food_before, float(self.food_at(region)),
                 recipient_food_before, float(child.inv_get(Goods.food, 0)),
                 emergency=False)
             if event_id is not None:
@@ -942,11 +947,11 @@ class Government:
             loginfo(t, f"Government({self.name}) child food aid to {child.name()}")
 
         # 2. Determine how many starving to feed based on available surplus
-        if self.food_inventory > 0 and starving:
+        if self.food_at(region) > 0 and starving:
             # Compute surplus: food + cash reserves above target
             cash_above_reserve = max(0, self.agent.cash
                                      - self.target_food_reserve * food_price)
-            food_surplus = self.food_inventory + (cash_above_reserve / max(0.01, food_price))
+            food_surplus = self.food_at(region) + (cash_above_reserve / max(0.01, food_price))
             desired_feed = len(starving)
             import math
             capacity = max(1.0, desired_feed * self.food_aid_max_coverage)
@@ -955,7 +960,7 @@ class Government:
                         * (1.0 - math.exp(-food_surplus / capacity)))
             feed_count = max(1, int(desired_feed * coverage))
 
-            feed_count = min(int(feed_count), self.food_inventory, len(starving))
+            feed_count = min(int(feed_count), self.food_at(region), len(starving))
 
             # Randomly select starving agents to feed
             if feed_count < len(starving):
@@ -963,9 +968,9 @@ class Government:
             fed = starving[:int(feed_count)]
 
             for agent in fed:
-                government_food_before = float(self.food_inventory)
+                government_food_before = float(self.food_at(region))
                 recipient_food_before = float(agent.inv_get(Goods.food, 0))
-                self.food_inventory -= 1
+                self.add_food(region, -1)
                 agent.inv_add(Goods.food, 1)
                 agent.food_aid_received_this_turn = (
                     getattr(agent, 'food_aid_received_this_turn', 0) + 1)
@@ -973,13 +978,13 @@ class Government:
                 transfer = {
                     'agent_id': agent.id, 'units': 1,
                     'government_food_before': government_food_before,
-                    'government_food_after': float(self.food_inventory),
+                    'government_food_after': float(self.food_at(region)),
                     'recipient_food_before': recipient_food_before,
                     'recipient_food_after': float(agent.inv_get(Goods.food, 0)),
                 }
                 event_id = self._trace_food_aid_recipient(
                     t, region, operation_id, len(transfers), agent, 1,
-                    government_food_before, float(self.food_inventory),
+                    government_food_before, float(self.food_at(region)),
                     recipient_food_before, float(agent.inv_get(Goods.food, 0)),
                     emergency=False)
                 if event_id is not None:
@@ -991,7 +996,7 @@ class Government:
 
         if total_food_given > 0:
             loginfo(t, f"Government({self.name}) distributed {total_food_given} food "
-                    f"(remaining inventory: {self.food_inventory}, "
+                    f"(remaining inventory: {self.food_at(region)}, "
                     f"cash: ${self.agent.cash:.2f})")
 
         self._trace_food_aid(t, inventory_before, transfers, region,
@@ -1010,7 +1015,7 @@ class Government:
                      and not a.is_government and not getattr(a, 'military_unit_id', None)]
         meal_gap = sum(max(0, appetite_units(a) - a.inv_get(Goods.food, 0))
                        for a in residents)
-        needed = max(0, meal_gap - self.food_inventory)
+        needed = max(0, meal_gap - self.food_at(region))
         if needed == 0:
             return 0
         donors = []
@@ -1018,17 +1023,18 @@ class Government:
             if (not a.alive or a.is_government
                     or getattr(a, 'military_unit_id', None)):
                 continue
-            reserve = 0 if a.is_corporation else appetite_units(a)
+            from food_access import protected_food
+            reserve = protected_food(a, region, emergency=True)
             surplus = max(0, a.inv_get(Goods.food, 0) - reserve)
             if surplus > 0:
                 donors.append((a, surplus))
         donors.sort(key=lambda row: (-int(row[0].is_corporation), -row[1], row[0].id))
-        inventory_before = self.food_inventory
+        inventory_before = self.food_at(region)
         levies = []
         for donor, surplus in donors:
             if needed <= 0:
                 break
-            reserve = 0 if donor.is_corporation else appetite_units(donor)
+            reserve = protected_food(donor, region, emergency=True)
             food_before = float(donor.inv_get(Goods.food, 0))
             levy_capacity_before = levy_capacity(donor, reserve)
             taken = min(needed, levy_capacity_before)
@@ -1036,7 +1042,7 @@ class Government:
                 continue
             donor.inv_add(Goods.food, -taken)
             record_levy(donor, taken)
-            self.food_inventory += taken
+            self.add_food(region, taken)
             needed -= taken
             levies.append({'donor_id': donor.id, 'units': taken,
                            'corporation': bool(donor.is_corporation),
@@ -1045,7 +1051,7 @@ class Government:
                            'protected_reserve_units': reserve,
                            'available_surplus_before': max(0, food_before - reserve),
                            'levy_capacity_before': levy_capacity_before})
-        collected = self.food_inventory - inventory_before
+        collected = self.food_at(region) - inventory_before
         if collected:
             self.food_levy_last_turn += collected
             region.emergency_grain_levy_units = (
@@ -1069,7 +1075,7 @@ class Government:
                 'payee_account': {
                     'type': 'government_food_inventory', 'id': self.name,
                     'balance_before': float(inventory_before),
-                    'balance_after': float(self.food_inventory),
+                    'balance_after': float(self.food_at(region)),
                     'balance_scope': 'food_inventory',
                 },
                 'donor_legs': levies,
@@ -1079,7 +1085,7 @@ class Government:
                  phase='livelihood',
                  subject={'type': 'tile', 'id': region.name, 'good': Goods.food.name},
                  metric_id='goods.emergency_levy', unit='units',
-                 before=inventory_before, after=self.food_inventory,
+                 before=inventory_before, after=self.food_at(region),
                  inputs={'turn': t, 'operation_id': operation_id,
                          'transfer_contract': levy_contract,
                          'meal_gap_units': meal_gap,
@@ -1151,10 +1157,10 @@ class Government:
         emit(region, kind='government_food_aid', record_class='transfer',
              subject={'type': 'tile', 'id': region.name, 'good': Goods.food.name},
              metric_id='goods.food_aid', unit='units',
-             before=inventory_before, after=self.food_inventory,
+             before=inventory_before, after=self.food_at(region),
              inputs={'turn': t, 'operation_id': operation_id,
                      'emergency': self.emergency_food_policy,
-                     'units_delivered': inventory_before - self.food_inventory,
+                     'units_delivered': inventory_before - self.food_at(region),
                      'recipients': transfers},
              cause_event_ids=recipient_event_ids or None)
 

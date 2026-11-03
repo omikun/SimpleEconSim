@@ -4,6 +4,7 @@ sim_server/sim_server.py — Authoritative Simulation Server implementation.
 from treasury_trace import begin_public_change as _trace_public_begin, finish_public_change as _trace_public_finish
 
 import time
+import math
 from trace_clock import trace_command_boundary
 import random
 import threading
@@ -521,6 +522,26 @@ class SimServer:
                 'enclosure_moratoria': food_enclosure_moratoria,
                 'aid_units_last_turn': food_aid_units,
                 'levy_units_last_turn': food_levy_units,
+                'production_units': sum(row['production_units_last_turn'] for row in food_tiles),
+                'foraged_units': sum(row['foraged_units_last_turn'] for row in food_tiles),
+                'meal_need_units': sum(row['minimum_meal_units'] for row in food_tiles),
+                'offered_units': sum(row['food_available_for_sale'] for row in food_tiles),
+                'company_units': sum(row['company_food_units'] for row in food_tiles),
+                'household_units': sum(row['household_food_units'] for row in food_tiles),
+                'public_units': sum(max(0, gov.food_inventory) for gov in food_governments),
+                'charity_units': sum(max(0, charity.food_inventory) for charity in
+                                     {id(tile.charity): tile.charity for tile in tiles}.values()),
+                'in_transit_units': sum(row['food_in_transit'] for row in food_tiles),
+                'meal_cost_min': min((row['meal_reference_cost'] for row in food_tiles), default=0),
+                'meal_cost_max': max((row['meal_reference_cost'] for row in food_tiles), default=0),
+                'mean_employee_wage': (sum(float(a.employer.wage) for tile in tiles for a in tile.agents
+                                          if a.alive and a.employer is not None)
+                    / max(1, sum(1 for tile in tiles for a in tile.agents if a.alive and a.employer is not None))),
+                'granary_units': sum(row['granary_food_units'] for row in food_tiles),
+                'unaffordable_residents': sum(row['unaffordable_residents'] for row in food_tiles),
+                'unmet_calorie_units': sum(row['unmet_calorie_units_last_turn'] for row in food_tiles),
+                'access_reasons': list(dict.fromkeys(reason for row in food_tiles
+                                                   for reason in row['access_reasons'])),
                 'tiles': food_tiles,
             },
             'treasury_upkeep': round(float(tot_upkeep), 1),
@@ -739,6 +760,20 @@ class SimServer:
                         setattr(target_nation, key, val)
                     return {'success': True, 'nation': target_nation.name, 'key': key, 'val': val}
 
+            elif c_type == CommandType.PRODUCTION_PROGRAM:
+                target = next((n for n in self.nations if n.name == (p.get('nation') or self.player_nation_name)), None)
+                tile = self.by_name.get(p.get('tile'))
+                if target is None or tile is None or tile not in target.tiles:
+                    return {'success': False, 'error': 'Target tile must belong to the selected nation.'}
+                from production_policy import submit
+                try:
+                    program = submit(tile, p.get('kind'), p.get('good', 'food'),
+                                     float(p.get('quantity', 0)), float(p.get('budget', 0)),
+                                     float(p.get('duration', 2)), self.turn)
+                except (ValueError, TypeError, KeyError) as error:
+                    return {'success': False, 'error': str(error)}
+                return {'success': True, 'tile': tile.name, 'program': program}
+
             elif c_type == CommandType.LABOR_LAW_ACTION:
                 target_nation = next((n for n in self.nations
                                       if n.name == (p.get('nation') or self.player_nation_name)), None)
@@ -827,7 +862,34 @@ class SimServer:
                     return {'success': False, 'error': "Nation not found"}
                 innov = get_innovation_system()
 
-                if action == 'pledge_prize':
+                if action == 'preview_engineering':
+                    from engineering import OBJECTIVES
+                    budget = float(p.get('budget', 0))
+                    objective = str(p.get('objective', 'balanced'))
+                    host = p.get('host')
+                    if (tech_id not in TECH_CATALOG or not math.isfinite(budget) or budget < 0
+                            or budget > 1_000_000 or objective not in OBJECTIVES
+                            or not any(tile.name == host for tile in nation.tiles)):
+                        return {'success': False, 'message': 'Invalid engineering preview.'}
+                    return {'success': True, 'engineering': innov.engineering_status(
+                        nation, tech_id, self.turn, {'budget': budget, 'objective': objective,
+                                                   'host': host, 'status': 'active' if budget else 'inactive'})}
+
+                elif action == 'set_engineering':
+                    ok, msg = innov.set_engineering_program(
+                        nation, tech_id, p.get('budget', 0), str(p.get('objective', 'balanced')),
+                        host=p.get('host'), t=self.turn)
+                    if ok:
+                        self.push_ticker(self.turn, 'SCIENCE', msg, (120, 200, 255))
+                    return {'success': ok, 'message': msg,
+                            'engineering': innov.engineering_status(nation, tech_id, self.turn) if ok else None}
+
+                elif action == 'retrofit':
+                    ok, msg = innov.commission_retrofit(nation, tech_id, p.get('tile'),
+                                                       p.get('building_index'), t=self.turn)
+                    return {'success': ok, 'message': msg}
+
+                elif action == 'pledge_prize':
                     amount = float(p.get('amount', 300.0))
                     ok = innov.post_royal_bounty(nation, tech_id, amount, self.turn)
                     tech_meta = TECH_CATALOG.get(tech_id)
@@ -1625,7 +1687,10 @@ class SimServer:
                 'name': p_name,
                 'turns_left': turns_left,
                 'total_turns': int(base_t),
-                'progress': round(prog * 100, 0)
+                'progress': round(prog * 100, 0),
+                'private_owner_id': getattr(p, 'private_owner_id', None),
+                'action': getattr(p, 'adoption_action', 'public'),
+                'status': p.status,
             })
 
         # Ecological Metrics
@@ -1940,7 +2005,16 @@ class SimServer:
             'garrison': int(getattr(tile, 'garrison', 0)),
             'ecology': eco,
             'citizens': citizens,
+            'food_support': __import__('food_outlook').snapshot(tile),
+            'production_needs': __import__('production_needs').needs(tile),
+            'production_programs': list(getattr(tile, 'production_programs', ())),
+            'farms': [{'id': f['id'], 'operator_id': f['operator_id'], 'area': f['area'],
+                       'planted_area': (f.get('crop') or {}).get('planted_area', 0),
+                       'harvested': (f.get('crop') or {}).get('harvested', 0),
+                       'seed_units': f['food_milli'] / 1000}
+                      for f in getattr(tile, 'farms', {}).values()],
             'labor_institutions': {
+                'career_transitions': getattr(tile, 'career_transition_state', None),
                 'counts': labor_counts,
                 'livelihoods': dict(sorted(livelihood_counts.items())),
                 'affected_households': len({c.debtor_id for c in getattr(tile, 'cash_obligations', []) if c.status == 'active'}),
@@ -2066,6 +2140,12 @@ class SimServer:
             # Build Recipes (Categorized)
             build_recipes = {}
             for k, r in BUILDING_RECIPES.items():
+                if player_nation:
+                    from engineering import quote_recipe
+                    try:
+                        r = quote_recipe(player_nation, r, get_innovation_system())
+                    except ValueError:
+                        continue
                 req_g = {}
                 if getattr(r, 'required_goods', None):
                     for g, cnt in r.required_goods.items():
@@ -2156,11 +2236,17 @@ class SimServer:
                         'tier': innov.get_tech_tier(player_nat_name, tid),
                         'refinement_xp': round(innov.get_refinement_xp(player_nat_name, tid), 1),
                         'subsidy_mode': innov.get_subsidy_mode(player_nat_name, tid),
+                        'engineering': innov.engineering_status(player_nation, tid, self.turn) if player_nation else None,
+                        'adoption_options': innov.adoption_options(player_nation, tid) if player_nation else [],
+                        'prototype_recipe': f'{tid}_prototype',
                         'guild_blockade': g_block,
                         'incumbent_guild': getattr(tech, 'incumbent_guild', ''),
                         'protectionist_law': getattr(tech, 'protectionist_law', ''),
                         'avenues': avenues_list,
                         'description': tech.description,
+                        'productivity_effects': [{'good': Goods(good).name,
+                            'frontier_multiplier': value} for good, value in tech.production_modifiers.items()],
+                        'source_urls': list(getattr(tech, 'source_urls', ())),
                         'base_xp': float(tech.base_xp_required),
                         'status': st,
                         'prerequisites': list(prereqs),
@@ -2452,6 +2538,7 @@ class SimServer:
                 'bbox': [float(v) for v in self.bbox],
                 'terrain_bounds': terrain_bounds,
                 'player_nation': player_nat_name,
+                'production_programs_allowed': self.scenario_id != 'labor_frontier_rivalry',
                 'macro': active_macro,
                 'history': history_data,
                 'nations': nations_summary,

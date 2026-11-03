@@ -100,135 +100,30 @@ def build_employer_cache(agents):
 
 
 def handle_job_seeking(t, agent, employer_cache, region=None):
-    """Independent struggling agents actively seek employment."""
-    if getattr(agent, 'is_native_child', False) and agent.age(t) < 14:
-        return
-    if region is not None and getattr(region, 'labor_scheduler_last_turn', None) == t:
-        return
-    is_employee = getattr(agent, 'employer', None) is not None
-    if is_employee or getattr(agent, 'is_corporation', False):
-        return
-    if agent.company_owned is not None:
-        return
-    from nutrition import deficit_fraction
-    cash_pressure = math.exp(-max(0.0, float(agent.cash)) / 5.0)
-    need_pressure = 1.0 - (1.0 - cash_pressure) * (1.0 - deficit_fraction(agent))
-    if rand.random() >= need_pressure:
-        return
-    employers = employer_cache.get(agent.output, [])
-    if employers:
-        employer = rand.choice(employers)
-        if region is not None:
-            from labor_choice import evaluate_offer, attach_worker
-            decision = evaluate_offer(agent, employer, region, t)
-            if decision.accepted and attach_worker(agent, employer, t, decision, region=region):
-                loginfo(t, agent.name(), 'sought employment at', employer.name(),
-                        'wage', employer.wage)
-        else:
-            agent.employer = employer
-            agent.hired_at = t
-            agent.wage = employer.wage
-            employer.employees.append(agent)
-            loginfo(t, agent.name(), 'sought employment at', employer.name(),
-                    'wage', employer.wage)
+    """Legacy entry point; no second individual hiring pass."""
+    if region is not None:
+        from career_transitions import step_careers
+        step_careers(region, t, independent=getattr(
+            region, 'labor_mobility_enabled', not getattr(region, 'scenario_owner_policy', False)))
 
 
 def handle_career_switching(ctx, t, agent, agents,
                             choices_list, bottleneck_weights, number_of_switches):
-    """Emergency / mobility career changes for independent agents (legacy fallback when scheduler inactive)."""
-    if getattr(agent, 'is_native_child', False) and agent.age(t) < 14:
-        return 0, number_of_switches
-    s_reg = getattr(ctx, 'source_region', None)
-    if (getattr(agent, 'primary_livelihood', None) is None
-            and agent.output not in (Goods.none, Goods.gov)):
-        from labor_choice import apply_career_switch
-        apply_career_switch(s_reg, agent, agent.output, t,
+    """Demographics shares the earlier career decision; it never rolls another move."""
+    region = getattr(ctx, 'source_region', None)
+    # Coming of age commits the existing household trade; this is an initial
+    # livelihood record, not a second opportunity to depart a profession.
+    from labor_choice import career_lifecycle_age, apply_career_switch
+    if (career_lifecycle_age(agent, t) >= 14
+            and getattr(agent, 'primary_livelihood', None) is None
+            and agent.output not in (Goods.none, Goods.gov)
+            and not getattr(agent, 'military_unit_id', None)):
+        apply_career_switch(region, agent, agent.output, t,
                             kind='youth_livelihood_entry', reason='adult_entry',
                             record_class='outcome')
-    if s_reg is not None and getattr(s_reg, 'labor_scheduler_last_turn', None) == t:
-        return 0, number_of_switches
-    is_employee = getattr(agent, 'employer', None) is not None
-    if is_employee or number_of_switches >= ctx.max_career_switches:
-        return 0, number_of_switches
-    from labor_choice import apply_career_switch
-    hunger_pressure = 1.0 - math.exp(-max(0.0, float(agent.hungry_steps)) / 2.0)
-    if agent.output != Goods.food and hunger_pressure > 0 and (t - getattr(agent, 'last_career_switch', 0) >= 2):
-        if rand.random() < 0.55 * hunger_pressure:
-            logdebug(t, agent.name(), 'EMERGENCY! switching to farmer')
-            apply_career_switch(
-                s_reg, agent, Goods.food, t,
-                kind='demographic_career_switch',
-                reason='emergency_hunger_to_food',
-                formula_id='demographics.hunger_career_switch.v1',
-                inputs={'hungry_steps': int(agent.hungry_steps), 'hunger_pressure': hunger_pressure},
-            )
-            number_of_switches += 1
-            return 0, number_of_switches
-    if hunger_pressure > 0 and (t - getattr(agent, 'last_career_switch', 0) > 10):
-        if rand.random() >= 0.35 * hunger_pressure:
-            return 0, number_of_switches
-        if ctx.most_demand != Goods.gov and agent.output != ctx.most_demand:
-            logdebug(t, agent.name(), 'hungry, switching to in-demand career:',
-                     ctx.profession[ctx.most_demand])
-            apply_career_switch(
-                s_reg, agent, ctx.most_demand, t,
-                kind='demographic_career_switch',
-                reason='hungry_most_demand',
-                formula_id='demographics.most_demand_switch.v1',
-                inputs={'hungry_steps': int(agent.hungry_steps), 'hunger_pressure': hunger_pressure},
-            )
-            number_of_switches += 1
-            return 0, number_of_switches
-    elif agent.cash < 20 and (t - getattr(agent, 'last_career_switch', 0) > 10):
-        if rand.random() < 0.1:
-            if choices_list:
-                endangered = endangered_professions(ctx, agents, choices_list)
-                if endangered and rand.random() < 0.5:
-                    output = rand.choice(endangered)
-                    grant_apprenticeship_subsidy(agent, output, t, ctx)
-                    reason = 'endangered_apprenticeship'
-                else:
-                    output = learned_switch_choice(
-                        ctx, agent, choices_list, bottleneck_weights)
-                    reason = 'learned_switch_choice'
-                if output != agent.output:
-                    apply_career_switch(
-                        s_reg, agent, output, t,
-                        kind='demographic_career_switch',
-                        reason=reason,
-                        formula_id='demographics.learned_career_switch.v1',
-                        inputs={'cash': float(agent.cash)},
-                    )
-                    logdebug(t, agent.name(), 'poor, exploring learned career:',
-                             ctx.profession[agent.output])
-                    number_of_switches += 1
-                return 0, number_of_switches
-        elif ctx.most_demand != Goods.gov and agent.output != ctx.most_demand:
-            target = ctx.most_demand
-            target_recipe = ctx.recipes.get(target)
-            if target_recipe and target_recipe.get('numInput', 0) > 0:
-                input_good = target_recipe['input']
-                number_consumers = sum(
-                    1 for a in agents
-                    if get_input_commodity(a) == input_good and not a.is_corporation
-                    and a.employer is None)
-                number_producers = sum(
-                    1 for a in agents
-                    if a.output == input_good and not a.is_corporation
-                    and a.employer is None)
-                pressure = ((number_consumers * target_recipe['numInput'])
-                            / max(1, number_producers))
-                if pressure > 2.0:
-                    target = input_good
-                    logdebug(t, agent.name(), 'redirected to bottleneck input:',
-                             ctx.profession[target])
-            if target != agent.output:
-                apply_career_switch(
-                    s_reg, agent, target, t,
-                    kind='demographic_career_switch',
-                    reason='bottleneck_or_most_demand',
-                    formula_id='demographics.bottleneck_redirect.v1',
-                    inputs={'cash': float(agent.cash)},
-                )
-                number_of_switches += 1
+    if region is not None:
+        from career_transitions import step_careers
+        result = step_careers(region, t, independent=getattr(
+            region, 'labor_mobility_enabled', not getattr(region, 'scenario_owner_policy', False)))
+        number_of_switches += result.get('switched', 0)
     return 0, number_of_switches

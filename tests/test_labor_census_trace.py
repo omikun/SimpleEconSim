@@ -123,7 +123,7 @@ class LaborCensusTraceTests(unittest.TestCase):
             for tile in server.tiles:
                 tile._last_turn = 11
             self.assertTrue(apply_career_switch(first, people[1], Goods.wood, 11,
-                                               reason='TEST_OCCUPATION_CHANGE'))
+                                               reason='forced_TEST_OCCUPATION_CHANGE'))
             career_id = trace.recent[-1]['event_id']
             people[1].hungry_steps = 0
             intake_id = trace.emit(

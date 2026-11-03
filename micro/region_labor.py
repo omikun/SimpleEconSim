@@ -10,6 +10,38 @@ from labor_contract import evaluate_firm_contracts, calculate_shift_multiplier
 from labor_choice import evaluate_offer, attach_worker
 
 
+def close_firm(region, firm, turn):
+    """Close a legal entity without creating a human resident."""
+    if getattr(firm, 'business_closed', False):
+        return
+    from region_finance import liquidate_wage_arrears
+    liquidate_wage_arrears(region, turn, firm, reason='payroll_insolvency')
+    recipient = firm.owner if firm.owner is not None and firm.owner.alive else region.gov.agent
+    bank = region.bank
+    deposit = bank.deposits.get(firm, 0)
+    if deposit > 0 and not getattr(bank, 'is_frozen', False):
+        bank.Withdraw(firm, deposit, trace_region=region, t=turn, reason='firm_liquidation')
+    from state_handler import transfer_cash
+    transfer_cash(firm, recipient, max(0, firm.cash), region=region,
+                  kind='firm_liquidation', record_event_kind='liquidation_distribution', turn=turn)
+    for good in region.goods:
+        quantity = max(0, firm.inv_get(good, 0))
+        if quantity:
+            firm.inv_add(good, -quantity)
+            recipient.inv_add(good, quantity)
+    firm.business_closed = True
+    firm.closed_turn = turn
+    firm.max_employees = 0
+    if firm.owner is not None and firm.owner.company_owned is firm:
+        firm.owner.company_owned = None
+    from run_trace import emit
+    emit(region, kind='firm_closed', record_class='outcome', phase='labor',
+         subject={'type': 'firm', 'id': firm.id, 'tile': region.name},
+         metric_id='labor.firm_closure', unit='firm', before='active', after='closed',
+         inputs={'recipient_id': recipient.id, 'reason': 'payroll_insolvency',
+                 'entity_remains_corporation': True})
+
+
 def cleanup_labor(region):
     """Clean up invalid employee/employer references."""
     living_set = set(region.agents)
@@ -27,7 +59,7 @@ def cleanup_labor(region):
 def borrow_or_layoff(region, t):
     """Firms borrow to pay payroll or lay off workers if funds are insufficient."""
     for a in region.agents:
-        if not a.is_corporation or len(a.employees) == 0:
+        if not a.is_corporation or getattr(a, 'business_closed', False):
             continue
         employees_before = len(a.employees)
         cash_before = float(a.cash)
@@ -48,18 +80,7 @@ def borrow_or_layoff(region, t):
                                 employer_before=a)
             total_wage = len(a.employees) * a.wage
         if len(a.employees) == 0 and a.cash <= 20.0:
-            from region_finance import liquidate_wage_arrears
-            liquidate_wage_arrears(region, t, a, reason='payroll_insolvency')
-            a.is_corporation = False
-            from run_trace import emit
-            emit(region, kind='person_role_conversion', record_class='outcome',
-                 phase='labor', subject={'type': 'tile/agent', 'id': str(a.id)},
-                 metric_id='people.role', unit='role', before='corporation',
-                 after='person', formula_id='labor.firm_dissolution.v1',
-                 inputs={'agent_id': a.id, 'tile': region.name,
-                         'cash': float(a.cash), 'employees': len(a.employees)})
-            if a.owner:
-                a.owner.company_owned = None
+            close_firm(region, a, t)
         from run_trace import emit
         emit(region, kind='corporate_payroll_funding_decision', record_class='outcome',
              subject={'type': 'tile', 'id': region.name, 'firm_id': a.id},
@@ -238,88 +259,15 @@ def _record_labor_decision(region, decision):
 
 
 def hire_workers(region, t):
-    """Firms hire unemployed workers or poach from competitors based on wage offers."""
-    from labor_choice import career_lifecycle_age
-    tightness = calculate_labor_market_tightness(region)
-    is_statute = getattr(region, 'statute_of_laborers', False)
-    wage_cap = getattr(region, 'maximum_wage_cap', None) if is_statute else None
-
-    building_staff_ids = {
-        aid for b in getattr(region, 'buildings', [])
-        for aid in getattr(b, 'staff_ids', [])
-    }
-
-    # Sort firms with vacancies by cash and wage (higher paying firms get hiring priority)
-    firms = [a for a in region.agents if getattr(a, 'is_corporation', False) and len(getattr(a, 'employees', [])) < getattr(a, 'max_employees', 10)]
-    firms.sort(key=lambda f: (f.wage, f.cash), reverse=True)
-
-    for a in firms:
-        rec = getattr(region, 'recipes', {}).get(getattr(a, 'output', None), {})
-        num_in = float(rec.get('numInput', 0))
-        in_good = rec.get('input')
-        if num_in > 0 and in_good is not None and not getattr(region, 'scenario_owner_policy', False):
-            avail = float(a.inv_get(in_good, 0))
-            effective_cap = min(int(getattr(a, 'max_employees', 10)), max(2, int(avail // num_in) + 2))
-        else:
-            effective_cap = int(getattr(a, 'max_employees', 10))
-        vacancies = effective_cap - len(a.employees)
-        if vacancies <= 0:
-            continue
-        payroll = len(a.employees) * a.wage
-        if a.cash <= (payroll + a.wage) * 1.2:
-            continue
-
-        mrpl = calculate_firm_wage_ceiling(a, region)
-        effective_max = min(mrpl, wage_cap) if wage_cap is not None else mrpl
-
-        candidates = [x for x in region.agents if getattr(x, 'alive', True)
-                      and x.employer is None and not x.is_corporation and x != a
-                      and not getattr(x, 'is_lord', False)
-                      and not getattr(x, 'military_unit_id', None)
-                      and (x.id not in building_staff_ids or getattr(x, 'hungry_steps', 0) >= 2)]
-        candidates.sort(key=lambda c: (
-            0 if getattr(c, 'output', None) == getattr(a, 'output', None) else 1,
-            0 if (getattr(c, 'social_class', None) == 'dispossessed' or getattr(c, 'hungry_steps', 0) > 0) else 1,
-            career_lifecycle_age(c, t),
-        ))
-
-        for c in candidates:
-            if len(a.employees) >= effective_cap:
-                break
-            payroll = len(a.employees) * a.wage
-            if a.cash <= (payroll + a.wage) * 1.2:
-                break
-            decision = evaluate_offer(c, a, region, t, tightness=tightness)
-            if (not getattr(region, 'scenario_owner_policy', False) and not decision.accepted
-                    and decision.reason == 'insufficient_wage' and tightness > 1.0):
-                target_wage = min(effective_max, decision.reservation_wage)
-                if target_wage > a.wage and a.cash > (len(a.employees) * target_wage + target_wage) * 1.2:
-                    a.wage = target_wage
-                    decision = evaluate_offer(c, a, region, t, tightness=tightness)
-            _record_labor_decision(region, decision)
-            if decision.accepted:
-                attach_worker(c, a, t, decision, region=region)
-
-        # If still have vacancies and no unattached candidates, consider poaching
-        if len(a.employees) < effective_cap and (not candidates or tightness > 1.2):
-            poachable = [e for e in region.agents if getattr(e, 'alive', True) and e.employer and e.employer != a
-                         and getattr(e.employer, 'is_corporation', False) and len(e.employer.employees) > 1]
-            if poachable:
-                target = rand.choice(poachable)
-                old_employer = target.employer
-                offer_wage = max(old_employer.wage * 1.15, a.wage * 1.08)
-                payroll = len(a.employees) * a.wage
-                if offer_wage <= effective_max and a.cash > (payroll + offer_wage) * 2:
-                    decision = evaluate_offer(target, a, region, t, wage=offer_wage,
-                                              tightness=tightness)
-                    _record_labor_decision(region, decision)
-                    if decision.accepted and attach_worker(target, a, t, decision, region=region):
-                        a.wage = max(a.wage, offer_wage)
+    """Compatibility entry point: hiring shares the regional career market."""
+    from career_transitions import step_careers
+    return step_careers(region, t, independent=getattr(
+        region, 'labor_mobility_enabled', not getattr(region, 'scenario_owner_policy', False)))
 
 
 def adjust_wages(region, t):
     """Adjust firm wages dynamically based on labor tightness, MRPL ceiling, and cash."""
-    if getattr(region, 'scenario_owner_policy', False):
+    if not getattr(region, 'responsive_wages', not getattr(region, 'scenario_owner_policy', False)):
         return
     tightness = calculate_labor_market_tightness(region)
     is_statute = getattr(region, 'statute_of_laborers', False)
@@ -388,13 +336,14 @@ def adjust_wages(region, t):
                      'food_price': region.recipes.get(Goods.food, {}).get('price', 1.0)})
 
 
-def run_labour(region, t):
+def run_labour(region, t, *, defer_careers=False):
     """Run all labor phases and return any newly founded corporations."""
     cleanup_labor(region)
     borrow_or_layoff(region, t)
     new_companies = incorporate(region, t)
-    hire_workers(region, t)
     adjust_wages(region, t)
+    if not defer_careers:
+        hire_workers(region, t)
     for a in region.agents:
         if getattr(a, 'is_corporation', False):
             evaluate_firm_contracts(a, region, t)

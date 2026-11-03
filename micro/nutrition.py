@@ -41,15 +41,11 @@ def effective_calorie_need(agent) -> float:
 
 
 def appetite_units(agent) -> int:
-    """Wealth and depleted reserves raise desired intake on a smooth curve."""
+    """Normal calories plus bounded recovery; wealth buys preparation/quality."""
     base = basic_food_units(agent)
-    wealth = max(1.0, float(getattr(agent, 'consumption_multiplier', 1.0)))
     reserve = max(0.0, float(getattr(agent, 'energy_reserve_kcal', INITIAL_RESERVE_KCAL)))
-    luxury = 6.0 * (1.0 - math.exp(-(wealth - 1.0) / 3.0))
-    catch_up = 2.0 * (1.0 - math.exp(-max(0.0, INITIAL_RESERVE_KCAL - reserve) / INITIAL_RESERVE_KCAL))
-    full_appetite = round(base + luxury + catch_up)
-    adapted_appetite = round(full_appetite * metabolic_need_factor(agent))
-    return min(12, max(1, adapted_appetite))
+    recovery = .25 * max(0, 1 - reserve / INITIAL_RESERVE_KCAL)
+    return round(base * (1 + recovery), 3)
 
 
 def update_dependent_need(agent, turn: int) -> None:
@@ -90,8 +86,9 @@ def feed_emergency_meal(agent, food_units: float) -> None:
 
 
 def queue_emergency_meal(agent, food_units: int) -> None:
-    """Reserve physically transferred public food for the next consumption step."""
-    agent.emergency_food_units = max(0, int(agent.emergency_food_units) + int(food_units))
+    """Deliver aid into the recipient's one physical pantry account."""
+    from goods import Goods
+    agent.inv_add(Goods.food, max(0, food_units))
 
 
 def starvation_hazard(agent) -> float:

@@ -1,0 +1,97 @@
+{
+  "source_signature": "0e694b15dbd478043ae164c34d69ec4c90090e5b1a7a3a19950cabbc9f8b73f8",
+  "source_unchanged": true,
+  "audits": [
+    {
+      "turn": 2,
+      "opening": 33320.403,
+      "production_and_receipts": 471.006,
+      "uses_and_losses": 4519.709,
+      "closing": 29271.7,
+      "unexplained": 0.0,
+      "after_scenario_stock": 29271.7
+    },
+    {
+      "turn": 3,
+      "opening": 29271.7,
+      "production_and_receipts": 370.493,
+      "uses_and_losses": 4567.909,
+      "closing": 25074.284,
+      "unexplained": 0.0,
+      "after_scenario_stock": 25074.284
+    },
+    {
+      "turn": 4,
+      "opening": 25074.284,
+      "production_and_receipts": 426.81,
+      "uses_and_losses": 3312.108,
+      "closing": 22188.986,
+      "unexplained": 0.0,
+      "after_scenario_stock": 22188.986
+    },
+    {
+      "turn": 5,
+      "opening": 22188.986,
+      "production_and_receipts": 461.678,
+      "uses_and_losses": 3358.265,
+      "closing": 19292.399,
+      "unexplained": 0.0,
+      "after_scenario_stock": 19292.399
+    },
+    {
+      "turn": 6,
+      "opening": 19292.399,
+      "production_and_receipts": 453.211,
+      "uses_and_losses": 3355.149,
+      "closing": 16390.461,
+      "unexplained": 0.0,
+      "after_scenario_stock": 16390.461
+    },
+    {
+      "turn": 7,
+      "opening": 16390.461,
+      "production_and_receipts": 440.072,
+      "uses_and_losses": 3340.345,
+      "closing": 13490.188,
+      "unexplained": 0.0,
+      "after_scenario_stock": 13490.188
+    },
+    {
+      "turn": 8,
+      "opening": 13490.188,
+      "production_and_receipts": 382.777,
+      "uses_and_losses": 3285.278,
+      "closing": 10587.687,
+      "unexplained": 0.0,
+      "after_scenario_stock": 10587.687
+    },
+    {
+      "turn": 9,
+      "opening": 10587.687,
+      "production_and_receipts": 18475.971,
+      "uses_and_losses": 3416.214,
+      "closing": 25647.444,
+      "unexplained": 0.0,
+      "after_scenario_stock": 25647.444
+    },
+    {
+      "turn": 10,
+      "opening": 25647.444,
+      "production_and_receipts": 18425.938,
+      "uses_and_losses": 18777.089,
+      "closing": 25296.293,
+      "unexplained": 0.0,
+      "after_scenario_stock": 25296.293
+    },
+    {
+      "turn": 11,
+      "opening": 25296.293,
+      "production_and_receipts": 321.838,
+      "uses_and_losses": 3511.321,
+      "closing": 22106.81,
+      "unexplained": 0.0,
+      "after_scenario_stock": 22106.81
+    }
+  ],
+  "currency": []
+}

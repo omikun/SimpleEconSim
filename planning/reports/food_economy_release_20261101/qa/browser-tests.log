@@ -1,0 +1,8 @@
+Command response {"success": true, "turn": 1}
+Command response {"success": true, "tile": "r0c3", "program": {"id": "r0c3:program:1", "kind": "procurement", "good": "wood", "quantity": 1.0, "delivered": 0.0, "budget": 5.0, "escrow_id": 936, "payer_id": 2, "submitted_turn": 1, "starts_turn": 2, "expires_turn": 2, "status": "active", "last_prepared": null, "last_settled": null, "unit_ceiling": 1.6875, "spent": 0.0, "loans": []}}
+Command response {"success": true, "turn": 2}
+Food economy and funded order passed 1440
+Command response {"success": true, "turn": 3}
+Command response {"success": true, "tile": "r0c3", "program": {"id": "r0c3:program:2", "kind": "procurement", "good": "wood", "quantity": 1.0, "delivered": 0.0, "budget": 5.0, "escrow_id": 941, "payer_id": 2, "submitted_turn": 3, "starts_turn": 4, "expires_turn": 4, "status": "active", "last_prepared": null, "last_settled": null, "unit_ceiling": 2.1357421875, "spent": 0.0, "loans": []}}
+Command response {"success": true, "turn": 4}
+Food economy and funded order passed 390

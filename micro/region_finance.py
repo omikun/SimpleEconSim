@@ -42,7 +42,14 @@ def pay_wages(region, t):
                 if getattr(e, 'is_striking', False) or getattr(e, 'in_revolt', False):
                     continue
                 agreement = ensure_labor_agreement(e, a, t)
-                wage_nominal = max(0.0, float(agreement.pay_rate))
+                from work_allocation import main_work
+                worked = main_work(region, e, t)
+                if a.output == Goods.food:
+                    worked = sum(row['activities'].get(f['id'], 0)
+                                 for f in getattr(region, 'farms', {}).values()
+                                 if f.get('employer_id') == a.id
+                                 for pid, row in getattr(region, 'work_allocations', {}).get('people', {}).items() if pid == e.id)
+                wage_nominal = max(0.0, float(agreement.pay_rate)) * (worked if worked is not None else 1.0)
                 e.nominal_wage = wage_nominal
                 e.authorized_deductions = 0.0
                 e.wage_withheld = 0.0
@@ -371,7 +378,8 @@ def redeem_company_scrip(region, t):
         for e in a.employees:
             if not getattr(e, 'alive', True):
                 continue
-            food_needed = max(0, 4 - e.inv_get(Goods.food, 0))
+            from food_access import meal_gap, food_surplus
+            food_needed = meal_gap(e)
             if food_needed <= 0:
                 continue
 
@@ -385,8 +393,8 @@ def redeem_company_scrip(region, t):
                     if firm_food < can_buy and a.cash >= (can_buy - firm_food) * food_price:
                         needed_to_buy = can_buy - firm_food
                         for seller in region.agents:
-                            if seller.id != a.id and seller.inv_get(Goods.food, 0) > 0 and not seller.is_corporation:
-                                qty = min(needed_to_buy, seller.inv_get(Goods.food, 0))
+                            if seller.id != a.id and food_surplus(seller, region) > 0:
+                                qty = min(needed_to_buy, food_surplus(seller, region))
                                 cost = qty * food_price
                                 if a.cash >= cost:
                                     _trace_cash_write = _trace_public_begin(None, a)
@@ -425,18 +433,45 @@ def redeem_company_scrip(region, t):
                         e.food_purchased = getattr(e, 'food_purchased', 0) + available
                         food_needed -= available
 
-            # 2. Debt Peonage Credit Advance (The Slate)
+            # Cash-paid workers can purchase a meal from the same real stock.
+            cash_units = min(food_needed, max(0, int(a.inv_get(Goods.food, 0))),
+                             max(0, int(e.cash // tommy_price))) if tommy_price > 0 else 0
+            if cash_units:
+                from state_handler import adjust_cash
+                cost = cash_units * tommy_price
+                adjust_cash(e, -cost, kind='company_store_purchase',
+                            source_writer='region_finance.redeem_company_scrip')
+                adjust_cash(a, cost, kind='company_store_receipt',
+                            source_writer='region_finance.redeem_company_scrip')
+                a.inv_add(Goods.food, -cash_units)
+                e.inv_add(Goods.food, cash_units)
+                e.food_purchased += cash_units
+                food_needed -= cash_units
+                from economy.actor_accounts import record as record_economic_event
+                record_economic_event(region, 'spot_sale', turn=t, payer_id=e.id,
+                                      recipient_id=a.id, good=Goods.food,
+                                      quantity=cash_units, amount=cost,
+                                      detail={'tender': 'cash', 'unit_price': tommy_price,
+                                              'channel': 'company_store', 'seller_receipt': cost})
+
+            # 2. Debt Peonage Credit Advance (The Slate). Defaults preserve the
+            # existing one-unit agreement; an explicit contract can cover a meal
+            # within its cumulative credit ceiling.
             if food_needed > 0 and e.inv_get(Goods.food, 0) < 2 and e.cash < food_price and e.scrip_wallet < tommy_price:
-                if a.inv_get(Goods.food, 0) > 0:
-                    a.inv_add(Goods.food, -1)
-                    e.inv_add(Goods.food, 1)
-                    e.food_purchased = getattr(e, 'food_purchased', 0) + 1
-                    e.company_debt += tommy_price
+                ceiling = max(0, getattr(a, 'company_food_credit_limit', 4 * tommy_price))
+                allowance = max(0, int((ceiling - e.company_debt) // tommy_price)) if tommy_price > 0 else 0
+                units = min(food_needed, max(0, int(a.inv_get(Goods.food, 0))), allowance,
+                            max(0, int(getattr(a, 'company_food_credit_units', 1))))
+                if units > 0:
+                    a.inv_add(Goods.food, -units)
+                    e.inv_add(Goods.food, units)
+                    e.food_purchased = getattr(e, 'food_purchased', 0) + units
+                    e.company_debt += units * tommy_price
                     from economy.actor_accounts import record as record_economic_event
                     record_economic_event(region, 'scrip_food_credit', turn=t,
                                           payer_id=a.id, recipient_id=e.id,
-                                          good=Goods.food, quantity=1,
-                                          amount=tommy_price, debt_credit=tommy_price,
+                                          good=Goods.food, quantity=units,
+                                          amount=units * tommy_price, debt_credit=units * tommy_price,
                                           detail={'tender': 'company_store_credit',
                                                   'company_debt_after': e.company_debt})
                     e.despair = min(1.0, getattr(e, 'despair', 0.0) + 0.15)
@@ -446,7 +481,7 @@ def redeem_company_scrip(region, t):
                         get_true_cost_ledger().record_bank(
                             bank=a, region=region, turn=t,
                             interest_and_discounts=0.0, funding_costs=0.0,
-                            scrip_debt_issued=tommy_price
+                            scrip_debt_issued=units * tommy_price
                         )
                     except Exception:
                         pass
@@ -770,7 +805,7 @@ def bailout_owner(region, agent, owner, payroll, t=None):
 def distribute_profits(region, t):
     """Distribute firm profits to owners, service owner loans, or execute bailouts."""
     for a in region.agents:
-        if not a.is_corporation or not a.alive:
+        if not a.is_corporation or not a.alive or getattr(a, 'business_closed', False):
             continue
         if a.owner is None or not a.owner.alive:
             continue

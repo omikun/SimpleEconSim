@@ -38,7 +38,8 @@ def _input_funding_gap(firm: Any, region: Any) -> float:
 
 
 def evaluate_offer(worker: Any, firm: Any, region: Any, turn: int,
-                   wage: float | None = None, tightness: float | None = None) -> LaborDecision:
+                   wage: float | None = None, tightness: float | None = None,
+                   career_phase: bool = False) -> LaborDecision:
     """Return whether a worker accepts an offer without mutating simulation state."""
     from goods import Goods
     from region_labor import calculate_labor_market_tightness, evaluate_worker_reservation_wage
@@ -75,7 +76,7 @@ def evaluate_offer(worker: Any, firm: Any, region: Any, turn: int,
     hurdle_mult, min_cooldown, age_factor = career_switch_hurdle_and_cooldown(
         worker, turn, is_emergency=(is_dispossessed or is_acute_hunger)
     )
-    if is_occupation_change and not (is_dispossessed or is_acute_hunger) and age_factor > 0.0:
+    if not career_phase and is_occupation_change and not (is_dispossessed or is_acute_hunger) and age_factor > 0.0:
         reservation *= max(1.0, min(2.5, hurdle_mult * 0.90))
 
     last_switch = int(getattr(worker, 'last_career_switch', 0))
@@ -92,9 +93,9 @@ def evaluate_offer(worker: Any, firm: Any, region: Any, turn: int,
         reason = 'unavailable'
     elif age_factor <= 0.0:
         reason = 'unavailable'
-    elif getattr(worker, 'employer', None) not in (None, firm):
+    elif not career_phase and getattr(worker, 'employer', None) not in (None, firm):
         reason = 'unavailable'
-    elif (is_occupation_change and last_switch > 0
+    elif (not career_phase and is_occupation_change and last_switch > 0
           and turns_since_switch < (2 if (is_dispossessed or is_acute_hunger) else min_cooldown)):
         reason = 'unavailable'
     elif not getattr(firm, 'alive', True) or not getattr(firm, 'is_corporation', False):
@@ -103,7 +104,7 @@ def evaluate_offer(worker: Any, firm: Any, region: Any, turn: int,
         reason = 'no_vacancy'
     elif offer <= 0.0 or float(getattr(firm, 'cash', 0.0)) < required_payroll + _input_funding_gap(firm, region):
         reason = 'unfunded'
-    elif offer + 1e-9 < reservation:
+    elif not career_phase and offer + 1e-9 < reservation:
         reason = 'insufficient_wage'
 
     return LaborDecision(
@@ -219,7 +220,7 @@ def skill_tier_for_good(good: Any) -> int:
     from goods import Goods
     if good in (Goods.food, Goods.wood, Goods.wool, Goods.cotton):
         return 1
-    if good in (Goods.furniture, Goods.cloth):
+    if good in (Goods.furniture, Goods.cloth, Goods.prepared_food):
         return 2
     return 3
 
@@ -257,7 +258,10 @@ def apply_career_switch(region: Any, worker: Any, new_output: Any, turn: int, *,
                         cause_event_ids: list[str] | None = None) -> bool:
     """Authoritative occupation mutation with tenure tracking and causal trace emission."""
     from goods import Goods
-    old_output = getattr(worker, 'primary_livelihood', None)
+    employer = getattr(worker, 'employer', None)
+    old_output = (getattr(employer, 'output', None) if employer is not None
+                  else getattr(worker, 'output', None)
+                  if getattr(worker, 'primary_livelihood', None) is not None else None)
     old_name = getattr(old_output, 'name', str(old_output)) if old_output is not None else 'none'
     new_name = getattr(new_output, 'name', str(new_output)) if new_output is not None else 'none'
     prev_switch_turn = int(getattr(worker, 'last_career_switch', 0))
@@ -266,6 +270,10 @@ def apply_career_switch(region: Any, worker: Any, new_output: Any, turn: int, *,
     if not changed:
         if not getattr(worker, 'military_unit_id', None):
             worker.output = new_output
+            worker.primary_livelihood = new_output
+        return False
+    from career_transitions import permit_change
+    if not permit_change(region, worker, new_output, turn, reason):
         return False
     if changed and old_output not in (None, Goods.none, Goods.gov) and hasattr(worker, 'mem_push'):
         worker.mem_push('mem_career_history', old_name)
@@ -275,9 +283,8 @@ def apply_career_switch(region: Any, worker: Any, new_output: Any, turn: int, *,
     worker.last_career_switch = int(turn)
     if changed and region is not None:
         career_events = getattr(region, 'career_events', [])
-        coercion_terms = ('forced', 'coerced', 'enclosure', 'workhouse',
-                          'military', 'debt_bound', 'penal')
-        voluntary = not any(term in str(reason).lower() for term in coercion_terms)
+        from career_transitions import voluntary as is_voluntary
+        voluntary = is_voluntary(reason)
         career_events.append({'turn': int(turn), 'person_id': int(worker.id),
                               'old': old_name, 'new': new_name, 'reason': reason,
                               'voluntary': voluntary})
@@ -354,6 +361,23 @@ def attach_worker(worker: Any, firm: Any, turn: int, decision: LaborDecision,
         return False
 
     old_employer = getattr(worker, 'employer', None)
+    # Authorize the career move before either employment reference changes.
+    # A rejected departure must leave the existing job and quota untouched.
+    from career_transitions import profession
+    old_profession = profession(worker)
+    changed = apply_career_switch(
+        region, worker, firm.output, turn,
+        kind='firm_hire_career_switch', reason='hired_by_firm',
+        record_class='outcome', formula_id='labor.firm_hire_attachment.v1',
+        inputs={'firm_id': firm.id, 'offered_wage': decision.offered_wage,
+                'reservation_wage': decision.reservation_wage})
+    if old_profession != firm.output and not changed:
+        return False
+    if old_employer is not None and region is not None:
+        from labor_contract import quit_job
+        penalty = (2 * float(getattr(old_employer, 'wage', 0.0))
+                   if getattr(region, 'labor_laws', {}).get('quit_penalty') == 'enacted' else 0.0)
+        quit_job(worker, region, turn, penalty=penalty)
     if old_employer is not None:
         old_employees = getattr(old_employer, 'employees', [])
         if worker in old_employees:
@@ -364,18 +388,6 @@ def attach_worker(worker: Any, firm: Any, turn: int, decision: LaborDecision,
     worker.hired_at = turn
     worker.wage = decision.offered_wage
     worker.shift_hours = getattr(firm, 'shift_hours', 8.0)
-    apply_career_switch(
-        region, worker, firm.output, turn,
-        kind='firm_hire_career_switch',
-        reason='hired_by_firm',
-        record_class='outcome',
-        formula_id='labor.firm_hire_attachment.v1',
-        inputs={
-            'firm_id': firm.id,
-            'offered_wage': decision.offered_wage,
-            'reservation_wage': decision.reservation_wage,
-        },
-    )
     record_labor_status(
         region, worker, turn,
         before='employed' if old_employer is not None else 'independent',

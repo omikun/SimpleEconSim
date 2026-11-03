@@ -449,14 +449,14 @@ def _fair_terms(world, nation_name, turn):
 def _relief(world, nation_name, turn):
     _, border = _districts(world, nation_name)
     nation = next(n for n in world['nations'] if n.name == nation_name)
-    if border is None or nation.government.food_inventory < RELIEF_UNITS:
+    if border is None or nation.government.food_at(border) < RELIEF_UNITS:
         return False, 'Sovereign food reserve needs six units and a held borderland.'
     eligible = [a for a in border.agents if a.alive and not a.is_corporation
                 and not a.is_trader and not a.is_government and not getattr(a, 'is_lord', False)]
     eligible.sort(key=lambda a: (a.inv_get(Goods.food, 0), a.cash, a.id))
     if len(eligible) < 3:
         return False, 'Fewer than three eligible residents.'
-    nation.government.food_inventory -= RELIEF_UNITS
+    nation.government.add_food(border, -RELIEF_UNITS)
     for person in eligible[:3]:
         person.inv_add(Goods.food, 2)
     _event(world, turn, 'RELIEF', f'{nation_name} releases six stored food units '

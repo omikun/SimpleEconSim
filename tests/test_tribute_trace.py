@@ -42,14 +42,18 @@ def _fixture(with_trace=True, *, protest=0.0):
     plot = LandPlot('feudal-plot', 'Serf Village', lord.id,
                     tenure=TenureStatus.FEUDAL, fraction=1.0,
                     tenant_ids=[serf.id], tribute_rate=0.5)
+    serf.assigned_plot_id = plot.plot_id
     trace = MemoryTrace()
     region = SimpleNamespace(
         name='Serf Village', home_currency='SRF', agents=[lord, serf],
         tenure=TileTenure([plot]), protest_energy_log=[protest],
         military_units=[], police_employed=0, food_price=2.0,
         recipes={Goods.food: {'price': 2.0}, Goods.wood: {'price': 4.0}},
+        household_food_reserve_turns=0,
+        production_receipts=[{'turn': 7, 'person_id': serf.id, 'good': good, 'quantity': 6}
+                             for good in (Goods.food, Goods.wood)],
         _run_trace=trace,
-        _collective_trace_clock={'turn': 10, 'phase': 'economy', 'next': 1})
+        _collective_trace_clock={'turn': 7, 'phase': 'economy', 'next': 1})
     if not with_trace:
         del region._run_trace
         del region._collective_trace_clock
@@ -64,9 +68,9 @@ class FeudalTributeTraceTests(unittest.TestCase):
     def test_tribute_records_inventory_legs_and_legacy_value_explanation(self):
         region, lord, serf, trace = _fixture()
 
-        collected, event_ids = collect_tribute(region, 10, return_trace=True)
+        collected, event_ids = collect_tribute(region, 7, return_trace=True)
         value, valuation_id = record_tribute_value(
-            region, 10, collected, cause_event_ids=event_ids)
+            region, 7, collected, cause_event_ids=event_ids)
 
         self.assertEqual(collected[lord.id], {Goods.food: 3, Goods.wood: 3})
         self.assertEqual((serf.inv_get(Goods.food), lord.inv_get(Goods.food)), (7, 3))
@@ -104,10 +108,10 @@ class FeudalTributeTraceTests(unittest.TestCase):
         traced, _, traced_serf, trace = _fixture(True)
         plain, _, plain_serf, _ = _fixture(False)
 
-        traced_data, _ = collect_tribute(traced, 10, return_trace=True)
-        plain_data, _ = collect_tribute(plain, 10, return_trace=True)
-        traced_value, _ = record_tribute_value(traced, 10, traced_data)
-        plain_value, _ = record_tribute_value(plain, 10, plain_data)
+        traced_data, _ = collect_tribute(traced, 7, return_trace=True)
+        plain_data, _ = collect_tribute(plain, 7, return_trace=True)
+        traced_value, _ = record_tribute_value(traced, 7, traced_data)
+        plain_value, _ = record_tribute_value(plain, 7, plain_data)
 
         self.assertEqual(traced_data, plain_data)
         self.assertEqual(traced_value, plain_value)
@@ -122,7 +126,7 @@ class FeudalTributeTraceTests(unittest.TestCase):
     def test_open_resistance_records_why_lords_receive_no_tribute(self):
         region, lord, serf, trace = _fixture(protest=6.0)
 
-        collected = collect_tribute(region, 10)
+        collected = collect_tribute(region, 7)
 
         self.assertEqual(collected, {})
         self.assertEqual(serf.inv_get(Goods.food), 10)

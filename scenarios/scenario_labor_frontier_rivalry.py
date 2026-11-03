@@ -113,6 +113,9 @@ def create_world(seed: int = 612) -> dict:
     # scenario while relief, recruitment, and expeditions shorten its runway.
     player.government.food_inventory = 60
     rival.government.food_inventory = 60
+    for nation in (player, rival):
+        border_site = next(r for r in nation.tiles if r.scenario_location == 'borderland')
+        nation.government.bind_food_site(border_site)
     player.scenario_personnel = True
     rival.scenario_personnel = True
     for left, right in zip(tiles, tiles[1:]):

@@ -15,7 +15,10 @@ from logger import loginfo
 from agent import Agent
 
 
-class Charity:
+from food_store import FoodStore
+
+
+class Charity(FoodStore):
     """Independent charity that redistributes food to the needy.
 
     Cash is held in an internal Agent (not in region.agents list).
@@ -280,7 +283,7 @@ class Charity:
         Withdraws enough cash from the bank to cover the bid if needed.
         """
         max_inventory = 50
-        space = max_inventory - self.food_inventory
+        space = max_inventory - self.food_at(trace_region)
         if space <= 0:
             return 0
 
@@ -291,7 +294,7 @@ class Charity:
         affordable_from_wealth = char_wealth // food_price
         # Cap at the food target (150% of 1/3 of hungry agents)
         target = getattr(self, '_food_target', 50)
-        needed = max(0, target - self.food_inventory)
+        needed = max(0, target - self.food_at(trace_region))
         potential_bid = min(space, affordable_from_wealth, current_desired, needed)
         if potential_bid <= 0:
             return 0
@@ -302,9 +305,9 @@ class Charity:
 
         return potential_bid
 
-    def receive_food(self, quantity):
+    def receive_food(self, quantity, region=None):
         """Record food purchased during trade."""
-        self.food_inventory += quantity
+        self.add_food(region, quantity)
         self.log["food_purchased"] += quantity
 
     def pay_for_food(self, cost):
@@ -334,7 +337,25 @@ class Charity:
     def distribute_food(self, t, agents, *, regions=None, trace_region=None):
         """Give 1 food per agent to ~1/3 of hungry agents (randomized), then
         to young agents from any remaining inventory."""
-        if self.food_inventory <= 0:
+        if regions and len(regions) > 1:
+            for site in regions:
+                self.distribute_food(t, site.agents, regions=(site,))
+            return
+        food_region = regions[0] if regions else trace_region
+        if food_region is not None:
+            self.bind_food_site(food_region)
+        if regions:
+            delivered = getattr(self, '_food_distribution_turns', {})
+            eligible = [r for r in regions if delivered.get(r.name) != t]
+            if not eligible:
+                return
+            allowed = {a.id for r in eligible for a in r.agents}
+            agents = [a for a in agents if a.id in allowed]
+            regions = tuple(eligible)
+            for r in eligible:
+                delivered[r.name] = t
+            self._food_distribution_turns = delivered
+        if self.food_at(food_region) <= 0:
             return
 
         regions = tuple(regions or ())
@@ -344,10 +365,11 @@ class Charity:
                              if getattr(region, '_run_trace', None) is not None
                              and getattr(region, '_collective_trace_clock', None)
                              is not None), None)
-        stock_before_distribution = self.food_inventory
+        stock_before_distribution = self.food_at(food_region)
 
         hungry = [a for a in agents if a.alive and a.hungry_steps > 0
-                  and not a.is_corporation]
+                  and not a.is_corporation and not a.is_government
+                  and not getattr(a, 'military_unit_id', None)]
 
         # Randomly select ~1/3 of hungry agents to feed this turn
         max_feed = max(1, len(hungry) // 3)
@@ -358,7 +380,8 @@ class Charity:
             selected = hungry
 
         young = [a for a in agents if a.alive and a.age(t) <= 10
-                 and a.hungry_steps == 0 and not a.is_corporation]
+                 and a.hungry_steps == 0 and not a.is_corporation and not a.is_government
+                 and not getattr(a, 'military_unit_id', None)]
 
         recipients = 0
         food_given = 0
@@ -370,13 +393,13 @@ class Charity:
         for selection_index, recipient in enumerate(selected + young):
             # One aid transfer is one whole food unit. Fractional stock from
             # market purchases carries forward until it can fund that unit.
-            if self.food_inventory < 1:
+            if self.food_at(food_region) < 1:
                 break
-            stock_before = self.food_inventory
+            stock_before = self.food_at(food_region)
             recipient_food_before = recipient.inv_get(Goods.food, 0)
-            self.food_inventory -= 1
+            self.add_food(food_region, -1)
             recipient.inv_add(Goods.food, 1)
-            stock_after = self.food_inventory
+            stock_after = self.food_at(food_region)
             recipient_food_after = recipient.inv_get(Goods.food, 0)
             food_given += 1
             recipients += 1
@@ -438,7 +461,7 @@ class Charity:
                 inputs={'operation_id':
                         f'charity-food-distribution:{self.name}:{int(t)}',
                         'food_inventory_before': stock_before_distribution,
-                        'food_inventory_after': self.food_inventory,
+                        'food_inventory_after': self.food_at(food_region),
                         'hungry_candidates': len(hungry),
                         'hungry_selection_limit': max_feed,
                         'selected_hungry_ids': [str(a.id) for a in selected],
@@ -452,7 +475,7 @@ class Charity:
 
         if food_given > 0 and t % 50 == 0:
             print(f"  {self.name}: distributed {food_given} food to {recipients} agents "
-                  f"(remaining food: {self.food_inventory}, cash: ${self.agent.cash:.2f})")
+                  f"(remaining food: {self.food_at(food_region)}, cash: ${self.agent.cash:.2f})")
 
     def print_summary(self):
         """Print summary stats for this charity."""

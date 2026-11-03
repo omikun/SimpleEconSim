@@ -1,0 +1,344 @@
+[
+  {
+    "case": "commercial",
+    "seed": 4243,
+    "source": "864b77683f8b21eee3c152fdd90db087afd0f4c2b3bcb19b46ba1a968637db05",
+    "source_unchanged": true,
+    "residents": 109,
+    "underfed": 14,
+    "starvation_deaths": 23,
+    "deaths": {
+      "starvation": 23,
+      "age_or_health": 40,
+      "disease": 47
+    },
+    "company_food": 0,
+    "farm_output": 51,
+    "foraged": 356,
+    "meal_cost": 200.0,
+    "currency_violations": 0
+  },
+  {
+    "case": "regional",
+    "seed": 4243,
+    "source": "864b77683f8b21eee3c152fdd90db087afd0f4c2b3bcb19b46ba1a968637db05",
+    "source_unchanged": true,
+    "residents": 183,
+    "underfed": 15,
+    "starvation_deaths": 18,
+    "deaths": {
+      "age_or_health": 43,
+      "starvation": 18,
+      "disease": 24
+    },
+    "company_food": 0,
+    "farm_output": 77,
+    "foraged": 524,
+    "meal_cost": 95.47,
+    "currency_violations": 0
+  },
+  {
+    "case": "control",
+    "seed": 4243,
+    "source": "864b77683f8b21eee3c152fdd90db087afd0f4c2b3bcb19b46ba1a968637db05",
+    "source_unchanged": true,
+    "residents": 114,
+    "underfed": 9,
+    "starvation_deaths": 25,
+    "deaths": {
+      "starvation": 25,
+      "disease": 43,
+      "age_or_health": 38
+    },
+    "company_food": 0,
+    "farm_output": 32,
+    "foraged": 400,
+    "meal_cost": 200.0,
+    "currency_violations": 0
+  },
+  {
+    "case": "responsive",
+    "seed": 4243,
+    "source": "864b77683f8b21eee3c152fdd90db087afd0f4c2b3bcb19b46ba1a968637db05",
+    "source_unchanged": true,
+    "residents": 95,
+    "underfed": 14,
+    "starvation_deaths": 14,
+    "deaths": {
+      "starvation": 14,
+      "age_or_health": 28,
+      "disease": 25
+    },
+    "company_food": 0,
+    "farm_output": 34,
+    "foraged": 280,
+    "meal_cost": 200.0,
+    "currency_violations": 0
+  },
+  {
+    "case": "responsive_relief",
+    "seed": 4243,
+    "source": "864b77683f8b21eee3c152fdd90db087afd0f4c2b3bcb19b46ba1a968637db05",
+    "source_unchanged": true,
+    "residents": 63,
+    "underfed": 15,
+    "starvation_deaths": 5,
+    "deaths": {
+      "disease": 12,
+      "starvation": 5,
+      "age_or_health": 40
+    },
+    "company_food": 0,
+    "farm_output": 20,
+    "foraged": 176,
+    "meal_cost": 200.0,
+    "currency_violations": 0
+  },
+  {
+    "case": "frozen_relief",
+    "seed": 4243,
+    "source": "864b77683f8b21eee3c152fdd90db087afd0f4c2b3bcb19b46ba1a968637db05",
+    "source_unchanged": true,
+    "residents": 46,
+    "underfed": 10,
+    "starvation_deaths": 12,
+    "deaths": {
+      "age_or_health": 46,
+      "disease": 20,
+      "starvation": 12
+    },
+    "company_food": 0,
+    "farm_output": 4,
+    "foraged": 144,
+    "meal_cost": 200.0,
+    "currency_violations": 0
+  },
+  {
+    "case": "commercial",
+    "seed": 4242,
+    "source": "864b77683f8b21eee3c152fdd90db087afd0f4c2b3bcb19b46ba1a968637db05",
+    "source_unchanged": true,
+    "residents": 146,
+    "underfed": 12,
+    "starvation_deaths": 22,
+    "deaths": {
+      "starvation": 22,
+      "disease": 28,
+      "age_or_health": 39
+    },
+    "company_food": 49.0,
+    "farm_output": 57,
+    "foraged": 440,
+    "meal_cost": 171.2,
+    "currency_violations": 0
+  },
+  {
+    "case": "regional",
+    "seed": 4242,
+    "source": "864b77683f8b21eee3c152fdd90db087afd0f4c2b3bcb19b46ba1a968637db05",
+    "source_unchanged": true,
+    "residents": 95,
+    "underfed": 9,
+    "starvation_deaths": 20,
+    "deaths": {
+      "age_or_health": 39,
+      "starvation": 20,
+      "disease": 38
+    },
+    "company_food": 0.5,
+    "farm_output": 25,
+    "foraged": 308,
+    "meal_cost": 200.0,
+    "currency_violations": 0
+  },
+  {
+    "case": "control",
+    "seed": 4242,
+    "source": "864b77683f8b21eee3c152fdd90db087afd0f4c2b3bcb19b46ba1a968637db05",
+    "source_unchanged": true,
+    "residents": 173,
+    "underfed": 15,
+    "starvation_deaths": 21,
+    "deaths": {
+      "age_or_health": 49,
+      "starvation": 21,
+      "disease": 29
+    },
+    "company_food": 65.0,
+    "farm_output": 54,
+    "foraged": 524,
+    "meal_cost": 175.98,
+    "currency_violations": 0
+  },
+  {
+    "case": "responsive",
+    "seed": 4242,
+    "source": "864b77683f8b21eee3c152fdd90db087afd0f4c2b3bcb19b46ba1a968637db05",
+    "source_unchanged": true,
+    "residents": 108,
+    "underfed": 15,
+    "starvation_deaths": 15,
+    "deaths": {
+      "starvation": 15,
+      "age_or_health": 39,
+      "disease": 18
+    },
+    "company_food": 0,
+    "farm_output": 79,
+    "foraged": 332,
+    "meal_cost": 200.0,
+    "currency_violations": 0
+  },
+  {
+    "case": "responsive_relief",
+    "seed": 4242,
+    "source": "864b77683f8b21eee3c152fdd90db087afd0f4c2b3bcb19b46ba1a968637db05",
+    "source_unchanged": true,
+    "residents": 67,
+    "underfed": 10,
+    "starvation_deaths": 8,
+    "deaths": {
+      "starvation": 8,
+      "age_or_health": 37,
+      "disease": 17
+    },
+    "company_food": 0,
+    "farm_output": 44,
+    "foraged": 204,
+    "meal_cost": 200.0,
+    "currency_violations": 0
+  },
+  {
+    "case": "frozen_relief",
+    "seed": 4242,
+    "source": "864b77683f8b21eee3c152fdd90db087afd0f4c2b3bcb19b46ba1a968637db05",
+    "source_unchanged": true,
+    "residents": 65,
+    "underfed": 5,
+    "starvation_deaths": 5,
+    "deaths": {
+      "disease": 14,
+      "age_or_health": 49,
+      "starvation": 5
+    },
+    "company_food": 0,
+    "farm_output": 62,
+    "foraged": 188,
+    "meal_cost": 200.0,
+    "currency_violations": 0
+  },
+  {
+    "case": "commercial",
+    "seed": 4244,
+    "source": "864b77683f8b21eee3c152fdd90db087afd0f4c2b3bcb19b46ba1a968637db05",
+    "source_unchanged": true,
+    "residents": 147,
+    "underfed": 17,
+    "starvation_deaths": 21,
+    "deaths": {
+      "age_or_health": 47,
+      "disease": 30,
+      "starvation": 21
+    },
+    "company_food": 100.0,
+    "farm_output": 56,
+    "foraged": 436,
+    "meal_cost": 138.31,
+    "currency_violations": 0
+  },
+  {
+    "case": "regional",
+    "seed": 4244,
+    "source": "864b77683f8b21eee3c152fdd90db087afd0f4c2b3bcb19b46ba1a968637db05",
+    "source_unchanged": true,
+    "residents": 79,
+    "underfed": 8,
+    "starvation_deaths": 18,
+    "deaths": {
+      "age_or_health": 40,
+      "starvation": 18,
+      "disease": 35
+    },
+    "company_food": 0,
+    "farm_output": 18,
+    "foraged": 264,
+    "meal_cost": 200.0,
+    "currency_violations": 0
+  },
+  {
+    "case": "control",
+    "seed": 4244,
+    "source": "864b77683f8b21eee3c152fdd90db087afd0f4c2b3bcb19b46ba1a968637db05",
+    "source_unchanged": true,
+    "residents": 94,
+    "underfed": 7,
+    "starvation_deaths": 17,
+    "deaths": {
+      "disease": 34,
+      "age_or_health": 43,
+      "starvation": 17
+    },
+    "company_food": 0,
+    "farm_output": 30,
+    "foraged": 308,
+    "meal_cost": 200.0,
+    "currency_violations": 0
+  },
+  {
+    "case": "responsive",
+    "seed": 4244,
+    "source": "864b77683f8b21eee3c152fdd90db087afd0f4c2b3bcb19b46ba1a968637db05",
+    "source_unchanged": true,
+    "residents": 121,
+    "underfed": 13,
+    "starvation_deaths": 13,
+    "deaths": {
+      "disease": 25,
+      "starvation": 13,
+      "age_or_health": 45
+    },
+    "company_food": 0,
+    "farm_output": 93,
+    "foraged": 332,
+    "meal_cost": 200.0,
+    "currency_violations": 0
+  },
+  {
+    "case": "responsive_relief",
+    "seed": 4244,
+    "source": "864b77683f8b21eee3c152fdd90db087afd0f4c2b3bcb19b46ba1a968637db05",
+    "source_unchanged": true,
+    "residents": 74,
+    "underfed": 11,
+    "starvation_deaths": 10,
+    "deaths": {
+      "disease": 19,
+      "starvation": 10,
+      "age_or_health": 34
+    },
+    "company_food": 0,
+    "farm_output": 24,
+    "foraged": 240,
+    "meal_cost": 200.0,
+    "currency_violations": 0
+  },
+  {
+    "case": "frozen_relief",
+    "seed": 4244,
+    "source": "864b77683f8b21eee3c152fdd90db087afd0f4c2b3bcb19b46ba1a968637db05",
+    "source_unchanged": true,
+    "residents": 33,
+    "underfed": 1,
+    "starvation_deaths": 13,
+    "deaths": {
+      "age_or_health": 40,
+      "disease": 24,
+      "starvation": 13
+    },
+    "company_food": 0,
+    "farm_output": 28,
+    "foraged": 112,
+    "meal_cost": 200.0,
+    "currency_violations": 0
+  }
+]

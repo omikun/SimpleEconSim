@@ -17,6 +17,32 @@ from trace_report import report, render, diff_snapshots
 
 class RunTraceTests(unittest.TestCase):
 
+    @staticmethod
+    def _staff_trace_fixture_mills(server):
+        """Start the price/production trace fixture with operating mills.
+
+        The career market now permits delayed recruitment, so these trace
+        probes explicitly supply their own initial workforce.
+        """
+        from labor_contract import ensure_labor_agreement
+        for tile in server.tiles:
+            for firm in list(tile.agents):
+                if firm.is_corporation and firm.output == Goods.cotton:
+                    firm.max_employees = 0  # Explicit empty-workforce trace case.
+                if not firm.is_corporation or firm.output != Goods.cloth:
+                    continue
+                workers = [p for p in tile.agents if p.alive and not p.is_corporation
+                           and not p.is_government and not p.is_trader and not p.is_lord
+                           and not p.employer and not p.company_owned
+                           and not getattr(p, 'military_unit_id', None)][:2]
+                for worker in workers:
+                    worker.output = worker.primary_livelihood = Goods.cloth
+                    worker.employer = firm
+                    worker.wage = firm.wage
+                    firm.employees.append(worker)
+                    ensure_labor_agreement(worker, firm, 0)
+
+
     def test_cached_subject_keys_preserve_exact_json_and_mutations(self):
         import json
         from run_trace import _subject_key
@@ -484,7 +510,9 @@ class RunTraceTests(unittest.TestCase):
             producer = SimpleNamespace(output=Goods.food, is_trader=False,
                                        inv_get=lambda _good, _fallback: 2.0)
             region = SimpleNamespace(name='Delta', _price_ref={Goods.food: 2.0},
-                                     _trade_prices={Goods.food: [2.2, 2.4]},
+                                     _trade_prices={Goods.food: [2.2, 2.4]}, _last_turn=7,
+                                     _paid_price_observations={Goods.food: [
+                                         {'turn': 7, 'quantity': 10, 'paid': 23}]},
                                      agents=[producer], recipes={Goods.food: {'maxinv': 10, 'price': 2.0}},
                                      _collective_trace_clock=clock, _run_trace=trace)
             update_price_ref(region, Goods.food, 1.5,
@@ -868,6 +896,7 @@ class RunTraceTests(unittest.TestCase):
         from sim_server.sim_server import SimServer
         server = SimServer(seed=613, terrain_seed=613, nation_seed=613,
                            scenario_id='labor_frontier_rivalry')
+        self._staff_trace_fixture_mills(server)
         server.step()
         asks = server.run_trace.query(turn=1, metric_id='goods.seller_ask',
                                       limit=10000)['events']
@@ -1077,6 +1106,7 @@ class RunTraceTests(unittest.TestCase):
                       'trader_cash_log', 'pipeline_depth_log'):
             self.assertEqual(inventory[field]['coverage'], 'instrumented', field)
         self.assertEqual(inventory['surplus_value_log']['coverage'], 'instrumented')
+        self._staff_trace_fixture_mills(server)
         server.step()
         rows = server.run_trace.query(turn=1, limit=10000)['events']
         kinds = {row['kind'] for row in rows}
@@ -1276,6 +1306,24 @@ class RunTraceTests(unittest.TestCase):
             rows_by_id.get(event_id, {}).get('kind') == 'market_demand_supply_ratio'
             for row in rows if row['kind'] == 'market_price_update'
             for event_id in row.get('cause_event_ids', [])))
+        # Exercise cargo provenance with a real paid purchase. Recruitment and
+        # source exit limits can delay spontaneous exports in this scenario.
+        from region_market import clear_discriminatory
+        source = server.tiles[1]
+        trader = source.trader_agents[0]
+        seller = next(p for p in source.agents if p.alive and not p.is_trader
+                      and p.inv_get(Goods.cotton, 0) >= 1)
+        price = source.recipes[Goods.cotton]['price']
+        units, _, _ = clear_discriminatory(source, Goods.cotton, price, 1, 1,
+            [], source.agents, 1, local_orders={
+                'buyers': [{'agent': trader, 'quantity': 1, 'limit_price': price}],
+                'sellers': [{'agent': seller, 'quantity': 1, 'limit_price': price}]})
+        self.assertEqual(units, 1)
+        route = source.routes[server.tiles[0].name]
+        trader.destination_region = route.dst
+        from region_logistics import post_exports_to_route
+        post_exports_to_route(source)
+        self.assertEqual(trader.inventory_export[Goods.cotton.value], 0)
         for _ in range(5):
             server.step()
         self.assertEqual(server.turn, 6)
@@ -1541,11 +1589,16 @@ class RunTraceTests(unittest.TestCase):
                 trace = RunTrace(Path(tmp) / 'career.ctr', 'career-fixture')
                 clock = {'next': 1, 'turn': 12, 'phase': 'local'}
                 region = SimpleNamespace(name='Delta', _collective_trace_clock=clock,
-                                         _run_trace=trace)
+                                         _run_trace=trace, agents=[])
                 worker = Agent(42)
                 initialize_agent(worker, Goods.food, 0, 0, 0)
                 worker.birth_round = -10
                 worker.last_career_switch = 4
+                from career_transitions import prepare_budgets
+                region.agents = [worker]
+                region.career_minimum_workers = 0
+                region.career_transition_carry = {'food': .75}
+                prepare_budgets(region, 12, {'food': 10})
                 switched = apply_career_switch(
                     region, worker, Goods.wood, 12,
                     reason='INDEPENDENT_SWITCH',

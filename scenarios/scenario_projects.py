@@ -274,16 +274,17 @@ def _trace_project_crew_food(world, project, egypt, workers, supply_needed,
     from run_trace import emit
     tile = _tile(world, project['site'])
     units_per_worker = int(supply_needed) // max(1, len(workers))
-    stock_after = int(egypt.government.food_inventory)
+    stock_after = int(egypt.government.food_at(tile))
     event_ids = []
     for worker in workers:
-        worker_before = int(worker_food_before.get(worker.id, 0))
+        worker_before = worker_food_before.get(worker.id, 0)
+        delivered = worker.inv_get(Goods.food, 0) - worker_before
         event_id = emit(
             tile, kind='scenario_project_crew_food_transfer',
             record_class='transfer', phase='scenario_projects',
             subject={'type': 'agent', 'id': worker.id},
             metric_id='goods.project_crew_food', unit='food_units',
-            before=worker_before, after=worker_before + units_per_worker,
+            before=worker_before, after=worker.inv_get(Goods.food, 0),
             inputs={'operation_id':
                     f"project:{project['id']}:{int(world['turn'])}:crew_food:{worker.id}",
                     'project_id': project['id'], 'site': project['site'],
@@ -291,7 +292,7 @@ def _trace_project_crew_food(world, project, egypt, workers, supply_needed,
                     'source_inventory_before': int(stock_before),
                     'source_inventory_after': stock_after,
                     'recipient_id': worker.id,
-                    'emergency_food_units': units_per_worker,
+                    'pantry_food_units': delivered,
                     'crew_food_units_total': int(supply_needed)})
         if event_id is not None:
             event_ids.append(event_id)
@@ -458,7 +459,8 @@ def advance(world: dict) -> None:
                 continue
         supply_needed = int(definition.get('supply_food', 0))
         egypt = _nation(world, 'Egypt')
-        if supply_needed and int(egypt.government.food_inventory) < supply_needed:
+        supply_site = _tile(world, project['site'])
+        if supply_needed and egypt.government.food_at(supply_site) < supply_needed:
             project['status'] = 'unsupplied'
             if project.get('supply_warning_turn') != turn - 1:
                 _event(world, project, f'{project["site"]} defense staff lack public food supplies.')
@@ -469,7 +471,7 @@ def advance(world: dict) -> None:
                 reason='insufficient_public_food', before=before,
                 after=_project_trace_state(project), operation_id=operation_id,
                 details={'food_required': supply_needed,
-                         'public_food_inventory': int(egypt.government.food_inventory),
+                         'public_food_inventory': egypt.government.food_at(supply_site),
                          'progress_before': progress_before,
                          'progress_after': int(project['progress']),
                          'work_progressed': project['progress'] > progress_before})
@@ -486,12 +488,13 @@ def advance(world: dict) -> None:
                                                                 len(_tile(world, project['site']).agents))}
                 crew_workers = [crew[worker_id] for worker_id in project['worker_ids']]
                 worker_food_before = {
-                    worker.id: int(getattr(worker, 'emergency_food_units', 0))
+                    worker.id: worker.inv_get(Goods.food, 0)
                     for worker in crew_workers}
-                food_inventory_before = int(egypt.government.food_inventory)
-                for worker_id in project['worker_ids']:
-                    queue_emergency_meal(crew[worker_id], supply_needed // len(project['worker_ids']))
-                egypt.government.food_inventory -= supply_needed
+                food_inventory_before = egypt.government.food_at(supply_site)
+                for index, worker_id in enumerate(project['worker_ids']):
+                    units = supply_needed // len(project['worker_ids']) + (index < supply_needed % len(project['worker_ids']))
+                    queue_emergency_meal(crew[worker_id], units)
+                egypt.government.add_food(supply_site, -supply_needed)
                 world['scenario_state']['public_maize_stock_units'] = egypt.government.food_inventory
                 food_event_ids = _trace_project_crew_food(
                     world, project, egypt, crew_workers, supply_needed,

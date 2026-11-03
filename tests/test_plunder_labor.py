@@ -85,6 +85,11 @@ class TestPlunderLaborMechanics(unittest.TestCase):
 
     def test_scheduler_rejects_below_reservation_offer_and_is_idempotent(self):
         worker = self._worker()
+        worker.output = worker.primary_livelihood = Goods.wood
+        worker.calorie_deficit_kcal = 500
+        self.region.recipes[Goods.wood] = {'production': 6, 'price': 2, 'numInput': 0}
+        self.region.sold_log = {Goods.wood: [6] * 6}
+        worker.inv_set(Goods.wood, 1)
         firm = self._firm(wage=1.0)
         scheduler = LaborMobilityScheduler()
 
@@ -95,7 +100,7 @@ class TestPlunderLaborMechanics(unittest.TestCase):
         self.assertEqual(firm.employees, [])
         self.assertEqual(result['reallocations_count'], 0)
         self.assertTrue(repeated['already_processed'])
-        self.assertTrue(any(not row['accepted'] and row['reason'] == 'insufficient_wage'
+        self.assertTrue(any(not row['accepted'] and row['reason'] == 'lower_feasible_return'
                             for row in self.region.labor_decision_log))
 
     def test_employed_worker_cannot_also_forage(self):
@@ -164,7 +169,7 @@ class TestPlunderLaborMechanics(unittest.TestCase):
         self.assertIsNotNone(claim)
         self.assertEqual(lender.cash + farmer.cash, cash_before)
         farmer.inv_add(Goods.food, 4)  # old stores are not a current harvest receipt
-        self.region.production_receipts = [{'person_id': farmer.id, 'good': Goods.food, 'quantity': 3}]
+        self.region.production_receipts = [{'turn': 1, 'person_id': farmer.id, 'good': Goods.food, 'quantity': 3}]
         food_before = farmer.inv_get(Goods.food, 0) + lender.inv_get(Goods.food, 0)
         events = settle_crop_liens(self.region, 1)
         self.assertEqual(events[0]['quantity'], 1)
@@ -184,7 +189,7 @@ class TestPlunderLaborMechanics(unittest.TestCase):
         self.assertIn(tenant.id, plot.tenant_ids)
         tenant.output = Goods.food
         tenant.inv_add(Goods.food, 4)
-        self.region.production_receipts = [{'person_id': tenant.id, 'good': Goods.food, 'quantity': 4}]
+        self.region.production_receipts = [{'turn': 1, 'person_id': tenant.id, 'good': Goods.food, 'quantity': 4}]
         before = tenant.inv_get(Goods.food, 0) + landlord.inv_get(Goods.food, 0)
         result = settle_crop_shares(self.region, 1)
         self.assertEqual(result[0]['quantity'], 2)
@@ -495,12 +500,15 @@ class TestPlunderLaborMechanics(unittest.TestCase):
         firm.wage_liabilities = [{'worker_id': worker.id, 'turn': 0,
                                   'amount': 3.0, 'status': 'unpaid'}]
         self.region.bank = BankStub()
+        self.region.gov = SimpleNamespace(agent=Agent(0))
+        self.region.goods = list(Goods)
         begin_turn(self.region, 4)
 
         borrow_or_layoff(self.region, 4)
         accounts = {row['actor_id']: row for row in seal_turn(self.region, 4)}
 
-        self.assertFalse(firm.is_corporation)
+        self.assertTrue(firm.is_corporation)
+        self.assertTrue(firm.business_closed)
         self.assertEqual(firm.employees, [])
         self.assertIsNone(worker.employer)
         self.assertEqual(firm.wage_arrears_balance, 0.0)

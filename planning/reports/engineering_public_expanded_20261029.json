@@ -1,0 +1,176 @@
+{
+  "variant": "public",
+  "seed": 4243,
+  "turns": 100,
+  "opening_households": 75,
+  "snapshots": [
+    {
+      "turn": 20,
+      "capability": 51.08126084043303,
+      "tier": 2,
+      "current_design_maturity": 11.151617684732447,
+      "maturity_by_generation": {
+        "1": 5.6875,
+        "2": 11.151617684732447
+      },
+      "public_engineering_spend": 968.1899999999999,
+      "private_engineering_spend": 0.0,
+      "installation_spend": 1116.82,
+      "firm_cash": 6441.865467727592,
+      "firm_alive": true,
+      "firm_is_corporation": true,
+      "employees": 4,
+      "sales_last_turn": 801.1853046113283,
+      "sales_mean_last_8_turns": 815.2334866787824,
+      "installed_design_quote": 755.39,
+      "recorded_operating_result_last_turn": 783.4053876445556,
+      "productive_machine_work": 18.666562499999998,
+      "private_assets": [
+        {
+          "steam_engines": 2
+        }
+      ],
+      "pending_projects": [],
+      "latest_decision": {
+        "turn": 17,
+        "tech_id": "steam_engines",
+        "action": "retrofit",
+        "selected": true,
+        "reason": "selected",
+        "expected_gain_per_turn": 31.550045139268786,
+        "payback_turns": 28.662317882014015,
+        "cost": 316.82
+      },
+      "engineering_constraint": "Missing experiment supplies: iron",
+      "living_households": 77,
+      "hungry_households": 9,
+      "treasury_cash": 9031.80999999999
+    },
+    {
+      "turn": 50,
+      "capability": 61.24686396637193,
+      "tier": 3,
+      "current_design_maturity": 7.326055054372319,
+      "maturity_by_generation": {
+        "1": 5.6875,
+        "2": 20.9315858696352
+      },
+      "public_engineering_spend": 968.1899999999999,
+      "private_engineering_spend": 0.0,
+      "installation_spend": 1116.82,
+      "firm_cash": 4482.02460222119,
+      "firm_alive": true,
+      "firm_is_corporation": true,
+      "employees": 2,
+      "sales_last_turn": 0,
+      "sales_mean_last_8_turns": 0.0,
+      "installed_design_quote": 770.7,
+      "recorded_operating_result_last_turn": -5.0,
+      "productive_machine_work": 75.61234374999998,
+      "private_assets": [
+        {
+          "steam_engines": 2
+        }
+      ],
+      "pending_projects": [],
+      "latest_decision": {
+        "turn": 50,
+        "tech_id": "steam_engines",
+        "action": "retrofit",
+        "selected": false,
+        "reason": "no_operating_workforce",
+        "expected_gain_per_turn": 0.0,
+        "payback_turns": null,
+        "cost": 308.41
+      },
+      "engineering_constraint": "Missing experiment supplies: iron",
+      "living_households": 98,
+      "hungry_households": 8,
+      "treasury_cash": 9554.766961999987
+    },
+    {
+      "turn": 100,
+      "capability": 68.91278083161454,
+      "tier": 3,
+      "current_design_maturity": 9.621125366872324,
+      "maturity_by_generation": {
+        "1": 5.6875,
+        "2": 27.48892961963521
+      },
+      "public_engineering_spend": 968.1899999999999,
+      "private_engineering_spend": 0.0,
+      "installation_spend": 1116.82,
+      "firm_cash": 3202.913625000463,
+      "firm_alive": true,
+      "firm_is_corporation": true,
+      "employees": 0,
+      "sales_last_turn": 0,
+      "sales_mean_last_8_turns": 0.0,
+      "installed_design_quote": 761.52,
+      "recorded_operating_result_last_turn": 0,
+      "productive_machine_work": 90.07734374999997,
+      "private_assets": [
+        {
+          "steam_engines": 2
+        }
+      ],
+      "pending_projects": [],
+      "latest_decision": {
+        "turn": 98,
+        "tech_id": "steam_engines",
+        "action": "retrofit",
+        "selected": false,
+        "reason": "no_operating_workforce",
+        "expected_gain_per_turn": 0.0,
+        "payback_turns": null,
+        "cost": 304.61
+      },
+      "engineering_constraint": "Missing experiment supplies: iron",
+      "living_households": 104,
+      "hungry_households": 13,
+      "treasury_cash": 10350.732227999983
+    }
+  ],
+  "investments": [
+    {
+      "turn": 11,
+      "tech_id": "steam_engines",
+      "generation": 1,
+      "action": "install",
+      "project_id": "private-tech:Works:79:11",
+      "cost": 800.0,
+      "borrowed": 0.0,
+      "savings_withdrawn": 0.0,
+      "expected_gain_per_turn": 94.73959725597135,
+      "expected_payback_turns": 8.444198869017008
+    },
+    {
+      "turn": 17,
+      "tech_id": "steam_engines",
+      "generation": 2,
+      "action": "retrofit",
+      "project_id": "private-tech:Works:79:17",
+      "cost": 316.82,
+      "borrowed": 0.0,
+      "savings_withdrawn": 0.0,
+      "expected_gain_per_turn": 31.550045139268786,
+      "expected_payback_turns": 28.662317882014015
+    }
+  ],
+  "capability_milestones": [
+    {
+      "turn": 10,
+      "tier": 1
+    },
+    {
+      "turn": 15,
+      "tier": 2
+    },
+    {
+      "turn": 40,
+      "tier": 3
+    }
+  ],
+  "currency_audit_violations": [],
+  "assumptions": "One authored commons region with abundant modeled forestry output; normal canonical turns, markets, labor, finance and innovation. Public strategy renews performance funding at each milestone; no recurring subsidies or fabricated sales. Low demand has 18 opening residents with 40 cash each versus 75 with 250; all variants use the same firm and initial design except public starts without steam knowledge. Control disables private adoption. These are authored strategy checks, not identical-economy causal comparisons."
+}

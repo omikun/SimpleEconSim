@@ -131,6 +131,14 @@ class BuildIntent(Intent):
         self.region_name = region_name
         self.building_type = building_type
         self.project: ConstructionProject | None = None
+        self.recipe_override = None
+        self.retrofit_target = None
+
+    def _recipe(self, nation):
+        from engineering import quote_recipe
+        from innovation import get_innovation_system
+        return getattr(self, 'recipe_override', None) or quote_recipe(nation, BUILDING_RECIPES[self.building_type],
+                                                    get_innovation_system())
 
     def validate(self, tiles_by_name: dict[str, Region],
                  nations_by_name: dict[str, Nation], t: int) -> tuple[bool, str]:
@@ -149,7 +157,15 @@ class BuildIntent(Intent):
         if self.building_type not in BUILDING_RECIPES:
             return False, f"Unknown building recipe '{self.building_type}'."
 
-        recipe = BUILDING_RECIPES[self.building_type]
+        try:
+            recipe = self._recipe(nation)
+        except ValueError as error:
+            return False, str(error)
+        if getattr(self, 'retrofit_target', None) is not None:
+            if self.retrofit_target not in getattr(region, 'buildings', ()):
+                return False, 'The selected installation no longer exists.'
+            if getattr(self.retrofit_target, 'retrofit_project_id', None):
+                return False, 'This installation already has a retrofit in progress.'
         
         # Check treasury cash
         treasury = nation.treasury()
@@ -190,7 +206,7 @@ class BuildIntent(Intent):
         # The operation key is the intent ID, stable across its funding,
         # contractor payment, project, and intent-execution records.
         operation_id = self.intent_id
-        recipe = BUILDING_RECIPES[self.building_type]
+        recipe = self._recipe(nation)
         cost = recipe.cost
 
         # 1. Procure funds from government (conserved transfer across sovereign treasury pool)
@@ -487,6 +503,9 @@ class BuildIntent(Intent):
             started_turn=t
         )
         self.project = project
+        if getattr(self, 'retrofit_target', None) is not None:
+            project.retrofit_target = self.retrofit_target
+            self.retrofit_target.retrofit_project_id = project.project_id
 
         if not hasattr(region, 'construction_projects'):
             region.construction_projects = []
@@ -943,6 +962,13 @@ def step_intents_and_construction(t: int, tiles: list, nations: list, on_event=N
             # Remove completed or rejected intents from active queue
             if intent.status in ('completed', 'rejected', 'failed'):
                 intents.remove(intent)
+
+    # Firms use prior settled sales and private finance before projects advance.
+    from technology_adoption import step_private_adoption
+    for ev in step_private_adoption(tiles, nations, t):
+        events.append(ev)
+        if on_event:
+            on_event(t, ev['event'], ev['message'])
 
     # 2. Step active construction projects and building staffing across all tiles
     from construction_politics import step_construction_politics

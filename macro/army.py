@@ -18,6 +18,20 @@ from goods import Goods
 from treasury_trace import begin_public_change, finish_public_change
 
 
+def _ration_stock(gov, region):
+    if region is not None and hasattr(gov, 'food_at'):
+        gov.bind_food_site(region)
+        return gov.food_at(region)
+    return getattr(gov, 'food_inventory', 0)
+
+
+def _change_rations(gov, region, units):
+    if region is not None and hasattr(gov, 'add_food'):
+        gov.add_food(region, units)
+    else:
+        gov.food_inventory = max(0, getattr(gov, 'food_inventory', 0) + units)
+
+
 @dataclass
 class MilitaryUnit:
     """A military unit or garrison stationed on a Region tile."""
@@ -66,7 +80,7 @@ class MilitaryUnit:
                     cash = float(gov.agent.cash)
                     deposits = (float(getattr(bank, 'total_deposits', 0.0))
                                 if bank is not None else 0.0)
-                    food_inventory = int(getattr(gov, 'food_inventory', 0))
+                    food_inventory = _ration_stock(gov, trace_region)
                     upkeep_details.update({
                         'unit_id': self.unit_id,
                         'scenario_personnel': True,
@@ -94,7 +108,7 @@ class MilitaryUnit:
         treasury_cash_before = float(gov.agent.cash)
         bank_deposits_before = (float(getattr(bank, 'total_deposits', 0.0))
                                 if bank is not None else 0.0)
-        food_inventory_before = int(getattr(gov, 'food_inventory', 0))
+        food_inventory_before = _ration_stock(gov, trace_region)
         morale_before = float(self.morale)
         soldiers_before = int(self.soldiers)
         total_wage = self.soldiers * self.wage_per_soldier
@@ -135,9 +149,13 @@ class MilitaryUnit:
 
         # Food ration consumption
         needed_food = int(math.ceil(self.soldiers * self.food_per_soldier))
-        available_food = getattr(gov, 'food_inventory', 0) if supply_access else 0
+        available_food = _ration_stock(gov, trace_region) if supply_access else 0
         food_consumed = min(needed_food, available_food)
-        gov.food_inventory = max(0, getattr(gov, 'food_inventory', 0) - food_consumed)
+        _change_rations(gov, trace_region, -food_consumed)
+        if trace_region is not None and food_consumed:
+            from food_accounts import record
+            record(trace_region, 'military_food_use', food_consumed,
+                   unit_id=self.unit_id, personnel=len(self.person_ids))
         recipient_cash_credits = []
         if self.scenario_personnel and wages_paid > 0:
             share = wages_paid / self.soldiers
@@ -201,10 +219,10 @@ class MilitaryUnit:
                 'bank_deposits_after': (float(getattr(bank, 'total_deposits', 0.0))
                                         if bank is not None else 0.0),
                 'food_inventory_before': food_inventory_before,
-                'food_inventory_after': int(getattr(gov, 'food_inventory', 0)),
+                'food_inventory_after': _ration_stock(gov, trace_region),
                 'food_needed': int(needed_food),
-                'food_consumed': int(food_consumed),
-                'food_unmet': int(max(0, needed_food - food_consumed)),
+                'food_consumed': food_consumed,
+                'food_unmet': max(0, needed_food - food_consumed),
                 'supply_access': bool(supply_access),
                 'fully_supplied': bool(fully_supplied),
                 'morale_before': morale_before,
@@ -299,13 +317,8 @@ def recruit_unit(nation, region, soldier_count: int, wage: float = 1.0,
 
 
 def _friendly_supply_regions(nation, station):
-    if station is None or station.owner_nation is not nation:
-        return []
-    regions = [station]
-    for other in station.neighbors.values():
-        if other.owner_nation is nation and other not in regions:
-            regions.append(other)
-    return regions
+    # Distant grain must arrive through the delayed freight/relief system.
+    return [station] if station is not None and station.owner_nation is nation else []
 
 
 def _procure_rations(nation, unit, station, t=0, event_ids=None):
@@ -313,7 +326,7 @@ def _procure_rations(nation, unit, station, t=0, event_ids=None):
     gov = nation.government
     needed = int(math.ceil(unit.soldiers * unit.food_per_soldier))
     target = needed * 2
-    stock_before = int(getattr(gov, 'food_inventory', 0))
+    stock_before = _ration_stock(gov, station)
     missing = max(0, target - stock_before)
     if not missing:
         if station is not None:
@@ -345,7 +358,8 @@ def _procure_rations(nation, unit, station, t=0, event_ids=None):
         for seller in sorted(region.agents, key=lambda a: a.id):
             if not seller.alive or seller.output != Goods.food or seller.is_government:
                 continue
-            available = max(0, seller.inv_get(Goods.food, 0) - 2)
+            from food_access import food_surplus
+            available = int(food_surplus(seller, region))
             affordable = int(gov.agent.cash / price)
             take = min(missing, available, affordable)
             if take <= 0:
@@ -358,7 +372,7 @@ def _procure_rations(nation, unit, station, t=0, event_ids=None):
                                'government_cash_cannot_fund_one_unit')})
                 continue
             source_food_before = int(seller.inv_get(Goods.food, 0))
-            destination_food_before = int(getattr(gov, 'food_inventory', 0))
+            destination_food_before = _ration_stock(gov, station)
             seller_cash_before = float(seller.cash)
             treasury_cash_before = float(gov.agent.cash)
             amount = float(take * price)
@@ -372,9 +386,9 @@ def _procure_rations(nation, unit, station, t=0, event_ids=None):
                 public_change, 'military_ration_procurement_debit',
                 inputs={'operation_id': operation_id, 'unit_id': unit.unit_id,
                         'seller_id': seller.id, 'food_units': take, 'unit_price': price})
-            gov.food_inventory += take
+            _change_rations(gov, station, take)
             source_food_after = int(seller.inv_get(Goods.food, 0))
-            destination_food_after = int(getattr(gov, 'food_inventory', 0))
+            destination_food_after = _ration_stock(gov, station)
             seller_cash_after = float(seller.cash)
             treasury_cash_after = float(gov.agent.cash)
             missing -= take
@@ -487,12 +501,12 @@ def _procure_rations(nation, unit, station, t=0, event_ids=None):
                                        'id': unit.unit_id,
                                        'nation': nation.name},
             metric_id='military.supply_procurement', unit='food_units',
-            before=stock_before, after=int(getattr(gov, 'food_inventory', 0)),
+            before=stock_before, after=_ration_stock(gov, station),
             formula_id='army.ration_procurement.v1',
             inputs={'turn': int(t), 'unit_id': unit.unit_id,
                     'nation': nation.name, 'target_food_stock': target,
                     'stock_before': stock_before,
-                    'stock_after': int(getattr(gov, 'food_inventory', 0)),
+                    'stock_after': _ration_stock(gov, station),
                     'food_purchased': int(bought), 'cash_spent': total_cost,
                     'unfilled_target': int(missing), 'outcome': outcome,
                     'reason': reason, 'candidate_sellers': candidate_sellers},

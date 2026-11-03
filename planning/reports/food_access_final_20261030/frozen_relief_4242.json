@@ -1,0 +1,321 @@
+{
+  "variant": "commercial",
+  "seed": 4242,
+  "turns": 100,
+  "opening_households": 75,
+  "snapshots": [
+    {
+      "turn": 20,
+      "capability": 9.287930618064822,
+      "tier": 1,
+      "current_design_maturity": 21.17875,
+      "maturity_by_generation": {
+        "1": 21.17875
+      },
+      "public_engineering_spend": 0.0,
+      "private_engineering_spend": 91.53999999999999,
+      "installation_spend": 800.0,
+      "firm_cash": 6377.221616484188,
+      "firm_alive": true,
+      "firm_is_corporation": true,
+      "employees": 4,
+      "sales_last_turn": 648.6065667250223,
+      "sales_mean_last_8_turns": 827.4644484927866,
+      "installed_design_quote": 715.29,
+      "recorded_operating_result_last_turn": 602.3754632351239,
+      "productive_machine_work": 26.0,
+      "private_assets": [
+        {
+          "steam_engines": 1
+        }
+      ],
+      "pending_projects": [],
+      "latest_decision": {
+        "turn": 11,
+        "tech_id": "steam_engines",
+        "action": "install",
+        "selected": true,
+        "reason": "selected",
+        "expected_gain_per_turn": 94.38367414482802,
+        "payback_turns": 8.476042146573269,
+        "cost": 800.0
+      },
+      "engineering_constraint": "",
+      "living_households": 95,
+      "hungry_households": 4,
+      "food_security": {
+        "tile": "Works",
+        "residents": 95,
+        "food_producers": 46,
+        "minimum_meal_units": 355,
+        "household_food_units": 45,
+        "forecast_commons_food_units": 260,
+        "government_food_units": 0,
+        "missing_meal_units": 94,
+        "recent_food_production": 130.0,
+        "crop_cycle_turns": 10,
+        "observed_crop_cycle_turns": 10,
+        "crop_cycle_production": 1655.0,
+        "crop_cycle_meal_demand": 3550.0,
+        "accessible_food_buffer": 45.0,
+        "projected_crop_cycle_margin": -1850.0,
+        "forecast_commons_cycle_food": 2600.0,
+        "projected_crop_cycle_margin_with_commons": 750.0,
+        "food_buffer_proven": false,
+        "enclosure_risk": false,
+        "projected_supply_gap": 0.0,
+        "underfed_residents": 4,
+        "underfed_share": 0.0421,
+        "diagnosis": "access",
+        "emergency": true,
+        "production_units_last_turn": 130,
+        "foraged_units_last_turn": 260,
+        "unmet_calorie_units_last_turn": 14.0,
+        "company_food_units": 0,
+        "food_available_for_sale": 0,
+        "granary_food_units": 26.0,
+        "food_in_transit": 0,
+        "meal_reference_cost": 5.07,
+        "unaffordable_residents": 5,
+        "relief_policy": "emergency",
+        "access_reasons": [
+          "Households cannot afford meals",
+          "Granary handling capacity reached"
+        ],
+        "granary_release": {
+          "turn": 20,
+          "gap": 254,
+          "capacity": 47,
+          "released": 43,
+          "reason": "Granary handling capacity reached"
+        }
+      },
+      "deaths_by_cause": {},
+      "firm_wage": 2.5,
+      "treasury_cash": 10034.326057
+    },
+    {
+      "turn": 50,
+      "capability": 16.31075009008038,
+      "tier": 1,
+      "current_design_maturity": 42.32874999999999,
+      "maturity_by_generation": {
+        "1": 42.32874999999999
+      },
+      "public_engineering_spend": 0.0,
+      "private_engineering_spend": 211.81999999999996,
+      "installation_spend": 800.0,
+      "firm_cash": 4824.14428071093,
+      "firm_alive": true,
+      "firm_is_corporation": true,
+      "employees": 3,
+      "sales_last_turn": 0,
+      "sales_mean_last_8_turns": 0.0,
+      "installed_design_quote": 630.69,
+      "recorded_operating_result_last_turn": -11.844930210173175,
+      "productive_machine_work": 47.6,
+      "private_assets": [
+        {
+          "steam_engines": 1
+        }
+      ],
+      "pending_projects": [],
+      "latest_decision": {
+        "turn": 11,
+        "tech_id": "steam_engines",
+        "action": "install",
+        "selected": true,
+        "reason": "selected",
+        "expected_gain_per_turn": 94.38367414482802,
+        "payback_turns": 8.476042146573269,
+        "cost": 800.0
+      },
+      "engineering_constraint": "No operating installations or funded experiments.",
+      "living_households": 113,
+      "hungry_households": 13,
+      "food_security": {
+        "tile": "Works",
+        "residents": 113,
+        "food_producers": 42,
+        "minimum_meal_units": 446,
+        "household_food_units": 42.0,
+        "forecast_commons_food_units": 392,
+        "government_food_units": 0,
+        "missing_meal_units": 51.0,
+        "recent_food_production": 21.0,
+        "crop_cycle_turns": 10,
+        "observed_crop_cycle_turns": 10,
+        "crop_cycle_production": 377.0,
+        "crop_cycle_meal_demand": 4460.0,
+        "accessible_food_buffer": 42.0,
+        "projected_crop_cycle_margin": -4041.0,
+        "forecast_commons_cycle_food": 3920.0,
+        "projected_crop_cycle_margin_with_commons": -121.0,
+        "food_buffer_proven": false,
+        "enclosure_risk": false,
+        "projected_supply_gap": 0.0,
+        "underfed_residents": 13,
+        "underfed_share": 0.115,
+        "diagnosis": "stable",
+        "emergency": false,
+        "production_units_last_turn": 21,
+        "foraged_units_last_turn": 392,
+        "unmet_calorie_units_last_turn": 41.92,
+        "company_food_units": 0,
+        "food_available_for_sale": 0,
+        "granary_food_units": 0,
+        "food_in_transit": 0,
+        "meal_reference_cost": 14.27,
+        "unaffordable_residents": 48,
+        "relief_policy": "ordinary",
+        "access_reasons": [
+          "Households cannot afford meals"
+        ],
+        "granary_release": {
+          "turn": 50,
+          "gap": 165.0,
+          "capacity": 57,
+          "released": 0,
+          "reason": "Emergency release disabled"
+        }
+      },
+      "deaths_by_cause": {
+        "age_or_health": 2,
+        "disease": 2
+      },
+      "firm_wage": 3.948310070057725,
+      "treasury_cash": 8610.857858325156
+    },
+    {
+      "turn": 100,
+      "capability": 31.018613385904043,
+      "tier": 2,
+      "current_design_maturity": 17.983181152343747,
+      "maturity_by_generation": {
+        "1": 51.380517578124994
+      },
+      "public_engineering_spend": 0.0,
+      "private_engineering_spend": 211.81999999999996,
+      "installation_spend": 800.0,
+      "firm_cash": 3579.547464704393,
+      "firm_alive": true,
+      "firm_is_corporation": true,
+      "employees": 1,
+      "sales_last_turn": 0,
+      "sales_mean_last_8_turns": 129.48462203557312,
+      "installed_design_quote": 728.07,
+      "recorded_operating_result_last_turn": -12.047326684385974,
+      "productive_machine_work": 63.69203124999999,
+      "private_assets": [
+        {
+          "steam_engines": 1
+        }
+      ],
+      "pending_projects": [],
+      "latest_decision": {
+        "turn": 98,
+        "tech_id": "steam_engines",
+        "action": "retrofit",
+        "selected": false,
+        "reason": "construction_supplies_unavailable",
+        "expected_gain_per_turn": 4.93901516737982,
+        "payback_turns": 78.76413654358086,
+        "cost": 292.21
+      },
+      "engineering_constraint": "",
+      "living_households": 70,
+      "hungry_households": 6,
+      "food_security": {
+        "tile": "Works",
+        "residents": 70,
+        "food_producers": 26,
+        "minimum_meal_units": 273,
+        "household_food_units": 16.0,
+        "forecast_commons_food_units": 228,
+        "government_food_units": 0,
+        "missing_meal_units": 45,
+        "recent_food_production": 25.0,
+        "crop_cycle_turns": 10,
+        "observed_crop_cycle_turns": 10,
+        "crop_cycle_production": 435.0,
+        "crop_cycle_meal_demand": 2730.0,
+        "accessible_food_buffer": 16.0,
+        "projected_crop_cycle_margin": -2279.0,
+        "forecast_commons_cycle_food": 2280.0,
+        "projected_crop_cycle_margin_with_commons": 1.0,
+        "food_buffer_proven": false,
+        "enclosure_risk": false,
+        "projected_supply_gap": 4.0,
+        "underfed_residents": 6,
+        "underfed_share": 0.0857,
+        "diagnosis": "shortage",
+        "emergency": true,
+        "production_units_last_turn": 25,
+        "foraged_units_last_turn": 236,
+        "unmet_calorie_units_last_turn": 18.89,
+        "company_food_units": 0,
+        "food_available_for_sale": 0,
+        "granary_food_units": 0,
+        "food_in_transit": 0,
+        "meal_reference_cost": 73.36,
+        "unaffordable_residents": 33,
+        "relief_policy": "emergency",
+        "access_reasons": [
+          "Households cannot afford meals",
+          "Local food supply is insufficient"
+        ],
+        "granary_release": {
+          "turn": 100,
+          "gap": 108.0,
+          "capacity": 36,
+          "released": 0,
+          "reason": "Granary empty"
+        }
+      },
+      "deaths_by_cause": {
+        "age_or_health": 46,
+        "disease": 23,
+        "starvation": 3
+      },
+      "firm_wage": 10.088483297624009,
+      "treasury_cash": 4627.710331877553
+    }
+  ],
+  "investments": [
+    {
+      "turn": 11,
+      "tech_id": "steam_engines",
+      "generation": 1,
+      "action": "install",
+      "project_id": "private-tech:Works:79:11",
+      "cost": 800.0,
+      "borrowed": 0.0,
+      "savings_withdrawn": 0.0,
+      "expected_gain_per_turn": 94.38367414482802,
+      "expected_payback_turns": 8.476042146573269
+    }
+  ],
+  "capability_milestones": [
+    {
+      "turn": 1,
+      "tier": 1
+    },
+    {
+      "turn": 94,
+      "tier": 2
+    }
+  ],
+  "currency_audit_violations": [],
+  "settings": {
+    "labor_policy": "frozen",
+    "relief": "emergency",
+    "owner_planning": "authored",
+    "steam_scope": "private",
+    "national_ai": false
+  },
+  "source_signature": "fdf616204664b019db4e2eda124f91b87ff32b43962a013cbaea4557f61631f0",
+  "python_hash_seed": "0",
+  "assumptions": "One authored commons region with abundant modeled forestry output; normal canonical turns, markets, labor, finance and innovation. Public strategy renews performance funding at each milestone; no recurring subsidies or fabricated sales. Low demand has 18 opening residents with 40 cash each versus 75 with 250; all variants use the same firm and initial design except public starts without steam knowledge. Control disables private adoption. These are authored strategy checks, not identical-economy causal comparisons.",
+  "source_signature_end": "fdf616204664b019db4e2eda124f91b87ff32b43962a013cbaea4557f61631f0",
+  "source_unchanged": true
+}

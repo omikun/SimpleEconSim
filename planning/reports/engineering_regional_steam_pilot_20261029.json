@@ -1,0 +1,167 @@
+{
+  "variant": "commercial",
+  "seed": 4243,
+  "turns": 100,
+  "opening_households": 75,
+  "snapshots": [
+    {
+      "turn": 20,
+      "capability": 20.08947226675992,
+      "tier": 1,
+      "current_design_maturity": 95.7950523701931,
+      "maturity_by_generation": {
+        "1": 95.7950523701931
+      },
+      "public_engineering_spend": 0.0,
+      "private_engineering_spend": 537.6899999999999,
+      "installation_spend": 696.11,
+      "firm_cash": 5315.217845409571,
+      "firm_alive": true,
+      "firm_is_corporation": true,
+      "employees": 4,
+      "sales_last_turn": 151.5435274833817,
+      "sales_mean_last_8_turns": 661.6938915391029,
+      "installed_design_quote": 416.82,
+      "recorded_operating_result_last_turn": 139.651125468197,
+      "productive_machine_work": 669.8592499999999,
+      "private_assets": [
+        {
+          "steam_engines": 1
+        }
+      ],
+      "pending_projects": [],
+      "latest_decision": {
+        "turn": 11,
+        "tech_id": "steam_engines",
+        "action": "install",
+        "selected": true,
+        "reason": "selected",
+        "expected_gain_per_turn": 105.86988489098216,
+        "payback_turns": 6.575146470753305,
+        "cost": 696.11
+      },
+      "engineering_constraint": "",
+      "living_households": 80,
+      "hungry_households": 6,
+      "treasury_cash": 9555.778986000001
+    },
+    {
+      "turn": 50,
+      "capability": 34.86024303325352,
+      "tier": 2,
+      "current_design_maturity": 35.0,
+      "maturity_by_generation": {
+        "1": 100.0
+      },
+      "public_engineering_spend": 0.0,
+      "private_engineering_spend": 642.1199999999999,
+      "installation_spend": 696.11,
+      "firm_cash": 4271.2534028239415,
+      "firm_alive": true,
+      "firm_is_corporation": true,
+      "employees": 1,
+      "sales_last_turn": 0,
+      "sales_mean_last_8_turns": 0.0,
+      "installed_design_quote": 660.0,
+      "recorded_operating_result_last_turn": -2.5,
+      "productive_machine_work": 1468.0955937499996,
+      "private_assets": [
+        {
+          "steam_engines": 1
+        }
+      ],
+      "pending_projects": [],
+      "latest_decision": {
+        "turn": 50,
+        "tech_id": "steam_engines",
+        "action": "retrofit",
+        "selected": false,
+        "reason": "no_operating_workforce",
+        "expected_gain_per_turn": 0.0,
+        "payback_turns": null,
+        "cost": 264.0
+      },
+      "engineering_constraint": "",
+      "living_households": 92,
+      "hungry_households": 6,
+      "treasury_cash": 10194.438707000007
+    },
+    {
+      "turn": 100,
+      "capability": 51.42846226015549,
+      "tier": 2,
+      "current_design_maturity": 35.0,
+      "maturity_by_generation": {
+        "1": 100.0
+      },
+      "public_engineering_spend": 0.0,
+      "private_engineering_spend": 642.1199999999999,
+      "installation_spend": 696.11,
+      "firm_cash": 2897.718564464286,
+      "firm_alive": true,
+      "firm_is_corporation": true,
+      "employees": 0,
+      "sales_last_turn": 0,
+      "sales_mean_last_8_turns": 0.0,
+      "installed_design_quote": 660.0,
+      "recorded_operating_result_last_turn": 0,
+      "productive_machine_work": 2692.055593749999,
+      "private_assets": [
+        {
+          "steam_engines": 1
+        }
+      ],
+      "pending_projects": [],
+      "latest_decision": {
+        "turn": 98,
+        "tech_id": "steam_engines",
+        "action": "retrofit",
+        "selected": false,
+        "reason": "no_operating_workforce",
+        "expected_gain_per_turn": 0.0,
+        "payback_turns": null,
+        "cost": 264.0
+      },
+      "engineering_constraint": "",
+      "living_households": 79,
+      "hungry_households": 5,
+      "treasury_cash": 10836.324727000003
+    }
+  ],
+  "investments": [
+    {
+      "turn": 11,
+      "tech_id": "steam_engines",
+      "generation": 1,
+      "action": "install",
+      "project_id": "private-tech:Works:79:11",
+      "cost": 696.11,
+      "borrowed": 0.0,
+      "savings_withdrawn": 0.0,
+      "expected_gain_per_turn": 105.86988489098216,
+      "expected_payback_turns": 6.575146470753305
+    }
+  ],
+  "capability_milestones": [
+    {
+      "turn": 1,
+      "tier": 1
+    },
+    {
+      "turn": 25,
+      "tier": 2
+    }
+  ],
+  "currency_audit_violations": [],
+  "assumptions": "One authored commons region with abundant modeled forestry output; normal canonical turns, markets, labor, finance and innovation. Public strategy renews performance funding at each milestone; no recurring subsidies or fabricated sales. Low demand has 18 opening residents with 40 cash each versus 75 with 250; all variants use the same firm and initial design except public starts without steam knowledge. Control disables private adoption. These are authored strategy checks, not identical-economy causal comparisons.",
+  "public_steam_pilot": {
+    "commissioned": true,
+    "cost": 800.0,
+    "status": "completed",
+    "physical_materials": {
+      "wood": 5,
+      "iron": 5,
+      "coal": 5
+    }
+  }
+}

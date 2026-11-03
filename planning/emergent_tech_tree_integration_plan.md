@@ -1,5 +1,10 @@
 # Integration Plan: Emergent Multi-Avenue Tech Tree, Refinement Tiers & Guild Leapfrogging
 
+**Refinement revision (2026-10-27):** The implemented operating-use, funded-engineering
+and commercial-maturity rules supersede the fixed refinement/subsidy multipliers
+below. See [Engineering refinement](engineering_refinement.md) for the current
+mechanism, player controls, costs, forecasts and validation.
+
 **Target System:** `macro/innovation.py`, `trace/innovation_trace.py`, `macro/construction_politics.py`, `client/worldview/worldview_science_panel.py`, `web_client/client.js`, and `client/web/tech_sim_server.py`.  
 **Design Reference:** `planning/emergent_tech_tree_integration_plan.md` & Standalone Interactive Simulator (`tech_sim_web.py`).
 

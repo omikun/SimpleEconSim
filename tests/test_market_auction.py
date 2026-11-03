@@ -76,7 +76,38 @@ class MarketAuctionTests(unittest.TestCase):
         self.assertEqual(buyer.inv_get(Goods.wood, 0), 0)
         self.assertEqual(buyer.cash, 100.0)
 
+    def test_import_offers_cannot_oversell_fractional_or_already_sold_stock(self):
+        from region import Region
+
+        for parked in (False, True):
+            for stock in (0.5, 1.5):
+                with self.subTest(parked=parked, stock=stock):
+                    region = Region('Import Parish', 0)
+                    trader, buyer = self._wood_seller_and_buyer()
+                    trader.is_trader = True
+                    trader.home_currency = region.home_currency
+                    if parked:
+                        trader.parked_add(region.name, Goods.food, stock)
+                    else:
+                        trader.inventory_foreign[Goods.food.value] = stock
+                    buyer.inv_set(Goods.food, 0)
+                    orders = {'sellers': [], 'buyers': [
+                        {'agent': buyer, 'quantity': 6, 'limit_price': 10}]}
+
+                    units, paid, _ = clear_discriminatory(
+                        region, Goods.food, 2, 6, 6,
+                        [[trader, 3, parked], [trader, 3, parked]],
+                        [buyer], 1, local_orders=orders)
+
+                    remaining = (trader.parked_get(region.name, Goods.food)
+                                 if parked else trader.inventory_foreign[Goods.food.value])
+                    self.assertEqual(units, int(stock))
+                    self.assertEqual(buyer.inv_get(Goods.food), int(stock))
+                    self.assertEqual(remaining, stock - int(stock))
+                    self.assertAlmostEqual(buyer.cash, 100 - paid)
+
     def test_food_offer_respects_household_reserve(self):
+        self.region.household_food_reserve_turns = 0
         farmer = Agent(0)
         initialize_agent(farmer, Goods.food, 0, 0, 20.0)
         farmer.inv_set(Goods.food, 10)

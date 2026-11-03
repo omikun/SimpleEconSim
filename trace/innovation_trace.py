@@ -223,10 +223,11 @@ def record_learning(nation, domain, before, after, terms, *, turn, fixed_increme
 
 
 def record_refinement_progress(nation, tech_id, turn, before_xp, after_xp, increment,
-                               *, cap_xp=100.0, **inputs):
+                               *, cap_xp=100.0, cause_event_ids=None, **inputs):
     prev_id = latest_innovation_event(nation, 'innovation.refinement_xp', tech_id=tech_id)
     known_id = known_technology_event(nation, tech_id)
-    causes = [eid for eid in (prev_id, known_id) if eid is not None]
+    causes = list(dict.fromkeys([eid for eid in (prev_id, known_id) if eid is not None]
+                               + list(cause_event_ids or ())))
     return emit_innovation(
         nation, kind='innovation_refinement_xp_update', record_class='calculation',
         subject_fields={'tech_id': tech_id}, metric_id='innovation.refinement_xp',
@@ -257,6 +258,8 @@ def record_guild_legislation(nation, tech_id, turn, action, blockade_active, **i
 
 
 def replay_formula(formula, inputs):
+    if formula in ('engineering.maturity.v1', 'engineering.prototype.v1'):
+        return min(100.0, inputs['prior'] + inputs['increment'])
     if formula == 'innovation.refinement_xp.v1':
         return min(float(inputs['cap_xp']), float(inputs['prior_xp']) + max(0.0, float(inputs['increment'])))
     if formula == 'innovation.learning_by_doing.v1':

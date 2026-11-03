@@ -30,20 +30,24 @@ if TYPE_CHECKING:
     from buildings import ConstructionProject
 
 
-def find_or_emerge_contractor(region: Region, budget: float, t: int) -> Agent:
+def find_or_emerge_contractor(region: Region, budget: float, t: int, *,
+                              exclude_ids=(), require_independent=False,
+                              allow_create=True, dry_run=False) -> Agent | None:
     """Find an existing construction company with capacity, or transition an eligible living agent."""
     # 1. Look for existing construction companies in the region
     existing_contractors = [
         a for a in getattr(region, 'agents', [])
         if getattr(a, 'is_construction_company', False) and getattr(a, 'alive', True)
+        and a.id not in exclude_ids
     ]
 
     # Check if any existing contractor has spare capacity (< 2 active projects)
     projects = getattr(region, 'construction_projects', [])
     for c in existing_contractors:
         active_cnt = sum(1 for p in projects if p.contractor == c and p.status in ('in_progress', 'stalled'))
-        if active_cnt < 2:
-            c.idle_turns = 0
+        if active_cnt < (1 if require_independent else 2):
+            if not dry_run:
+                c.idle_turns = 0
             return c
 
     # 2. No contractor or all existing are busy: An eligible living agent transitions!
@@ -52,6 +56,11 @@ def find_or_emerge_contractor(region: Region, budget: float, t: int) -> Agent:
         if getattr(a, 'alive', True)
         and not getattr(a, 'is_corporation', False)
         and not getattr(a, 'is_government', False)
+        and a.id not in exclude_ids
+        and (not require_independent or (
+            getattr(a, 'employer', None) is None
+            and not any(getattr(a, flag, False) for flag in
+                        ('is_native_child', 'is_lord', 'is_trader', 'military_unit_id'))))
     ]
 
     if eligible_candidates:
@@ -67,6 +76,8 @@ def find_or_emerge_contractor(region: Region, budget: float, t: int) -> Agent:
 
         eligible_candidates.sort(key=_score, reverse=True)
         founder = eligible_candidates[0]
+        if dry_run:
+            return founder
         founder.is_construction_company = True
         founder.is_corporation = True
         from run_trace import emit
@@ -85,6 +96,9 @@ def find_or_emerge_contractor(region: Region, budget: float, t: int) -> Agent:
         if not hasattr(founder, 'employees'):
             founder.employees = []
         return founder
+
+    if not allow_create or dry_run:
+        return None
 
     # 3. Fallback: create fresh contractor agent if population is zero or completely unavailable
     from agent import Agent, initialize_agent, seed_traits

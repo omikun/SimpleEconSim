@@ -37,36 +37,20 @@ def _fixture(*, traced=True, hungry_steps=0.0):
 
 
 class LaborCohortTraceTests(unittest.TestCase):
-    def test_round_robin_gate_records_deferred_and_emergency_workers(self):
-        ordinary_region, ordinary_worker, ordinary_trace = _fixture()
-        ordinary_result = LaborMobilityScheduler().step_labor_cohort(
-            ordinary_region, 1)
-        ordinary_event = next(row for row in ordinary_trace.rows
-                              if row.get('kind') == 'labor_scheduler_gate')
-        self.assertEqual(ordinary_result['cohort_index'], 1)
-        self.assertEqual(ordinary_event['inputs']['outcome'], 'cohort_selected')
-        self.assertEqual(ordinary_event['inputs']['total_non_elite_workers'], 1)
-        self.assertEqual(ordinary_event['inputs']['active_cohort_agent_ids'], [])
-        self.assertEqual(ordinary_event['inputs']['execution_order_agent_ids'], [])
-        self.assertEqual(ordinary_event['inputs']['deferred_worker_count'], 1)
-
-        emergency_region, emergency_worker, emergency_trace = _fixture(
-            hungry_steps=3.0)
-        emergency_result = LaborMobilityScheduler().step_labor_cohort(
-            emergency_region, 1)
-        schedule = next(row for row in emergency_trace.rows
-                        if row.get('kind') == 'labor_scheduler_gate')
-        reasons = schedule['inputs']['emergency_agent_reasons']
-        self.assertEqual(emergency_result['emergency_fast_path_count'], 1)
-        self.assertEqual(schedule['inputs']['execution_order_agent_ids'],
-                         [emergency_worker.id])
-        self.assertEqual(reasons, [{'agent_id': emergency_worker.id,
-                                   'reasons': ['acute_hunger',
-                                               'unemployed_hunger',
-                                               'unemployed_dispossessed']}])
-        livelihood = next(row for row in emergency_trace.rows
-                          if row.get('kind') == 'worker_livelihood_options')
-        self.assertEqual(livelihood['cause_event_ids'], [schedule['event_id']])
+    def test_every_adult_is_considered_without_emergency_or_cash_gates(self):
+        for hunger, cash in ((0, 5), (3, 500)):
+            region, worker, trace = _fixture(hungry_steps=hunger)
+            worker.cash = cash
+            result = LaborMobilityScheduler().step_labor_cohort(region, 1)
+            schedule = next(row for row in trace.rows if row.get('kind') == 'labor_scheduler_gate')
+            self.assertEqual(result['cohort_index'], 0)
+            self.assertEqual(result['processed'], 1)
+            self.assertEqual(schedule['inputs']['outcome'], 'all_adults_considered')
+            self.assertEqual(schedule['inputs']['execution_order_agent_ids'], [worker.id])
+            self.assertEqual(schedule['inputs']['deferred_worker_count'], 0)
+            livelihood = next(row for row in trace.rows if row.get('kind') in
+                              ('worker_livelihood_options', 'worker_livelihood_stay'))
+            self.assertIn('current_return', livelihood['inputs'])
 
     def test_repeat_call_records_the_same_turn_guard(self):
         region, _worker, trace = _fixture()

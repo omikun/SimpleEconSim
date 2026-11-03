@@ -155,8 +155,7 @@ class Province:
         if bank is not None:
             bank.PayDepositInterest(all_agents,
                                     trace_region=self.tiles[0] if self.tiles else None)
-        if charity is not None:
-            charity.distribute_food(t, all_agents, regions=self.tiles)
+        # Each district distributes its share before its own meals/mortality.
         if gov is not None:
             income_snapshot = gov.seal_income(t)
             from government import trace_income_snapshot

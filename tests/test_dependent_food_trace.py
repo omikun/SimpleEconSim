@@ -31,7 +31,7 @@ def _fixture(*, traced=True):
     child.parent = parent
     parent.region = child.region = 'Home'
     update_dependent_need(child, 2)
-    region = SimpleNamespace(name='Home')
+    region = SimpleNamespace(name='Home', agents=[parent, child])
     trace = MemoryTrace()
     if traced:
         region._run_trace = trace
@@ -97,10 +97,11 @@ class DependentFoodTraceTests(unittest.TestCase):
             Live(2, agents, context)
 
         transfer = next(row for row in trace.rows
-                        if row.get('kind') == 'dependent_food_inventory_transfer')
+                        if row.get('kind') == 'food_account_transaction'
+                        and row.get('inputs', {}).get('kind') == 'household_allocation')
         summary = next(row for row in trace.rows
                        if row.get('kind') == 'household_food_transfer')
-        self.assertEqual(summary['after'], 2)
+        self.assertAlmostEqual(summary['after'], 1.333)
         self.assertEqual(summary['cause_event_ids'], [transfer['event_id']])
 
 

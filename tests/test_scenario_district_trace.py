@@ -3,6 +3,7 @@ import unittest
 from types import SimpleNamespace
 
 from agent import Agent, initialize_agent
+from tests.food_fixtures import LocatedGovernment
 from goods import Goods
 from scenario_district import apply_action
 
@@ -36,7 +37,7 @@ def _fixture(*, with_trace=True):
     people = [_person(11, 0.0), _person(12, 2.0), _person(13, 4.0, underfed=False)]
     faction = SimpleNamespace(
         membership=[11, 12], grievances={'taxes': 0.8, 'wages': 0.4})
-    nation_government = SimpleNamespace(
+    nation_government = LocatedGovernment(
         name='Cairo', agent=SimpleNamespace(id=900, cash=40.0),
         food_inventory=20)
     nation = SimpleNamespace(name='Egypt', currency='EGP', government=nation_government,
@@ -48,6 +49,7 @@ def _fixture(*, with_trace=True):
         unrest_level=0.5, protest_energy_log=[4.0], police_employed=0,
         military_units=[], factions=SimpleNamespace(factions={'organizers': faction}),
         scenario_location='District')
+    nation_government.bind_food_site(tile)
     nation.tiles = [tile]
     nation.capital = tile
     trace = MemoryTrace()
@@ -65,7 +67,7 @@ def _fixture(*, with_trace=True):
 
 def _state(fixture):
     return {
-        'people': [(person.cash, person.emergency_food_units,
+        'people': [(person.cash, person.inv_get(Goods.food),
                     tuple(person.memory.get('mem_casualties', [])),
                     tuple(person.memory.get('mem_promises', [])))
                    for person in fixture.people],
@@ -109,7 +111,7 @@ class ScenarioDistrictTraceTests(unittest.TestCase):
         self.assertTrue(all(row['event_id'] in action['cause_event_ids']
                             for row in transfers))
         self.assertEqual(fixture.nation.government.food_inventory, 12)
-        self.assertEqual(fixture.people[0].emergency_food_units, 4)
+        self.assertEqual(fixture.people[0].inv_get(Goods.food), 4)
 
     def test_settlement_pairs_treasury_debit_and_household_credits(self):
         fixture = _fixture()

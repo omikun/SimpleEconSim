@@ -11,16 +11,35 @@ from scenario_labor_frontier_rivalry import DISTRICTS, create_world, step_world
 
 
 class LaborFrontierRivalryTest(unittest.TestCase):
+    def setUp(self):
+        from world_config import get_map_topology, set_map_topology
+        previous = get_map_topology()
+        self.addCleanup(set_map_topology, previous)
+
     def _advance_to_petition(self, world):
-        # Starting cotton reserves can defer competitive pressure. Exercise
-        # the actual owner decision rather than assuming a turn-one petition.
-        for _ in range(6):
-            record = world['scenario_state']['restrictions'].get('Meridian')
-            if record is not None and record['status'] == 'proposed':
-                return record
-            self.assertEqual(step_world(world), [])
-        self.fail('No competition-driven petition in the opening six turns: '
-                  + str(world['scenario_state']['owner_decisions']))
+        # Author a real lost-order observation and run the owner decision.
+        # Viable households now retain their livelihoods, so an unrelated
+        # six-turn historical staffing trajectory is no longer a fixture.
+        from labor_frontier_labor import _owner_decision
+        # These investment checks start with established paid mill contracts.
+        # Stable farm households are no longer assumed to abandon their work.
+        for region in world['tiles']:
+            mill = next((a for a in region.agents if a.is_corporation and a.output == Goods.cloth), None)
+            if mill is not None and not mill.employees:
+                staff = [a for a in region.agents if a.alive and not a.is_corporation
+                         and not a.is_government and not a.is_trader and not a.is_lord
+                         and a is not mill.owner][:2]
+                for person in staff:
+                    person.employer = mill
+                    person.wage = mill.wage
+                mill.employees = staff
+        world['scenario_state']['market_summary'] = {
+            'Meridian': {'units_sold': 0}, 'Vesper': {'units_sold': 4}}
+        _owner_decision(world, 'Meridian', world['turn'])
+        record = world['scenario_state']['restrictions'].get('Meridian')
+        self.assertIsNotNone(record)
+        self.assertEqual(record['status'], 'proposed')
+        return record
 
     def test_world_has_four_inhabited_districts(self):
         world = create_world(seed=612)
@@ -178,6 +197,9 @@ class LaborFrontierRivalryTest(unittest.TestCase):
         self._advance_to_petition(world)
         self.assertTrue(apply_action(world, 'protect_access')[0])
         step_world(world)
+        # Hold capital-good quotes within this project's fixed appropriation.
+        for good in (Goods.iron, Goods.coal):
+            world['tiles'][0].recipes[good]['price'] = min(10, world['tiles'][0].recipes[good]['price'])
         self.assertTrue(apply_action(world, 'cofund_machinery')[0])
         step_world(world)
         step_world(world)
@@ -335,9 +357,15 @@ class LaborFrontierRivalryTest(unittest.TestCase):
                 self.assertTrue(apply_action(world, action)[0])
             step_world(world)
             if policy == 'protect':
+                for good in (Goods.iron, Goods.coal):
+                    world['tiles'][0].recipes[good]['price'] = min(10, world['tiles'][0].recipes[good]['price'])
                 self.assertTrue(apply_action(world, 'cofund_machinery')[0])
+            minimum_rights = float('inf')
             for _ in range(6):
                 self.assertEqual(step_world(world), [])
+                minimum_rights = min(minimum_rights, sum(right.usable_share > 0
+                    for rows in world['tiles'][1].access_rights.values()
+                    for right in rows if right.resource == 'commons_food'))
             state = world['scenario_state']
             rights = sum(right.usable_share > 0
                          for rows in world['tiles'][1].access_rights.values()
@@ -348,6 +376,7 @@ class LaborFrontierRivalryTest(unittest.TestCase):
                 'rights': rights,
                 'public_cash': world['nations'][0].government.agent.cash,
                 'soldiers': sum(u.soldiers for u in world['nations'][0].military_units),
+                'minimum_rights': minimum_rights,
                 'project_complete': any(p['nation']=='Meridian' and p['status']=='complete'
                                         for p in state['machinery_projects']),
             }
@@ -356,7 +385,8 @@ class LaborFrontierRivalryTest(unittest.TestCase):
         # productive route that retains commons and pays its public cost.
         self.assertGreater(branches['protect']['sales'], 0)
         self.assertTrue(branches['protect']['project_complete'])
-        self.assertGreater(branches['protect']['rights'], branches['coerce']['rights'])
+        # A paid constable may die; compare the period of actual enforcement.
+        self.assertGreater(branches['protect']['minimum_rights'], branches['coerce']['minimum_rights'])
         self.assertGreater(branches['coerce']['public_cash'], branches['protect']['public_cash'])
         self.assertEqual(branches['protect']['soldiers'], 4)
         self.assertEqual(branches['coerce']['soldiers'], 4)

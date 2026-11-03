@@ -1,0 +1,31 @@
+{
+  "source_signature": "0e694b15dbd478043ae164c34d69ec4c90090e5b1a7a3a19950cabbc9f8b73f8",
+  "source_unchanged": true,
+  "audits": [
+    {
+      "turn": 1,
+      "opening": 46159.473,
+      "production_and_receipts": 277.76,
+      "uses_and_losses": 3715.829,
+      "closing": 42721.404,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 2,
+      "opening": 42721.404,
+      "production_and_receipts": 29.648,
+      "uses_and_losses": 3716.987,
+      "closing": 39034.065,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 3,
+      "opening": 39034.065,
+      "production_and_receipts": 881.848,
+      "uses_and_losses": 4865.312,
+      "closing": 35050.601,
+      "unexplained": 0.0
+    }
+  ],
+  "serialization_passed": true
+}

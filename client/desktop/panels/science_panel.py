@@ -5,7 +5,7 @@ Duplicates cross-nation innovation functionality from the Sovereign Actions moda
 - National strategic resource endowments ribbon (Iron, Coal, Timber, Petroleum, etc.).
 - Era Selector (Era I: Feudal, Era II: Renaissance, Era III: Industrial, Era IV: Modern).
 - Technological tree and discovery status:
-  - MASTERED (100% bonus active)
+  - MASTERED (known capability; production benefits require installed equipment)
   - DIFFUSING (Progress from foreign trade partners)
   - ROYAL PRIZE ACTIVE (Bounty posted for researchers)
   - BLOCKED (Missing prerequisites or required strategic resources)
@@ -54,7 +54,9 @@ def _draw_btn(surface, rect, label, font_small, mx, my, enabled=True, color=TEXT
     bx, by, bw, bh = rect
     if enabled:
         from ui_targets import register_target
-        register_target(world, rect, ('science_btn', btn_id), tooltip_id=btn_id, scope='science')
+        clipped = pygame.Rect(rect).clip(surface.get_clip())
+        if clipped.width > 0 and clipped.height > 0:
+            register_target(world, tuple(clipped), ('science_btn', btn_id), tooltip_id=btn_id, scope='science')
     is_hov = (bx <= mx <= bx + bw and by <= my <= by + bh) and enabled
     if is_hov and btn_id and world is not None:
         from client.desktop.tooltips.core import get_button_tooltip_data
@@ -75,7 +77,10 @@ def _draw_btn(surface, rect, label, font_small, mx, my, enabled=True, color=TEXT
     pygame.draw.rect(surface, bg, rect, border_radius=4)
     pygame.draw.rect(surface, bc, rect, 1, border_radius=4)
 
-    txt_surf = font_small.render(label, True, tc)
+    visible = label
+    while len(visible) > 2 and font_small.size(visible)[0] > bw - 24:
+        visible = visible[:-2] + '…'
+    txt_surf = font_small.render(visible, True, tc)
     if icon_kind:
         ico = get_icon(icon_kind, size=13)
         total_w = 13 + 4 + txt_surf.get_width()
@@ -84,6 +89,105 @@ def _draw_btn(surface, rect, label, font_small, mx, my, enabled=True, color=TEXT
         surface.blit(txt_surf, (start_x + 17, by + (bh - txt_surf.get_height()) // 2))
     else:
         surface.blit(txt_surf, txt_surf.get_rect(center=(bx + bw // 2, by + bh // 2)))
+
+
+def _draw_engineering_detail(surface, world, nation, tech, x, y, w, font, mouse_pos):
+    """A focused detail view keeps program controls out of the tree cards."""
+    from engineering import OBJECTIVE_LABELS
+    inno = get_innovation_system()
+    turn = world.get('turn', 0)
+    key = (nation.name, tech.tech_id)
+    program = inno.get_engineering_program(*key)
+    drafts = world.setdefault('engineering_drafts', {})
+    if key not in drafts:
+        best = max(nation.tiles, key=lambda tile: sum(b.name in ('workshop', 'engineering_workshop') for b in getattr(tile, 'buildings', ())), default=None)
+        drafts[key] = {'budget': program['budget'] or 25, 'objective': program['objective'] if program['budget'] else 'performance',
+                       'host': program['host'] or (best.name if best else None)}
+    draft = drafts[key]
+    e = inno.engineering_status(nation, tech.tech_id, turn,
+                               {**draft, 'status': 'active' if draft['budget'] else 'inactive'})
+    mx, my = mouse_pos
+
+    def line(text, color=TEXT):
+        nonlocal y
+        # Wrap to measured width, including narrow drawer layouts.
+        words, current = str(text).split(), ''
+        for word in words:
+            candidate = (current + ' ' + word).strip()
+            if current and font.size(candidate)[0] > w - 32:
+                surface.blit(font.render(current, True, color), (x + 16, y))
+                y += 17
+                current = word
+            else:
+                current = candidate
+        if current:
+            surface.blit(font.render(current, True, color), (x + 16, y))
+            y += 19
+
+    def button(label, action, enabled=True):
+        nonlocal y
+        _draw_btn(surface, (x + 16, y, w - 32, 24), label, font, mx, my,
+                  enabled=enabled, btn_id='sci_eng_' + action, world=world, nation=nation)
+        y += 29
+
+    button('Back to technology tree', 'back')
+    _draw_btn(surface, (x + 16, y, (w - 38) // 2, 24), 'Scroll up', font, mx, my,
+              btn_id='sci_eng_up', world=world, nation=nation)
+    _draw_btn(surface, (x + 22 + (w - 38) // 2, y, (w - 38) // 2, 24), 'Scroll down', font, mx, my,
+              btn_id='sci_eng_down', world=world, nation=nation)
+    y += 32
+    top = y
+    old_clip = surface.get_clip()
+    surface.set_clip(pygame.Rect(x + 8, top, w - 16, max(1, PANEL_Y + PANEL_H - top - 8)).clip(old_clip))
+    scroll = world.get('engineering_detail_scroll', 0)
+    y -= scroll
+    line(tech.name, ACCENT)
+    line(f"Capability: {e['capability_name']} (Tier {inno.get_tech_tier(nation.name, tech.tech_id)}/4)")
+    line(f"Commercial maturity: {e['maturity_name']} ({e['maturity']:.0f}%)")
+    if tech.production_modifiers:
+        from goods import Goods
+        line('Installed equipment helps: ' + ', '.join(
+            f"{Goods(good).name.replace('_', ' ')} +{(value - 1) * 100:.0f}%"
+            for good, value in tech.production_modifiers.items()) + ' at frontier capability.', DIM)
+    line(f"{e['operating_installations']} operating installations; {e['utilization']:.0%} utilization", DIM)
+    button(OBJECTIVE_LABELS[draft['objective']], 'objective')
+    button(f"Budget ceiling: {draft['budget']:.0f}/turn (click to change)", 'budget')
+    host_label = next((getattr(tile, 'display_name', tile.name) for tile in nation.tiles if tile.name == draft['host']), 'No territory')
+    button(f"Host: {host_label} (click to change)", 'host', bool(nation.tiles))
+    forecast = e['forecast']
+    target = 'economy' if draft['objective'] == 'economy' else 'capability'
+    def turns(value):
+        return 'no progress' if value is None else 'reached' if value == 0 else f'~{value} turns'
+    line(f"Next {'cost reduction' if target == 'economy' else 'capability'}: {turns(forecast[target + '_turns'])}")
+    line(f"Industry alone: {turns(forecast[target + '_turns_without_program'])}; expected spending {e['expected_spend']:.0f}/turn", DIM)
+    line(e['constraint'] or 'Forecast assumes current operation, staff and supplies.', DIM)
+    for decision in e.get('commercial_decisions', ()):
+        line(f"{decision['firm']} (turn {decision['turn']}): {decision['reason_text']}", DIM)
+        if decision.get('installed_generation'):
+            line(f"Installed tier {decision['installed_generation']}", DIM)
+        line(f"Investment {decision['cost']:.0f}; estimated extra receipts {decision['expected_gain_per_turn']:.1f}/turn", DIM)
+        if decision.get('constraint'):
+            line(decision['constraint'], DIM)
+    button('Fund to next milestone', 'apply', bool(nation.tiles))
+    button('Stop public funding', 'stop', program['status'] == 'active')
+    button('Build testing workshop (300)', 'workshop', bool(nation.tiles))
+    button('Acquire foreign designs (+1 tier)', 'steal')
+    if inno.get_guild_blockade(nation, tech.tech_id)['active']:
+        button('Repeal incumbent guild blockade', 'guild')
+    if inno.has_tech(nation.name, tech.tech_id):
+        from engineering import quote_recipe
+        from buildings import BUILDING_RECIPES
+        quote = quote_recipe(nation, BUILDING_RECIPES[tech.tech_id + '_prototype'], inno)
+        button(f'Build pilot installation ({quote.cost:.0f})', 'pilot')
+        options = inno.adoption_options(nation, tech.tech_id)
+        if options:
+            choice = world.get('engineering_adoption_index', 0) % len(options)
+            option = options[choice]
+            button(f"Upgrade {option['building']} / {option.get('tile_label', option['tile'])} (cycle)", 'adoption')
+            line(f"Cost {option['cost']:.0f}; at least 2 turns offline. Extra output value ~{option['gross_value_per_turn']:.0f}/turn.", DIM)
+            button('Commission selected retrofit', 'retrofit')
+    world['engineering_detail_scroll_max'] = max(0, y + scroll - (PANEL_Y + PANEL_H - 8))
+    surface.set_clip(old_clip)
 
 
 def draw_science_panel(surface: pygame.Surface, world: dict, font: pygame.font.Font,
@@ -186,6 +290,12 @@ def draw_science_panel(surface: pygame.Surface, world: dict, font: pygame.font.F
 
     cur_y += 32
 
+    detail = TECH_CATALOG.get(world.get('science_detail_tech'))
+    if detail is not None and detail.era == cur_era:
+        _draw_engineering_detail(surface, world, active_n, detail, x, cur_y, w,
+                                 font_small, (mx, my))
+        return
+
     # Tech Cards for Selected Era
     discovered = inno.get_discovered_techs(active_n.name)
     diffusing = inno.diffusion_progress.get(active_n.name, {})
@@ -212,7 +322,8 @@ def draw_science_panel(surface: pygame.Surface, world: dict, font: pygame.font.F
 
         # Status badge
         if is_disc:
-            badge_txt = f"TIER {max(1, tier)}/4 ({int(ref_xp)} XP) • {sub_mode[:4].upper()}"
+            maturity = inno.get_commercial_maturity(active_n.name, tech_id)
+            badge_txt = f"CAPABILITY {max(1, tier)}/4 | MATURITY {maturity:.0f}%"
             if g_block.get('active'):
                 badge_txt += " • GUILD BLOCK"
                 badge_col = (245, 130, 130)
@@ -243,15 +354,8 @@ def draw_science_panel(surface: pygame.Surface, world: dict, font: pygame.font.F
 
         # Top-right compact Steal / Subsidy / Guild button
         aux_rect = (x + w - 82, cur_y + 6, 66, 18)
-        if g_block.get('active'):
-            _draw_btn(surface, aux_rect, "Repeal", font_small, mx, my, enabled=True,
-                      color=(255, 180, 180), btn_id=f"sci_guild_{tech_id}", world=world, nation=active_n)
-        elif not is_disc or tier < 3:
-            _draw_btn(surface, aux_rect, "Steal +1T", font_small, mx, my, enabled=True,
-                      color=(255, 210, 110), btn_id=f"sci_steal_{tech_id}", world=world, nation=active_n)
-        else:
-            _draw_btn(surface, aux_rect, f"Sub:{sub_mode[:3]}", font_small, mx, my, enabled=True,
-                      color=ACCENT, btn_id=f"sci_sub_{tech_id}", world=world, nation=active_n)
+        _draw_btn(surface, aux_rect, 'Details', font_small, mx, my,
+                  btn_id=f'sci_detail_{tech_id}', world=world, nation=active_n)
 
         # Badge
         b_surf = font_small.render(f"[{badge_txt}]", True, badge_col)
@@ -272,8 +376,8 @@ def draw_science_panel(surface: pygame.Surface, world: dict, font: pygame.font.F
 
         if is_disc:
             ref_pct = min(1.0, max(0.05, ref_xp / 100.0))
-            lbl = f"Tier {max(1, tier)}/4 Refinement ({int(ref_xp)}%)"
-            draw_progress_bar_button(surface, btn_rect, lbl, ref_pct, font_small, theme='complete', icon_kind='check')
+            _draw_btn(surface, btn_rect, 'Engineering program & adoption', font_small, mx, my,
+                      btn_id=f'sci_detail_{tech_id}', world=world, nation=active_n)
         elif has_bounty:
             cur_xp = inno.get_domain_xp(active_n.name, tech.domain)
             pct = min(1.0, max(0.0, cur_xp / max(1.0, tech.base_xp_required)))
@@ -285,9 +389,9 @@ def draw_science_panel(surface: pygame.Surface, world: dict, font: pygame.font.F
                       btn_id=f"sci_pledge_{tech_id}", world=world, nation=active_n)
         else:
             can_afford = gov_cash >= 300.0
-            _draw_btn(surface, btn_rect, "Pledge Royal Prize ($300)", font_small, mx, my,
-                      enabled=can_afford, color=ACCENT, icon_kind='treasury',
-                      btn_id=f"sci_pledge_{tech_id}", world=world, nation=active_n)
+            _draw_btn(surface, btn_rect, 'Develop a working prototype', font_small, mx, my,
+                      enabled=True, color=ACCENT,
+                      btn_id=f'sci_detail_{tech_id}', world=world, nation=active_n)
 
         cur_y += t_card_h + 8
 
@@ -310,6 +414,62 @@ def science_panel_hit(pos: tuple[int, int], world: dict) -> bool:
                 return True
             elif isinstance(t.action, tuple) and t.action[0] == 'science_btn':
                 btn_id = t.action[1]
+                if btn_id and btn_id.startswith('sci_detail_'):
+                    world['science_detail_tech'] = btn_id[len('sci_detail_'):]
+                    world['engineering_adoption_index'] = 0
+                    world['engineering_detail_scroll'] = 0
+                    return True
+                if btn_id and btn_id.startswith('sci_eng_'):
+                    action = btn_id[len('sci_eng_'):]
+                    if action in ('up', 'down'):
+                        world['engineering_detail_scroll'] = max(0, min(
+                            world.get('engineering_detail_scroll_max', 0),
+                            world.get('engineering_detail_scroll', 0) + (120 if action == 'down' else -120)))
+                        return True
+                    if action == 'back':
+                        world.pop('science_detail_tech', None)
+                        return True
+                    nation = _get_active_nation(world)
+                    tid = world.get('science_detail_tech')
+                    if nation is None or tid not in TECH_CATALOG:
+                        return True
+                    draft = world['engineering_drafts'][nation.name, tid]
+                    inno = get_innovation_system()
+                    if action == 'objective':
+                        choices = ['performance', 'balanced', 'economy'] if inno.has_tech(nation.name, tid) else ['performance', 'balanced']
+                        draft['objective'] = choices[(choices.index(draft['objective']) + 1) % len(choices)]
+                    elif action == 'budget':
+                        choices = [0, 25, 50, 100, 200]
+                        draft['budget'] = next((v for v in choices if v > draft['budget']), 0)
+                    elif action == 'host':
+                        names = [tile.name for tile in nation.tiles]
+                        draft['host'] = names[(names.index(draft['host']) + 1) % len(names)] if draft['host'] in names else names[0]
+                    elif action == 'adoption':
+                        world['engineering_adoption_index'] = world.get('engineering_adoption_index', 0) + 1
+                    else:
+                        turn = world.get('turn', 0)
+                        if action in ('apply', 'stop'):
+                            ok, msg = inno.set_engineering_program(nation, tid,
+                                draft['budget'] if action == 'apply' else 0, draft['objective'], draft['host'], turn)
+                        elif action in ('workshop', 'pilot'):
+                            from intents import BuildIntent
+                            recipe = 'engineering_workshop' if action == 'workshop' else tid + '_prototype'
+                            intent = BuildIntent(nation.name, draft['host'], recipe, submitted_turn=turn)
+                            ok, msg = intent.execute({r.name: r for r in nation.tiles}, {nation.name: nation}, turn)
+                        elif action == 'retrofit':
+                            options = inno.adoption_options(nation, tid)
+                            if not options:
+                                return True
+                            option = options[world.get('engineering_adoption_index', 0) % len(options)]
+                            ok, msg = inno.commission_retrofit(nation, tid, option['tile'], option['building_index'], turn)
+                        elif action == 'steal':
+                            ok, msg = inno.attempt_tech_espionage(nation, tid, t=turn, nations=world.get('nations', []))
+                        elif action == 'guild':
+                            ok, msg = inno.resolve_guild_blockade(nation, tid, 'repeal', t=turn)
+                        else:
+                            return True
+                        ticker_push(world, turn, 'INNOVATION', msg, GREEN if ok else RED)
+                    return True
                 if btn_id and btn_id.startswith('sci_pledge_'):
                     tech_id = btn_id.replace('sci_pledge_', '')
                     active_n = _get_active_nation(world)

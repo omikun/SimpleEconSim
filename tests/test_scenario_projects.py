@@ -5,6 +5,7 @@ import unittest
 import pygame
 
 from goods import Goods
+from tests.food_fixtures import stock_defense_site
 from scenario_projects import (advance, cancel_project, damage_project,
                                draw_map_overlay, effectiveness, get_project,
                                record_food_results, repair_project, start_project,
@@ -33,6 +34,7 @@ class StrategicProjectTests(unittest.TestCase):
 
     def setUp(self):
         self.world = build_world_view(scenario_id='egypt_1877')
+        stock_defense_site(self.world)
         self.egypt = next(nation for nation in self.world['nations'] if nation.name == 'Egypt')
 
     def _egypt_cash(self):
@@ -295,6 +297,7 @@ class StrategicProjectTests(unittest.TestCase):
         self.assertTrue(ok, message)
         self.assertEqual(project['integrity'], 1.0)
 
+        self.egypt.government.food_by_site_milli.clear()
         self.egypt.government.food_inventory = 0
         self.world['turn'] = 4
         advance(self.world)

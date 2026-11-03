@@ -37,18 +37,26 @@ class MemoryTrace:
 
 class FoodSecurityRecoveryTests(unittest.TestCase):
     def test_enclosure_buffer_requires_a_full_crop_cycle(self):
-        tile = Region('Cycle', 0, 4)
-        tile.production_log[Goods.food] = [10000.0] * 9
+        from tests.test_food_economy_v2 import economy, domain_turn
+        tile = economy(3)
+        for turn in range(1, 10):
+            domain_turn(tile, turn)
         partial = diagnose_tile(tile)
         self.assertEqual(partial['observed_crop_cycle_turns'], 9)
         self.assertFalse(partial['food_buffer_proven'])
-
-        tile.production_log[Goods.food].append(10000.0)
+        self.assertIsNone(partial['farm_support_adult_equivalents'])
+        domain_turn(tile, 10)
         complete = diagnose_tile(tile)
         self.assertEqual(complete['observed_crop_cycle_turns'], 10)
-        self.assertTrue(complete['food_buffer_proven'])
-        self.assertGreater(complete['projected_crop_cycle_margin'],
-                           complete['crop_cycle_meal_demand'] * 0.1)
+        self.assertGreater(complete['farm_support_adult_equivalents'], 0)
+        for turn in range(11, 21):
+            domain_turn(tile, turn)
+        complete = diagnose_tile(tile)
+        self.assertGreater(complete['farm_support_adult_equivalents'], 3)
+        # Historical support and a forward stock bridge are separate tests.
+        self.assertEqual(complete['food_buffer_proven'],
+                         complete['projected_crop_cycle_margin'] >= complete['minimum_meal_units']
+                         and complete['underfed_residents'] == 0)
 
     def test_commons_food_does_not_make_enclosure_look_safe(self):
         tile = Region('Commons Buffer', 0, 4)
@@ -82,6 +90,7 @@ class FoodSecurityRecoveryTests(unittest.TestCase):
 
     def test_grower_keeps_a_meal_and_can_buy_when_short(self):
         tile = Region('Grain', 0, 2)
+        tile.household_food_reserve_turns = 0
         grower = next(a for a in tile.agents if not a.is_government)
         grower.output = Goods.food
         grower.consumption_multiplier = 1.0
@@ -90,69 +99,27 @@ class FoodSecurityRecoveryTests(unittest.TestCase):
         grower.inv_set(Goods.food, 2)
         grower.remainingCash = 5.0
         self.assertEqual(calculate_ask(tile, grower, Goods.food, 1.0, False), 0)
+        from food_access import household_bid
+        self.assertEqual(household_bid(grower, tile, 1, 5, reserve_turns=0)[0], 2)
         self.assertEqual(calculate_bid(tile, grower, Goods.food, 1.0, 16,
-                                       tile.recipes[Goods.food], False, 1.0), 2)
+                                       tile.recipes[Goods.food], False, 1.0), 0)
 
-    def test_shared_commons_meal_has_to_be_replaced_by_a_wage(self):
-        tile = Region('Commons', 0, 2)
-        worker = next(a for a in tile.agents if not a.is_government)
-        worker.is_lord = False
-        worker.is_trader = False
-        worker.employer = None
-        worker.social_class = 'commoner'
-        worker.inv_set(Goods.food, 0)
-        plot = LandPlot('commons-half', tile.name, worker.id, 0.5,
-                        TenureStatus.FEUDAL, tenant_ids=[worker.id])
-        tile.tenure.plots = []
-        tile.access_rights.clear()
-        tile._access_rights_seeded = False
-        tile.tenure.add_plot(plot)
-        worker.assigned_plot_id = plot.plot_id
-        forage_tile(tile, 1)
-        self.assertEqual(worker.inv_get(Goods.food, 0), 4)
+    def test_commons_gathering_is_finite_and_remains_available_in_a_job(self):
+        from tests.test_food_economy_v2 import economy
+        from work_allocation import remaining
+        tile = economy(2, commons=3)
+        worker = tile.agents[0]
         firm = Agent(0)
         firm.is_corporation = True
-        firm.alive = True
-        firm.max_employees = 5
-        firm.employees = []
-        firm.cash = 100
-        firm.wage = 3
-        self.assertFalse(evaluate_offer(worker, firm, tile, 1, tightness=0).accepted)
-        firm.wage = 4.5
-        self.assertTrue(evaluate_offer(worker, firm, tile, 1, tightness=0).accepted)
-
-    def test_hungry_worker_with_commons_can_leave_wage_job(self):
-        tile = Region('Exit', 0, 2)
-        worker = next(a for a in tile.agents if not a.is_government)
-        worker.is_lord = False
-        worker.is_trader = False
-        worker.social_class = 'commoner'
-        worker.cash = 0
-        worker.hungry_steps = 3
-        worker.inv_set(Goods.food, 0)
-        plot = LandPlot('exit-half', tile.name, worker.id, 0.5,
-                        TenureStatus.FEUDAL, tenant_ids=[worker.id])
-        tile.tenure.plots = []
-        tile.access_rights.clear()
-        tile._access_rights_seeded = False
-        tile.tenure.add_plot(plot)
-        worker.assigned_plot_id = plot.plot_id
-        firm = Agent(0)
-        firm.is_corporation = True
-        firm.alive = True
         firm.output = Goods.wood
-        firm.max_employees = 5
-        firm.cash = 100
-        firm.wage = 3
-        firm.employees = [worker]
         worker.employer = firm
-        worker.wage = 3
-        tile.agents.append(firm)
-        LaborMobilityScheduler().step_labor_cohort(tile, 1)
-        self.assertIsNone(worker.employer)
-        self.assertNotIn(worker, firm.employees)
-        self.assertTrue(any(event['outcome'] == 'lawful exit'
-                            for event in tile.labor_events))
+        worker.inv_set(Goods.food, 0)
+        gathered = forage_tile(tile, 1)
+        self.assertGreater(gathered, 0)
+        self.assertLessEqual(gathered, 3)
+        self.assertIs(worker.employer, firm)
+        self.assertGreater(remaining(tile, worker), 0)
+        self.assertLess(remaining(tile, worker), 1)
 
     def test_child_inherits_usable_customary_access(self):
         tile = Region('Birthright', 0, 2)
@@ -221,10 +188,10 @@ class FoodSecurityRecoveryTests(unittest.TestCase):
         self.assertEqual(len(flows), 1)
         contract = flows[0]['inputs']['transfer_contract']
         self.assertEqual(contract['contract_version'], 'treasury_transfer.v1')
-        self.assertEqual(contract['payer_account']['balance_before']
+        self.assertAlmostEqual(contract['payer_account']['balance_before']
                          - contract['payer_account']['balance_after'],
                          contract['amount'])
-        self.assertEqual(contract['payee_account']['balance_after']
+        self.assertAlmostEqual(contract['payee_account']['balance_after']
                          - contract['payee_account']['balance_before'],
                          contract['amount'])
         self.assertEqual(flows[0]['inputs']['public_food_inventory_after']

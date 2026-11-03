@@ -208,9 +208,9 @@ def deliver_province_food(province, turn):
                     transfer['trace_event_id'] = transfer_id
                 recipients.append(transfer)
         if remaining:
-            government_before = int(destination.gov.food_inventory)
+            government_before = int(destination.gov.food_at(destination))
             cargo_before = cargo_balance
-            destination.gov.food_inventory += remaining
+            destination.gov.add_food(destination, remaining)
             cargo_balance -= remaining
             transfer_id = _trace_goods_transfer(
                 destination, kind='provincial_relief_government_stock_transfer',
@@ -223,7 +223,7 @@ def deliver_province_food(province, turn):
                 payee_type='government_food_inventory',
                 payee_id=destination.gov.name,
                 payee_before=government_before,
-                payee_after=int(destination.gov.food_inventory), turn=turn,
+                payee_after=int(destination.gov.food_at(destination)), turn=turn,
                 inputs={'destination': destination.name,
                         'dispatch_operation_id': shipment_id})
             if transfer_id:
@@ -280,12 +280,15 @@ def dispatch_province_food(province, turn):
             if (not person.alive or person.is_government
                     or getattr(person, 'military_unit_id', None)):
                 continue
-            reserve = 0 if person.is_corporation else 2 * appetite_units(person)
+            from food_access import protected_food
+            reserve = (protected_food(person, tile, emergency=True) if person.is_corporation
+                       else max(2 * appetite_units(person), protected_food(person, tile, emergency=True)))
             surplus = max(0, person.inv_get(Goods.food, 0) - reserve)
             if surplus:
                 donors.append((person, surplus))
         available = sum(levy_capacity(person,
-                                     0 if person.is_corporation else 2 * appetite_units(person))
+                                     max(protected_food(person, tile, emergency=True),
+                                         0 if person.is_corporation else 2 * appetite_units(person)))
                         for person, _surplus in donors)
         if available > 4 * len(residents) and hungry_share < 0.1:
             sources.append((tile, available, donors))
@@ -387,7 +390,8 @@ def dispatch_province_food(province, turn):
                                                           -row[1], row[0].id)):
                 if taken >= request:
                     break
-                current_reserve = 0 if donor.is_corporation else 2 * appetite_units(donor)
+                current_reserve = max(protected_food(donor, source, emergency=True),
+                                      0 if donor.is_corporation else 2 * appetite_units(donor))
                 levy = min(request - taken,
                            levy_capacity(donor, current_reserve))
                 if levy:

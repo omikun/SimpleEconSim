@@ -71,16 +71,25 @@ class TestFertilizerSupplyAndBlockade(unittest.TestCase):
         choice = learned_switch_choice(ctx, agent, choices, weights)
         self.assertIn(choice, choices)
 
+    def _commit_tending(self, turn=5):
+        from agriculture import commit_crop_inputs, yield_factor
+        self.tile._last_turn = turn
+        self.tile.terrain[Goods.food] = 1.0
+        self.tile.farms = {'crop': {'crop': {'planted_area': 10, 'closed': False}}}
+        self.crop_baseline = yield_factor(self.tile, None, turn)
+        commit_crop_inputs(self.tile, turn)
+
     def test_fertilizer_consumption_and_harvest_bonus(self):
         self.tile.soil_fertility = 1.0
         self.tile.use_fertilizer = True
         self.tile.fertilizer_stock = 10.0
 
-        # Calculate production multiplier for food
+        self._commit_tending()
+        # Querying productivity reads the already consumed physical inputs.
         mult = _prod.terrain_bonus(self.tile, Goods.food)
 
         # 1.0 (soil) * 1.75 (fertilizer) = 1.75
-        self.assertAlmostEqual(mult, 1.75)
+        self.assertAlmostEqual(mult / self.crop_baseline, 1.75)
         # 1.0 consumed (no farm corporations)
         self.assertAlmostEqual(self.tile.fertilizer_stock, 9.0)
         self.assertAlmostEqual(self.tile.fertilizer_consumed_last_turn, 1.0)
@@ -92,6 +101,7 @@ class TestFertilizerSupplyAndBlockade(unittest.TestCase):
         self.tile.fertilizer_stock = 10.0
         trace = self._attach_trace(7)
 
+        self._commit_tending(7)
         _prod.terrain_bonus(self.tile, Goods.food, t=7)
 
         event = next(row for row in trace.rows
@@ -104,10 +114,11 @@ class TestFertilizerSupplyAndBlockade(unittest.TestCase):
         self.tile.use_fertilizer = True
         self.tile.fertilizer_stock = 0.0  # Run out of fertilizer!
 
+        self._commit_tending()
         mult = _prod.terrain_bonus(self.tile, Goods.food)
 
         # Harvest collapses by 50%: 0.50 (soil) * 0.50 (shock) = 0.25
-        self.assertAlmostEqual(mult, 0.25)
+        self.assertAlmostEqual(mult / self.crop_baseline, 0.5)
         self.assertTrue(self.tile.is_nitrate_depleted)
 
     def test_naval_blockade_intercepts_maritime_nitrates(self):

@@ -135,24 +135,24 @@ class PopularResistanceManager:
         Strictly 100% money and goods conserved.
         """
         food_distributed = 0
-        from nutrition import feed_emergency_meal
+        from nutrition import basic_food_units
+        if getattr(tile, 'charity', None):
+            tile.charity.bind_food_site(tile)
         charity = getattr(tile, 'charity', None)
         sympathetic_donors = None
 
         for a in participants:
             if not getattr(a, 'alive', True):
                 continue
-            # If agent already has food in inventory, consume it
-            if a.inv_get(Goods.food, 0) > 0:
-                a.inv_add(Goods.food, -1)
-                feed_emergency_meal(a, 1)
+            # Provision the ordinary meal; nutrition changes once in Live.
+            if a.inv_get(Goods.food, 0) >= basic_food_units(a):
                 continue
 
             fed = False
             # 1. Check local parish charity
-            if charity and getattr(charity, 'food_inventory', 0) > 0:
-                charity.food_inventory -= 1
-                feed_emergency_meal(a, 1)
+            if charity and charity.food_at(tile) >= 1:
+                charity.add_food(tile, -1)
+                a.inv_add(Goods.food, 1)
                 food_distributed += 1
                 fed = True
 
@@ -174,7 +174,7 @@ class PopularResistanceManager:
                         continue
                     if s.id != a.id:
                         s.inv_add(Goods.food, -1)
-                        feed_emergency_meal(a, 1)
+                        a.inv_add(Goods.food, 1)
                         food_distributed += 1
                         fed = True
                         if s.inv_get(Goods.food, 0) <= 1:
@@ -182,20 +182,18 @@ class PopularResistanceManager:
                         break
                     donor_idx += 1
 
-            # 3. Unfed marcher accumulates hunger
-            if not fed:
-                a.hungry_steps += 1
+            # Unmet meals and hunger are measured by the one nutrition update.
 
         # Desperation Looting: if participants are starving (hungry_steps >= 2), they raid municipal or landlord stores
         starving = [a for a in participants if getattr(a, 'alive', True) and getattr(a, 'hungry_steps', 0) >= 2]
         if len(starving) >= 2:
             rgov = getattr(tile, 'gov', None)
-            food_available = getattr(rgov, 'food_inventory', 0) if rgov else 0
+            food_available = rgov.food_at(tile) if rgov else 0
             if food_available > 2:
-                looted = min(food_available, len(starving), 10)
-                rgov.food_inventory -= looted
+                looted = int(min(food_available, len(starving), 10))
+                rgov.add_food(tile, -looted)
                 for i in range(looted):
-                    feed_emergency_meal(starving[i], 1)
+                    starving[i].inv_add(Goods.food, 1)
                     food_distributed += 1
                 if world:
                     _safe_ticker_push(world, t, 'ALERT', f"🥖 BREAD RIOT: Starving peasant marchers raided municipal granaries in {tile.name} ({looted} food seized)!", (240, 140, 50))
@@ -963,9 +961,9 @@ class PopularResistanceManager:
             ]
 
             if strikers and rgov:
-                if getattr(rgov, 'food_inventory', 0) > 5:
-                    food_looted = min(15, int(rgov.food_inventory * 0.5), len(strikers))
-                    rgov.food_inventory -= food_looted
+                if rgov.food_at(tile) > 5:
+                    food_looted = min(15, int(rgov.food_at(tile) * 0.5), len(strikers))
+                    rgov.add_food(tile, -food_looted)
                     for idx in range(food_looted):
                         strikers[idx].inv_add(Goods.food, 1)
 

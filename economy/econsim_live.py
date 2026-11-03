@@ -111,16 +111,25 @@ def Live(t, agents, context: LiveContext):
         government.provide_food_aid(t, agents, ctx.food_price,
                                     region=ctx.source_region)
 
-    food_shared, children_fed, food_transfer_event_ids = transfer_dependent_food(
-        agents, t, region=ctx.source_region, return_event_ids=True)
-    if ctx.source_region is not None and food_shared:
-        from run_trace import emit
-        emit(ctx.source_region, kind='household_food_transfer', record_class='outcome',
-             phase='demographics', subject={'type': 'tile', 'id': ctx.source_region.name},
-             metric_id='food.household_transfer', unit='food_units', after=food_shared,
-             formula_id='demographics.parent_child_food_transfer.v1',
-             inputs={'dependent_recipients': children_fed},
-             cause_event_ids=food_transfer_event_ids or None)
+    if ctx.charity is not None:
+        ctx.charity.distribute_food(t, agents,
+                                   regions=(ctx.source_region,) if ctx.source_region else ())
+
+    # Landholders preserve their resident workforce from their own grain stock.
+    # Public aid and charity get first opportunity; relief precedes consumption
+    # and the starvation mortality check, regardless of shuffled agent order.
+    from feudal_tribute import feed_estate_residents
+    feed_estate_residents(ctx.source_region, t, agents)
+
+    from households import allocate
+    if ctx.source_region is not None:
+        allocate(ctx.source_region, t)
+        from households import human
+        from nutrition import basic_food_units
+        ctx.source_region.food_turn_need = sum(basic_food_units(a) for a in agents if human(a))
+    else:
+        from types import SimpleNamespace
+        allocate(SimpleNamespace(name='Households', agents=agents, _last_turn=t), t)
 
     # 2. Career bottleneck analysis
     choices_list = [g for g in ctx.goods if g != Goods.gov]

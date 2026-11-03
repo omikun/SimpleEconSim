@@ -6,6 +6,8 @@ from collections import defaultdict
 from goods import Goods
 from random_cache import rand
 from labor_contract import calculate_shift_multiplier, calculate_work_effort, ensure_labor_agreement, record_surplus_value
+from engineering import record_operation, production_work_share
+from soil_dynamics import SOIL_DEGRADATION_SCALE
 
 try:
     import region_core as _c
@@ -30,6 +32,9 @@ def terrain_bonus(region, good, t: int | None = None, producer=None):
     base = region.terrain.get(good, 1.0)
     mult = 1.0
     for b in getattr(region, 'buildings', []):
+        from technology_adoption import applies_to_producer
+        if not applies_to_producer(b, producer):
+            continue
         bonuses = getattr(b, 'production_bonuses', {})
         if good in bonuses:
             mult *= bonuses[good]
@@ -38,113 +43,12 @@ def terrain_bonus(region, good, t: int | None = None, producer=None):
         from supply_rights import water_yield_factor
         mult *= water_yield_factor(region, producer)
 
-    # P3: Metabolic Rift & Soil Fertility for agricultural food crops
     if good == Goods.food:
-        soil_fert = getattr(region, 'soil_fertility', 1.0)
-        mult *= soil_fert
-
-        # 10-Turn Yearly Biological Seasonality
-        cur_t = t if t is not None else getattr(region, '_last_turn', None)
-        if cur_t is not None:
-            mult *= season_mult(cur_t)
-            from secular_climate import get_secular_climate
-            sec_clim = get_secular_climate(cur_t)
-            mult *= sec_clim['yield_multiplier']
-
-        # Hydrological Fishery Degradation (toxic river effluent destroys coastal/river fisheries)
-        p_water = getattr(region, 'pollution_water', 0.0)
-        is_aquatic = (getattr(region, 'is_coast', False) or getattr(region, 'is_water', False) or
-                      'arable_silt' in getattr(region, 'terrain', {}))
-        if is_aquatic and p_water > 10.0:
-            fish_penalty = max(0.40, 1.0 - (p_water - 10.0) * 0.015)
-            mult *= fish_penalty
-
-        # Phase 1 Enclosure Vector: Pastoral conversion replaces food crops
-        tenure = getattr(region, 'tenure', None)
-        if tenure is not None:
-            p_frac = getattr(tenure, 'pasture_fraction', 0.0)
-            if p_frac > 0:
-                mult *= max(0.20, 1.0 - (0.75 * p_frac))
-
-        # Agro-Ecological Regimes: Four-Field Rotation vs Intensive Monoculture
-        regime = getattr(region, 'farming_regime', 'rotation')
-        use_fert = (regime == 'intensive' or getattr(region, 'use_fertilizer', False) or
-                    getattr(region, 'mandate_fertilizer', False))
-        use_pest = getattr(region, 'use_pesticides', False) or getattr(region, 'mandate_pesticides', False)
-
-        if use_fert:
-            # Intensive Monoculture: Physical fertilizer / nitrate stock consumption
-            stock = getattr(region, 'fertilizer_stock', 0.0)
-            farm_corps = sum(1 for a in getattr(region, 'agents', []) if getattr(a, 'is_corporation', False) and getattr(a, 'output', None) == Goods.food)
-            needed = 1.0 + 0.5 * farm_corps
-            if getattr(region, 'fertilizer_rationing', False):
-                needed *= 0.5
-            if stock >= needed:
-                fertilizer_stock_before = float(stock)
-                region.fertilizer_stock -= needed
-                fertilizer_stock_after = float(region.fertilizer_stock)
-                region.fertilizer_consumed_last_turn = needed
-                region.is_nitrate_depleted = False
-                from run_trace import emit
-                current_turn = (t if t is not None else
-                                getattr(region, '_last_turn', None))
-                emit(
-                    region, kind='fertilizer_stock_use',
-                    record_class='outcome', phase='production',
-                    subject={'type': 'tile', 'id': region.name,
-                             'good': 'fertilizer'},
-                    metric_id='ecology.fertilizer_stock',
-                    unit='fertilizer_units', before=fertilizer_stock_before,
-                    after=fertilizer_stock_after,
-                    formula_id='ecology.fertilizer_crop_use.v1',
-                    inputs={'turn': (int(current_turn)
-                                     if current_turn is not None else None),
-                            'actual_use': fertilizer_stock_before -
-                                          fertilizer_stock_after,
-                            'requested_use': float(needed),
-                            'food_farm_corporation_count': farm_corps,
-                            'fertilizer_rationing': bool(getattr(
-                                region, 'fertilizer_rationing', False)),
-                            'source': 'food_crop_yield_multiplier'})
-                mult *= 1.75
-            else:
-                region.fertilizer_consumed_last_turn = 0.0
-                # Nitrate shortage!
-                if soil_fert < 0.65:
-                    # Turnip Winter Harvest Shock on depleted soil
-                    region.is_nitrate_depleted = True
-                    mult *= 0.50
-                else:
-                    region.is_nitrate_depleted = False
-        else:
-            # Norfolk Four-Field Rotation: Zero chemical inputs, biological nitrogen fixation
-            region.is_nitrate_depleted = False
-
-        if use_pest:
-            mult *= 1.40
-
-        # Scenario-only low-Nile crop shock; ordinary worlds default to 1.0.
-        scenario_yield = float(getattr(region, 'scenario_food_yield_modifier', 1.0))
-        shock_end = getattr(region, 'scenario_food_yield_modifier_until', None)
-        current_turn = t if t is not None else getattr(region, '_last_turn', None)
-        if shock_end is None or current_turn is None or current_turn <= shock_end:
-            mult *= scenario_yield
-        if getattr(region, 'scenario_location', None) in ('Nile Delta', 'Upper Egypt'):
-            world = getattr(getattr(region, 'gov', None), 'scenario_debt_world', None)
-            if world is not None and world.get('scenario_id') == 'egypt_1877':
-                from scenario_projects import effectiveness
-                repair = effectiveness(world, 'nile_repair', region.scenario_location)
-                if repair:
-                    # Restored channels mitigate the low flood, then retain a
-                    # smaller durable productivity benefit after the shock.
-                    project_bonus = (0.8 if current_turn is not None and current_turn <= 12
-                                     else 0.15) * repair
-                    mult *= 1.0 + project_bonus
-                    region.scenario_repair_applied_turn = current_turn
-                    region.scenario_repair_yield_factor = 1.0 + project_bonus
+        from agriculture import yield_factor
+        return yield_factor(region, producer, t if t is not None else getattr(region, '_last_turn', 0))
 
     # P3: Clover / Turnip Pasture Synergy for Wool
-    elif good == Goods.wool:
+    if good == Goods.wool:
         regime = getattr(region, 'farming_regime', 'rotation')
         if regime == 'rotation':
             mult *= 1.35  # Clover forage boosts livestock health and fleece weight by +35%
@@ -170,9 +74,26 @@ def _record_zero_production(region, agent, output, *, kind, formula_id,
     return event_id
 
 
+def _food_conversion(region, agent, recipe, inputs_used, output, units):
+    if recipe.get('input') in (Goods.food, Goods.prepared_food) and inputs_used:
+        loss = inputs_used - (units if output in (Goods.food, Goods.prepared_food) else 0)
+        if loss > 0:
+            from food_accounts import record
+            record(region, 'food_processing_loss', loss, source=agent, good=recipe['input'])
+
+
 def produce_corporation(region, agent, recipe, output, num_agents_per_good,
                         local_total_production, receipt_ids=None, turn=None):
     """Run production logic for a corporate employer."""
+    if output == Goods.food:
+        raise ValueError('Food production requires the persistent crop phase')
+    from abundance import enabled as workshops_enabled
+    if workshops_enabled(region) and recipe.get('setup_good') and recipe.get('numInput', 0) > 0:
+        from abundance import produce_workshop
+        produce_workshop(region, agent, recipe, local_total_production,
+                         receipt_ids if receipt_ids is not None else [],
+                         turn if turn is not None else getattr(region, '_last_turn', 0))
+        return
     # P2.3: Striking or revolting workers withhold living labor power
     working_employees = [e for e in agent.employees if not getattr(e, 'is_striking', False) and not getattr(e, 'in_revolt', False)
                          and e.id not in getattr(region, 'pollution_revolt_ids', set())]
@@ -215,15 +136,21 @@ def produce_corporation(region, agent, recipe, output, num_agents_per_good,
     for employee in working_employees:
         agreement = ensure_labor_agreement(employee, agent, getattr(region, '_last_turn', 0))
         fatigue = float(getattr(employee, 'work_fatigue', 0.0))
-        nutrition = 0.6 if getattr(employee, 'hungry_steps', 0) > 0 else 1.0
+        nutrition = 1.0  # health/nutrition are already in the shared work budget
         effort_factors.append(calculate_work_effort(agreement.hours, agreement.pace,
                                                     nutrition, fatigue))
         employee.work_fatigue = max(0.0, fatigue + max(0.0, agreement.hours - 8.0) * 0.025
                                     + max(0.0, agreement.pace - 1.0) * 0.20 - 0.05)
         employee.workplace_accident = agreement.hours >= 14.0 or agreement.pace >= 1.75
+    from work_allocation import main_work
+    effort_factors = [effort * (main_work(region, person, turn) if main_work(region, person, turn) is not None else 1)
+                      for effort, person in zip(effort_factors, working_employees)]
     shift_mult = sum(effort_factors) / len(effort_factors) if effort_factors else calculate_shift_multiplier(getattr(agent, 'shift_hours', 8.0))
     terrain_mult = terrain_bonus(region, output, producer=agent)
-    production_per_slot = base_production * synergy * terrain_mult * shift_mult
+    from abundance import enabled, proficiency, learn
+    practice_mult = (sum(proficiency(e, output) for e in working_employees) / num_employees
+                     if enabled(region) else 1.0)
+    production_per_slot = base_production * synergy * terrain_mult * shift_mult * practice_mult
 
     machinery = getattr(agent, 'machinery_level', 1)
     broken = getattr(agent, 'broken_machinery', 0)
@@ -246,6 +173,8 @@ def produce_corporation(region, agent, recipe, output, num_agents_per_good,
     else:
         successful_slots = sum(1 for v in vals if v < chance)
     if successful_slots:
+        if int(successful_slots * production_per_slot) <= 0:
+            return
         inputs_cost = 0.0
         inputs_used = 0
         input_price = 0.0
@@ -263,7 +192,10 @@ def produce_corporation(region, agent, recipe, output, num_agents_per_good,
                                   good=recipe['input'], quantity=inputs_used,
                                   amount=inputs_used * recorded_basis,
                                   detail={'cost_basis_known': recorded_basis > 0})
-        num_output = int(successful_slots * production_per_slot) or 1
+        num_output = int(successful_slots * production_per_slot)
+        if output == Goods.prepared_food:
+            num_output = min(num_output, inputs_used)
+        _food_conversion(region, agent, recipe, inputs_used, output, num_output)
         inventory_before = agent.inv_get(output, 0)
         agent.inv_add(output, num_output)
         from economy.actor_accounts import record as record_economic_event
@@ -291,6 +223,7 @@ def produce_corporation(region, agent, recipe, output, num_agents_per_good,
                                 'active_slots': active_slots, 'successful_slots': successful_slots,
                                 'slot_draws': list(vals), 'success_probability': chance,
                                 'base_production': base_production, 'synergy': synergy,
+                                'practice_multiplier': practice_mult,
                                 'terrain_multiplier': terrain_mult,
                                 'shift_multiplier': shift_mult,
                                 'working_machinery': working_machinery,
@@ -308,6 +241,13 @@ def produce_corporation(region, agent, recipe, output, num_agents_per_good,
                                 'inventory_after': agent.inv_get(output, 0)})
         if receipt_ids is not None and event_id is not None:
             receipt_ids.append(event_id)
+
+        record_operation(region, agent, output, successful_slots * shift_mult, 0,
+                         turn if turn is not None else getattr(region, '_last_turn', 0), event_id)
+        for employee, draw in zip(working_employees, vals):
+            if draw < chance:
+                learn(region, employee, output, max(0.0, shift_mult),
+                      turn if turn is not None else getattr(region, '_last_turn', 0))
 
         # P2.1: Surplus value extraction accounting (s/v)
         wages_paid = len(agent.employees) * getattr(agent, 'wage', 1.0)
@@ -364,12 +304,12 @@ def compute_and_record_firm_footprint(agent, region, output, num_output, inputs_
         # 1. Agricultural emissions
         if output in (Goods.food, Goods.cotton, Goods.sugar, Goods.tobacco):
             if use_fert or regime == 'intensive':
-                phys['soil_fertility_loss'] = 0.025
+                phys['soil_fertility_loss'] = 0.025 * SOIL_DEGRADATION_SCALE
                 phys['water_effluent_discharged'] = 3.5
             elif regime == 'rotation':
-                phys['soil_fertility_loss'] = 0.005
+                phys['soil_fertility_loss'] = 0.005 * SOIL_DEGRADATION_SCALE
             else:
-                phys['soil_fertility_loss'] = 0.015
+                phys['soil_fertility_loss'] = 0.015 * SOIL_DEGRADATION_SCALE
 
             if use_pest:
                 phys['soil_toxins_generated'] = 4.0
@@ -410,10 +350,22 @@ def compute_and_record_firm_footprint(agent, region, output, num_output, inputs_
 def produce_independent(region, agent, recipe, output, num_agents_per_good,
                         local_total_production, receipt_ids=None):
     """Run production logic for an independent sole craftsman."""
+    if output == Goods.food:
+        raise ValueError('Food production requires the persistent crop phase')
+    from abundance import enabled as workshops_enabled
+    if workshops_enabled(region) and recipe.get('setup_good') and recipe.get('numInput', 0) > 0:
+        from abundance import produce_workshop
+        produce_workshop(region, agent, recipe, local_total_production,
+                         receipt_ids if receipt_ids is not None else [], getattr(region, '_last_turn', 0))
+        return
     trace = getattr(region, '_run_trace', None)
     activity_event_id = (getattr(trace, '_turn_temporary_activity_events', {}).get(
         str(agent.id)) if trace is not None else None)
     activity_causes = ([activity_event_id] if activity_event_id is not None else None)
+    engineering_share = production_work_share(agent, getattr(region, '_last_turn', 0))
+    engineering_event_id = getattr(agent, 'engineering_work_event_id', None) if engineering_share else None
+    if engineering_event_id is not None:
+        activity_causes = list(activity_causes or ()) + [engineering_event_id]
     if agent.id in getattr(region, 'pollution_revolt_ids', set()):
         _record_zero_production(region, agent, output, kind='independent_production_zero',
                                 formula_id='production.independent_zero.v1',
@@ -430,9 +382,9 @@ def produce_independent(region, agent, recipe, output, num_agents_per_good,
     inventory_before = agent.inv_get(output, 0)
     if has_inputs and recipe.get('production', 0) > 0:
         chance = 1.0
-        chance *= max(0.0, 1.0 - float(getattr(agent, 'temporary_work_share', 0.0)))
-        if agent.hungry_steps > 0:
-            chance *= 1 / (1 + agent.hungry_steps * 0.2)
+        from work_allocation import main_work
+        work = main_work(region, agent, getattr(region, '_last_turn', 0))
+        chance *= work if work is not None else 1.0
         if output in (Goods.food, Goods.wood):
             chance *= min(1.0, recipe['maxtotalprod'] / max(1, num_agents_per_good[output]) / recipe['production'])
         if (output == Goods.food and getattr(agent, 'assigned_plot_id', None) is None
@@ -457,7 +409,12 @@ def produce_independent(region, agent, recipe, output, num_agents_per_good,
             from labor_choice import occupational_tenure_multiplier
             cur_turn = int(getattr(region, '_last_turn', 0) or 0)
             tenure_mult = occupational_tenure_multiplier(agent, output, cur_turn)
-            num_output = int(round(recipe['production'] * terrain_mult * tenure_mult))
+            from abundance import enabled, proficiency, learn
+            practice_mult = proficiency(agent, output) if enabled(region) else 1.0
+            num_output = int(round(recipe['production'] * terrain_mult * tenure_mult * practice_mult))
+            if output == Goods.prepared_food:
+                num_output = min(num_output, recipe['numInput'])
+            _food_conversion(region, agent, recipe, recipe['numInput'], output, num_output)
             compute_and_record_firm_footprint(agent, region, output, num_output, inputs_cost, 0.0)
         if made:
             from run_trace import emit
@@ -470,10 +427,12 @@ def produce_independent(region, agent, recipe, output, num_agents_per_good,
                             inputs={'draw': rand_val, 'success_probability': chance,
                                     'temporary_work_share': float(getattr(
                                         agent, 'temporary_work_share', 0.0)),
+                                    'engineering_work_share': engineering_share,
                                     'activity_event_id': activity_event_id,
                                     'base_production': recipe['production'],
                                     'terrain_multiplier': terrain_mult,
                                     'tenure_multiplier': tenure_mult,
+                                    'practice_multiplier': practice_mult,
                                     'inputs_used': recipe['numInput'] if recipe['numInput'] > 0 else 0,
                                     'input_good': (recipe['input'].name
                                                    if recipe['numInput'] > 0 else None),
@@ -486,9 +445,14 @@ def produce_independent(region, agent, recipe, output, num_agents_per_good,
                                     'inventory_before': agent.inv_get(output, 0)})
             if receipt_ids is not None and event_id is not None:
                 receipt_ids.append(event_id)
+            if num_output > 0:
+                learn(region, agent, output, max(0.0, 1.0 - getattr(agent, 'temporary_work_share', 0.0)
+                                                - engineering_share), cur_turn)
+                record_operation(region, agent, output, 1, 0,
+                                 getattr(region, '_last_turn', 0), event_id)
         else:
             temporary_work_share = float(getattr(agent, 'temporary_work_share', 0.0))
-            if activity_event_id is not None and temporary_work_share > 0:
+            if (activity_event_id is not None or engineering_event_id is not None) and (temporary_work_share + engineering_share) > 0:
                 _record_zero_production(
                     region, agent, output, kind='independent_production_zero',
                     formula_id='production.independent_zero.v1',
@@ -496,6 +460,7 @@ def produce_independent(region, agent, recipe, output, num_agents_per_good,
                     cause_event_ids=activity_causes,
                     inputs={'draw': rand_val, 'success_probability': chance,
                             'temporary_work_share': temporary_work_share,
+                            'engineering_work_share': engineering_share,
                             'activity_event_id': activity_event_id,
                             'base_production': recipe['production'],
                             'inputs_available': has_inputs,
@@ -620,8 +585,9 @@ def _record_granary_food_transfer(region, *, turn, direction, units,
 def _store_food_in_granary(region, *, turn, requested_units,
                            producer_outputs, cause_event_ids=None):
     """Move integer units of this turn's harvest from farms into the granary."""
-    granary_before = float(getattr(region, "granary_stock", 25.0))
-    room = max(0, math.floor(120.0 - granary_before + 1e-9))
+    granary_before = float(getattr(region, "granary_stock", 0.0))
+    from food_storage import granary_capacity
+    room = max(0, math.floor(granary_capacity(region) - granary_before + 1e-9))
     target = min(max(0, int(requested_units)), room)
     remaining = target
     changes = []
@@ -652,39 +618,77 @@ def _store_food_in_granary(region, *, turn, requested_units,
     return stored
 
 
-def _release_granary_food(region, *, turn):
+def _release_granary_food(region, *, turn, requested_units=None):
     """Move whole released units into public food inventory, if available."""
-    granary_before = float(getattr(region, "granary_stock", 25.0))
+    granary_before = float(getattr(region, "granary_stock", 0.0))
     government = (getattr(region, "gov", None)
                   or getattr(getattr(region, "owner_nation", None),
                              "government", None))
-    if (granary_before <= 2.0 or government is None
+    if ((granary_before <= 2.0 if requested_units is None else granary_before <= 0) or government is None
             or not hasattr(government, "food_inventory")):
         return 0
-    units = min(4, int(granary_before * 0.20), int(granary_before))
+    units = (min(4, int(granary_before * 0.20), int(granary_before))
+             if requested_units is None else min(max(0, int(requested_units)), int(granary_before)))
     if units <= 0:
         return 0
-    public_food_before = float(government.food_inventory)
+    public_food_before = float(government.food_at(region))
     granary_after = granary_before - units
-    receiver = getattr(government, "receive_food", None)
-    if callable(receiver):
-        receiver(units)
-    else:
-        government.food_inventory = public_food_before + units
+    government.receive_food(units, region)
     region.granary_stock = granary_after
+    if getattr(region, '_granary_released_turn', None) != turn:
+        region._granary_released_turn = turn
+        region._granary_released_units = 0
+    region._granary_released_units += units
     _record_granary_food_transfer(
         region, turn=turn, direction="release", units=units,
         granary_before=granary_before, granary_after=granary_after,
         public_food_before=public_food_before,
         public_food_account_id=getattr(government, "name", region.name),
-        public_food_after=float(government.food_inventory))
+        public_food_after=float(government.food_at(region)))
+    return units
+
+
+def release_emergency_food(region, t):
+    """Authorized extra release after purchases, before the district eats."""
+    if getattr(region, '_granary_emergency_turn', None) == t:
+        return 0
+    region._granary_emergency_turn = t
+    from food_access import meal_gap
+    residents = [a for a in region.agents if a.alive and not a.is_corporation
+                 and not a.is_government and not getattr(a, 'military_unit_id', None)]
+    government = region.gov
+    gap = max(0, sum(meal_gap(a) for a in residents) - government.food_at(region))
+    capacity = max(0, int(getattr(region, 'granary_handling_capacity',
+                                  max(4, math.ceil(len(residents) * 0.5)))))
+    stock = max(0, int(getattr(region, 'granary_stock', 0)))
+    reserve = max(0, int(getattr(region, 'granary_emergency_reserve', 0)))
+    enabled = bool(getattr(government, 'emergency_food_policy', False))
+    already = (getattr(region, '_granary_released_units', 0)
+               if getattr(region, '_granary_released_turn', None) == t else 0)
+    requested = min(gap, max(0, capacity - already), max(0, stock - reserve)) if enabled else 0
+    units = _release_granary_food(region, turn=t, requested_units=requested) if requested else 0
+    reason = ('Emergency release disabled' if not enabled else
+              'Meals covered' if gap <= 0 else 'Granary empty' if stock <= 0 else
+              'Protected grain reserve' if stock <= reserve else
+              'Granary handling capacity reached' if capacity < gap else 'Grain released for meals')
+    region.granary_release_status = {'turn': t, 'gap': gap, 'capacity': capacity,
+                                    'released': units, 'reason': reason}
     return units
 
 
 def produce(region, t):
     """Run production phase for all active producers in region."""
+    if getattr(region, '_production_turn', None) == t:
+        return
+    region._production_turn = t
     region._last_turn = t
     region.production_receipts = []
+    nation = getattr(region, 'owner_nation', None)
+    if nation is not None:
+        from innovation import get_innovation_system
+        get_innovation_system().prepare_region_engineering(nation, region, t)
+    region._technology_usage_turn = t
+    region.technology_usage = {}
     num_agents_per_good = {}
     for a in region.agents:
         if getattr(a, 'is_native_child', False) and a.age(t) < 14:
@@ -696,9 +700,13 @@ def produce(region, t):
             num_agents_per_good[g] = 0
     local_total_production = defaultdict(int)
     receipt_ids = {}
-    food_producer_outputs = []
+    from agriculture import produce as produce_crops
+    produce_crops(region, t, local_total_production, receipt_ids)
+    food_producer_outputs = [(a, sum(r['quantity'] for r in region.production_receipts
+        if r['person_id'] == a.id and r['good'] == Goods.food)) for a in region.agents]
     for a in region.agents:
-        if (a.employer or a.output == Goods.gov or a.is_trader or a.output == Goods.none
+        if (not a.alive or getattr(a, "business_closed", False) or a.output == Goods.food
+                or a.employer or a.output == Goods.gov or a.is_trader or a.output == Goods.none
                 or a.output not in region.recipes or getattr(a, 'military_unit_id', None)):
             continue
         if getattr(a, 'is_native_child', False) and a.age(t) < 14:
@@ -727,12 +735,18 @@ def produce(region, t):
                         'is_striking': bool(getattr(a, 'is_striking', False)),
                         'in_revolt': bool(getattr(a, 'in_revolt', False))})
             continue
+        record_operation(region, a, a.output, 0,
+                         len(getattr(a, 'employees', ())) if getattr(a, 'is_corporation', False) else 1, t)
         r = region.recipes[a.output]
         if r.get('import_only', False):
             continue
         inventory_before = (int(a.inv_get(Goods.food, 0))
                             if a.output == Goods.food else 0)
-        if a.is_corporation:
+        if r.get('setup_good'):
+            from abundance import produce_workshop
+            produce_workshop(region, a, r, local_total_production,
+                             receipt_ids.setdefault(a.output, []), t)
+        elif a.is_corporation:
             produce_corporation(region, a, r, a.output, num_agents_per_good,
                                 local_total_production,
                                 receipt_ids.setdefault(a.output, []), turn=t)
@@ -768,7 +782,9 @@ def produce(region, t):
 
     # Phase 3: Granary buffer stock management across 10-turn agricultural year
     from game_time import seasonal_cycle_phase
-    year_turn = seasonal_cycle_phase(t)
+    year_turn = seasonal_cycle_phase(t, region)
+    from harvest_claims import register as register_harvest
+    register_harvest(region, t)
     # Ecology consumes only this turn's completed production, before storage releases.
     region.emission_production_turn = t
     region.emission_production = dict(local_total_production)
@@ -777,14 +793,9 @@ def produce(region, t):
     if not hasattr(region, 'granary_stock'):
         region.granary_stock = 25.0
 
-    if year_turn in (4, 5, 6, 7) and food_made > 2:
-        # Peak harvest accumulation into granary
-        buffer_in = max(1, int(food_made * 0.15))
-        _store_food_in_granary(
-            region, turn=t, requested_units=buffer_in,
-            producer_outputs=food_producer_outputs,
-            cause_event_ids=receipt_ids.get(Goods.food, []))
-    elif year_turn in (9, 0, 1) and region.granary_stock > 2.0:
+    # Public reserves are purchased through funded programs or explicit tax
+    # claims. There is no automatic unpaid confiscation of every harvest.
+    if year_turn in (9, 0, 1) and region.granary_stock > 2.0:
         # Winter / early spring lean season: release stored food into public aid stock.
         granary_release_units = _release_granary_food(region, turn=t)
 

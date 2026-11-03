@@ -5,12 +5,12 @@ from pathlib import Path
 from agent import Agent, initialize_agent
 from goods import Goods
 from region import Region
-from region_market import trade
+from region_market import trade, food_after_payroll
 from run_trace import RunTrace
 
 
 class MarketAffordabilityTraceTests(unittest.TestCase):
-    def test_market_zero_order_links_cash_affordability_and_bank_draw(self):
+    def test_shared_budget_funds_meal_order_from_household_savings(self):
         with tempfile.TemporaryDirectory() as directory:
             region = Region('Cash Poor Parish', t=0, number_of_agents=0)
             buyer = Agent(0)
@@ -28,32 +28,27 @@ class MarketAffordabilityTraceTests(unittest.TestCase):
             region._collective_trace_clock = {
                 'turn': 1, 'phase': 'trade', 'next': 1}
 
-            trade(region, 1)
+            trade(region, 1, defer_food_price=True)
+            food_after_payroll(region, 1)
 
             rows = region._run_trace.query(turn=1, limit=10000)['events']
             withdrawal = next(row for row in rows
                               if row.get('kind') == 'bank_withdrawal_posted'
                               and row['inputs'].get('reason') == 'fund_market_bid')
-            summary = next(row for row in rows
-                           if row.get('kind') == 'market_zero_order_summary'
-                           and row.get('subject', {}).get('good') == Goods.food.name)
-            buyer_group = next(group for group in
-                               summary['inputs']['buyers_by_reason']
-                               if any(order.get('agent_id') == buyer.id
-                                      for order in group['orders']))
-            buyer_evidence = next(order for order in buyer_group['orders']
-                                  if order.get('agent_id') == buyer.id)
+            order = next(row for row in rows
+                         if row.get('kind') == 'market_buyer_order_submitted'
+                         and row.get('subject', {}).get('buyer_id') == buyer.id
+                         and row.get('subject', {}).get('good') == Goods.food.name)
+            budget = next(row for row in rows
+                          if row.get('kind') == 'household_budget_plan'
+                          and row.get('subject', {}).get('id') == buyer.id)
 
             self.assertGreater(withdrawal['inputs']['settled_amount'], 0.0)
             self.assertIn(withdrawal['event_id'],
-                          buyer_evidence['cash_funding_event_ids'])
-            self.assertIn(withdrawal['event_id'], summary['cause_event_ids'])
-            self.assertEqual(buyer_evidence['cash_affordable_units_at_bid'], 0)
-            self.assertEqual(buyer_evidence['cash_affordability_basis'],
-                             'remainingCash')
-            self.assertEqual(buyer_evidence['cash_affordability_formula_id'],
-                             'market.cash_affordability_ceiling.v1')
-            self.assertEqual(buyer_group['reason'], 'cash_at_or_below_unit_price')
+                          order['inputs']['cash_funding_event_ids'])
+            self.assertIn(withdrawal['event_id'], budget['cause_event_ids'])
+            self.assertGreater(order['value_after'], 0)
+            self.assertLessEqual(budget['value_after'], budget['inputs']['cash_budget'])
 
     def test_bank_draw_causes_a_positive_market_order(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -73,7 +68,8 @@ class MarketAffordabilityTraceTests(unittest.TestCase):
             region._collective_trace_clock = {
                 'turn': 1, 'phase': 'trade', 'next': 1}
 
-            trade(region, 1)
+            trade(region, 1, defer_food_price=True)
+            food_after_payroll(region, 1)
 
             rows = region._run_trace.query(turn=1, limit=10000)['events']
             order = next(row for row in rows
@@ -89,8 +85,9 @@ class MarketAffordabilityTraceTests(unittest.TestCase):
                               if row['event_id'] == withdrawal_id)
 
             self.assertGreater(order['value_after'], 0)
-            self.assertEqual(order['inputs']['cash_funding_event_ids'],
-                             [withdrawal_id])
+            self.assertIn(withdrawal_id, order['inputs']['cash_funding_event_ids'])
+            self.assertTrue(all(next(row for row in rows if row['event_id'] == ident)['kind'] == 'bank_withdrawal_posted'
+                                for ident in order['inputs']['cash_funding_event_ids']))
             self.assertEqual(withdrawal['inputs']['reason'], 'fund_market_bid')
             self.assertGreater(withdrawal['inputs']['settled_amount'], 0.0)
 

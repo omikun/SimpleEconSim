@@ -446,7 +446,8 @@ def transfer_public_food(region, nation, t, firm_id, maximum=6):
     firm = _firm(region, firm_id)
     if strike is None or firm is None or region.owner_nation is not nation:
         return 0
-    available = min(int(maximum), int(nation.government.food_inventory))
+    nation.government.bind_food_site(region)
+    available = min(int(maximum), int(nation.government.food_at(region)))
     if available <= 0:
         return 0
     people = _people(region)
@@ -457,7 +458,7 @@ def transfer_public_food(region, nation, t, firm_id, maximum=6):
     for recipient in recipients:
         if moved >= available:
             break
-        nation.government.food_inventory -= 1
+        nation.government.add_food(region, -1)
         recipient.inv_add(Goods.food, 1)
         moved += 1
         received_ids.append(recipient.id)

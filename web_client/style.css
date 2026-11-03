@@ -2158,3 +2158,69 @@ input[type="range"] {
 .ai-spinner { display: inline-block; width: 22px; height: 22px; border: 3px solid #71849b; border-top-color: #f0d08b; border-radius: 50%; animation: ai-spin 1s linear infinite; }
 @keyframes ai-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .ai-spinner { animation: none; } }
+
+.engineering-tracks { display: grid; gap: 8px; margin: 12px 0; }
+.engineering-tracks label { display: grid; gap: 4px; }
+.engineering-tracks progress { width: 100%; height: 8px; accent-color: var(--accent, #89bfa2); }
+.engineering-detail { border-top: 1px solid var(--border-color); padding-top: 10px; }
+.engineering-detail summary { cursor: pointer; padding: 6px 0; }
+.engineering-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); gap: 10px; margin: 12px 0; }
+.engineering-form label { display: grid; gap: 5px; }
+.engineering-form select, .engineering-form input { width: 100%; min-width: 0; padding: 8px; color: inherit; background: var(--bg-card, #202a36); border: 1px solid var(--border-color); border-radius: 4px; font: inherit; }
+.engineering-actions { gap: 8px; flex-wrap: wrap; margin: 10px 0; }
+.engineering-adoption { margin-top: 14px; }
+.engineering-adoption .card-desc { margin-top: 10px; }
+
+#left-drawer[data-suite="science"] .drawer-top-bar { flex-wrap: wrap; gap: 8px; }
+#left-drawer[data-suite="science"] .drawer-top-bar h3 { flex-basis: 100%; order: 3; }
+@media (max-width: 900px) {
+  #left-dock:has(#left-drawer[data-suite="science"]:not(.closed)) { z-index: 60; }
+  #left-drawer[data-suite="science"] { width: calc(100vw - 52px); }
+}
+.food-access-summary { min-width: 220px; max-width: 340px; white-space: normal; }
+.food-access-summary details { margin-top: 5px; }
+.food-access-summary summary { color: var(--accent-cyan, #69c9ef); cursor: pointer; }
+.food-access-summary details[open] > div { margin-top: 4px; }
+.career-transition-summary {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  margin-top: 8px;
+  overflow: hidden;
+}
+.career-transition-summary summary { cursor: pointer; }
+.career-transition-summary p { margin: 8px 0; font-size: 12px; line-height: 1.4; }
+.career-transition-summary table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.career-transition-summary th,
+.career-transition-summary td {
+  min-width: 52px;
+  padding: 5px;
+  text-align: left;
+  border-bottom: 1px solid var(--border-color, #293348);
+}
+@media (max-width: 600px) {
+  .career-transition-summary table { font-size: 11px; }
+  .career-transition-summary th,
+  .career-transition-summary td { min-width: 0; padding: 4px; }
+}
+
+/* Food support and bounded production programs. */
+.food-economy-panel { margin: 12px 0; padding: 12px; border: 1px solid #43534c; border-radius: 6px; font-size: 12px; line-height: 1.6; min-width: 0; }
+.food-support-metrics strong { color: #b8df9f; }
+.economic-needs { margin-top: 12px; }
+.economic-table-scroll { overflow: auto; max-width: 100%; max-height: 280px; }
+.economic-needs table { width: 100%; border-collapse: collapse; }
+.economic-needs th, .economic-needs td { text-align: left; padding: 5px; border-bottom: 1px solid #35453e; white-space: normal; }
+.production-program-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 12px 0; }
+.production-program-form label { display: flex; flex-direction: column; min-width: 0; }
+.production-program-form input, .production-program-form select { min-width: 0; width: 100%; box-sizing: border-box; padding: 5px; color: inherit; background: #1d2823; border: 1px solid #52625a; }
+.production-program-form .program-preview { grid-column: 1 / -1; margin: 0; }
+@media (max-width: 480px) { .production-program-form { grid-template-columns: minmax(0, 1fr); } .food-economy-panel { padding: 8px; } }
+
+.production-program-form[hidden] { display: none; }

@@ -1,112 +1,94 @@
-"""
-Commons foraging — serfs on feudal land gather food from shared pastures,
-forests, and fisheries. This is not charity; it is a customary RIGHT tied
-to the feudal social contract. Enclosure destroys this right.
-
-Yield scales with tile.tenure.commons_access:
-  FEUDAL (1.0):    full foraging — serfs feed themselves
-  LEASEHOLD (0.5): reduced — partial commons access
-  ENCLOSED (0.0):  no foraging — must buy food on market
-
-Employed workers do NOT forage (they are at the factory/workshop).
-Lords do NOT forage (they collect tribute).
-Traders and government agents do not forage.
-Homesteaders on wilderness tiles forage according to wilderness rules.
-"""
-
+"""Finite regional commons food, gathered using the shared work budget."""
 from goods import Goods
-from livelihood_access import effective_access
+from food_inventory import milli
 
-# A typical shared half-plot right (effective access 0.5) can supply the
-# four-unit daily meal. Smaller, leasehold, or enclosed rights yield less.
 BASE_FORAGE_YIELD = 8
 
 
-def can_forage(agent, region) -> bool:
-    """Agent can forage if: not a lord, not employed, not trader/corp/gov,
-    and the tile has commons access > 0."""
-    if (getattr(agent, 'is_native_child', False)
-            and agent.age(getattr(region, '_last_turn', 0)) < 14):
-        return False
-    if getattr(agent, 'is_lord', False):
-        return False
-    if getattr(agent, 'social_class', None) == 'constable':
-        return False
-    if getattr(agent, 'military_unit_id', None):
-        return False
-    if agent.is_trader or agent.is_corporation or agent.is_government:
-        return False
-    if getattr(agent, 'employer', None) is not None:
-        return False
-    if (getattr(agent, 'assigned_plot_id', None) is None
-            and getattr(agent, 'mem_avg', lambda *_: 0.0)('mem_eviction', 0.0) > 0):
-        return False
-    return effective_access(agent, region, 'commons_food') > 0.0
+def commons_access(region):
+    if getattr(region, 'wilderness', False):
+        return 1.0
+    return max(0, min(1, getattr(getattr(region, 'tenure', None), 'commons_access', 0)))
 
 
-def forage_tile(region, t: int) -> int:
-    """Eligible agents forage on the tile. Returns total food gathered."""
-    if getattr(region, '_run_trace', None) is not None:
-        region._trace_forage_receipts = []
-    if getattr(region, 'is_ocean', False) or getattr(region, 'elevation', 0.0) < 0.0:
+def can_forage(agent, region):
+    from households import human
+    from labor_choice import career_lifecycle_age
+    rights = [r for r in getattr(region, 'access_rights', {}).get(agent.id, ())
+              if r.resource == 'commons_food']
+    usable = not rights or any(r.usable_share > 0 for r in rights)
+    return (usable and human(agent) and career_lifecycle_age(agent, int(getattr(region, '_last_turn', 0))) >= 14
+            and not getattr(agent, 'in_workhouse', False) and not getattr(agent, 'military_unit_id', None)
+            and commons_access(region) > 0)
+
+
+def capacity(region, turn=None):
+    from agriculture import phase
+    import math
+    seasonal = max(.4, .8 + .2 * math.sin(2 * math.pi * phase(region, turn) / 10))
+    background_use = getattr(region, 'wilderness_pop', 0) * 4 if getattr(region, 'wilderness', False) else 0
+    return max(0, float(getattr(region, 'commons_capacity', 0)) - background_use) * commons_access(region) * seasonal
+
+
+def potential(agent, region):
+    from nutrition import basic_food_units
+    if not can_forage(agent, region):
+        return 0.0
+    users = sum(can_forage(a, region) for a in region.agents)
+    return min(basic_food_units(agent), capacity(region) / max(1, users), BASE_FORAGE_YIELD)
+
+
+def forage_tile(region, t):
+    from households import demand, buyer
+    from food_accounts import create
+    from work_allocation import begin, assign
+    if getattr(region, '_commons_food_turn', None) == t:
+        return getattr(region, 'food_foraged_this_turn', 0)
+    region._commons_food_turn = t
+    begin(region, t)
+    if getattr(region, 'is_ocean', False) or getattr(region, 'elevation', 0) < 0:
         return 0
-
-    tenure = getattr(region, 'tenure', None)
-    if tenure is None or (not getattr(region, 'wilderness', False) and not any(
-            effective_access(a, region, 'commons_food') > 0 for a in region.agents)):
-        return 0
-
-    fertility = region.terrain.get(Goods.food, 1.0)
-    total = 0
-
-    for a in region.agents:
-        if getattr(a, 'is_native_child', False) and a.age(t) < 14:
+    maximum = max(0, float(getattr(region, 'commons_capacity', 0))) * 2
+    stock = min(maximum, max(0, getattr(region, 'commons_food_stock', 0)) + capacity(region, t))
+    total = 0.0
+    # Most deprived households receive the first opportunity, not list shuffle.
+    people = sorted((a for a in region.agents if can_forage(a, region) and buyer(a, region)),
+                    key=lambda a: (a.energy_reserve_kcal, a.id))
+    for person in people:
+        need = demand(person, region, reserve_turns=0)['meal_gap']
+        from work_allocation import remaining
+        available_work = remaining(region, person)
+        stock_before = stock
+        work = assign(region, person, 'commons', min(need, stock) / BASE_FORAGE_YIELD)
+        units = min(stock, milli(work * BASE_FORAGE_YIELD) / 1000)
+        if units <= 0:
             continue
-        # Check if homesteader on wilderness
-        if getattr(region, 'wilderness', False):
-            if not getattr(a, 'is_homesteader', False):
-                continue
-            last = getattr(a, 'last_forage_turn', t)
-            # Homesteaders forage +1 every 3 turns
-            if t - last >= 3:
-                a.inv_add(Goods.food, 1)
-                a.last_forage_turn = t
-                a.food_foraged += 1
-                a.temporary_work_share = 0.05
-                _record_activity(region, a, t, 1,emergency=True)
-                total += 1
-            continue
-
-        if not can_forage(a, region):
-            continue
-
-        access = effective_access(a, region, 'commons_food')
-        max_yield = max(1, int(BASE_FORAGE_YIELD * access * fertility))
-
-        # Cap at daily subsistence need (4 food)
-        foraged = min(max_yield, 4)
-        if foraged > 0:
-            a.inv_add(Goods.food, foraged)
-            a.food_foraged += foraged
-            a.last_forage_turn = t
-            a.temporary_work_share = min(0.25, foraged / 16.0)
-            _record_activity(region, a, t, foraged)
-            total += foraged
-
+        create(region, person, units, kind='commons_gathering', work=work,
+               capacity=capacity(region, t))
+        stock -= units
+        total += units
+        person.food_foraged += units
+        person.last_forage_turn = t
+        person.temporary_work_share = work
+        _record_activity(region, person, t, units, requested_food=need,
+                         stock_before=stock_before, available_work=available_work)
+    region.commons_food_stock = max(0, milli(stock) / 1000)
+    region.food_foraged_this_turn = total
     return total
 
 
-def _record_activity(region, agent, turn, food_units,*,emergency=False):
+def _record_activity(region, agent, turn, food_units, *, requested_food,
+                     stock_before, available_work):
     from run_trace import emit
     event_id = emit(region, kind='commons_foraging', record_class='outcome',
          subject={'type': 'agent', 'id': agent.id, 'tile': region.name},
          metric_id='labor.temporary_activity', unit='turn_share',
          after=agent.temporary_work_share,
-         formula_id='commons.forage_activity.v1',
+         formula_id='commons.forage_activity.v2',
          inputs={'food_units': food_units, 'good': Goods.food.name,
-                 'emergency_fallback':emergency,
-                 'emergency_turn_share':.05,
-                 'access': round(effective_access(agent, region, 'commons_food'), 4),
+                 'requested_food': requested_food, 'commons_stock_before': stock_before,
+                 'available_work': available_work, 'yield_per_work_turn': BASE_FORAGE_YIELD,
+                 'access': round(commons_access(region), 4),
                  'turn': turn})
     if event_id is not None:
         receipt_id = emit(

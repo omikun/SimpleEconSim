@@ -12,6 +12,13 @@ from goods import Goods, profession
 
 # Static visual definitions for all core and capitalist propagation commodities
 COMMODITY_METADATA: Dict[str, Dict[str, Any]] = {
+    'prepared_food': {
+        'symbol': '🍲',
+        'color_rgb': (205, 133, 63),
+        'profession_char': 'M',
+        'category': 'manufacture',
+        'texture_style': 'kitchen_workshop',
+    },
     'food': {
         'symbol': '🌾',
         'color_rgb': (218, 165, 32), # Goldenrod

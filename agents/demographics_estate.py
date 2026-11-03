@@ -60,7 +60,7 @@ def cleanup_dead_agent_links(agent, region=None, t=0):
         for emp in agent.employees:
             emp.employer = None
         agent.employees = []
-        agent.is_corporation = False
+        agent.business_closed = True
         if agent.owner is not None:
             agent.owner.company_owned = None
             agent.owner = None
@@ -735,7 +735,7 @@ def escheat_dead_parked_goods(ctx, agent):
                 continue
             if getattr(tile, 'gov', None) is not None:
                 if g == Goods.food:
-                    tile.gov.receive_food(qty)
+                    tile.gov.receive_food(qty, tile)
                 else:
                     tile.gov.agent.inv_add(g, qty)
         bucket[:] = [0] * len(bucket)
@@ -1414,7 +1414,7 @@ def handle_wealth_inheritance(ctx, t, agent, living_descendants):
             allocations = []
             if g_enum == Goods.food and charity is not None:
                 before = float(charity.food_inventory)
-                charity.receive_food(amount)
+                charity.receive_food(amount, region)
                 allocations.append({'recipient_id': charity.agent.id,
                                     'recipient_type': 'charity_food_stock',
                                     'inventory_before': before,
@@ -1720,6 +1720,12 @@ def handle_death(ctx, t, agent, agents):
 
     cleanup_dead_agent_links(agent, trace_region, t)
     handle_company_inheritance(t, agent, trace_region)
+    if getattr(ctx, 'bank', None) is None:
+        # Without probate institutions the physical estate remains located and
+        # owned by the estate, rather than vanishing with the resident roster.
+        agent.is_homesteader = False
+        trace_region.unclaimed_estates = [*getattr(trace_region, 'unclaimed_estates', ()), agent]
+        return True
     living_descendants = living_descendants_recursive(agent)
     handle_wage_claim_inheritance(
         trace_region, t, agent, living_descendants,

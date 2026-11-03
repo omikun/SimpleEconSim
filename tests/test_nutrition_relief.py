@@ -8,29 +8,40 @@ from nutrition import (deficit_fraction, effective_calorie_need, queue_emergency
                        record_intake, starvation_hazard)
 
 
-class Household:
+from agent import Agent, initialize_agent
+
+
+class Household(Agent):
     def __init__(self, food=0):
-        self.food = food
-        self.emergency_food_units = 0
-        self.consumption_multiplier = 1.0
+        super().__init__(0)
+        initialize_agent(self, Goods.food, 0, food, 0)
         self.energy_reserve_kcal = 40000.0
-        self.calorie_need_kcal = 2000.0
-        self.hungry_steps = 0.0
-        self.is_trader = False
 
-    def inv_get(self, good, default=0):
-        assert good == Goods.food
-        return self.food
-
-    def inv_add(self, good, amount):
-        assert good == Goods.food
-        self.food += amount
-
-    def mem_push(self, *_args):
-        pass
+    @property
+    def food(self):
+        return self.inv_get(Goods.food, 0)
 
 
 class NutritionReliefTests(unittest.TestCase):
+    def test_child_aid_requires_a_complete_ration_in_local_stock(self):
+        from government import Government
+        from region import Region
+
+        for stock, expected in ((0.5, 0), (1.5, 1)):
+            with self.subTest(stock=stock):
+                region = Region('Relief Parish', 0)
+                government = Government('Relief', 0)
+                child = Household()
+                child.is_native_child = True
+                child.age = lambda turn: 1
+                government.add_food(region, stock)
+
+                given = government.provide_food_aid(1, [child], 2, region)
+
+                self.assertEqual(given, expected)
+                self.assertEqual(child.food, expected)
+                self.assertEqual(government.food_at(region), stock - expected)
+
     def test_depleted_body_slows_calorie_burn_and_starvation_hazard(self):
         person = Household()
         person.energy_reserve_kcal = 0
@@ -50,7 +61,8 @@ class NutritionReliefTests(unittest.TestCase):
     def test_reserved_meal_is_eaten_once_next_turn(self):
         person = Household()
         queue_emergency_meal(person, 4)
-        self.assertEqual(person.emergency_food_units, 4)
+        self.assertEqual(person.food, 4)
+        self.assertEqual(person.emergency_food_units, 0)
         self.assertEqual(consume_daily_food(person), 4)
         self.assertEqual(deficit_fraction(person), 0)
         self.assertEqual(person.emergency_food_units, 0)

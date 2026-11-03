@@ -8,8 +8,8 @@ def agent_elapsed_years(birth_turn: int, turn: int) -> int:
     return max(0, int(turn) - int(birth_turn))
 
 
-def seasonal_cycle_phase(turn: int) -> int:
-    return int(turn) % SEASONAL_PHASES_PER_CYCLE
+def seasonal_cycle_phase(turn: int, region=None) -> int:
+    return (int(turn) + int(getattr(region, 'seasonal_phase_offset', 0))) % SEASONAL_PHASES_PER_CYCLE
 
 
 def seasonal_cycle_year(turn: int) -> int:
