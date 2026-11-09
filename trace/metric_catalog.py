@@ -25,6 +25,9 @@ METRICS = {
     'production.practice': ('tile/agent/good', 'work_turns', 'abundance.learn; completed productive work and bounded proficiency'),
     'production.workshop_entry': ('tile/agent/good', 'decision', 'abundance.consider_workshops; funded orders, opportunity and equipment costs'),
     'living.planned_spending': ('tile/agent', 'local_currency', 'abundance.prepare_household_orders; one funded basket across all household uses'),
+    'politics.pollution_illness_rate': ('tile', 'ratio', 'pollution_response.assess_pollution_health; unique affected living residents'),
+    'politics.pollution_petition': ('tile', 'stage', 'pollution_response.assess_pollution_health; local pollution petition stage'),
+    'politics.pollution_revolt': ('tile', 'participants', 'unrest.step_unrest; participants in pollution illness revolt'),
     'goods.producer_inventory': ('tile/nation/good', 'units', 'micro.region.stepper.log_metrics; Nation market charts sum current member-tile producer stocks in trace_snapshots.nation_chart_aggregation_rows'),
     'goods.demand': ('tile/good', 'units_offered', 'region_market.trade'),
     'goods.demand_ratio': ('tile/nation/good', 'ratio', 'region_market.trade order totals; Nation market charts take the equal-tile mean of current-turn readings in trace_snapshots.nation_chart_aggregation_rows'),
@@ -502,6 +505,8 @@ EVENT_JOURNAL_TO_METRICS = {
 TRACE_INSTRUMENTED = set(LEGACY_HISTORY_TO_METRIC.values()) | {
     'goods.estate_food_relief', 'goods.feudal_tribute_unpaid',
     'production.practice', 'production.workshop_entry', 'living.planned_spending',
+    'politics.pollution_illness_rate', 'politics.pollution_petition', 'politics.pollution_revolt',
+    'finance.public_healthcare_spending', 'world.wilderness_state',
     'finance.cash_destruction',
     'health.active_disease_cases',
     'labor.primary_livelihood', 'labor.employment_status',
