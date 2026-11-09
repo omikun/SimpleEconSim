@@ -301,6 +301,78 @@
   const scenarioBookendModal = document.getElementById('scenario-bookend-modal');
   const btnCloseBookend = document.getElementById('btn-close-bookend');
   const scenarioBookendBackdrop = document.getElementById('scenario-bookend-backdrop');
+  const historicalContextModal = document.getElementById('historical-context-modal');
+  const historicalContextTitle = document.getElementById('historical-context-title');
+  const historicalContextBody = document.getElementById('historical-context-body');
+  const btnCloseHistoricalContext = document.getElementById('btn-close-historical-context');
+  const historicalContextSeen = new Set();
+  const historicalContextQueue = [];
+  const historicalContextCards = new Map();
+  let historicalContextInitialized = false;
+  let historicalContextScope = null;
+  let historicalContextBaselineTurn = 0;
+
+  function showHistoricalContext(card) {
+    if (!card || !historicalContextModal) return;
+    historicalContextTitle.textContent = `${card.case_title} · ${card.period}`;
+    const sources = (card.sources || []).map(source =>
+      `<a href="${escapeHtml(source.url)}" target="_blank" rel="noopener">${escapeHtml(source.title || source.id)}</a>`
+    ).join(' · ');
+    historicalContextBody.innerHTML = `
+      ${card.game_event?.message ? `<p class="history-context-game-event"><strong>In this game · Turn ${Number(card.game_event.turn) || 0}:</strong> ${escapeHtml(card.game_event.message)}</p>` : ''}
+      <p class="history-context-kicker">${escapeHtml(card.moment_title)} · ${escapeHtml(card.place)} · Historical parallel</p>
+      <p>${escapeHtml(card.facts || '')}</p>
+      ${card.interpretation ? `<p><strong>Power and incentives:</strong> ${escapeHtml(card.interpretation)}</p>` : ''}
+      ${card.difference ? `<p><strong>Difference:</strong> ${escapeHtml(card.difference)}</p>` : ''}
+      <p class="history-context-sources"><strong>Sources:</strong> ${sources || 'Source details unavailable.'}</p>
+      ${historicalContextQueue.length ? `<p class="text-dim">${historicalContextQueue.length} more historical event${historicalContextQueue.length === 1 ? '' : 's'} queued.</p>` : ''}`;
+    historicalContextModal.classList.remove('hidden');
+  }
+
+  function closeHistoricalContext() {
+    if (historicalContextModal) historicalContextModal.classList.add('hidden');
+    const next = historicalContextQueue.shift();
+    if (next) showHistoricalContext(next);
+  }
+
+  function queueHistoricalContext(events) {
+    const rows = events || [];
+    const versionPrefix = String(worldState?.version || '').split(':').slice(0, 2).join(':');
+    const scope = `${worldState?.scenario_id || ''}:${worldState?.seed || ''}:${versionPrefix}`;
+    if (historicalContextScope !== null && historicalContextScope !== scope) {
+      historicalContextSeen.clear();
+      historicalContextCards.clear();
+      historicalContextQueue.length = 0;
+      historicalContextInitialized = false;
+      historicalContextBaselineTurn = 0;
+    }
+    historicalContextScope = scope;
+    if (!historicalContextInitialized) {
+      historicalContextBaselineTurn = Number(worldState?.turn || 0);
+      historicalContextInitialized = true;
+    }
+    for (const event of rows) {
+      if (!event.historical_context || historicalContextSeen.has(event.id)) continue;
+      historicalContextSeen.add(event.id);
+      if (Number(event.turn || 0) <= historicalContextBaselineTurn) continue;
+      historicalContextCards.set(event.id, event.historical_context);
+      historicalContextQueue.push(event.historical_context);
+    }
+    if (historicalContextModal?.classList.contains('hidden') && historicalContextQueue.length) {
+      showHistoricalContext(historicalContextQueue.shift());
+    }
+  }
+
+  btnCloseHistoricalContext?.addEventListener('click', closeHistoricalContext);
+  historicalContextModal?.querySelector('.modal-backdrop')?.addEventListener(
+    'click', closeHistoricalContext);
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && historicalContextModal
+        && !historicalContextModal.classList.contains('hidden')) {
+      event.preventDefault();
+      closeHistoricalContext();
+    }
+  });
 
   // Toast Container
   const toastContainer = document.getElementById('toast-container');
@@ -3999,9 +4071,18 @@
     const eventList = document.getElementById('collective-event-list');
     if (eventList) {
       const events = (collective.events || []).slice(-8).reverse();
+      queueHistoricalContext(collective.events || []);
       eventList.innerHTML = events.length ? events.map(ev => `
-        <div class="citizen-info">T${Number(ev.turn) || 0} · ${escapeHtml(ev.firm_name)} · ${escapeHtml(ev.message || ev.kind)}</div>`).join('')
+        <div class="citizen-info">T${Number(ev.turn) || 0} · ${escapeHtml(ev.firm_name)} · ${escapeHtml(ev.message || ev.kind)}
+          ${ev.historical_context ? `<button type="button" class="btn btn-secondary btn-xs historical-context-open" data-event-id="${escapeHtml(ev.id)}">Historical parallel</button>` : ''}</div>`).join('')
         : '<span class="text-dim">No collective action recorded.</span>';
+      eventList.querySelectorAll('.historical-context-open').forEach(button => {
+        button.addEventListener('click', () => {
+          const card = historicalContextCards.get(button.dataset.eventId)
+            || events.find(event => event.id === button.dataset.eventId)?.historical_context;
+          showHistoricalContext(card);
+        });
+      });
     }
     const wList = document.getElementById('workers-labor-list');
     if (wList && tile.citizens) {

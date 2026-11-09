@@ -1,5 +1,11 @@
 /* Call of Capital Web Client — Comprehensive Responsive Stylesheet */
 
+.historical-context-card { max-width: 760px; }
+.history-context-kicker { color: var(--gold); font-weight: 700; margin-bottom: .9rem; }
+.history-context-sources { color: var(--text-muted); font-size: .9rem; margin-top: 1.1rem; }
+.history-context-sources a { color: var(--cyan); margin-right: .65rem; }
+.historical-context-open { margin-left: .5rem; }
+
 :root {
   --bg-main: #0c0f17;
   --bg-dark: #121520;

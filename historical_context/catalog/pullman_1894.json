@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "id": "pullman_1894",
+  "title": "Pullman strike and railway boycott",
+  "period": "1894",
+  "place": "Illinois and the United States",
+  "sources": [
+    {
+      "id": "nps_pullman",
+      "title": "The Strike of 1894",
+      "url": "https://www.nps.gov/pull/learn/historyculture/the-strike-of-1894.htm"
+    }
+  ],
+  "moments": [
+    {
+      "id": "refused_arbitration",
+      "title": "Company refuses arbitration",
+      "category": "labor.employer_response",
+      "match": {"actions": ["employer_decision"], "require_tags": ["refused_negotiation"]},
+      "signals": {"bloodshed": 4, "reconciliation": 0},
+      "facts": "Pullman cut wages while leaving company-town rents and prices unchanged, then resisted concessions and tried to wait workers out.",
+      "interpretation": "The company could wait longer than many workers could afford. The resulting boycott shifted pressure onto rail traffic and drew a much larger confrontation."
+    },
+    {
+      "id": "arbitration_requested",
+      "title": "Workers seek arbitration",
+      "category": "labor.negotiation",
+      "match": {"actions": ["offer_rejected", "agreement_signed"], "prefer_tags": ["arbitration"]},
+      "signals": {"bloodshed": 4, "reconciliation": 0},
+      "facts": "The American Railway Union sought arbitration; Pullman refused. The national boycott later ended after federal intervention, injunctions, arrests, and deadly violence.",
+      "interpretation": "A dispute over wages became a contest over national commerce, giving the government grounds to intervene in ways that broke the union's leverage."
+    }
+  ]
+}

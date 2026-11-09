@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "id": "flint_1937",
+  "title": "Flint sit-down strike",
+  "period": "1936–1937",
+  "place": "Michigan, United States",
+  "sources": [
+    {
+      "id": "loc_flint",
+      "title": "The Flint, Michigan, Sit-Down Strike",
+      "url": "https://guides.loc.gov/this-month-in-business-history/february/flint-michigan-sit-down-strike"
+    },
+    {
+      "id": "settlement_text",
+      "title": "The Settlement, February 11, 1937",
+      "url": "https://dhr.history.vt.edu/modules/us/mod06_1936/evidence_detail_07.html"
+    }
+  ],
+  "moments": [
+    {
+      "id": "plant_occupation",
+      "title": "Workers occupy key plants",
+      "category": "labor.strike",
+      "match": {"actions": ["walkout"], "require_tags": ["workplace_occupation"]},
+      "signals": {"bloodshed": 0, "reconciliation": 1},
+      "facts": "Workers occupied plants and held production capacity in place. Supporters brought food; the occupation made replacing them harder.",
+      "interpretation": "The company had to bargain once the workers controlled production it needed."
+    },
+    {
+      "id": "negotiated_recognition",
+      "title": "Recognition through negotiation",
+      "category": "labor.negotiation",
+      "match": {"actions": ["agreement_signed"]},
+      "signals": {"bloodshed": 0, "reconciliation": 4},
+      "facts": "GM agreed to recognize the UAW as bargaining agency for employees who were union members and to begin negotiations over the remaining issues.",
+      "interpretation": "The agreement followed a six-week occupation and the governor's decision not to force an eviction that risked bloodshed.",
+      "difference": "The game agreement changes wages and hours; it does not create union recognition or reproduce Flint's plant occupation."
+    }
+  ]
+}

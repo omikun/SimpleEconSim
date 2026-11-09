@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "id": "homestead_1892",
+  "title": "Homestead steel strike",
+  "period": "1892",
+  "place": "Pennsylvania, United States",
+  "sources": [
+    {
+      "id": "nps_frick",
+      "title": "Henry Clay Frick",
+      "url": "https://home.nps.gov/jofl/learn/historyculture/henry-clay-frick.htm"
+    },
+    {
+      "id": "dpla_homestead",
+      "title": "The Homestead Strike",
+      "url": "https://dp.la/primary-source-sets/the-homestead-strike"
+    },
+    {
+      "id": "loc_pinkertons",
+      "title": "Pinkertons: Topics in Chronicling America",
+      "url": "https://guides.loc.gov/chronicling-america-pinkertons"
+    }
+  ],
+  "moments": [
+    {
+      "id": "lockout_and_guards",
+      "title": "Lockout and private guards",
+      "category": "labor.employer_response",
+      "match": {"actions": ["employer_decision"], "require_tags": ["private_guards"]},
+      "signals": {"bloodshed": 4, "reconciliation": 0},
+      "facts": "Henry Frick locked out workers and brought about 300 Pinkerton agents to guard the mill. A violent clash followed; the Pennsylvania militia later took control of the area, and the company reopened with replacement workers.",
+      "interpretation": "Private force helped the company regain the mill; the strike failed, and the response damaged its public reputation.",
+      "difference": "Pinkerton agents were used as guards here. Detective agencies also conducted undercover labor investigations, a related but distinct practice."
+    },
+    {
+      "id": "walkout",
+      "title": "Workers strike to organize",
+      "category": "labor.strike",
+      "match": {"actions": ["walkout"]},
+      "signals": {"bloodshed": 2, "reconciliation": 0},
+      "facts": "Workers at Carnegie Steel's Homestead Works struck in a dispute over organizing. The lockout and attempt to secure the mill escalated into a violent confrontation.",
+      "interpretation": "The employer's refusal to accept worker organization turned a labor dispute into a contest over who controlled the workplace.",
+      "difference": "The current game event records a walkout; it does not imply that an armed confrontation or lockout will follow."
+    }
+  ]
+}

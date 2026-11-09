@@ -81,6 +81,10 @@ def _event(region, t, kind, firm, *, strike_id=None, message='', **facts):
     row = {'id': event_id, 'turn': int(t), 'kind': kind, 'region': region.name,
            'firm_id': int(firm_id), 'firm_name': firm_name or str(firm_id),
            'strike_id': strike_id, 'message': message, 'facts': facts}
+    # Historical context observes the recorded event and adds a sourced
+    # comparison. It never changes the strike outcome or simulation state.
+    from historical_context.matcher import annotate_event
+    annotate_event(row, settings=getattr(region, 'historical_context_settings', None))
     from collective_trace_clock import stamp
     stamp(region, row)
     trace_event_id = None

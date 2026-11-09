@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "id": "lawrence_1912",
+  "title": "Lawrence textile strike",
+  "period": "1912",
+  "place": "Massachusetts, United States",
+  "sources": [
+    {
+      "id": "loc_lawrence",
+      "title": "Children as Advocates: The Bread and Roses Strike of 1912",
+      "url": "https://blogs.loc.gov/teachers/2014/12/children-as-advocates-the-bread-and-roses-strike-of-1912/"
+    },
+    {
+      "id": "nps_lawrence_lowell",
+      "title": "The Strike of 1912",
+      "url": "https://pubs.nps.gov/eTIC/LAMR-MANA/LOWE_475_131859_0001_of_0130.pdf"
+    }
+  ],
+  "moments": [
+    {
+      "id": "public_backlash",
+      "title": "Police response draws public attention",
+      "category": "labor.employer_response",
+      "match": {"actions": ["employer_decision"], "require_tags": ["police_force", "public_backlash"]},
+      "signals": {"bloodshed": 2, "reconciliation": 1},
+      "facts": "Police trying to prevent children of striking workers from leaving Lawrence injured children and arrested mothers. The incident drew national attention.",
+      "interpretation": "An attempt to contain the strike made its human cost visible and widened public scrutiny."
+    },
+    {
+      "id": "solidarity_and_concessions",
+      "title": "Cross-group solidarity wins concessions",
+      "category": "labor.resolution",
+      "match": {"actions": ["settlement_review", "strike_ended"], "prefer_tags": ["broad_solidarity", "wage_concession"]},
+      "signals": {"bloodshed": 1, "reconciliation": 3},
+      "facts": "The strike led to improvements in wages, conditions, and work hours. The nearby Lowell strike won an industry-wide raise after broad solidarity among workers.",
+      "interpretation": "Solidarity across language, gender, and skill lines made it harder to isolate one group of workers."
+    }
+  ]
+}
