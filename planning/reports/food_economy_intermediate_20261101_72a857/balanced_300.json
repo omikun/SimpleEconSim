@@ -1,0 +1,2753 @@
+{
+  "turns": 300,
+  "population_fixed": true,
+  "food_conservation": [
+    {
+      "turn": 1,
+      "opening": 241.0,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.207,
+      "closing": 228.793,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 2,
+      "opening": 228.793,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.198,
+      "closing": 216.595,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 3,
+      "opening": 216.595,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.852,
+      "closing": 203.743,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 4,
+      "opening": 203.743,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.174,
+      "closing": 191.569,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 5,
+      "opening": 191.569,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.159,
+      "closing": 179.41,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 6,
+      "opening": 179.41,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.15,
+      "closing": 167.26,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 7,
+      "opening": 167.26,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.138,
+      "closing": 155.122,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 8,
+      "opening": 155.122,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.123,
+      "closing": 142.999,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 9,
+      "opening": 142.999,
+      "production_and_receipts": 9.552,
+      "uses_and_losses": 12.114,
+      "closing": 140.437,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 10,
+      "opening": 140.437,
+      "production_and_receipts": 9.552,
+      "uses_and_losses": 12.111,
+      "closing": 137.878,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 11,
+      "opening": 137.878,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.108,
+      "closing": 125.77,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 12,
+      "opening": 125.77,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.093,
+      "closing": 113.677,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 13,
+      "opening": 113.677,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 17.046,
+      "closing": 96.631,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 14,
+      "opening": 96.631,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.069,
+      "closing": 84.562,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 15,
+      "opening": 84.562,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.057,
+      "closing": 72.505,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 16,
+      "opening": 72.505,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.045,
+      "closing": 60.46,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 17,
+      "opening": 60.46,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.03,
+      "closing": 48.43,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 18,
+      "opening": 48.43,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.021,
+      "closing": 36.409,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 19,
+      "opening": 36.409,
+      "production_and_receipts": 79.833,
+      "uses_and_losses": 12.009,
+      "closing": 104.233,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 20,
+      "opening": 104.233,
+      "production_and_receipts": 79.833,
+      "uses_and_losses": 12.075,
+      "closing": 171.991,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 21,
+      "opening": 171.991,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.141,
+      "closing": 159.85,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 22,
+      "opening": 159.85,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.129,
+      "closing": 147.721,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 23,
+      "opening": 147.721,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 15.528,
+      "closing": 132.193,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 24,
+      "opening": 132.193,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.102,
+      "closing": 120.091,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 25,
+      "opening": 120.091,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.096,
+      "closing": 107.995,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 26,
+      "opening": 107.995,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.078,
+      "closing": 95.917,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 27,
+      "opening": 95.917,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.066,
+      "closing": 83.851,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 28,
+      "opening": 83.851,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.054,
+      "closing": 71.797,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 29,
+      "opening": 71.797,
+      "production_and_receipts": 54.903,
+      "uses_and_losses": 12.045,
+      "closing": 114.655,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 30,
+      "opening": 114.655,
+      "production_and_receipts": 54.906,
+      "uses_and_losses": 12.084,
+      "closing": 157.477,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 31,
+      "opening": 157.477,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.126,
+      "closing": 145.351,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 32,
+      "opening": 145.351,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.117,
+      "closing": 133.234,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 33,
+      "opening": 133.234,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 16.536,
+      "closing": 116.698,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 34,
+      "opening": 116.698,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.09,
+      "closing": 104.608,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 35,
+      "opening": 104.608,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.075,
+      "closing": 92.533,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 36,
+      "opening": 92.533,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.063,
+      "closing": 80.47,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 37,
+      "opening": 80.47,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.054,
+      "closing": 68.416,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 38,
+      "opening": 68.416,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.039,
+      "closing": 56.377,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 39,
+      "opening": 56.377,
+      "production_and_receipts": 61.95,
+      "uses_and_losses": 12.027,
+      "closing": 106.3,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 40,
+      "opening": 106.3,
+      "production_and_receipts": 61.953,
+      "uses_and_losses": 12.078,
+      "closing": 156.175,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 41,
+      "opening": 156.175,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.126,
+      "closing": 144.049,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 42,
+      "opening": 144.049,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.114,
+      "closing": 131.935,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 43,
+      "opening": 131.935,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 17.214,
+      "closing": 114.721,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 44,
+      "opening": 114.721,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.087,
+      "closing": 102.634,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 45,
+      "opening": 102.634,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.075,
+      "closing": 90.559,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 46,
+      "opening": 90.559,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.063,
+      "closing": 78.496,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 47,
+      "opening": 78.496,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.051,
+      "closing": 66.445,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 48,
+      "opening": 66.445,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.039,
+      "closing": 54.406,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 49,
+      "opening": 54.406,
+      "production_and_receipts": 58.014,
+      "uses_and_losses": 12.027,
+      "closing": 100.393,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 50,
+      "opening": 100.393,
+      "production_and_receipts": 58.014,
+      "uses_and_losses": 12.072,
+      "closing": 146.335,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 51,
+      "opening": 146.335,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.114,
+      "closing": 134.221,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 52,
+      "opening": 134.221,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.102,
+      "closing": 122.119,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 53,
+      "opening": 122.119,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 20.298,
+      "closing": 101.821,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 54,
+      "opening": 101.821,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.078,
+      "closing": 89.743,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 55,
+      "opening": 89.743,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.06,
+      "closing": 77.683,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 56,
+      "opening": 77.683,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.051,
+      "closing": 65.632,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 57,
+      "opening": 65.632,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.042,
+      "closing": 53.59,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 58,
+      "opening": 53.59,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.027,
+      "closing": 41.563,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 59,
+      "opening": 41.563,
+      "production_and_receipts": 76.632,
+      "uses_and_losses": 12.015,
+      "closing": 106.18,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 60,
+      "opening": 106.18,
+      "production_and_receipts": 76.635,
+      "uses_and_losses": 12.078,
+      "closing": 170.737,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 61,
+      "opening": 170.737,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.138,
+      "closing": 158.599,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 62,
+      "opening": 158.599,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.129,
+      "closing": 146.47,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 63,
+      "opening": 146.47,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 18.888,
+      "closing": 127.582,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 64,
+      "opening": 127.582,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.102,
+      "closing": 115.48,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 65,
+      "opening": 115.48,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.087,
+      "closing": 103.393,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 66,
+      "opening": 103.393,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.078,
+      "closing": 91.315,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 67,
+      "opening": 91.315,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.066,
+      "closing": 79.249,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 68,
+      "opening": 79.249,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.048,
+      "closing": 67.201,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 69,
+      "opening": 67.201,
+      "production_and_receipts": 68.439,
+      "uses_and_losses": 12.042,
+      "closing": 123.598,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 70,
+      "opening": 123.598,
+      "production_and_receipts": 68.436,
+      "uses_and_losses": 12.093,
+      "closing": 179.941,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 71,
+      "opening": 179.941,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.15,
+      "closing": 167.791,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 72,
+      "opening": 167.791,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.135,
+      "closing": 155.656,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 73,
+      "opening": 155.656,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 16.914,
+      "closing": 138.742,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 74,
+      "opening": 138.742,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.111,
+      "closing": 126.631,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 75,
+      "opening": 126.631,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.099,
+      "closing": 114.532,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 76,
+      "opening": 114.532,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.087,
+      "closing": 102.445,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 77,
+      "opening": 102.445,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.075,
+      "closing": 90.37,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 78,
+      "opening": 90.37,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.063,
+      "closing": 78.307,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 79,
+      "opening": 78.307,
+      "production_and_receipts": 66.999,
+      "uses_and_losses": 12.048,
+      "closing": 133.258,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 80,
+      "opening": 133.258,
+      "production_and_receipts": 67.002,
+      "uses_and_losses": 12.105,
+      "closing": 188.155,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 81,
+      "opening": 188.155,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.159,
+      "closing": 175.996,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 82,
+      "opening": 175.996,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.144,
+      "closing": 163.852,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 83,
+      "opening": 163.852,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 15.567,
+      "closing": 148.285,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 84,
+      "opening": 148.285,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.123,
+      "closing": 136.162,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 85,
+      "opening": 136.162,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.105,
+      "closing": 124.057,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 86,
+      "opening": 124.057,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.096,
+      "closing": 111.961,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 87,
+      "opening": 111.961,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.084,
+      "closing": 99.877,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 88,
+      "opening": 99.877,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.069,
+      "closing": 87.808,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 89,
+      "opening": 87.808,
+      "production_and_receipts": 57.807,
+      "uses_and_losses": 12.063,
+      "closing": 133.552,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 90,
+      "opening": 133.552,
+      "production_and_receipts": 57.81,
+      "uses_and_losses": 12.099,
+      "closing": 179.263,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 91,
+      "opening": 179.263,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.15,
+      "closing": 167.113,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 92,
+      "opening": 167.113,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.138,
+      "closing": 154.975,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 93,
+      "opening": 154.975,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 15.312,
+      "closing": 139.663,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 94,
+      "opening": 139.663,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.111,
+      "closing": 127.552,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 95,
+      "opening": 127.552,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.099,
+      "closing": 115.453,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 96,
+      "opening": 115.453,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.087,
+      "closing": 103.366,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 97,
+      "opening": 103.366,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.075,
+      "closing": 91.291,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 98,
+      "opening": 91.291,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.063,
+      "closing": 79.228,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 99,
+      "opening": 79.228,
+      "production_and_receipts": 59.784,
+      "uses_and_losses": 12.048,
+      "closing": 126.964,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 100,
+      "opening": 126.964,
+      "production_and_receipts": 59.784,
+      "uses_and_losses": 12.099,
+      "closing": 174.649,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 101,
+      "opening": 174.649,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.144,
+      "closing": 162.505,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 102,
+      "opening": 162.505,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.132,
+      "closing": 150.373,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 103,
+      "opening": 150.373,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 15.42,
+      "closing": 134.953,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 104,
+      "opening": 134.953,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.105,
+      "closing": 122.848,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 105,
+      "opening": 122.848,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.093,
+      "closing": 110.755,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 106,
+      "opening": 110.755,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.084,
+      "closing": 98.671,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 107,
+      "opening": 98.671,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.072,
+      "closing": 86.599,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 108,
+      "opening": 86.599,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.057,
+      "closing": 74.542,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 109,
+      "opening": 74.542,
+      "production_and_receipts": 61.239,
+      "uses_and_losses": 12.045,
+      "closing": 123.736,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 110,
+      "opening": 123.736,
+      "production_and_receipts": 61.239,
+      "uses_and_losses": 12.093,
+      "closing": 172.882,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 111,
+      "opening": 172.882,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.144,
+      "closing": 160.738,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 112,
+      "opening": 160.738,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.129,
+      "closing": 148.609,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 113,
+      "opening": 148.609,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 15.84,
+      "closing": 132.769,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 114,
+      "opening": 132.769,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.108,
+      "closing": 120.661,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 115,
+      "opening": 120.661,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.09,
+      "closing": 108.571,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 116,
+      "opening": 108.571,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.081,
+      "closing": 96.49,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 117,
+      "opening": 96.49,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.066,
+      "closing": 84.424,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 118,
+      "opening": 84.424,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.057,
+      "closing": 72.367,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 119,
+      "opening": 72.367,
+      "production_and_receipts": 59.544,
+      "uses_and_losses": 12.042,
+      "closing": 119.869,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 120,
+      "opening": 119.869,
+      "production_and_receipts": 59.544,
+      "uses_and_losses": 12.09,
+      "closing": 167.323,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 121,
+      "opening": 167.323,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.138,
+      "closing": 155.185,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 122,
+      "opening": 155.185,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.126,
+      "closing": 143.059,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 123,
+      "opening": 143.059,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 16.641,
+      "closing": 126.418,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 124,
+      "opening": 126.418,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.099,
+      "closing": 114.319,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 125,
+      "opening": 114.319,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.087,
+      "closing": 102.232,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 126,
+      "opening": 102.232,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.072,
+      "closing": 90.16,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 127,
+      "opening": 90.16,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.063,
+      "closing": 78.097,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 128,
+      "opening": 78.097,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.051,
+      "closing": 66.046,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 129,
+      "opening": 66.046,
+      "production_and_receipts": 58.278,
+      "uses_and_losses": 12.036,
+      "closing": 112.288,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 130,
+      "opening": 112.288,
+      "production_and_receipts": 58.278,
+      "uses_and_losses": 12.084,
+      "closing": 158.482,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 131,
+      "opening": 158.482,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.126,
+      "closing": 146.356,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 132,
+      "opening": 146.356,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.117,
+      "closing": 134.239,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 133,
+      "opening": 134.239,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 19.377,
+      "closing": 114.862,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 134,
+      "opening": 114.862,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.09,
+      "closing": 102.772,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 135,
+      "opening": 102.772,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.075,
+      "closing": 90.697,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 136,
+      "opening": 90.697,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.066,
+      "closing": 78.631,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 137,
+      "opening": 78.631,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.048,
+      "closing": 66.583,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 138,
+      "opening": 66.583,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.042,
+      "closing": 54.541,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 139,
+      "opening": 54.541,
+      "production_and_receipts": 76.26,
+      "uses_and_losses": 12.03,
+      "closing": 118.771,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 140,
+      "opening": 118.771,
+      "production_and_receipts": 76.26,
+      "uses_and_losses": 12.084,
+      "closing": 182.947,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 141,
+      "opening": 182.947,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.153,
+      "closing": 170.794,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 142,
+      "opening": 170.794,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.141,
+      "closing": 158.653,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 143,
+      "opening": 158.653,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 17.907,
+      "closing": 140.746,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 144,
+      "opening": 140.746,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.114,
+      "closing": 128.632,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 145,
+      "opening": 128.632,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.099,
+      "closing": 116.533,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 146,
+      "opening": 116.533,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.09,
+      "closing": 104.443,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 147,
+      "opening": 104.443,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.078,
+      "closing": 92.365,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 148,
+      "opening": 92.365,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.066,
+      "closing": 80.299,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 149,
+      "opening": 80.299,
+      "production_and_receipts": 64.725,
+      "uses_and_losses": 12.051,
+      "closing": 132.973,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 150,
+      "opening": 132.973,
+      "production_and_receipts": 64.728,
+      "uses_and_losses": 12.105,
+      "closing": 185.596,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 151,
+      "opening": 185.596,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.153,
+      "closing": 173.443,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 152,
+      "opening": 173.443,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.144,
+      "closing": 161.299,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 153,
+      "opening": 161.299,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 16.551,
+      "closing": 144.748,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 154,
+      "opening": 144.748,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.117,
+      "closing": 132.631,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 155,
+      "opening": 132.631,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.105,
+      "closing": 120.526,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 156,
+      "opening": 120.526,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.093,
+      "closing": 108.433,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 157,
+      "opening": 108.433,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.078,
+      "closing": 96.355,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 158,
+      "opening": 96.355,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.069,
+      "closing": 84.286,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 159,
+      "opening": 84.286,
+      "production_and_receipts": 68.037,
+      "uses_and_losses": 12.057,
+      "closing": 140.266,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 160,
+      "opening": 140.266,
+      "production_and_receipts": 68.037,
+      "uses_and_losses": 12.111,
+      "closing": 196.192,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 161,
+      "opening": 196.192,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.165,
+      "closing": 184.027,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 162,
+      "opening": 184.027,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.153,
+      "closing": 171.874,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 163,
+      "opening": 171.874,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 15.156,
+      "closing": 156.718,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 164,
+      "opening": 156.718,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.129,
+      "closing": 144.589,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 165,
+      "opening": 144.589,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.114,
+      "closing": 132.475,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 166,
+      "opening": 132.475,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.105,
+      "closing": 120.37,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 167,
+      "opening": 120.37,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.093,
+      "closing": 108.277,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 168,
+      "opening": 108.277,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.078,
+      "closing": 96.199,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 169,
+      "opening": 96.199,
+      "production_and_receipts": 55.497,
+      "uses_and_losses": 12.066,
+      "closing": 139.63,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 170,
+      "opening": 139.63,
+      "production_and_receipts": 55.494,
+      "uses_and_losses": 12.111,
+      "closing": 183.013,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 171,
+      "opening": 183.013,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.153,
+      "closing": 170.86,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 172,
+      "opening": 170.86,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.141,
+      "closing": 158.719,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 173,
+      "opening": 158.719,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 15.153,
+      "closing": 143.566,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 174,
+      "opening": 143.566,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.117,
+      "closing": 131.449,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 175,
+      "opening": 131.449,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.102,
+      "closing": 119.347,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 176,
+      "opening": 119.347,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.09,
+      "closing": 107.257,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 177,
+      "opening": 107.257,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.078,
+      "closing": 95.179,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 178,
+      "opening": 95.179,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.066,
+      "closing": 83.113,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 179,
+      "opening": 83.113,
+      "production_and_receipts": 61.884,
+      "uses_and_losses": 12.054,
+      "closing": 132.943,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 180,
+      "opening": 132.943,
+      "production_and_receipts": 61.884,
+      "uses_and_losses": 12.102,
+      "closing": 182.725,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 181,
+      "opening": 182.725,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.153,
+      "closing": 170.572,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 182,
+      "opening": 170.572,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.141,
+      "closing": 158.431,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 183,
+      "opening": 158.431,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 15.09,
+      "closing": 143.341,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 184,
+      "opening": 143.341,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.117,
+      "closing": 131.224,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 185,
+      "opening": 131.224,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.102,
+      "closing": 119.122,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 186,
+      "opening": 119.122,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.09,
+      "closing": 107.032,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 187,
+      "opening": 107.032,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.078,
+      "closing": 94.954,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 188,
+      "opening": 94.954,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.066,
+      "closing": 82.888,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 189,
+      "opening": 82.888,
+      "production_and_receipts": 59.727,
+      "uses_and_losses": 12.054,
+      "closing": 130.561,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 190,
+      "opening": 130.561,
+      "production_and_receipts": 59.73,
+      "uses_and_losses": 12.099,
+      "closing": 178.192,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 191,
+      "opening": 178.192,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.15,
+      "closing": 166.042,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 192,
+      "opening": 166.042,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.135,
+      "closing": 153.907,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 193,
+      "opening": 153.907,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 15.603,
+      "closing": 138.304,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 194,
+      "opening": 138.304,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.111,
+      "closing": 126.193,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 195,
+      "opening": 126.193,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.096,
+      "closing": 114.097,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 196,
+      "opening": 114.097,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.084,
+      "closing": 102.013,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 197,
+      "opening": 102.013,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.075,
+      "closing": 89.938,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 198,
+      "opening": 89.938,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.06,
+      "closing": 77.878,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 199,
+      "opening": 77.878,
+      "production_and_receipts": 60.222,
+      "uses_and_losses": 12.051,
+      "closing": 126.049,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 200,
+      "opening": 126.049,
+      "production_and_receipts": 60.222,
+      "uses_and_losses": 12.093,
+      "closing": 174.178,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 201,
+      "opening": 174.178,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.144,
+      "closing": 162.034,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 202,
+      "opening": 162.034,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.132,
+      "closing": 149.902,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 203,
+      "opening": 149.902,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 16.29,
+      "closing": 133.612,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 204,
+      "opening": 133.612,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.105,
+      "closing": 121.507,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 205,
+      "opening": 121.507,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.093,
+      "closing": 109.414,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 206,
+      "opening": 109.414,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.081,
+      "closing": 97.333,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 207,
+      "opening": 97.333,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.069,
+      "closing": 85.264,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 208,
+      "opening": 85.264,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.057,
+      "closing": 73.207,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 209,
+      "opening": 73.207,
+      "production_and_receipts": 57.855,
+      "uses_and_losses": 12.045,
+      "closing": 119.017,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 210,
+      "opening": 119.017,
+      "production_and_receipts": 57.855,
+      "uses_and_losses": 12.09,
+      "closing": 164.782,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 211,
+      "opening": 164.782,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.135,
+      "closing": 152.647,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 212,
+      "opening": 152.647,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.123,
+      "closing": 140.524,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 213,
+      "opening": 140.524,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 18.903,
+      "closing": 121.621,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 214,
+      "opening": 121.621,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.09,
+      "closing": 109.531,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 215,
+      "opening": 109.531,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.084,
+      "closing": 97.447,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 216,
+      "opening": 97.447,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.072,
+      "closing": 85.375,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 217,
+      "opening": 85.375,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.057,
+      "closing": 73.318,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 218,
+      "opening": 73.318,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.048,
+      "closing": 61.27,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 219,
+      "opening": 61.27,
+      "production_and_receipts": 76.41,
+      "uses_and_losses": 12.033,
+      "closing": 125.647,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 220,
+      "opening": 125.647,
+      "production_and_receipts": 76.407,
+      "uses_and_losses": 12.093,
+      "closing": 189.961,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 221,
+      "opening": 189.961,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.162,
+      "closing": 177.799,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 222,
+      "opening": 177.799,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.147,
+      "closing": 165.652,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 223,
+      "opening": 165.652,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 17.34,
+      "closing": 148.312,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 224,
+      "opening": 148.312,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.123,
+      "closing": 136.189,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 225,
+      "opening": 136.189,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.108,
+      "closing": 124.081,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 226,
+      "opening": 124.081,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.096,
+      "closing": 111.985,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 227,
+      "opening": 111.985,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.084,
+      "closing": 99.901,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 228,
+      "opening": 99.901,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.069,
+      "closing": 87.832,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 229,
+      "opening": 87.832,
+      "production_and_receipts": 62.208,
+      "uses_and_losses": 12.06,
+      "closing": 137.98,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 230,
+      "opening": 137.98,
+      "production_and_receipts": 62.211,
+      "uses_and_losses": 12.108,
+      "closing": 188.083,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 231,
+      "opening": 188.083,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.159,
+      "closing": 175.924,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 232,
+      "opening": 175.924,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.147,
+      "closing": 163.777,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 233,
+      "opening": 163.777,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 16.395,
+      "closing": 147.382,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 234,
+      "opening": 147.382,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.117,
+      "closing": 135.265,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 235,
+      "opening": 135.265,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.108,
+      "closing": 123.157,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 236,
+      "opening": 123.157,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.093,
+      "closing": 111.064,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 237,
+      "opening": 111.064,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.084,
+      "closing": 98.98,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 238,
+      "opening": 98.98,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.069,
+      "closing": 86.911,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 239,
+      "opening": 86.911,
+      "production_and_receipts": 69.669,
+      "uses_and_losses": 12.06,
+      "closing": 144.52,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 240,
+      "opening": 144.52,
+      "production_and_receipts": 69.669,
+      "uses_and_losses": 12.114,
+      "closing": 202.075,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 241,
+      "opening": 202.075,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.171,
+      "closing": 189.904,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 242,
+      "opening": 189.904,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.162,
+      "closing": 177.742,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 243,
+      "opening": 177.742,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 14.85,
+      "closing": 162.892,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 244,
+      "opening": 162.892,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.135,
+      "closing": 150.757,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 245,
+      "opening": 150.757,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.123,
+      "closing": 138.634,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 246,
+      "opening": 138.634,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.108,
+      "closing": 126.526,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 247,
+      "opening": 126.526,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.099,
+      "closing": 114.427,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 248,
+      "opening": 114.427,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.084,
+      "closing": 102.343,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 249,
+      "opening": 102.343,
+      "production_and_receipts": 52.794,
+      "uses_and_losses": 12.072,
+      "closing": 143.065,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 250,
+      "opening": 143.065,
+      "production_and_receipts": 52.797,
+      "uses_and_losses": 12.114,
+      "closing": 183.748,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 251,
+      "opening": 183.748,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.153,
+      "closing": 171.595,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 252,
+      "opening": 171.595,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.144,
+      "closing": 159.451,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 253,
+      "opening": 159.451,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 15.126,
+      "closing": 144.325,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 254,
+      "opening": 144.325,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.114,
+      "closing": 132.211,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 255,
+      "opening": 132.211,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.102,
+      "closing": 120.109,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 256,
+      "opening": 120.109,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.09,
+      "closing": 108.019,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 257,
+      "opening": 108.019,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.081,
+      "closing": 95.938,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 258,
+      "opening": 95.938,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.066,
+      "closing": 83.872,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 259,
+      "opening": 83.872,
+      "production_and_receipts": 64.779,
+      "uses_and_losses": 12.054,
+      "closing": 136.597,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 260,
+      "opening": 136.597,
+      "production_and_receipts": 64.782,
+      "uses_and_losses": 12.108,
+      "closing": 189.271,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 261,
+      "opening": 189.271,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.159,
+      "closing": 177.112,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 262,
+      "opening": 177.112,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.147,
+      "closing": 164.965,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 263,
+      "opening": 164.965,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 14.823,
+      "closing": 150.142,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 264,
+      "opening": 150.142,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.12,
+      "closing": 138.022,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 265,
+      "opening": 138.022,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.108,
+      "closing": 125.914,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 266,
+      "opening": 125.914,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.099,
+      "closing": 113.815,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 267,
+      "opening": 113.815,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.084,
+      "closing": 101.731,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 268,
+      "opening": 101.731,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.072,
+      "closing": 89.659,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 269,
+      "opening": 89.659,
+      "production_and_receipts": 57.24,
+      "uses_and_losses": 12.063,
+      "closing": 134.836,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 270,
+      "opening": 134.836,
+      "production_and_receipts": 57.24,
+      "uses_and_losses": 12.102,
+      "closing": 179.974,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 271,
+      "opening": 179.974,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.15,
+      "closing": 167.824,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 272,
+      "opening": 167.824,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.138,
+      "closing": 155.686,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 273,
+      "opening": 155.686,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 15.522,
+      "closing": 140.164,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 274,
+      "opening": 140.164,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.111,
+      "closing": 128.053,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 275,
+      "opening": 128.053,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.099,
+      "closing": 115.954,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 276,
+      "opening": 115.954,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.09,
+      "closing": 103.864,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 277,
+      "opening": 103.864,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.072,
+      "closing": 91.792,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 278,
+      "opening": 91.792,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.063,
+      "closing": 79.729,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 279,
+      "opening": 79.729,
+      "production_and_receipts": 61.959,
+      "uses_and_losses": 12.051,
+      "closing": 129.637,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 280,
+      "opening": 129.637,
+      "production_and_receipts": 61.959,
+      "uses_and_losses": 12.099,
+      "closing": 179.497,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 281,
+      "opening": 179.497,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.15,
+      "closing": 167.347,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 282,
+      "opening": 167.347,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.138,
+      "closing": 155.209,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 283,
+      "opening": 155.209,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 16.014,
+      "closing": 139.195,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 284,
+      "opening": 139.195,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.114,
+      "closing": 127.081,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 285,
+      "opening": 127.081,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.096,
+      "closing": 114.985,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 286,
+      "opening": 114.985,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.087,
+      "closing": 102.898,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 287,
+      "opening": 102.898,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.075,
+      "closing": 90.823,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 288,
+      "opening": 90.823,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.06,
+      "closing": 78.763,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 289,
+      "opening": 78.763,
+      "production_and_receipts": 56.76,
+      "uses_and_losses": 12.051,
+      "closing": 123.472,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 290,
+      "opening": 123.472,
+      "production_and_receipts": 56.76,
+      "uses_and_losses": 12.093,
+      "closing": 168.139,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 291,
+      "opening": 168.139,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.138,
+      "closing": 156.001,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 292,
+      "opening": 156.001,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.126,
+      "closing": 143.875,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 293,
+      "opening": 143.875,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 18.651,
+      "closing": 125.224,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 294,
+      "opening": 125.224,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.096,
+      "closing": 113.128,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 295,
+      "opening": 113.128,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.087,
+      "closing": 101.041,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 296,
+      "opening": 101.041,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.075,
+      "closing": 88.966,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 297,
+      "opening": 88.966,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.06,
+      "closing": 76.906,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 298,
+      "opening": 76.906,
+      "production_and_receipts": 0.0,
+      "uses_and_losses": 12.051,
+      "closing": 64.855,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 299,
+      "opening": 64.855,
+      "production_and_receipts": 77.085,
+      "uses_and_losses": 12.039,
+      "closing": 129.901,
+      "unexplained": 0.0
+    },
+    {
+      "turn": 300,
+      "opening": 129.901,
+      "production_and_receipts": 77.085,
+      "uses_and_losses": 12.099,
+      "closing": 194.887,
+      "unexplained": 0.0
+    }
+  ],
+  "outlook": {
+    "tile": "Acceptance farm",
+    "residents": 3,
+    "food_producers": 3,
+    "minimum_meal_units": 12,
+    "household_food_units": 159.08700000000002,
+    "forecast_commons_food_units": 0.0,
+    "government_food_units": 0,
+    "missing_meal_units": 0,
+    "recent_food_production": 77.08500000000001,
+    "crop_cycle_turns": 10,
+    "observed_crop_cycle_turns": 10,
+    "crop_cycle_production": 154.17000000000002,
+    "crop_cycle_meal_demand": 120,
+    "accessible_food_buffer": 159.08700000000002,
+    "projected_crop_cycle_margin": 52.211,
+    "forecast_commons_cycle_food": 0.0,
+    "projected_crop_cycle_margin_with_commons": 52.211,
+    "food_buffer_proven": true,
+    "enclosure_risk": false,
+    "projected_supply_gap": 0,
+    "underfed_residents": 0,
+    "underfed_share": 0.0,
+    "diagnosis": "stable",
+    "emergency": false,
+    "production_units_last_turn": 77.08500000000001,
+    "foraged_units_last_turn": 0,
+    "unmet_calorie_units_last_turn": 0.0,
+    "company_food_units": 0,
+    "food_available_for_sale": 39,
+    "granary_food_units": 25.0,
+    "food_in_transit": 0,
+    "meal_reference_cost": 4,
+    "unaffordable_residents": 0,
+    "relief_policy": "ordinary",
+    "access_reasons": [
+      "Emergency release disabled"
+    ],
+    "granary_release": {},
+    "phase": 7,
+    "turns_until_harvest": 9,
+    "expected_harvest": 97.23198531084832,
+    "adverse_harvest": 68.06238971759382,
+    "stock_path": [
+      {
+        "turn": 301,
+        "phase": 8,
+        "harvest": 0,
+        "committed_harvest": 0,
+        "conditional_planned_harvest": 0,
+        "arrivals": 0,
+        "ordinary_need": 12,
+        "seed_use": 0,
+        "closing_stock": 182.692,
+        "adverse_closing_stock": 182.692,
+        "with_potential_commons": 182.692
+      },
+      {
+        "turn": 302,
+        "phase": 9,
+        "harvest": 0,
+        "committed_harvest": 0,
+        "conditional_planned_harvest": 0,
+        "arrivals": 0,
+        "ordinary_need": 12,
+        "seed_use": 0,
+        "closing_stock": 170.509,
+        "adverse_closing_stock": 170.509,
+        "with_potential_commons": 170.509
+      },
+      {
+        "turn": 303,
+        "phase": 0,
+        "harvest": 0,
+        "committed_harvest": 0,
+        "conditional_planned_harvest": 0,
+        "arrivals": 0,
+        "ordinary_need": 12,
+        "seed_use": 10.799999999999999,
+        "closing_stock": 147.539,
+        "adverse_closing_stock": 147.539,
+        "with_potential_commons": 147.539
+      },
+      {
+        "turn": 304,
+        "phase": 1,
+        "harvest": 0,
+        "committed_harvest": 0,
+        "conditional_planned_harvest": 0,
+        "arrivals": 0,
+        "ordinary_need": 12,
+        "seed_use": 0,
+        "closing_stock": 135.391,
+        "adverse_closing_stock": 135.391,
+        "with_potential_commons": 135.391
+      },
+      {
+        "turn": 305,
+        "phase": 2,
+        "harvest": 0,
+        "committed_harvest": 0,
+        "conditional_planned_harvest": 0,
+        "arrivals": 0,
+        "ordinary_need": 12,
+        "seed_use": 0,
+        "closing_stock": 123.256,
+        "adverse_closing_stock": 123.256,
+        "with_potential_commons": 123.256
+      },
+      {
+        "turn": 306,
+        "phase": 3,
+        "harvest": 0,
+        "committed_harvest": 0,
+        "conditional_planned_harvest": 0,
+        "arrivals": 0,
+        "ordinary_need": 12,
+        "seed_use": 0,
+        "closing_stock": 111.133,
+        "adverse_closing_stock": 111.133,
+        "with_potential_commons": 111.133
+      },
+      {
+        "turn": 307,
+        "phase": 4,
+        "harvest": 0,
+        "committed_harvest": 0,
+        "conditional_planned_harvest": 0,
+        "arrivals": 0,
+        "ordinary_need": 12,
+        "seed_use": 0,
+        "closing_stock": 99.022,
+        "adverse_closing_stock": 99.022,
+        "with_potential_commons": 99.022
+      },
+      {
+        "turn": 308,
+        "phase": 5,
+        "harvest": 0,
+        "committed_harvest": 0,
+        "conditional_planned_harvest": 0,
+        "arrivals": 0,
+        "ordinary_need": 12,
+        "seed_use": 0,
+        "closing_stock": 86.923,
+        "adverse_closing_stock": 86.923,
+        "with_potential_commons": 86.923
+      },
+      {
+        "turn": 309,
+        "phase": 6,
+        "harvest": 97.233,
+        "committed_harvest": 0.0,
+        "conditional_planned_harvest": 97.233,
+        "arrivals": 0,
+        "ordinary_need": 12,
+        "seed_use": 0,
+        "closing_stock": 172.069,
+        "adverse_closing_stock": 142.899,
+        "with_potential_commons": 172.069
+      },
+      {
+        "turn": 310,
+        "phase": 7,
+        "harvest": 0.0,
+        "committed_harvest": 0.0,
+        "conditional_planned_harvest": 0.0,
+        "arrivals": 0,
+        "ordinary_need": 12,
+        "seed_use": 0,
+        "closing_stock": 159.897,
+        "adverse_closing_stock": 130.756,
+        "with_potential_commons": 159.897
+      },
+      {
+        "turn": 311,
+        "phase": 8,
+        "harvest": 0,
+        "committed_harvest": 0,
+        "conditional_planned_harvest": 0,
+        "arrivals": 0,
+        "ordinary_need": 12,
+        "seed_use": 0,
+        "closing_stock": 147.737,
+        "adverse_closing_stock": 118.625,
+        "with_potential_commons": 147.737
+      },
+      {
+        "turn": 312,
+        "phase": 9,
+        "harvest": 0,
+        "committed_harvest": 0,
+        "conditional_planned_harvest": 0,
+        "arrivals": 0,
+        "ordinary_need": 12,
+        "seed_use": 0,
+        "closing_stock": 135.589,
+        "adverse_closing_stock": 106.506,
+        "with_potential_commons": 135.589
+      },
+      {
+        "turn": 313,
+        "phase": 0,
+        "harvest": 0,
+        "committed_harvest": 0,
+        "conditional_planned_harvest": 0,
+        "arrivals": 0,
+        "ordinary_need": 12,
+        "seed_use": 10.799999999999999,
+        "closing_stock": 112.653,
+        "adverse_closing_stock": 83.6,
+        "with_potential_commons": 112.653
+      },
+      {
+        "turn": 314,
+        "phase": 1,
+        "harvest": 0,
+        "committed_harvest": 0,
+        "conditional_planned_harvest": 0,
+        "arrivals": 0,
+        "ordinary_need": 12,
+        "seed_use": 0,
+        "closing_stock": 100.541,
+        "adverse_closing_stock": 71.516,
+        "with_potential_commons": 100.541
+      },
+      {
+        "turn": 315,
+        "phase": 2,
+        "harvest": 0,
+        "committed_harvest": 0,
+        "conditional_planned_harvest": 0,
+        "arrivals": 0,
+        "ordinary_need": 12,
+        "seed_use": 0,
+        "closing_stock": 88.44,
+        "adverse_closing_stock": 59.445,
+        "with_potential_commons": 88.44
+      },
+      {
+        "turn": 316,
+        "phase": 3,
+        "harvest": 0,
+        "committed_harvest": 0,
+        "conditional_planned_harvest": 0,
+        "arrivals": 0,
+        "ordinary_need": 12,
+        "seed_use": 0,
+        "closing_stock": 76.352,
+        "adverse_closing_stock": 47.385,
+        "with_potential_commons": 76.352
+      },
+      {
+        "turn": 317,
+        "phase": 4,
+        "harvest": 0,
+        "committed_harvest": 0,
+        "conditional_planned_harvest": 0,
+        "arrivals": 0,
+        "ordinary_need": 12,
+        "seed_use": 0,
+        "closing_stock": 64.275,
+        "adverse_closing_stock": 35.338,
+        "with_potential_commons": 64.275
+      },
+      {
+        "turn": 318,
+        "phase": 5,
+        "harvest": 0,
+        "committed_harvest": 0,
+        "conditional_planned_harvest": 0,
+        "arrivals": 0,
+        "ordinary_need": 12,
+        "seed_use": 0,
+        "closing_stock": 52.211,
+        "adverse_closing_stock": 23.303,
+        "with_potential_commons": 52.211
+      },
+      {
+        "turn": 319,
+        "phase": 6,
+        "harvest": 97.233,
+        "committed_harvest": 0.0,
+        "conditional_planned_harvest": 97.233,
+        "arrivals": 0,
+        "ordinary_need": 12,
+        "seed_use": 0,
+        "closing_stock": 137.392,
+        "adverse_closing_stock": 79.342,
+        "with_potential_commons": 137.392
+      }
+    ],
+    "first_projected_gap": null,
+    "stocks": {
+      "inventory": 159.08700000000002,
+      "operating": 10.8,
+      "granary": 25.0,
+      "aid": 0,
+      "national_reserve": 0,
+      "charity": 0.0,
+      "queued": 0,
+      "cargo": 0,
+      "total": 194.88700000000003
+    },
+    "latest_turn": {
+      "turn": 300,
+      "phase": 7,
+      "farm_production": 77.08500000000001,
+      "commons_production": 0,
+      "seed_use": 0,
+      "losses": 0.099,
+      "ordinary_need": 12,
+      "meals_consumed": 12.0,
+      "closing_stock": 194.88700000000003,
+      "stock_change": 64.98600000000002,
+      "production_margin": 64.986
+    },
+    "primary_farmers": 3,
+    "effective_farm_work": 0.8170916411042943,
+    "farm_support_adult_equivalents": 3.6687000000000003,
+    "resident_adult_equivalents": 3.0,
+    "farmer_adult_equivalents": 3.0,
+    "other_resident_adult_equivalents": 0.0,
+    "support_for_others": 0.6687000000000003,
+    "farmers_own_support_gap": 0,
+    "support_window_turns": 10,
+    "production_margin": 2.674800000000002,
+    "initialization": {
+      "mode": "balanced",
+      "turn": 1,
+      "phase": 8,
+      "prior_private_stock": 0,
+      "synthetic_prior_harvest": 216.0,
+      "declared_pantry_carryover": 0.0,
+      "seed_reserved": 10.8,
+      "area": 1.7999999999999998,
+      "feasibility": {
+        "basic_cycle_requirement": 120,
+        "land_yield_ceiling_before_work_and_shocks": 205.2,
+        "private_bridge_food": 205.20000000000002,
+        "bridge_requirement_before_first_harvest": 96,
+        "private_bridge_sufficient": true,
+        "land_ceiling_sufficient": true,
+        "balanced_mode_requires_postharvest_phase": true
+      }
+    }
+  }
+}

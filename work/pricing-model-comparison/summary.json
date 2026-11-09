@@ -1,0 +1,55 @@
+{
+  "scope": "Synthetic reference-rule comparison; no full-game or auction run",
+  "shock": "Capacity 120 to 60 during turns 10-14, then fully restored",
+  "controls": "Constant costs, neutral producer stock, no paid-price samples",
+  "checkpoints": [
+    {
+      "turn": 0,
+      "capacity": 120,
+      "equilibrium": 10.0,
+      "game_elastic": 10.0,
+      "game_fixed_orders": 10.0,
+      "asymmetric_target": 10.0
+    },
+    {
+      "turn": 14,
+      "capacity": 60,
+      "equilibrium": 16.666666666666668,
+      "game_elastic": 11.6858621902655,
+      "game_fixed_orders": 11.958788023949223,
+      "asymmetric_target": 16.402723957662825
+    },
+    {
+      "turn": 15,
+      "capacity": 120,
+      "equilibrium": 10.0,
+      "game_elastic": 11.494871404324867,
+      "game_fixed_orders": 11.958788023949223,
+      "asymmetric_target": 15.610771920904932
+    },
+    {
+      "turn": 30,
+      "capacity": 120,
+      "equilibrium": 10.0,
+      "game_elastic": 10.219208796361833,
+      "game_fixed_orders": 11.958788023949223,
+      "asymmetric_target": 10.960348522587955
+    },
+    {
+      "turn": 60,
+      "capacity": 120,
+      "equilibrium": 10.0,
+      "game_elastic": 10.004041740817115,
+      "game_fixed_orders": 11.958788023949223,
+      "asymmetric_target": 10.038947913572349
+    },
+    {
+      "turn": 100,
+      "capacity": 120,
+      "equilibrium": 10.0,
+      "game_elastic": 10.000019363793822,
+      "game_fixed_orders": 11.958788023949223,
+      "asymmetric_target": 10.000574582874812
+    }
+  ]
+}
