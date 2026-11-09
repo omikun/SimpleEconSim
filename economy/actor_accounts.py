@@ -431,12 +431,31 @@ def seal_turn(region, turn, event_regions=None):
         delivered_input_units = sum(e['quantity'] for e in delivered_imports)
         wages = sum(e['amount'] for e in own if e['payer_id'] == actor.id
                     and e['kind'] == 'wage')
+        wage_income = sum(e['amount'] for e in cash_own
+                          if e['recipient_id'] == actor.id
+                          and e['kind'] == 'wage')
         other_costs = sum(e['amount'] for e in own if e['payer_id'] == actor.id
                           and e['kind'] in ('freight', 'petition_fee', 'rent', 'tax', 'cash_tax'))
         # Purchases are working inventory. Cost of goods sold needs the later
         # production-consumption posting; never expense purchases twice.
         input_used = sum(e['amount'] for e in own if e['payer_id'] == actor.id
                          and e['kind'] == 'input_consumed')
+        bank_interest_paid = sum(
+            max(0.0, float(e['detail'].get('interest_paid', 0.0)))
+            for e in own if e['payer_id'] == actor.id
+            and e['kind'] == 'bank_loan_repayment')
+        crop_share_rent_paid = sum(
+            e['amount'] for e in own
+            if e['payer_id'] == actor.id and e['kind'] == 'crop_share_rent')
+        crop_share_rent_received = sum(
+            e['amount'] for e in own
+            if e['recipient_id'] == actor.id and e['kind'] == 'crop_share_rent')
+        operating_result = (receipts - wages - other_costs - input_used
+                            - bank_interest_paid
+                            if getattr(actor, 'is_corporation', False)
+                            else receipts + wage_income + crop_share_rent_received
+                            - purchases - other_costs - crop_share_rent_paid
+                            - bank_interest_paid)
         prior = opening.get(actor.id, {
             'cash': 0.0, 'scrip': 0.0, 'bank_deposit': 0.0,
             'bank_debt': 0.0, 'company_debt': 0.0, 'food': 0,
@@ -528,12 +547,6 @@ def seal_turn(region, turn, event_regions=None):
         crop_lien_goods_received = sum(
             e['quantity'] for e in own
             if e['recipient_id'] == actor.id and e['kind'] == 'crop_lien_settlement')
-        crop_share_rent_paid = sum(
-            e['amount'] for e in own
-            if e['payer_id'] == actor.id and e['kind'] == 'crop_share_rent')
-        crop_share_rent_received = sum(
-            e['amount'] for e in own
-            if e['recipient_id'] == actor.id and e['kind'] == 'crop_share_rent')
         crop_share_goods_paid = sum(
             e['quantity'] for e in own
             if e['payer_id'] == actor.id and e['kind'] == 'crop_share_rent')
@@ -661,6 +674,7 @@ def seal_turn(region, turn, event_regions=None):
             'bank_deposit_fx_converted_out': round(
                 bank_deposit_fx_converted_out, 2),
             'bank_loan_repayment_cash': round(bank_loan_repayment, 2),
+            'bank_interest_paid': round(bank_interest_paid, 2),
             'bank_debt_inherited': {
                 currency: round(amount, 2)
                 for currency, amount in sorted(bank_debt_inherited.items())},
@@ -726,6 +740,7 @@ def seal_turn(region, turn, event_regions=None):
             'crop_share_goods_received': round(crop_share_goods_received, 2),
             'sales_cash': round(receipts, 2), 'crop_value': round(crop_value, 2),
             'purchases_cash': round(purchases, 2), 'wages_cash': round(wages, 2),
+            'wage_income_cash': round(wage_income, 2),
             'delivered_input_purchase_cash': round(delivered_input_spend, 2),
             'delivered_input_purchase_units': round(delivered_input_units, 2),
             'delivered_input_unit_price': round(delivered_input_spend / delivered_input_units, 2)
@@ -763,6 +778,7 @@ def seal_turn(region, turn, event_regions=None):
             'input_consumed_cost': round(input_used, 2),
             'operating_result_recorded': round(receipts - wages - other_costs - input_used, 2),
             'operating_result_complete': False,
+            'credit_operating_result': round(operating_result, 2),
             'produced_units': produced,
             'opening_output_stock': prior['inventory'].get(output_name, 0),
             'closing_output_stock': int(actor.inv_get(output, 0)) if output is not None else 0,
@@ -776,6 +792,13 @@ def seal_turn(region, turn, event_regions=None):
                                 for e in cash_own[-30:]],
         })
     region.actor_turn_accounts = accounts
+    actors_by_id = {int(actor.id): actor for actor in getattr(region, 'agents', ())}
+    from economy.credit_policy import actor_result, record_turn_result
+    for row in accounts:
+        actor = actors_by_id.get(int(row['actor_id']))
+        if actor is not None:
+            trailing_result, _observations = actor_result(region, actor.id)
+            record_turn_result(actor, trailing_result)
     region._economic_sealed_turn = int(turn)
     history = getattr(region, 'actor_account_history', [])
     history.extend(accounts)

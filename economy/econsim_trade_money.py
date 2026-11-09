@@ -115,6 +115,17 @@ class Bank():
         return next((r for r in getattr(self, '_attached_regions', [])
                      if any(a is agent for a in getattr(r, 'agents', []))), None)
 
+    def available_credit(self, t, agent, trace_region=None):
+        """Return bank capacity after applying the shared repayment-viability rule."""
+        region = trace_region or self._region_for_account(agent)
+        if getattr(self, 'is_frozen', False):
+            return 0.0
+        from economy.credit_policy import assessment
+        if not assessment(region, agent, t)['allowed']:
+            return 0.0
+        return max(0.0, (self.capital + self.total_deposits)
+                   * (1 - self.reserve_fraction) - self.total_liabilities)
+
     def _record_account_event(self, agent, kind, amount, *, payer=False,
                               recipient=False, detail=None, region=None,
                               turn=None):
@@ -175,6 +186,7 @@ class Bank():
         return self.capital + self.total_deposits - self.total_liabilities
 
     def Borrow(self, t, agent, amount, trace_region=None, *, trace_treasury=True):
+        region = trace_region or self._region_for_account(agent)
         if getattr(self, 'is_frozen', False):
             loginfo(t, "Borrowing blocked: Bank is under Corralito deposit freeze.")
             if trace_region is not None:
@@ -187,6 +199,23 @@ class Bank():
                      inputs={'requested_amount': float(amount), 'reason': 'bank_frozen',
                              'bank_capital': self.capital, 'bank_liabilities': self.total_liabilities,
                              'bank_deposits': self.total_deposits})
+            return 0
+        from economy.credit_policy import assessment, record_borrow
+        credit = assessment(region, agent, t)
+        if not credit['allowed']:
+            if trace_region is not None:
+                from run_trace import emit
+                emit(trace_region, kind='bank_loan_denied', record_class='outcome',
+                     subject={'type': 'tile', 'id': trace_region.name,
+                              'agent_id': getattr(agent, 'id', None)},
+                     metric_id='finance.bank_loan', unit='local_currency',
+                     before=0.0, after=0.0,
+                     inputs={'requested_amount': float(amount),
+                             'reason': credit['reason'],
+                             'recent_operating_result': credit['result'],
+                             'unprofitable_borrow_turns_used': credit['borrow_turns_used'],
+                             'unprofitable_borrow_turns_remaining': 0,
+                             'limit_turns': 20})
             return 0
         requested_amount = float(amount)
         borrowable_amount = ((self.capital + self.total_deposits)
@@ -218,6 +247,7 @@ class Bank():
         agent.loans.append(loan)
         self.loans.append(loan)
         self.total_liabilities += amount
+        record_borrow(region, agent, t, credit)
         self._record_account_event(agent, 'bank_loan', float(amount), recipient=True,
                                    detail={'loan_principal': amount}, region=trace_region)
         credit_event_id = None
@@ -233,6 +263,10 @@ class Bank():
                          'interest_rate': self.interest_rate,
                          'borrower_is_corporation': bool(getattr(agent, 'is_corporation', False)),
                          'borrower_is_government': bool(getattr(agent, 'is_government', False)),
+                         'recent_operating_result': credit['result'],
+                         'credit_reason': credit['reason'],
+                         'unprofitable_borrow_turns_used_before': credit['borrow_turns_used'],
+                         'unprofitable_borrow_turns_limit': 20,
                          'bank_capital': self.capital, 'bank_liabilities_after': self.total_liabilities,
                          'bank_deposits': self.total_deposits})
         finish_change(self, trace_change, 'loan_issued', inputs={
@@ -1107,19 +1141,19 @@ def decide_borrow_deposit(agents, all_goods_price, bank, food_price,
 
 
 def _maybe_borrow_food_money(t, agent, food_price, bank):
-    """Borrow for food if starving and no cash."""
-    from nutrition import food_credit_pressure
-    from random_cache import rand
-    pressure = food_credit_pressure(agent)
-    if agent.output != Goods.food and agent.cash < food_price \
-       and pressure > 0 and rand.random() < pressure:
+    """Borrow for a basic food purchase when cash and deposits are insufficient."""
+    from nutrition import appetite_units
+    essential_cost = max(0, int(appetite_units(agent))) * max(0.0, float(food_price))
+    if (agent.output != Goods.food and not getattr(agent, 'is_government', False)
+            and not getattr(agent, 'is_corporation', False)
+            and agent.cash < essential_cost):
         bank_balance = bank.deposits.get(agent, 0)
         if bank_balance > 0:
-            needed = food_price - agent.cash
+            needed = essential_cost - agent.cash
             bank.Withdraw(agent, min(bank_balance, needed), t=t,
                           reason='food_purchase_liquidity')
-        if agent.cash < food_price:
-            Borrow(t, agent, food_price, bank)
+        if agent.cash < essential_cost:
+            Borrow(t, agent, essential_cost - agent.cash, bank)
 
 
 def _maybe_borrow_inputs(t, agent, bank):

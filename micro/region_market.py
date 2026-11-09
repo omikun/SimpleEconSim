@@ -11,18 +11,20 @@ from region_logistics import all_routes, transport_cost_per_unit
 
 
 def borrow_food(region, agent, food_price, t=None):
-    from nutrition import food_credit_pressure
-    from random_cache import rand
-    pressure = food_credit_pressure(agent)
-    if (agent.output != Goods.food or agent.employer is not None) and agent.cash < food_price \
-       and pressure > 0 and rand.random() < pressure:
+    from nutrition import appetite_units
+    essential_cost = max(0, int(appetite_units(agent))) * max(0.0, float(food_price))
+    if ((agent.output != Goods.food or agent.employer is not None)
+            and not getattr(agent, 'is_government', False)
+            and not getattr(agent, 'is_corporation', False)
+            and agent.cash < essential_cost):
         bank_balance = region.bank.deposits.get(agent, 0)
         if bank_balance > 0:
             region.bank.Withdraw(
-                agent, min(bank_balance, food_price - agent.cash),
+                agent, min(bank_balance, essential_cost - agent.cash),
                 trace_region=region, t=t, reason='food_purchase_liquidity')
-        if agent.cash < food_price:
-            region.bank.Borrow(0, agent, food_price, trace_region=region)
+        if agent.cash < essential_cost:
+            region.bank.Borrow(t or 0, agent, essential_cost - agent.cash,
+                               trace_region=region)
 
 
 def borrow_inputs(region, agent, t=None):
@@ -38,7 +40,7 @@ def borrow_inputs(region, agent, t=None):
             agent, min(bank_balance, cost - agent.cash),
             trace_region=region, t=t, reason='production_input_liquidity')
     if agent.cash < cost:
-        region.bank.Borrow(0, agent, cost - agent.cash, trace_region=region)
+        region.bank.Borrow(t or 0, agent, cost - agent.cash, trace_region=region)
 
 
 def deposit_excess(region, agent, all_goods_price, t=None):

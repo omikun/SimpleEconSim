@@ -211,13 +211,18 @@ def _offer(region, firm, org, strike, employees, t):
     proposed_hours = strike.target_hours
     extra_payroll = max(0.0, proposed_wage - float(firm.wage)) * len(employees)
     required_cash = proposed_wage * len(employees) * 2
-    affordable = firm.cash >= required_cash
+    bank = getattr(region, 'bank', None)
+    credit_capacity = (bank.available_credit(t, firm, trace_region=region)
+                       if bank is not None else 0.0)
+    affordable = firm.cash + credit_capacity >= required_cash
     worthwhile = estimated_lost_revenue > extra_payroll * 2
     _event(region, t, 'owner_decision', firm, strike_id=strike.id,
            message=('Firm offers funded terms.' if affordable and worthwhile
                     else 'Firm waits; proposed terms are unaffordable or exceed forecast benefit.'),
            cash=round(firm.cash, 3), required_cash=round(required_cash, 3),
            proposed_wage=round(proposed_wage, 3), proposed_hours=round(proposed_hours, 3),
+           available_credit=round(credit_capacity, 3),
+           credit_window_turns_used=int(getattr(firm, 'credit_unprofitable_borrow_turns', 0)),
            estimated_lost_revenue=round(estimated_lost_revenue, 3),
            estimated_extra_payroll=round(extra_payroll, 3),
            forecast_is_not_booked_loss=True)
@@ -450,8 +455,14 @@ def transfer_public_food(region, nation, t, firm_id, maximum=6):
     firm = _firm(region, firm_id)
     if strike is None or firm is None or region.owner_nation is not nation:
         return 0
-    nation.government.bind_food_site(region)
-    available = min(int(maximum), int(nation.government.food_at(region)))
+    government = nation.government
+    # Public reserves can sit at another site in the nation. Resolve the
+    # recorded store location, then log the shipment's destination separately.
+    food_site_name = getattr(government, 'food_default_site', None)
+    food_site = next((tile for tile in nation.tiles
+                      if tile.name == food_site_name), region)
+    government.bind_food_site(food_site)
+    available = min(int(maximum), int(government.food_at(food_site)))
     if available <= 0:
         return 0
     people = _people(region)
@@ -462,7 +473,7 @@ def transfer_public_food(region, nation, t, firm_id, maximum=6):
     for recipient in recipients:
         if moved >= available:
             break
-        nation.government.add_food(region, -1)
+        government.add_food(food_site, -1)
         recipient.inv_add(Goods.food, 1)
         moved += 1
         received_ids.append(recipient.id)
@@ -470,12 +481,14 @@ def transfer_public_food(region, nation, t, firm_id, maximum=6):
         _event(region, t, 'public_support_transfer', firm, strike_id=strike.id,
                message=f'Public reserve delivers {moved} food to named strikers.',
                donor_nation=nation.name, recipient_ids=received_ids,
-               food_units=moved, reserve_after=nation.government.food_inventory)
+               food_units=moved, source_region=food_site.name,
+               destination_region=region.name,
+               reserve_after=government.food_inventory)
     return moved
 
 
 def record_payroll_and_review(region, t, cash_before):
-    """Call after actual payroll, before other cash movements."""
+    """Review current wage delivery after payroll and wage-arrears settlement."""
     if getattr(region, '_last_collective_payroll_turn', None) == t:
         return
     region._last_collective_payroll_turn = t
@@ -499,27 +512,47 @@ def record_payroll_and_review(region, t, cash_before):
                 continue
             if t > (strike.ended_turn or t) and t <= (strike.review_turn or t):
                 paid = {}
+                expected = {}
                 shortfall = {}
+                cash_payroll = getattr(firm, 'pay_mode', 'cash') == 'cash'
                 cash_after_payroll = round(firm.cash, 4)
                 for pid in strike.eligible_ids:
                     person = people.get(pid)
                     if person is None or person.employer is not firm:
                         continue
-                    amount = max(0.0, person.cash - cash_before.get(pid, person.cash))
-                    food_price = max(.01, float(region.recipes.get(Goods.food, {}).get('price', 1.0)))
-                    strike.paid_real_sum += amount / food_price
-                    strike.payable_person_periods += 1
+                    nominal = max(0.0, float(getattr(person, 'nominal_wage', 0.0)))
+                    unpaid_current = sum(
+                        max(0.0, float(row.get('amount', 0.0))
+                            - float(row.get('paid_amount', 0.0)))
+                        for row in getattr(firm, 'wage_liabilities', ())
+                        if int(row.get('worker_id', -1)) == int(pid)
+                        and int(row.get('turn', -1)) == int(t)
+                        and str(row.get('status', 'unpaid')).lower()
+                        not in {'paid', 'settled', 'written_off', 'forgiven',
+                                'cancelled', 'inherited'})
+                    amount = (max(0.0, nominal - unpaid_current)
+                              if cash_payroll else 0.0)
+                    expected[pid] = round(nominal, 4)
+                    paid[pid] = round(amount, 4)
+                    if nominal > 1e-9:
+                        agreement = getattr(person, 'labor_agreement', None)
+                        rate = max(1e-9, float(getattr(agreement, 'pay_rate', 0.0)))
+                        worked_fraction = nominal / rate
+                        if worked_fraction > 1e-9:
+                            strike.paid_real_sum += (amount / worked_fraction
+                                                     / max(.01, strike.baseline_food_price))
+                            strike.payable_person_periods += 1
                     strike.delivered_hours_sum += float(getattr(person, 'shift_hours', 0.0))
                     strike.delivered_hours_periods += 1
-                    paid[pid] = round(amount, 4)
-                    promised = float(strike.offered_wage or strike.target_wage)
-                    if amount + 1e-9 < promised:
-                        shortfall[pid] = round(promised - amount, 4)
+                    if amount + 1e-9 < nominal:
+                        shortfall[pid] = round(nominal - amount, 4)
                 _event(region, t, 'payroll_observed', firm, strike_id=strike.id,
-                       message='Actual cash wages and hours recorded for settlement review.',
-                       paid_cash_by_person=paid, food_price=round(region.food_price, 4),
+                       message='Contract wages paid or still owed after payroll and arrears settlement.',
+                       paid_cash_by_person=paid, expected_cash_by_person=expected,
+                       food_price=round(region.food_price, 4),
                        firm_cash_after_payroll=cash_after_payroll,
-                       pay_mode=getattr(firm, 'pay_mode', 'cash'))
+                       pay_mode=getattr(firm, 'pay_mode', 'cash'),
+                       current_turn_arrears_included=True)
                 if shortfall:
                     _event(region, t, 'payroll_breach', firm, strike_id=strike.id,
                            message=f'Cash wages promised in the agreement fall short for {len(shortfall)} workers.',

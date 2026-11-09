@@ -30,6 +30,23 @@ def pay_wages(region, t):
 
     for a in region.agents:
         if a.is_corporation and len(a.employees) > 0:
+            payroll_cash_need = 0.0
+            for employee in a.employees:
+                if (not employee.alive or getattr(employee, 'is_striking', False)
+                        or getattr(employee, 'in_revolt', False)):
+                    continue
+                agreement = ensure_labor_agreement(employee, a, t)
+                payroll_cash_need += max(0.0, float(agreement.pay_rate))
+            if a.cash < payroll_cash_need:
+                shortfall = payroll_cash_need - a.cash
+                deposit = float(region.bank.deposits.get(a, 0.0))
+                if deposit > 0.0:
+                    region.bank.Withdraw(
+                        a, min(deposit, shortfall), trace_region=region, t=t,
+                        reason='contractual_payroll_funding')
+                if a.cash < payroll_cash_need:
+                    region.bank.Borrow(
+                        t, a, payroll_cash_need - a.cash, trace_region=region)
             # If Truck Act enacted, pay_mode is legally mandated as 'cash'
             pay_mode = "cash" if truck_act_enacted else getattr(a, 'pay_mode', 'cash')
 

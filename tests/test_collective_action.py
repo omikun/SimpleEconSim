@@ -19,13 +19,24 @@ from labor_frontier_projection import project
 class CollectiveActionTest(unittest.TestCase):
     def _fixture(self):
         world = create_world(seed=612)
+        # Give the labor scenario a real employed crew before its first tick;
+        # its current setup creates firms but does not assign employees.
+        region = world['tiles'][0]
+        firm = next(a for a in region.agents
+                    if a.alive and a.is_corporation and a.output == Goods.cloth)
+        workers = [a for a in region.agents
+                   if a.alive and not a.is_corporation and not a.is_trader
+                   and not a.is_government and a.employer is None
+                   and not getattr(a, 'military_unit_id', None)
+                   and not getattr(a, 'is_native_child', False)][:2]
+        for worker in workers:
+            worker.employer = firm
+            worker.shift_hours = getattr(firm, 'shift_hours', 8.0)
+            worker.wage = firm.wage
+            firm.employees.append(worker)
         self.assertEqual(step_world(world), [])
-        firm = next(a for region in world['tiles'] for a in region.agents
-                    if a.alive and a.is_corporation and a.employees)
-        region = next(r for r in world['tiles'] if firm in r.agents)
-        # The scenario now hires one worker during its opening turn. Collective
-        # action needs at least two participants, so add an existing free adult
-        # to this fixture instead of depending on a particular hiring cadence.
+        # Collective action needs at least two participants, so add existing
+        # free adults if attrition or migration changed the opening crew.
         while len(firm.employees) < 2:
             worker = next(a for a in region.agents
                           if a.alive and not a.is_corporation and not a.is_trader
