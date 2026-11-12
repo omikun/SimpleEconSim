@@ -89,6 +89,7 @@ class LiveContext:
     cost_of_living: float = 11.25
     food_price: float = 1.0
     source_region: Any = None
+    gameplay_flags: Any = None
 
 
 def Live(t, agents, context: LiveContext):
@@ -119,17 +120,23 @@ def Live(t, agents, context: LiveContext):
     # Public aid and charity get first opportunity; relief precedes consumption
     # and the starvation mortality check, regardless of shuffled agent order.
     from feudal_tribute import feed_estate_residents
-    feed_estate_residents(ctx.source_region, t, agents)
+    if ctx.gameplay_flags is None or ctx.gameplay_flags.feudal_tribute:
+        feed_estate_residents(ctx.source_region, t, agents)
 
     from households import allocate
+    from world_config import FULL_GAMEPLAY_FLAGS
+    flags = FULL_GAMEPLAY_FLAGS if ctx.gameplay_flags is None else ctx.gameplay_flags
+    lifecycle_enabled = flags.household_lifecycle
+    if flags.household_food:
+        if ctx.source_region is not None:
+            allocate(ctx.source_region, t)
+        else:
+            from types import SimpleNamespace
+            allocate(SimpleNamespace(name='Households', agents=agents, _last_turn=t), t)
     if ctx.source_region is not None:
-        allocate(ctx.source_region, t)
         from households import human
         from nutrition import basic_food_units
         ctx.source_region.food_turn_need = sum(basic_food_units(a) for a in agents if human(a))
-    else:
-        from types import SimpleNamespace
-        allocate(SimpleNamespace(name='Households', agents=agents, _last_turn=t), t)
 
     # 2. Career bottleneck analysis
     choices_list = [g for g in ctx.goods if g != Goods.gov]
@@ -165,8 +172,9 @@ def Live(t, agents, context: LiveContext):
             ctx, t, agent, agents, choices_list, bottleneck_weights, number_of_switches
         )
         handle_job_seeking(t, agent, employer_cache, region=ctx.source_region)
-        number_food_consumed = handle_reproduction(ctx, t, agent, agents, new_agents)
-        died = handle_death(ctx, t, agent, agents)
+        if lifecycle_enabled:
+            number_food_consumed = handle_reproduction(ctx, t, agent, agents, new_agents)
+        died = handle_death(ctx, t, agent, agents) if lifecycle_enabled else False
         if died:
             number_dead += 1
             number_dead_starved += 1 if getattr(agent, 'died_of_starvation', False) else 0

@@ -318,13 +318,13 @@ def commission_private_adoption(system, nation, region, firm, candidate, turn, d
 def step_private_adoption(tiles, nations, turn, system=None):
     from innovation import get_innovation_system
     from run_trace import emit
+    from world_config import gameplay_flags_for
     system = system or get_innovation_system()
     owners = {id(n): n for n in nations}
     events = []
     for region in sorted(tiles, key=lambda r: r.name):
         nation = owners.get(id(getattr(region, 'owner_nation', None)))
-        if nation is None or not getattr(region, 'commercial_technology_adoption',
-                                         not getattr(region, 'scenario_owner_policy', False)):
+        if nation is None or not gameplay_flags_for(region).private_technology_adoption:
             continue
         known = system.get_discovered_techs(nation.name)
         if not known:

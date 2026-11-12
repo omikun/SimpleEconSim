@@ -218,10 +218,13 @@ def repoint_traders(region):
                                        'zero_shortfall_count': 0,
                                        'cash_limited_below_one_unit_count': 0}
                                       if trace_enabled else None)
+                from world_config import gameplay_flags_for
+                allow_independent_requests = gameplay_flags_for(
+                    other).independent_input_requests
                 for company in getattr(other, 'agents', ()):
                     corporate = getattr(company, 'is_corporation', False)
                     independent = (
-                        getattr(other, 'independent_input_requests_enabled', True)
+                        allow_independent_requests
                         and not corporate
                         and not getattr(company, 'is_government', False)
                         and not getattr(company, 'is_trader', False)

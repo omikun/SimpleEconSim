@@ -123,7 +123,7 @@ class Province:
             out.extend(r.agents)
         return out
 
-    def step(self, t):
+    def step(self, t, gameplay_flags=None):
         """Run one province turn.
 
         Order mirrors the legacy per-tile cadence but runs the SHARED
@@ -145,13 +145,16 @@ class Province:
             region._last_turn = t
             begin_turn(region, t)
         from food_logistics import deliver_province_food, dispatch_province_food
-        if getattr(self, '_food_relief_prepared_turn', None) != t:
+        from world_config import FULL_GAMEPLAY_FLAGS
+        flags = FULL_GAMEPLAY_FLAGS if gameplay_flags is None else gameplay_flags
+        if (flags.national_food_logistics and flags.food_relief
+                and getattr(self, '_food_relief_prepared_turn', None) != t):
             deliver_province_food(self, t)
             dispatch_province_food(self, t)
         if charity is not None and bank is not None:
             charity.collect_donations(t, all_agents, bank, regions=self.tiles)
         for r in self.tiles:
-            r.step_economy(t)
+            r.step_economy(t, gameplay_flags=gameplay_flags)
         if bank is not None:
             bank.PayDepositInterest(all_agents,
                                     trace_region=self.tiles[0] if self.tiles else None)

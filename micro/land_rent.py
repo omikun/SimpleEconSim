@@ -21,6 +21,9 @@ from livelihood_access import assess_obligation
 
 def assess_rents(region, t: int) -> tuple[float, list[dict]]:
     """Assess cash rent for named plot tenants without transferring money."""
+    from world_config import gameplay_flags_for
+    if not gameplay_flags_for(region).land_rent:
+        return 0.0, []
     tenure = getattr(region, 'tenure', None)
     if tenure is None:
         return 0.0, []
@@ -59,6 +62,11 @@ def collect_rents(region, t: int) -> tuple[float, float, list[dict]]:
     Returns:
       (total_collected, total_arrears, events)
     """
+    from world_config import gameplay_flags_for
+    if not gameplay_flags_for(region).land_rent:
+        arrears = sum(claim.balance for claim in getattr(region, 'cash_obligations', ())
+                      if claim.origin == 'rent' and claim.status == 'active')
+        return 0.0, arrears, []
     tenure = getattr(region, 'tenure', None)
     if tenure is None or not tenure.plots:
         return 0.0, 0.0, []

@@ -201,6 +201,8 @@ def _copy_prefix(source, target, boundary):
 
 def save(server, directory):
     """Return a new manifest only after its state and trace pair are durable."""
+    from world_config import GAMEPLAY_FLAGS_VERSION
+
     directory = Path(directory).resolve()
     directory.mkdir(parents=True, exist_ok=True)
     with server._lock:
@@ -242,6 +244,9 @@ def save(server, directory):
         _publish(state_path, payload)
         manifest = {'version': VERSION, 'python': platform.python_version(),
                     'numpy': np.__version__, 'sources': sources,
+                    'gameplay_profile': getattr(server, 'gameplay_profile', 'custom'),
+                    'gameplay_flags_version': GAMEPLAY_FLAGS_VERSION,
+                    'gameplay_flags': server.gameplay_flags.as_dict(),
                     'run_id': trace.run_id, 'branch_id': trace.branch_id,
                     'turn': server.turn, 'epoch': clock.get('epoch', 0),
                     'next_sequence': clock['next'], 'trace_bytes': boundary,
@@ -256,6 +261,8 @@ def save(server, directory):
 
 def restore(manifest_path, branch_directory):
     """Verify a committed pair and fork; the original source is never changed."""
+    from world_config import GAMEPLAY_FLAGS_VERSION
+
     manifest_path = Path(manifest_path).resolve()
     manifest = json.loads(manifest_path.read_text())
     if (manifest['version'] != VERSION or manifest['python'] != platform.python_version()
@@ -285,6 +292,13 @@ def restore(manifest_path, branch_directory):
     with _graph_recursion_budget():
         state = pickle.loads(payload)
     server = state['server']
+    if manifest.get('gameplay_flags_version') is not None:
+        if manifest['gameplay_flags_version'] != GAMEPLAY_FLAGS_VERSION:
+            raise ValueError('checkpoint gameplay flags version mismatch')
+        if manifest.get('gameplay_flags') != server.gameplay_flags.as_dict():
+            raise ValueError('checkpoint gameplay flags do not match saved state')
+        if manifest.get('gameplay_profile') != getattr(server, 'gameplay_profile', 'custom'):
+            raise ValueError('checkpoint gameplay profile does not match saved state')
     trace = server.run_trace
     clock = server.tiles[0]._collective_trace_clock
     if (trace.run_id != manifest['run_id'] or trace.count != manifest['trace_rows']

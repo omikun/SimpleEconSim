@@ -3,6 +3,7 @@ import copy
 import pickle
 import unittest
 from collections import defaultdict
+from dataclasses import replace
 
 from agent import Agent, initialize_agent
 from goods import Goods
@@ -15,6 +16,7 @@ from households import rebuild, allocate
 from demographics_consumption import consume_daily_food
 from work_allocation import finish
 from foraging import forage_tile
+from world_config import FULL_GAMEPLAY_FLAGS
 
 
 def economy(count=3, *, commons=0):
@@ -413,7 +415,7 @@ class FoodEconomyTests(unittest.TestCase):
         from buildings import Building, BUILDING_RECIPES
         from agriculture import requirements
         plain = economy(1)
-        plain.scenario_owner_policy = True  # Hold skill accumulation fixed.
+        plain._gameplay_flags = replace(FULL_GAMEPLAY_FLAGS, abundance=False)
         domain_turn(plain, 1)
         powered = copy.deepcopy(plain)
         machine = Building('mechanized_harvesting_prototype',

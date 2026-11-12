@@ -94,7 +94,8 @@ def canonical_state(tiles,nations,*,extra=None):
         if isinstance(value,str):return text(value)
         if isinstance(value,np.generic):return encode(value.item())
         if isinstance(value,bytes):return {'bytes_sha256':hashlib.sha256(value).hexdigest(),'length':len(value)}
-        if isinstance(value,(type,types.BuiltinFunctionType,types.ModuleType)):
+        if isinstance(value,(type,types.BuiltinFunctionType,types.ModuleType,
+                             types.MemberDescriptorType,types.GetSetDescriptorType)):
             return {'symbol':getattr(value,'__module__','')+'.'+getattr(value,'__qualname__',getattr(value,'__name__',type(value).__qualname__))}
         if isinstance(value,types.MethodType):return {'method':encode(value.__func__),'self':encode(value.__self__)}
         if isinstance(value,tuple):return {'tuple':[encode(item) for item in value]}
@@ -168,7 +169,8 @@ def canonical_state(tiles,nations,*,extra=None):
                 to_discover.extend((cell.cell_contents,scope) for cell in value.__closure__ or ())
             continue
         if isinstance(value,(str,bytes,int,float,bool,type(None),Enum,np.ndarray,np.generic,
-                             type,types.BuiltinFunctionType,types.ModuleType,re.Pattern)):
+                             type,types.BuiltinFunctionType,types.ModuleType,
+                             types.MemberDescriptorType,types.GetSetDescriptorType,re.Pattern)):
             continue
         if id(value) in discovered:continue
         discovered.add(id(value))

@@ -1,5 +1,6 @@
 """Behavioral checks for the response gaps found in the twenty-turn trace."""
 import json
+from dataclasses import replace
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
@@ -11,6 +12,7 @@ from province import Province
 from region import Region
 from region_logistics import repoint_traders
 from food_logistics import dispatch_province_food, deliver_province_food, prepare_food_relief
+from world_config import FULL_GAMEPLAY_FLAGS
 
 
 class MemoryTrace:
@@ -82,10 +84,11 @@ class EconomicPolicyResponseTests(unittest.TestCase):
     def test_artisan_input_request_changes_choice_between_profitable_routes(self):
         source, destination, artisan, trader = route_fixture()
         with patch('terrain_edges.get_edge_manager', return_value=None):
-            destination.independent_input_requests_enabled = False
+            destination._gameplay_flags = replace(
+                FULL_GAMEPLAY_FLAGS, independent_input_requests=False)
             repoint_traders(source)
             self.assertEqual(trader.trade_good, Goods.furniture)
-            destination.independent_input_requests_enabled = True
+            destination._gameplay_flags = FULL_GAMEPLAY_FLAGS
             repoint_traders(source)
         self.assertEqual(trader.trade_good, Goods.wood)
         decision = next(r for r in reversed(source._run_trace.rows)
@@ -141,7 +144,8 @@ class EconomicPolicyResponseTests(unittest.TestCase):
                 if gate == 'player':
                     nation.ai = None
                 if gate == 'disabled':
-                    nation.national_food_logistics_enabled = False
+                    nation._gameplay_flags = replace(
+                        FULL_GAMEPLAY_FLAGS, national_food_logistics=False)
                 if gate == 'cash':
                     provinces[0].gov.agent.cash = 0
                     provinces[0].bank.deposits.clear()

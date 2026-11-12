@@ -44,12 +44,24 @@ def _national_tiles(province):
 
 
 def national_relief_enabled(nation):
-    return (getattr(nation, 'ai', None) is not None
-            and getattr(nation, 'national_food_logistics_enabled', True))
+    from world_config import gameplay_flags_for
+    return (gameplay_flags_for(nation).national_food_logistics
+            and getattr(nation, 'ai', None) is not None)
+
+
+def provincial_relief_enabled(province):
+    from world_config import gameplay_flags_for
+    tile = next(iter(getattr(province, 'tiles', ())), None)
+    owner = tile if tile is not None else province
+    return gameplay_flags_for(owner).food_relief
 
 
 def prepare_food_relief(provinces, turn):
     """Arrive everywhere before any district eats; then plan new shipments."""
+    if provinces and not provincial_relief_enabled(provinces[0]):
+        for province in provinces:
+            province._food_relief_prepared_turn = turn
+        return
     from economy.actor_accounts import begin_turn
     for province in provinces:
         for tile in province.tiles:
@@ -154,6 +166,8 @@ def _shipment_id(province, shipment, index):
 
 def deliver_province_food(province, turn):
     """Unload only shipments whose physical travel time has elapsed."""
+    if not provincial_relief_enabled(province):
+        return
     pending = []
     for shipment_index, shipment in enumerate(getattr(province, 'food_shipments', [])):
         if shipment['arrival_turn'] > turn:
@@ -250,6 +264,8 @@ def deliver_province_food(province, turn):
 
 def dispatch_province_food(province, turn):
     """Levy local surplus, pay haulers, and send grain to a hungry district."""
+    if not provincial_relief_enabled(province):
+        return []
     if not province.tiles:
         return []
     if not hasattr(province, 'food_shipments'):

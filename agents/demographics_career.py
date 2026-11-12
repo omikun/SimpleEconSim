@@ -103,8 +103,8 @@ def handle_job_seeking(t, agent, employer_cache, region=None):
     """Legacy entry point; no second individual hiring pass."""
     if region is not None:
         from career_transitions import step_careers
-        step_careers(region, t, independent=getattr(
-            region, 'labor_mobility_enabled', not getattr(region, 'scenario_owner_policy', False)))
+        from world_config import gameplay_flags_for
+        step_careers(region, t, independent=gameplay_flags_for(region).career_mobility)
 
 
 def handle_career_switching(ctx, t, agent, agents,
@@ -123,7 +123,8 @@ def handle_career_switching(ctx, t, agent, agents,
                             record_class='outcome')
     if region is not None:
         from career_transitions import step_careers
-        result = step_careers(region, t, independent=getattr(
-            region, 'labor_mobility_enabled', not getattr(region, 'scenario_owner_policy', False)))
+        from world_config import gameplay_flags_for
+        result = step_careers(region, t,
+                              independent=gameplay_flags_for(region).career_mobility)
         number_of_switches += result.get('switched', 0)
     return 0, number_of_switches

@@ -113,6 +113,11 @@ def remove_access(region, person_id, plot_id=None):
 
 def assess_obligation(region, debtor_id, creditor_id, origin, amount, due_turn,
                       interest_rate=0.0, collateral_plot_id=None):
+    from world_config import gameplay_flags_for
+    flags = gameplay_flags_for(region)
+    if ((origin == 'rent' and not flags.land_rent)
+            or (origin == 'advance' and not flags.crop_credit)):
+        return None
     _ensure(region)
     amount = max(0.0, float(amount))
     if amount <= 0 or debtor_id == creditor_id:
@@ -141,10 +146,15 @@ def assess_obligation(region, debtor_id, creditor_id, origin, amount, due_turn,
 
 
 def due_cash_for(person_id, region, turn):
+    from world_config import gameplay_flags_for
+    flags = gameplay_flags_for(region)
     _ensure(region)
     total = 0.0
     for claim in region.cash_obligations:
-        if claim.debtor_id != int(person_id) or claim.status != 'active' or claim.due_turn > turn:
+        if (claim.debtor_id != int(person_id) or claim.status != 'active'
+                or claim.due_turn > turn
+                or (claim.origin == 'rent' and not flags.land_rent)
+                or (claim.origin == 'advance' and not flags.crop_credit)):
             continue
         projected = claim.balance * (1.0 + claim.interest_rate if claim.last_accrued_turn < turn else 1.0)
         total += projected
@@ -152,8 +162,13 @@ def due_cash_for(person_id, region, turn):
 
 
 def accrue_obligations(region, turn):
+    from world_config import gameplay_flags_for
+    flags = gameplay_flags_for(region)
     _ensure(region)
     for claim in region.cash_obligations:
+        if ((claim.origin == 'rent' and not flags.land_rent)
+                or (claim.origin == 'advance' and not flags.crop_credit)):
+            continue
         if claim.status == 'active' and claim.due_turn <= turn and claim.last_accrued_turn < turn:
             claim.balance *= (1.0 + claim.interest_rate)
             claim.last_accrued_turn = turn
@@ -162,12 +177,17 @@ def accrue_obligations(region, turn):
 def settle_obligations(region, turn, *,
                       settlement_trace_event_ids_by_origin=None,
                       payment_trace_event_ids_by_origin=None):
+    from world_config import gameplay_flags_for
+    flags = gameplay_flags_for(region)
     _ensure(region)
     prior_balances = {claim.id: float(claim.balance) for claim in region.cash_obligations}
     accrue_obligations(region, turn)
     by_id = {int(a.id): a for a in getattr(region, 'agents', [])}
     events = []
     for claim in sorted(region.cash_obligations, key=lambda c: c.id):
+        if ((claim.origin == 'rent' and not flags.land_rent)
+                or (claim.origin == 'advance' and not flags.crop_credit)):
+            continue
         if claim.status != 'active' or claim.due_turn > turn or claim.last_settled_turn == turn:
             continue
         debtor, creditor = by_id.get(claim.debtor_id), by_id.get(claim.creditor_id)

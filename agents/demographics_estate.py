@@ -1624,6 +1624,7 @@ def handle_death(ctx, t, agent, agents):
             adjusted_prob *= crowding_factor
 
         # P2: Physiological health attrition increases mortality from industrial disease / wear
+        flags = getattr(ctx, 'gameplay_flags', None)
         attrition = getattr(agent, 'health_attrition', 0.0)
         if attrition > 0.0:
             adjusted_prob *= (1.0 + min(3.0, attrition * 1.5))
@@ -1635,7 +1636,8 @@ def handle_death(ctx, t, agent, agents):
         probability_without_disease = adjusted_prob
 
         # P3: Active epidemic diseases compound mortality risk
-        active_dis = getattr(agent, 'diseases', []) or []
+        active_dis = (getattr(agent, 'diseases', []) or []
+                      if flags is None or flags.disease else [])
         if active_dis:
             if 'pestilence' in active_dis:
                 # Acute lethal plague: 35% base mortality per turn, scaled by hunger

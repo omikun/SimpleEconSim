@@ -839,6 +839,8 @@ def distribute_profits(region, t):
 
 def collect_tax(region, t):
     """Budget-balanced taxation with deficit financing."""
+    from world_config import gameplay_flags_for
+    taxation_enabled = gameplay_flags_for(region).taxation
     if getattr(region, 'province', None) is not None \
             and not getattr(region, '_seat_gov_agent', True):
         return
@@ -923,8 +925,9 @@ def collect_tax(region, t):
     living_count = None
     total_taxable = 0.0
     effective_rate = None
-    assessment_reason = 'no_reserve_deficit'
-    if deficit > 0:
+    assessment_reason = ('no_reserve_deficit' if taxation_enabled
+                         else 'taxation_disabled')
+    if deficit > 0 and taxation_enabled:
         living = [a for a in region.agents if a.alive]
         living_count = len(living)
         assessment_reason = 'population_at_most_ten'

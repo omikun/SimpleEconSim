@@ -11,7 +11,7 @@ Coordinates the multi-layered turn pipeline across:
 
 from goods import Goods
 import forex as fx
-from world_trade import pending_imports, resolve_parked, settle_trade, desk_for
+from world_trade import pending_imports, resolve_parked
 from regime import step_regime
 from migration import run_migrations
 from trade_settle import settle_wilderness
@@ -21,16 +21,19 @@ from army import step_armies
 from diplomacy import get_diplomacy
 from war_logic import apply_political_shocks, update_wars
 import ledger
+from world_config import FULL_GAMEPLAY_FLAGS
 
 
 def step_turn(t: int, tiles: list, nations: list = None,
               pair_orders: list = None, currencies: list = None,
-              on_event=None, ledger_exempt: bool = True, on_phase=None):
+              on_event=None, ledger_exempt: bool = True, on_phase=None,
+              gameplay_flags=None):
     """Run one canonical simulation turn across all hierarchical layers.
 
     Returns (violations, claim_events) where violations is a list of
     (t, currency, unaccounted_shift) tuples.
     """
+    flags = FULL_GAMEPLAY_FLAGS if gameplay_flags is None else gameplay_flags
     from collective_trace_clock import attach_clock
     trace_clock = attach_clock(tiles)
     if trace_clock is not None:
@@ -38,6 +41,8 @@ def step_turn(t: int, tiles: list, nations: list = None,
         trace_clock['phase'] = 'strategy'
     if nations is None:
         nations = []
+    for participant in (*tiles, *nations):
+        participant._gameplay_flags = flags
     for nation in nations:
         if nation.tiles:
             nation.government.bind_food_site(nation.tiles[0])
@@ -47,15 +52,17 @@ def step_turn(t: int, tiles: list, nations: list = None,
     from food_audit import open_turn as open_food_audit
     food_audit_opening = open_food_audit(tiles, nations, t)
     from migration import arrive_subsistence_moves
-    arrive_subsistence_moves(t, tiles)
+    if flags.migration:
+        arrive_subsistence_moves(t, tiles)
     # Deliver previously dispatched cargo before any region plans or eats.
-    advanced_routes = set()
-    for tile in tiles:
-        for route in tile._all_routes():
-            if id(route) not in advanced_routes:
-                advanced_routes.add(id(route))
-                route.advance()
-                route.deliver_pending()
+    if flags.regional_trade:
+        advanced_routes = set()
+        for tile in tiles:
+            for route in tile._all_routes():
+                if id(route) not in advanced_routes:
+                    advanced_routes.add(id(route))
+                    route.advance()
+                    route.deliver_pending()
     from food_economy import begin_turn as begin_food_turn
     for tile in tiles:
         if not getattr(tile, 'wilderness', False):
@@ -94,16 +101,18 @@ def step_turn(t: int, tiles: list, nations: list = None,
     diplomacy = get_diplomacy()
 
     # 0a. AI Sovereign Decisions (submit intents)
-    for n in nations:
-        ai = getattr(n, 'ai', None)
-        if ai is not None and hasattr(ai, 'decide_turn'):
-            ai.decide_turn(t, tiles, nations, diplomacy)
-            from production_policy import decide_nation
-            decide_nation(n, t)
+    if flags.nation_ai:
+        for n in nations:
+            ai = getattr(n, 'ai', None)
+            if ai is not None and hasattr(ai, 'decide_turn'):
+                ai.decide_turn(t, tiles, nations, diplomacy)
+                from production_policy import decide_nation
+                decide_nation(n, t)
 
     # 0b. Strategic Intents & Construction Projects
     if nations:
-        step_intents_and_construction(t, tiles, nations, on_event=on_event)
+        step_intents_and_construction(t, tiles, nations, on_event=on_event,
+                                      gameplay_flags=flags)
     treasury_boundary(tiles, nations, 'projects')
     if on_phase:
         on_phase('projects')
@@ -114,11 +123,12 @@ def step_turn(t: int, tiles: list, nations: list = None,
     # 1. Gather pending cross-region imports
     for r in tiles:
         pending = {}
-        for other in tiles:
-            if other is r or other not in r.neighbors.values():
-                continue
-            for g, entries in pending_imports(r, other).items():
-                pending.setdefault(g, []).extend(entries)
+        if flags.regional_trade:
+            for other in tiles:
+                if other is r or other not in r.neighbors.values():
+                    continue
+                for g, entries in pending_imports(r, other).items():
+                    pending.setdefault(g, []).extend(entries)
         r.pending_imports = pending
         r._auction_import_sales = {}
         r._auction_import_sales_by_source = {}
@@ -130,14 +140,14 @@ def step_turn(t: int, tiles: list, nations: list = None,
     _provinces = [p for n in nations for p in getattr(n, 'provinces', [])]
     _prov_tiles = {r.name: r for p in _provinces for r in p.tiles}
     from food_logistics import national_relief_enabled, prepare_food_relief
-    if _provinces:
+    if (_provinces and flags.national_food_logistics and flags.food_relief):
         prepare_food_relief(_provinces, t)
     for p in _provinces:
-        p.step(t)
+        p.step(t, gameplay_flags=flags)
     for r in tiles:
         if r.name in _prov_tiles:
             continue
-        r.step(t)
+        r.step(t, gameplay_flags=flags)
     if on_phase:
         on_phase('local')
     treasury_boundary(tiles, nations, 'local')
@@ -147,76 +157,27 @@ def step_turn(t: int, tiles: list, nations: list = None,
         trace_clock['phase'] = 'trade'
     # 3b. Inter-regional trade epidemic transmission (The Great Pestilence)
     from disease import step_trade_epidemic_transmission
-    step_trade_epidemic_transmission(tiles, t)
+    if flags.disease and flags.trade_epidemic_spread:
+        step_trade_epidemic_transmission(tiles, t)
 
     # 4. Re-route parked goods
-    resolve_parked(tiles)
+    if flags.regional_trade:
+        resolve_parked(tiles)
 
     # 5. Settle bilateral trade between paired regions
-    trade_exports_by_tile = {region.name: [] for region in tiles}
-    for r, other in pair_orders:
-        settle_trade(t, other, r)
-        if r.name not in trade_exports_by_tile:
-            continue
-        partner_currency = getattr(other, 'home_currency', None)
-        home_currency = getattr(r, 'home_currency', None)
-        source_sales_by_good = getattr(
-            other, '_auction_import_sales_by_source', {})
-        pair_quantity = 0
-        partner_value = 0.0
-        source_sale_event_ids = []
-        good_rows = []
-        for good in (Goods.food, Goods.wood, Goods.furniture):
-            source_rows = source_sales_by_good.get(good)
-            if source_rows is None:
-                quantity, value = getattr(other, '_auction_import_sales', {}).get(
-                    good, (0, 0.0))
-                source_event_ids = []
-            else:
-                source_row = source_rows.get(r.name, {})
-                quantity = int(source_row.get('quantity', 0))
-                value = float(source_row.get('value', 0.0))
-                source_event_ids = list(source_row.get('event_ids', ()))
-            pair_quantity += int(quantity)
-            partner_value += float(value)
-            source_sale_event_ids.extend(source_event_ids)
-            good_rows.append({'good': good.name, 'quantity': int(quantity),
-                              'value': float(value),
-                              'sale_event_ids': source_event_ids})
-        if home_currency == partner_currency:
-            conversion_rate = 1.0
-            conversion_basis = 'same_currency'
-        elif home_currency is None or partner_currency is None:
-            conversion_rate = 1.0
-            conversion_basis = 'parity_assumed_missing_currency'
-        else:
-            desk = desk_for(r, other)
-            if desk is None:
-                conversion_rate = 1.0
-                conversion_basis = 'parity_assumed_no_source_desk'
-            else:
-                conversion_rate = float(desk.buy_rate())
-                conversion_basis = 'source_desk_current_buy_rate'
-        trade_exports_by_tile[r.name].append({
-            'partner_tile': other.name,
-            'partner_currency': partner_currency,
-            'home_currency': home_currency,
-            'quantity': pair_quantity,
-            'value_in_partner_currency': partner_value,
-            'conversion_rate_to_home': conversion_rate,
-            'conversion_basis': conversion_basis,
-            'value_in_home_currency': partner_value * conversion_rate,
-            'goods': good_rows,
-            'source_sale_event_ids': source_sale_event_ids})
+    from trade_flow import settle_pairs
+    trade_exports_by_tile = settle_pairs(
+        t, tiles, pair_orders, enabled=flags.regional_trade)
 
     # 6. Cycle all forex markets & convert non-trader foreign wallets
-    fx.cycle_all_markets(tiles, t)
-    for r in tiles:
-        if getattr(r, 'owner_nation', None) is not None:
-            fx.convert_non_trader_wallets(r.agents, r, t)
+    if flags.forex:
+        fx.cycle_all_markets(tiles, t)
+        for r in tiles:
+            if getattr(r, 'owner_nation', None) is not None:
+                fx.convert_non_trader_wallets(r.agents, r, t)
 
     # 7. Migrations
-    mig_events = run_migrations(t, tiles)
+    mig_events = run_migrations(t, tiles) if flags.migration else []
     # Movement can invalidate an employer's cached worker list even when the
     # person's employment reference was already cleared. Keep both sides of
     # the contract consistent at the end of the migration phase.
@@ -230,7 +191,8 @@ def step_turn(t: int, tiles: list, nations: list = None,
                      f"Migration planned a{ev['agent_id']} {ev['from']} -> {ev['to']}; arrival next turn")
 
     # 8. Claims check & application
-    claim_events = check_and_apply_claims(t, tiles, nations) if nations else []
+    claim_events = (check_and_apply_claims(t, tiles, nations)
+                    if nations and flags.frontier_claims else [])
     if on_event:
         for ev in claim_events:
             if ev.get('event') == 'FRONTIER_CLAIM_REPELLED':
@@ -241,16 +203,17 @@ def step_turn(t: int, tiles: list, nations: list = None,
                          f"({ev.get('origin_count', 0)}/{ev.get('pop', 0)} {ev.get('share', 0.0)*100:.1f}%)")
 
     # 9. Trader wilderness settlement
-    for r in tiles:
-        if getattr(r, 'owner_nation', None) is None or not r.trader_agents:
-            continue
-        for other in r.neighbors.values():
-            if not getattr(other, 'wilderness', False):
+    if flags.regional_trade:
+        for r in tiles:
+            if getattr(r, 'owner_nation', None) is None or not r.trader_agents:
                 continue
-            if not any(getattr(a, 'is_homesteader', False) for a in other.agents):
-                continue
-            for trader in r.trader_agents:
-                settle_wilderness(trader, other, t, source_region=r)
+            for other in r.neighbors.values():
+                if not getattr(other, 'wilderness', False):
+                    continue
+                if not any(getattr(a, 'is_homesteader', False) for a in other.agents):
+                    continue
+                for trader in r.trader_agents:
+                    settle_wilderness(trader, other, t, source_region=r)
     if on_phase:
         on_phase('trade')
     treasury_boundary(tiles, nations, 'trade')
@@ -258,15 +221,16 @@ def step_turn(t: int, tiles: list, nations: list = None,
     # 10. National Regimes (elections, coups, legitimacy)
     if trace_clock is not None:
         trace_clock['phase'] = 'regime'
-    for n in nations:
-        apply_political_shocks(diplomacy, n, t)
-        step_regime(n, t)
+    if flags.regime:
+        for n in nations:
+            apply_political_shocks(diplomacy, n, t)
+            step_regime(n, t)
     if on_phase:
         on_phase('regime')
     treasury_boundary(tiles, nations, 'regime')
 
     # 10b. Military Upkeep & Supplies
-    if nations:
+    if nations and flags.military:
         army_events = step_armies(tiles, nations, t)
         if on_event:
             for ev in army_events:
@@ -284,15 +248,15 @@ def step_turn(t: int, tiles: list, nations: list = None,
 
     # The next AI turn reads a snapshot of completed battles, politics and
     # supplies; no side gets an advantage from nation iteration order.
-    if nations:
+    if nations and flags.wars:
         update_wars(diplomacy, nations, t)
 
     # 10c. Global Diplomacy & Relations Drift
-    if nations:
+    if nations and flags.diplomacy:
         diplomacy.update_relations(tiles, nations, t)
 
     # 10d. Induced Innovation, Learning-by-Doing & Trade Diffusion
-    if nations:
+    if nations and flags.innovation:
         from innovation import step_innovation
         inno_events = step_innovation(tiles, nations, pair_orders, t)
         if on_event:
@@ -301,23 +265,25 @@ def step_turn(t: int, tiles: list, nations: list = None,
 
     # 10e. Popular Resistance Escalation & Commune Formation
     world_ctx = {'tiles': tiles, 'nations': nations, 'pair_orders': pair_orders}
-    try:
-        from popular_resistance import get_popular_resistance_manager
-        res_events = get_popular_resistance_manager().step_popular_resistance(world_ctx, t)
-        if on_event and res_events:
-            for ev in res_events:
-                on_event(t, ev.get('kind', 'RESISTANCE'), ev.get('msg', ''))
-    except Exception:
-        pass
+    if flags.popular_resistance:
+        try:
+            from popular_resistance import get_popular_resistance_manager
+            res_events = get_popular_resistance_manager().step_popular_resistance(world_ctx, t)
+            if on_event and res_events:
+                for ev in res_events:
+                    on_event(t, ev.get('kind', 'RESISTANCE'), ev.get('msg', ''))
+        except Exception:
+            pass
     if on_phase:
         on_phase('resistance')
 
     # 10f. Financial Imperialism & Core-Periphery Tracking
-    try:
-        from imperialism import get_imperialism_manager
-        get_imperialism_manager().step_imperialism(world_ctx, t)
-    except Exception:
-        pass
+    if flags.imperialism:
+        try:
+            from imperialism import get_imperialism_manager
+            get_imperialism_manager().step_imperialism(world_ctx, t)
+        except Exception:
+            pass
 
     # 11. Forex desks update & PPP tracking
     if trace_clock is not None:
@@ -325,11 +291,16 @@ def step_turn(t: int, tiles: list, nations: list = None,
     for r, other in pair_orders:
         desk = r.forex_desks.get(other.name)
         if desk is not None:
-            ppp = max(0.1, other.cost_of_living) / max(0.1, r.cost_of_living)
-            desk.update(t, bank=r.bank, fx_regime='managed', ppp_target=ppp,
-                        trace_region=r)
-            if getattr(r, 'destination_region', None) is other:
-                desk.save_rate(r)
+            if flags.forex:
+                ppp = max(0.1, other.cost_of_living) / max(0.1, r.cost_of_living)
+                desk.update(t, bank=r.bank, fx_regime='managed', ppp_target=ppp,
+                            trace_region=r)
+                if getattr(r, 'destination_region', None) is other:
+                    desk.save_rate(r)
+            else:
+                reserves = (r.bank.foreign_reserves.get(desk.other, 0.0)
+                            if getattr(r, 'bank', None) is not None else 0.0)
+                desk.log.append((t, desk.mid, reserves))
 
     # 12. Currency Audits & Ledger Destruction Accounting
     treasury_boundary(tiles, nations, 'forex_and_diplomacy')

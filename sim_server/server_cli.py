@@ -17,6 +17,8 @@ if project_root not in sys.path:
 
 from sim_server import SimServer
 from sim_server.protocol import CommandType, CommandMessage
+from world_config import (GAMEPLAY_FLAG_NAMES, describe_gameplay_flags,
+                          resolve_gameplay_flags)
 
 
 def main():
@@ -32,7 +34,21 @@ def main():
     parser.add_argument('--topology', type=str, default='voronoi', choices=['voronoi', 'hex'],
                         help="World topology: 'voronoi' (irregular polygons) or 'hex' (honeycomb)")
     parser.add_argument('--scenario', choices=['labor-frontier-rivalry', 'supply-rivalry'], default=None)
+    parser.add_argument('--disable-mechanism', action='append', default=[],
+                        choices=sorted(GAMEPLAY_FLAG_NAMES), metavar='NAME',
+                        help='Disable one gameplay mechanism for this run; repeatable')
+    parser.add_argument('--profile', default='full', metavar='PROFILE',
+                        help='Gameplay profile: full, core, or isolate:MECHANISM')
     args = parser.parse_args()
+
+    scenario_id = {'labor-frontier-rivalry': 'labor_frontier_rivalry',
+                   'supply-rivalry': 'supply_rivalry'}.get(args.scenario)
+    try:
+        gameplay_flags = resolve_gameplay_flags(
+            profile=args.profile, disabled=args.disable_mechanism,
+            scenario_id=scenario_id)
+    except ValueError as error:
+        parser.error(str(error))
 
     print("==================================================")
     print(" Call of Capital (CoC) Simulation Server CLI      ")
@@ -41,8 +57,10 @@ def main():
 
     server = SimServer(seed=args.seed, terrain_seed=args.terrain_seed, nation_seed=args.nation_seed,
                        topology=args.topology,
-                       scenario_id={'labor-frontier-rivalry': 'labor_frontier_rivalry',
-                                    'supply-rivalry': 'supply_rivalry'}.get(args.scenario))
+                       gameplay_flags=gameplay_flags,
+                       gameplay_profile=args.profile,
+                       scenario_id=scenario_id)
+    print(f"[Gameplay] {describe_gameplay_flags(server.gameplay_profile, server.gameplay_flags)}")
     print(f"[Server] Initialized world with {len(server.tiles)} tiles, {len(server.nations)} nations.")
 
     def on_server_event(ev_type, data):

@@ -560,17 +560,17 @@ class Region:
     # Stepper and Lifecycle Delegations
     # ------------------------------------------------------------------
 
-    def step(self, t: int):
+    def step(self, t: int, gameplay_flags=None):
         """Main step: delegates wilderness tiles or runs full economy."""
         if self.wilderness:
             import wilderness as _wd
-            _wd.step_wilderness(self, t)
+            _wd.step_wilderness(self, t, gameplay_flags=gameplay_flags)
             return
-        self.step_economy(t)
+        self.step_economy(t, gameplay_flags=gameplay_flags)
 
-    def step_economy(self, t: int):
+    def step_economy(self, t: int, gameplay_flags=None):
         """Per-tile economy and institutional flows."""
-        return _stepper.step_economy(self, t)
+        return _stepper.step_economy(self, t, gameplay_flags=gameplay_flags)
 
     def _audit_cash(self, t, label):
         return _stepper.audit_cash(self, t, label)

@@ -261,13 +261,15 @@ def _record_labor_decision(region, decision):
 def hire_workers(region, t):
     """Compatibility entry point: hiring shares the regional career market."""
     from career_transitions import step_careers
-    return step_careers(region, t, independent=getattr(
-        region, 'labor_mobility_enabled', not getattr(region, 'scenario_owner_policy', False)))
+    from world_config import gameplay_flags_for
+    return step_careers(region, t, independent=gameplay_flags_for(region).career_mobility)
 
 
 def adjust_wages(region, t):
     """Adjust firm wages dynamically based on labor tightness, MRPL ceiling, and cash."""
-    if not getattr(region, 'responsive_wages', not getattr(region, 'scenario_owner_policy', False)):
+    from world_config import gameplay_flags_for
+    if (not gameplay_flags_for(region).wage_quotes
+            or not getattr(region, 'responsive_wages', True)):
         return
     tightness = calculate_labor_market_tightness(region)
     is_statute = getattr(region, 'statute_of_laborers', False)
@@ -336,12 +338,16 @@ def adjust_wages(region, t):
                      'food_price': region.recipes.get(Goods.food, {}).get('price', 1.0)})
 
 
-def run_labour(region, t, *, defer_careers=False):
+def run_labour(region, t, *, defer_careers=False, market_enabled=True,
+               wage_quotes_enabled=True):
     """Run all labor phases and return any newly founded corporations."""
     cleanup_labor(region)
     borrow_or_layoff(region, t)
-    new_companies = incorporate(region, t)
-    adjust_wages(region, t)
+    new_companies = incorporate(region, t) if market_enabled else []
+    if market_enabled and wage_quotes_enabled:
+        adjust_wages(region, t)
+    else:
+        _record_frozen_wage_quotes(region, t)
     if not defer_careers:
         hire_workers(region, t)
     for a in region.agents:
@@ -367,3 +373,19 @@ def run_labour(region, t, *, defer_careers=False):
                         detail={'workers_covered': len(a.employees),
                                 'per_worker_investment': safety_inv})
     return new_companies
+
+
+def _record_frozen_wage_quotes(region, turn):
+    """Emit unchanged wage samples while labor market adjustment is disabled."""
+    from run_trace import emit
+    for firm in region.agents:
+        if not getattr(firm, 'is_corporation', False):
+            continue
+        wage = float(getattr(firm, 'wage', 0.0))
+        emit(region, kind='corporate_wage_decision', record_class='calculation',
+             subject={'type': 'tile', 'id': region.name, 'firm_id': firm.id},
+             metric_id='labor.corporate_wage',
+             unit='local_currency_per_turn', before=wage, after=wage,
+             formula_id='labor.disabled_market_frozen_wage.v1',
+             inputs={'turn': int(turn), 'decision_reason': 'labor_market_disabled',
+                     'wage_unchanged': True})

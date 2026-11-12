@@ -676,7 +676,7 @@ def release_emergency_food(region, t):
     return units
 
 
-def produce(region, t):
+def produce(region, t, *, enabled=True):
     """Run production phase for all active producers in region."""
     if getattr(region, '_production_turn', None) == t:
         return
@@ -701,10 +701,11 @@ def produce(region, t):
     local_total_production = defaultdict(int)
     receipt_ids = {}
     from agriculture import produce as produce_crops
-    produce_crops(region, t, local_total_production, receipt_ids)
+    if enabled:
+        produce_crops(region, t, local_total_production, receipt_ids)
     food_producer_outputs = [(a, sum(r['quantity'] for r in region.production_receipts
         if r['person_id'] == a.id and r['good'] == Goods.food)) for a in region.agents]
-    for a in region.agents:
+    for a in (region.agents if enabled else ()):
         if (not a.alive or getattr(a, "business_closed", False) or a.output == Goods.food
                 or a.employer or a.output == Goods.gov or a.is_trader or a.output == Goods.none
                 or a.output not in region.recipes or getattr(a, 'military_unit_id', None)):
@@ -759,14 +760,14 @@ def produce(region, t):
             if produced_units:
                 food_producer_outputs.append((a, produced_units))
 
-    if getattr(region, 'scenario_grain_holder_id', None) is not None:
+    if enabled and getattr(region, 'scenario_grain_holder_id', None) is not None:
         from scenario_political_economy import hold_after_harvest
         hold_after_harvest(region, t)
 
     # Phase 1: Pastoral wool / fiber yield for landlords on pasture plots
     wool_yield_total = 0
     tenure = getattr(region, 'tenure', None)
-    if tenure is not None:
+    if enabled and tenure is not None:
         for plot in getattr(tenure, 'plots', []):
             if getattr(plot, 'production_type', 'arable') == 'pasture':
                 lord = None

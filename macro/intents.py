@@ -928,17 +928,44 @@ class RespondPeaceIntent(Intent):
 # Main Intent & Project Stepping Orchestrator
 # =====================================================================
 
-def step_intents_and_construction(t: int, tiles: list, nations: list, on_event=None, world: dict = None) -> list[dict]:
+def step_intents_and_construction(t: int, tiles: list, nations: list, on_event=None,
+                                  world: dict = None, gameplay_flags=None) -> list[dict]:
     """Execute pending intents and advance active construction projects across all tiles (M5)."""
+    from world_config import FULL_GAMEPLAY_FLAGS
+    flags = FULL_GAMEPLAY_FLAGS if gameplay_flags is None else gameplay_flags
     events = []
     tiles_by_name = {r.name: r for r in tiles}
     nations_by_name = {n.name: n for n in nations}
+
+    def enabled(intent):
+        if isinstance(intent, (BuildIntent, SubsidizeContractorIntent)):
+            return flags.construction_projects
+        if isinstance(intent, (RecruitArmyIntent, MoveArmyIntent)):
+            return flags.military
+        if isinstance(intent, DeclareWarIntent):
+            return flags.wars
+        if isinstance(intent, (ProposeTreatyIntent, BreakTreatyIntent,
+                               ProposePeaceIntent, RespondPeaceIntent)):
+            return flags.diplomacy
+        if isinstance(intent, (IssueSovereignBondIntent, BuyForeignBondIntent,
+                               RedeemBondEarlyIntent, LobbyRatingUpgradeIntent,
+                               LobbyAdversaryDowngradeIntent, AcquireBoardSeatIntent,
+                               IssueMunicipalSewerBondIntent, RestructureDebtIntent)):
+            return flags.sovereign_bonds
+        return True
+
+    def reject_disabled(nation, intent):
+        intent.status = 'rejected'
+        nation.intents.remove(intent)
 
     # 1. Resolve accepted ceasefires before movement or battle.  Pending
     # parliamentary approval remains pending; all intents still step once.
     for nation in nations:
         for intent in list(getattr(nation, 'intents', [])):
             if not isinstance(intent, RespondPeaceIntent) or not intent.accept:
+                continue
+            if not enabled(intent):
+                reject_disabled(nation, intent)
                 continue
             sub_events = intent.step(tiles_by_name, nations_by_name, t)
             events.extend(sub_events)
@@ -954,6 +981,9 @@ def step_intents_and_construction(t: int, tiles: list, nations: list, on_event=N
         for intent in list(intents):
             if isinstance(intent, RespondPeaceIntent) and intent.accept:
                 continue
+            if not enabled(intent):
+                reject_disabled(nation, intent)
+                continue
             sub_events = intent.step(tiles_by_name, nations_by_name, t)
             events.extend(sub_events)
             if on_event:
@@ -964,11 +994,12 @@ def step_intents_and_construction(t: int, tiles: list, nations: list, on_event=N
                 intents.remove(intent)
 
     # Firms use prior settled sales and private finance before projects advance.
-    from technology_adoption import step_private_adoption
-    for ev in step_private_adoption(tiles, nations, t):
-        events.append(ev)
-        if on_event:
-            on_event(t, ev['event'], ev['message'])
+    if flags.private_technology_adoption:
+        from technology_adoption import step_private_adoption
+        for ev in step_private_adoption(tiles, nations, t):
+            events.append(ev)
+            if on_event:
+                on_event(t, ev['event'], ev['message'])
 
     # 2. Step active construction projects and building staffing across all tiles
     from construction_politics import step_construction_politics
@@ -978,21 +1009,22 @@ def step_intents_and_construction(t: int, tiles: list, nations: list, on_event=N
             if hasattr(b, 'step_operational_staffing'):
                 b.step_operational_staffing(r, t)
 
-        projects = getattr(r, 'construction_projects', [])
-        for p in list(projects):
-            completed_building = p.step(t, world=world)
-            # Emit project events
-            for ev in p.events:
-                if ev['t'] == t:
-                    events.append(ev)
-                    if on_event:
-                        on_event(t, ev['event'], ev['message'])
-            # Clean up completed projects from active list
-            if p.status == 'completed':
-                projects.remove(p)
+        if flags.construction_projects:
+            projects = getattr(r, 'construction_projects', [])
+            for p in list(projects):
+                completed_building = p.step(t, world=world)
+                # Emit project events
+                for ev in p.events:
+                    if ev['t'] == t:
+                        events.append(ev)
+                        if on_event:
+                            on_event(t, ev['event'], ev['message'])
+                # Clean up completed projects from active list
+                if p.status == 'completed':
+                    projects.remove(p)
 
-        # Construction contractor lobbying, drought layoffs, and riots
-        step_construction_politics(r, t, world=world)
+            # Construction contractor lobbying, drought layoffs, and riots
+            step_construction_politics(r, t, world=world)
 
     return events
 

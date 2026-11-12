@@ -141,7 +141,7 @@ def _align_logs(region):
         region.price_spread_log[g].append(0.0)
 
 
-def step_wilderness(region, t):
+def step_wilderness(region, t, gameplay_flags=None):
     """One turn of an unclaimed wilderness tile (v3).
 
     Forages scheduled homesteaders, then aligns every metric series so
@@ -157,23 +157,34 @@ def step_wilderness(region, t):
     from demographics_consumption import consume_daily_food
     from demographics_estate import handle_death
     from types import SimpleNamespace
-    begin_turn(region, t)
-    for person in region.agents:
-        update_dependent_need(person, t)
-    prepare_work(region, t)
-    foraged = forage(region, t)
-    finish(region, t)
-    allocate(region, t)
+    from world_config import gameplay_flags_for
+    flags = gameplay_flags_for(region) if gameplay_flags is None else gameplay_flags
+    region._gameplay_flags = flags
+    dynamics_enabled = flags.wilderness
+    region.deaths_this_turn = 0
+    if dynamics_enabled:
+        begin_turn(region, t)
+        for person in region.agents:
+            update_dependent_need(person, t)
+        prepare_work(region, t, production_enabled=flags.production)
+        foraged = forage(region, t) if flags.foraging else 0
+        finish(region, t, production_enabled=flags.production)
+        if flags.household_food:
+            allocate(region, t)
+    else:
+        foraged = 0
     region.food_turn_need = sum(basic_food_units(a) for a in region.agents if human(a))
     context = SimpleNamespace(source_region=region, cost_of_living=region.cost_of_living,
                               bank=None, default_gov=None, charity=None)
-    for person in list(region.agents):
-        if not human(person):
-            continue
-        consume_daily_food(person, region=region, turn=t)
-        if handle_death(context, t, person, region.agents):
-            region.agents.remove(person)
-    finish_turn(region, t)
+    if dynamics_enabled:
+        for person in list(region.agents):
+            if not human(person):
+                continue
+            consume_daily_food(person, region=region, turn=t)
+            if (flags.household_lifecycle
+                    and handle_death(context, t, person, region.agents)):
+                region.agents.remove(person)
+        finish_turn(region, t)
     if not minimal_trace and getattr(region, '_run_trace', None) is not None:
         from micro.region.stepper import _trace_profession_population
         profession_groups = {good: [] for good in region.goods}

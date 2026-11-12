@@ -54,12 +54,12 @@ def main_work(region, person, turn):
     return state['people'].get(person.id, {}).get('activities', {}).get('main', 0.0)
 
 
-def finish(region, turn):
+def finish(region, turn, *, production_enabled=True):
     from career_transitions import profession
     from goods import Goods
     from agriculture import requirements
     from engineering import production_work_share
-    needs = requirements(region, turn)
+    needs = requirements(region, turn) if production_enabled else {}
     people = {a.id: a for a in region.agents if a.alive}
     for person in sorted(people.values(), key=lambda a: a.id):
         if 'engineering' not in region.work_allocations['people'].get(person.id, {}).get('activities', {}):
@@ -77,7 +77,8 @@ def finish(region, turn):
     from collections import Counter
     counts = Counter(profession(p) for p in people.values())
     # Temporary farm jobs are real funded orders, not compulsory career changes.
-    for order in getattr(region, 'seasonal_work_orders', []):
+    orders = getattr(region, 'seasonal_work_orders', []) if production_enabled else ()
+    for order in orders:
         if order.get('turn') != turn or order.get('completed'):
             continue
         farm = region.farms.get(order['farm_id'])

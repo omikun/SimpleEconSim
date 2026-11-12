@@ -1,5 +1,6 @@
 """Canonical food phase boundaries shared by regional engine clients."""
 from goods import Goods
+from world_config import gameplay_flags_for
 
 
 def prepare_region(region, turn):
@@ -37,43 +38,48 @@ def begin_turn(region, turn):
     region._food_prepared_turn = turn
     region._food_opening_stock = stocks(region)['total']
     rebuild(region, turn)
+    spoilage_enabled = gameplay_flags_for(region).food_spoilage
     for person in region.agents:
         queued = max(0, getattr(person, 'emergency_food_units', 0))
         if queued:
             person.inv_add(Goods.food, queued)
             person.emergency_food_units = 0
-        remainders = dict(getattr(person, 'food_loss_remainders', {}))
-        for good, rate in ((Goods.food, .001), (Goods.prepared_food, .02)):
-            exact = balance(person, good) * rate + remainders.get(good.name, 0)
-            units = int(exact * 1000) / 1000
-            remainders[good.name] = exact - units
-            if units:
-                consume(region, person, units, kind='storage_loss', good=good)
-        person.food_loss_remainders = remainders
+        if spoilage_enabled:
+            remainders = dict(getattr(person, 'food_loss_remainders', {}))
+            for good, rate in ((Goods.food, .001), (Goods.prepared_food, .02)):
+                exact = balance(person, good) * rate + remainders.get(good.name, 0)
+                units = int(exact * 1000) / 1000
+                remainders[good.name] = exact - units
+                if units:
+                    consume(region, person, units, kind='storage_loss', good=good)
+            person.food_loss_remainders = remainders
     for farm in region.farms.values():
-        exact = balance(farm) * .0005 + farm.get('loss_remainder', 0)
-        units = int(exact * 1000) / 1000
-        farm['loss_remainder'] = exact - units
-        if units:
-            consume(region, farm, units, kind='storage_loss')
+        if spoilage_enabled:
+            exact = balance(farm) * .0005 + farm.get('loss_remainder', 0)
+            units = int(exact * 1000) / 1000
+            farm['loss_remainder'] = exact - units
+            if units:
+                consume(region, farm, units, kind='storage_loss')
         from food_accounts import reserve
         reserve(region, farm, 'seed', farm['area'] * 6)
 
 
-def prepare_work(region, turn):
+def prepare_work(region, turn, *, production_enabled=True):
     if getattr(region, '_food_work_prepared_turn', None) == turn:
         return
     region._food_work_prepared_turn = turn
     if not hasattr(region, 'seasonal_work_orders'):
         region.seasonal_work_orders = []
-    from agriculture import begin_crops, commit_crop_inputs
-    begin_crops(region, turn)
-    commit_crop_inputs(region, turn)
+    if production_enabled:
+        from agriculture import begin_crops, commit_crop_inputs
+        begin_crops(region, turn)
+        commit_crop_inputs(region, turn)
     # Private farms purchase temporary work just as public programs do. Offers
     # share the same physical work ledger and are limited by owned cash.
     from agriculture import requirements
     actors = {a.id: a for a in region.agents if a.alive}
-    for program in getattr(region, 'production_programs', ()):
+    programs = getattr(region, 'production_programs', ()) if production_enabled else ()
+    for program in programs:
         if (program['kind'] == 'seasonal_hiring' and program['status'] == 'active'
                 and program['starts_turn'] <= turn <= program['expires_turn']):
             left = max(0, program['quantity'] - program['delivered'])
@@ -88,7 +94,8 @@ def prepare_work(region, turn):
                         'delivered': 0.0, 'completed': False})
                     left -= quantity
     rate = (4 * region.recipes[Goods.food]['price'] + .5 * region.recipes[Goods.wood]['price']) * 10 / 4.5
-    for key, requested in requirements(region, turn).items():
+    crop_needs = requirements(region, turn) if production_enabled else {}
+    for key, requested in crop_needs.items():
         farm = region.farms[key]
         operator = actors.get(farm['operator_id'])
         company = operator if getattr(operator, 'is_corporation', False) else getattr(operator, 'company_owned', None)

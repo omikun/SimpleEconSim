@@ -35,8 +35,9 @@ USES = {
 
 
 def enabled(region):
-    return (region is not None and getattr(region, 'abundance_enabled', False)
-            and not getattr(region, 'scenario_owner_policy', False)
+    from world_config import gameplay_flags_for
+    return (region is not None and gameplay_flags_for(region).abundance
+            and getattr(region, 'abundance_enabled', False)
             and not getattr(region, 'wilderness', False))
 
 

@@ -118,6 +118,10 @@ def step_careers(region, turn, *, independent=True):
     reachable sales, inputs and food kept for the household; jobs need a funded
     vacancy. Failed commitments spend no departure capacity.
     """
+    from world_config import gameplay_flags_for
+    if not gameplay_flags_for(region).career_mobility:
+        region.labor_scheduler_last_turn = turn
+        return {'disabled': True, 'processed': 0, 'switched': 0, 'hired': 0}
     from goods import Goods
     from labor_choice import evaluate_offer, attach_worker, apply_career_switch
     from region_labor import calculate_labor_market_tightness, _record_labor_decision

@@ -47,11 +47,13 @@ def _initial_digest(server):
 def run_arm(arm, seed, turns, out_dir):
     import numpy as np
     from sim_server.sim_server import SimServer
+    from dataclasses import replace
     from economic_shock_experiment import _git_info, _goods_stock_observation
     from economic_shock_analysis import analyze_trace
     from economic_shock_stock_flow_audit import audit_run
     from trace_codec import iter_payloads
     from run_trace import verify
+    from world_config import FULL_GAMEPLAY_FLAGS
 
     provenance = _git_info()
     source_diff_hash = hashlib.sha256(subprocess.check_output(["git", "diff"])).hexdigest()
@@ -59,16 +61,20 @@ def run_arm(arm, seed, turns, out_dir):
                     for path in SOURCE_FILES}
     random.seed(seed)
     np.random.seed(seed)
+    autoplay, artisans, national = ARMS[arm]
+    gameplay_flags = replace(
+        FULL_GAMEPLAY_FLAGS,
+        independent_input_requests=artisans,
+        national_food_logistics=national)
     server = SimServer(seed=seed, terrain_seed=seed, nation_seed=seed,
                        topology="voronoi", autoplay_nations=False)
     initial_digest = _initial_digest(server)
-    autoplay, artisans, national = ARMS[arm]
+    server.gameplay_flags = gameplay_flags
+    server.gameplay_profile = 'custom'
+    for participant in (*server.tiles, *server.nations):
+        participant._gameplay_flags = gameplay_flags
     server.autoplay_nations = autoplay
     server._configure_nation_ai()
-    for tile in server.tiles:
-        tile.independent_input_requests_enabled = artisans
-    for nation in server.nations:
-        nation.national_food_logistics_enabled = national
     stocks = [_goods_stock_observation(server, 0, aggregate_world=True)]
     nation_turns = []
     initial_ownership = {tile.name: tile.owner_nation.name

@@ -7,6 +7,9 @@ from livelihood_access import assess_obligation
 def offer_advance(lender, cultivator, region, amount, due_turn, collateral_plot_id,
                   interest_rate=0.0, lien_share=0.5, offtake_quantity=0,
                   offtake_price=None, accepted_proposal_id=None):
+    from world_config import gameplay_flags_for
+    if not gameplay_flags_for(region).crop_credit:
+        return None
     from supply_proposals import authorized
     if not authorized(region, accepted_proposal_id, lender.id, cultivator.id,
                       ('advance_offtake', 'crop_advance')):
@@ -73,6 +76,9 @@ def offer_advance(lender, cultivator, region, amount, due_turn, collateral_plot_
 
 def settle_offtake_contracts(region, turn):
     """Settle contracted harvest before spot-market asks; deliver only actual crop."""
+    from world_config import gameplay_flags_for
+    if not gameplay_flags_for(region).crop_credit:
+        return []
     agents = {a.id: a for a in getattr(region, 'agents', [])}
     receipts = getattr(region, 'production_receipts', [])
     events = []
@@ -161,6 +167,9 @@ def settle_offtake_contracts(region, turn):
 
 def create_tenancy_agreement(region, tenant, landlord, plot_id, kind='cash_rent',
                              cash_rent=0.0, crop_share=0.0):
+    from world_config import gameplay_flags_for
+    if kind == 'crop_share' and not gameplay_flags_for(region).crop_share_tenancy:
+        return None
     plot = getattr(region, 'tenure', None)
     plot = plot.find_plot(plot_id) if plot is not None else None
     if plot is None or tenant.id == landlord.id or plot.lord_id != landlord.id:
@@ -186,6 +195,9 @@ def create_tenancy_agreement(region, tenant, landlord, plot_id, kind='cash_rent'
 
 
 def settle_crop_liens(region, turn):
+    from world_config import gameplay_flags_for
+    if not gameplay_flags_for(region).crop_credit:
+        return []
     receipts = getattr(region, 'production_receipts', [])
     events = []
     agents = {a.id: a for a in getattr(region, 'agents', [])}
@@ -252,6 +264,9 @@ def settle_crop_liens(region, turn):
 
 
 def settle_crop_shares(region, turn):
+    from world_config import gameplay_flags_for
+    if not gameplay_flags_for(region).crop_share_tenancy:
+        return []
     receipts = getattr(region, 'production_receipts', [])
     agents = {a.id: a for a in getattr(region, 'agents', [])}
     events = []

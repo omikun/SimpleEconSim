@@ -1041,6 +1041,8 @@ def run_web_server(sim_server: Optional['SimServer'] = None, host: str = '0.0.0.
 
 if __name__ == '__main__':
     from sim_server.sim_server import SimServer
+    from world_config import (GAMEPLAY_FLAG_NAMES, describe_gameplay_flags,
+                              resolve_gameplay_flags)
     import argparse
     from pathlib import Path
     parser = argparse.ArgumentParser(description="Call of Capital (CoC) Mobile Web Server")
@@ -1054,12 +1056,28 @@ if __name__ == '__main__':
     parser.add_argument('--topology', type=str, default='voronoi', choices=['voronoi', 'hex'],
                         help="World topology: 'voronoi' (irregular polygons) or 'hex' (honeycomb)")
     parser.add_argument('--scenario', choices=['labor-frontier-rivalry'], default=None)
+    parser.add_argument('--disable-mechanism', action='append', default=[],
+                        choices=sorted(GAMEPLAY_FLAG_NAMES), metavar='NAME',
+                        help='Disable one gameplay mechanism for this run; repeatable')
+    parser.add_argument('--profile', default='full', metavar='PROFILE',
+                        help='Gameplay profile: full, core, or isolate:MECHANISM')
     args = parser.parse_args()
+    scenario_id = 'labor_frontier_rivalry' if args.scenario else None
 
     if args.restore_checkpoint:
+        if args.disable_mechanism or args.profile != 'full':
+            parser.error('gameplay profile flags cannot change a restored checkpoint')
         sim = SimServer.restore_checkpoint(args.restore_checkpoint, args.checkpoint_branches)
     else:
+        try:
+            gameplay_flags = resolve_gameplay_flags(
+                profile=args.profile, disabled=args.disable_mechanism,
+                scenario_id=scenario_id)
+        except ValueError as error:
+            parser.error(str(error))
         sim = SimServer(seed=args.seed, terrain_seed=args.terrain_seed, nation_seed=args.nation_seed,
                         topology=args.topology,
-                        scenario_id='labor_frontier_rivalry' if args.scenario else None)
+                        gameplay_flags=gameplay_flags, gameplay_profile=args.profile,
+                        scenario_id=scenario_id)
+    print(f"[Gameplay] {describe_gameplay_flags(sim.gameplay_profile, sim.gameplay_flags)}")
     run_web_server(sim_server=sim, host=args.host, port=args.port, wait_forever=True)

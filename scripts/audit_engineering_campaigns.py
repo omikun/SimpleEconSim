@@ -7,6 +7,7 @@ No sales, operating work, technology progress or recurring income are injected.
 from __future__ import annotations
 import argparse
 from contextlib import redirect_stdout
+from dataclasses import replace
 import io
 import json
 import hashlib
@@ -32,6 +33,7 @@ from random_cache import rand
 from land_tenure import TenureStatus
 from technology_adoption import observe_firm_market
 from food_security import diagnose_tile
+from world_config import FULL_GAMEPLAY_FLAGS
 
 
 def create_campaign(variant, seed):
@@ -44,7 +46,6 @@ def create_campaign(variant, seed):
                                  Goods.iron_ore: .05, Goods.coal: .05, Goods.furniture: .05})
     nation.add_tile(region)
     region.scenario_owner_policy = True
-    region.commercial_technology_adoption = variant != 'control'
     region.cash_tax_per_person = 0.1
     region.natural_resources = list(TileResource)
     region.resources = {resource: 1 for resource in TileResource}
@@ -118,9 +119,14 @@ def run_campaign(variant, seed=4243, turns=100, public_steam_pilot=False,
             or owner_planning not in ('authored', 'autonomous')):
         raise ValueError('Unknown labor or relief policy')
     region.scenario_owner_policy = owner_planning == 'authored'
-    region.owner_planning_enabled = owner_planning == 'autonomous'
     region.responsive_wages = labor_policy == 'responsive'
-    region.labor_mobility_enabled = labor_policy == 'responsive'
+    gameplay_flags = replace(
+        FULL_GAMEPLAY_FLAGS,
+        private_technology_adoption=variant != 'control',
+        elite_planning=owner_planning == 'autonomous',
+        abundance=owner_planning == 'autonomous',
+        career_mobility=labor_policy == 'responsive',
+        wage_quotes=labor_policy == 'responsive')
     if relief == 'ai':
         from ai_nation import NationPolicyAI
         nation.ai = NationPolicyAI(nation)
@@ -147,7 +153,8 @@ def run_campaign(variant, seed=4243, turns=100, public_steam_pilot=False,
         if variant == 'public' and system.get_refinement_xp(nation.name, 'steam_engines') < 100:
             if system.get_engineering_program(nation.name, 'steam_engines')['status'] != 'active':
                 system.set_engineering_program(nation, 'steam_engines', 100, 'performance', t=turn - 1)
-        found, _ = step_turn(turn, [region], nations=[nation], pair_orders=[], currencies=[nation.currency])
+        found, _ = step_turn(turn, [region], nations=[nation], pair_orders=[],
+                             currencies=[nation.currency], gameplay_flags=gameplay_flags)
         violations.extend(found)
         deaths.update(getattr(region, 'deaths_by_cause_this_turn', {}))
         from career_transitions import populations
