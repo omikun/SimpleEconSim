@@ -47,10 +47,10 @@ def remaining(region, person):
     return max(0, row['available'] - row['used']) if row else 0
 
 
-def main_work(region, person, turn):
+def main_work(region, person, turn, *, default=None):
     state = getattr(region, 'work_allocations', {})
     if state.get('turn') != turn:
-        return None
+        return default
     return state['people'].get(person.id, {}).get('activities', {}).get('main', 0.0)
 
 

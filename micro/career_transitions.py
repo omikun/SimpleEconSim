@@ -30,8 +30,9 @@ def profession(person):
 
 
 def populations(region, turn):
-    return Counter(profession(p).name for p in region.agents
-                   if working_adult(p, turn) and profession(p) is not None)
+    return Counter(good.name for person in region.agents
+                   if working_adult(person, turn)
+                   and (good := profession(person)) is not None)
 
 
 def begin_turn(region, turn):
@@ -61,8 +62,9 @@ def prepare_budgets(region, turn, gains):
         rate = min(max(0.0, float(getattr(region, 'career_max_transition_rate', .25))),
                    max(0.0, float(getattr(region, 'career_gain_sensitivity', .10))) * gain)
         allowance = surplus * rate + carry.get(key, 0.0) if gain > 0 and surplus else 0.0
-        quota = min(surplus, math.floor(allowance + 1e-9))
-        remainder = allowance - math.floor(allowance + 1e-9)
+        whole_allowance = math.floor(allowance + 1e-9)
+        quota = min(surplus, whole_allowance)
+        remainder = allowance - whole_allowance
         carry[key] = max(0.0, min(1.0 - 1e-12, remainder))
         state['budgets'][key] = {
             'population': count, 'minimum': state['minimum'], 'gain': gain,

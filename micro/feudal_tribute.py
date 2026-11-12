@@ -84,14 +84,6 @@ def _accrue_harvest(region, t, assignments):
     region.feudal_harvest_accruals = book
 
 
-def _find_agent(region, agent_id: int):
-    """Find agent by ID in region."""
-    for a in region.agents:
-        if a.id == agent_id:
-            return a
-    return None
-
-
 def _transfer_tribute(region, t, plot, serf, lord, good, quantity, *,
                       force_present, protest_energy, assessment):
     from economy.actor_accounts import record as record_economic_event
@@ -193,8 +185,8 @@ def collect_tribute(region, t: int, *, return_trace=False) -> dict:
         if plot.tenure != TenureStatus.FEUDAL or plot.tribute_rate <= 0:
             continue
 
-        lord = _find_agent(region, plot.lord_id)
-        if lord is None or not lord.alive:
+        lord = people.get(plot.lord_id)
+        if lord is None:
             continue
 
         harvests = assessments.get(plot.plot_id, {})

@@ -181,9 +181,10 @@ class LaborMobilityScheduler:
         result['reallocations_count'] = result.get('switched', 0)
         result['cohort_size'] = result.get('processed', 0)
         result['cohort_index'] = 0
+        adults = self.get_non_elites(region, t)
         _trace_scheduler_gate(region, turn=t,
             outcome=('already_processed_this_turn' if result.get('already_processed') else 'all_adults_considered'),
-            total_non_elites=len(self.get_non_elites(region, t)), group_count=1,
-            active_group_index=0, execution_agent_ids=[a.id for a in self.get_non_elites(region, t)]
+            total_non_elites=len(adults), group_count=1,
+            active_group_index=0, execution_agent_ids=[a.id for a in adults]
             if not result.get('already_processed') else [])
         return result

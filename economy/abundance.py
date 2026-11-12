@@ -271,7 +271,7 @@ def produce_workshop(region, agent, recipe, totals, receipt_ids, turn):
     else:
         workers = [agent]
     from work_allocation import main_work
-    work = sum(main_work(region, a, turn) if main_work(region, a, turn) is not None else 1.0 for a in workers)
+    work = sum(main_work(region, a, turn, default=1.0) for a in workers)
     practice = sum(proficiency(a, agent.output) for a in workers) / max(1, len(workers))
     throughput = recipe['production'] * work * practice * terrain_bonus(region, agent.output, producer=agent)
     from nutrition import appetite_units

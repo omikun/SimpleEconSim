@@ -60,13 +60,14 @@ def pay_wages(region, t):
                     continue
                 agreement = ensure_labor_agreement(e, a, t)
                 from work_allocation import main_work
-                worked = main_work(region, e, t)
+                worked = main_work(region, e, t, default=1.0)
                 if a.output == Goods.food:
-                    worked = sum(row['activities'].get(f['id'], 0)
-                                 for f in getattr(region, 'farms', {}).values()
-                                 if f.get('employer_id') == a.id
-                                 for pid, row in getattr(region, 'work_allocations', {}).get('people', {}).items() if pid == e.id)
-                wage_nominal = max(0.0, float(agreement.pay_rate)) * (worked if worked is not None else 1.0)
+                    activities = (getattr(region, 'work_allocations', {}).get('people', {})
+                                  .get(e.id, {}).get('activities', {}))
+                    worked = sum(activities.get(farm['id'], 0)
+                                 for farm in getattr(region, 'farms', {}).values()
+                                 if farm.get('employer_id') == a.id)
+                wage_nominal = max(0.0, float(agreement.pay_rate)) * worked
                 e.nominal_wage = wage_nominal
                 e.authorized_deductions = 0.0
                 e.wage_withheld = 0.0
@@ -773,50 +774,42 @@ def pay_profit_share(region, agent, owner, payroll, t=None):
 
 
 def bailout_owner(region, agent, owner, payroll, t=None):
-    """Owner injects cash into the firm to cover payroll shortfall."""
+    """Owner injects available local tender into the firm to cover payroll."""
     if agent.cash >= payroll:
         return
-    food_price = region.food_price
-    if getattr(owner, '_bank_ref', None) is region.bank:
-        avail = max(0.0, owner.cash - food_price * 4)
-        inject = min(payroll - agent.cash, avail)
-        if inject > 0:
-            source_before = float(owner.cash)
-            firm_cash_before = float(agent.cash)
-            owner_loan_before = float(agent.owner_loan)
-            _trace_cash_write = _trace_public_begin(None, owner)
-            owner.cash -= inject
-            _trace_public_finish(_trace_cash_write, 'region_finance:bailout_owner',
-                                 inputs={"source_writer": 'region_finance.py:bailout_owner:94eaa84947694b23:1'})
-            _trace_cash_write = _trace_public_begin(None, agent)
-            agent.cash += inject
-            _trace_public_finish(_trace_cash_write, 'region_finance:bailout_owner',
-                                 inputs={"source_writer": 'region_finance.py:bailout_owner:cf149883c274348d:1'})
-            agent.owner_loan += inject
-            _record_owner_funding(
-                region, owner, agent, inject, 'cash',
-                getattr(region, 'home_currency', None),
-                source_before, owner.cash, firm_cash_before, agent.cash,
-                owner_loan_before, agent.owner_loan, t)
+    local_owner = getattr(owner, '_bank_ref', None) is region.bank
+    currency = getattr(region, 'home_currency', None)
+    if local_owner:
+        available = max(0.0, owner.cash - region.food_price * 4)
+        source_before = float(owner.cash)
+    elif currency:
+        source_before = float(_fx.fx_balance(owner, currency))
+        available = max(0.0, source_before)
     else:
-        if region.home_currency:
-            avail = _fx.fx_balance(owner, region.home_currency)
-            inject = min(payroll - agent.cash, max(0.0, avail))
-            if inject > 0:
-                source_before = float(avail)
-                firm_cash_before = float(agent.cash)
-                owner_loan_before = float(agent.owner_loan)
-                _fx.fx_add(owner, region.home_currency, -inject)
-                _trace_cash_write = _trace_public_begin(None, agent)
-                agent.cash += inject
-                _trace_public_finish(_trace_cash_write, 'region_finance:bailout_owner',
-                                     inputs={"source_writer": 'region_finance.py:bailout_owner:8153274f226dc6d8:1'})
-                agent.owner_loan += inject
-                _record_owner_funding(
-                    region, owner, agent, inject, 'wallet', region.home_currency,
-                    source_before, _fx.fx_balance(owner, region.home_currency),
-                    firm_cash_before, agent.cash, owner_loan_before,
-                    agent.owner_loan, t)
+        return
+    inject = min(payroll - agent.cash, available)
+    if inject <= 0:
+        return
+    firm_cash_before = float(agent.cash)
+    owner_loan_before = float(agent.owner_loan)
+    if local_owner:
+        change = _trace_public_begin(None, owner)
+        owner.cash -= inject
+        _trace_public_finish(change, 'region_finance:bailout_owner',
+                             inputs={'source_writer': 'region_finance.py:bailout_owner:94eaa84947694b23:1'})
+    else:
+        _fx.fx_add(owner, currency, -inject)
+    change = _trace_public_begin(None, agent)
+    agent.cash += inject
+    writer = ('region_finance.py:bailout_owner:cf149883c274348d:1' if local_owner else
+              'region_finance.py:bailout_owner:8153274f226dc6d8:1')
+    _trace_public_finish(change, 'region_finance:bailout_owner',
+                         inputs={'source_writer': writer})
+    agent.owner_loan += inject
+    _record_owner_funding(
+        region, owner, agent, inject, 'cash' if local_owner else 'wallet', currency,
+        source_before, owner.cash if local_owner else _fx.fx_balance(owner, currency),
+        firm_cash_before, agent.cash, owner_loan_before, agent.owner_loan, t)
 
 
 def distribute_profits(region, t):
@@ -852,37 +845,33 @@ def collect_tax(region, t):
     debt_service_trace_ids = []
     for loan in gov.loans[:]:
         remaining = loan.principle - loan.principle_paid
-        if remaining <= 0:
-            gov.loans.remove(loan)
-            if loan in bank.loans:
-                bank.loans.remove(loan)
-            continue
-        amount_due = remaining + loan.getInterest()
-        available = gov.cash + bank.deposits.get(gov, 0)
-        payment = min(amount_due, available)
-        if payment > 0:
-            if gov.cash < payment:
-                bank.Withdraw(gov, payment - gov.cash, trace_region=region, t=t,
-                              reason='government_debt_service')
-            public_change = begin_public_change(region, gov, cash=True)
-            gov.cash -= payment
-            debt_service_write_ids = finish_public_change(
-                public_change, 'fiscal_debt_service',
-                inputs={'amount': payment, 'loan_principal_remaining_before': remaining})
-            loan.pay(payment)
-            from economy.actor_accounts import record as record_economic_event
-            record_economic_event(region, 'bank_loan_repayment', turn=t,
-                                  payer_id=gov.id, amount=payment,
-                                  detail={'public_debt_service': True,
-                                          'principal_remaining_before': remaining})
-            service_id = _trace_treasury_flow(
-                region, 'government_loan_service', -payment,
-                {'loan_principal_remaining_before': remaining,
-                 'amount_due': amount_due},
-                cause_event_ids=debt_service_write_ids)
-            if service_id is not None:
-                debt_service_trace_ids.append(service_id)
-        if loan.isPaid():
+        if remaining > 0:
+            amount_due = remaining + loan.getInterest()
+            available = gov.cash + bank.deposits.get(gov, 0)
+            payment = min(amount_due, available)
+            if payment > 0:
+                if gov.cash < payment:
+                    bank.Withdraw(gov, payment - gov.cash, trace_region=region, t=t,
+                                  reason='government_debt_service')
+                public_change = begin_public_change(region, gov, cash=True)
+                gov.cash -= payment
+                debt_service_write_ids = finish_public_change(
+                    public_change, 'fiscal_debt_service',
+                    inputs={'amount': payment, 'loan_principal_remaining_before': remaining})
+                loan.pay(payment)
+                from economy.actor_accounts import record as record_economic_event
+                record_economic_event(region, 'bank_loan_repayment', turn=t,
+                                      payer_id=gov.id, amount=payment,
+                                      detail={'public_debt_service': True,
+                                              'principal_remaining_before': remaining})
+                service_id = _trace_treasury_flow(
+                    region, 'government_loan_service', -payment,
+                    {'loan_principal_remaining_before': remaining,
+                     'amount_due': amount_due},
+                    cause_event_ids=debt_service_write_ids)
+                if service_id is not None:
+                    debt_service_trace_ids.append(service_id)
+        if remaining <= 0 or loan.isPaid():
             gov.loans.remove(loan)
             if loan in bank.loans:
                 bank.loans.remove(loan)

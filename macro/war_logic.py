@@ -107,6 +107,10 @@ def attack_forecasts(nation, enemy, side: WarSide) -> list[dict]:
     """Forecast reachable attacks from actual units, adjacency and supply."""
     forecasts = []
     runway = supply_runway(nation)
+    supply_factor = clamp(runway / 2.0)
+    defending = any(aim.kind == 'defend' for aim in side.aims)
+    desired_tiles = side.initial_tiles | {aim.target for aim in side.aims
+                                         if aim.kind == 'border_tile'}
     for home in nation.tiles:
         units = [u for u in nation.military_units
                  if u.region_name == home.name and u.soldiers > 0 and not u.is_garrison]
@@ -115,8 +119,7 @@ def attack_forecasts(nation, enemy, side: WarSide) -> list[dict]:
         for target in home.neighbors.values():
             if getattr(target, 'owner_nation', None) is not enemy:
                 continue
-            if (any(a.kind == 'defend' for a in side.aims)
-                    and target.name not in side.initial_tiles):
+            if defending and target.name not in side.initial_tiles:
                 continue
             defenders = [u for u in enemy.military_units
                          if u.region_name == target.name and u.soldiers > 0]
@@ -125,7 +128,7 @@ def attack_forecasts(nation, enemy, side: WarSide) -> list[dict]:
             candidates = [units[:]] if getattr(nation, 'scenario_personnel', False) else [
                 [unit] for unit in units]
             for force in candidates:
-                attack = sum(u.strength for u in force) * clamp(runway / 2.0)
+                attack = sum(u.strength for u in force) * supply_factor
                 defense = sum(u.strength for u in defenders) * 1.2
                 if attack <= 0:
                     continue
@@ -134,9 +137,7 @@ def attack_forecasts(nation, enemy, side: WarSide) -> list[dict]:
                 # victory at or below a 0.55 ratio.
                 if advantage <= 0.55:
                     continue
-                desired = (target.name in side.initial_tiles or
-                           any(a.kind == 'border_tile' and a.target == target.name
-                               for a in side.aims))
+                desired = target.name in desired_tiles
                 progress = (1.5 if desired else 0.75) * advantage
                 cost = 0.20 + 0.65 * (1.0 - advantage)
                 if runway < 2.0:

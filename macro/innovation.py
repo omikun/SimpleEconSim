@@ -979,22 +979,15 @@ class InnovationSystem(EngineeringMixin):
                                   'tile_samples': samples})
                 return terms
 
-            # Practice includes every modeled farming and husbandry profession.
-            farm_terms = production_terms(AGRONOMY_LEARNING)
-            nat_xp[TechDomain.AGRONOMY.value] += sum(term['quantity'] * term['coefficient'] for term in farm_terms)
-            record_learning(n, TechDomain.AGRONOMY.value,
-                            opening_xp[TechDomain.AGRONOMY.value],
-                            nat_xp[TechDomain.AGRONOMY.value],
-                            farm_terms, turn=t)
-
-            # Mining, processing and craft work can develop their own machinery.
-            manufacturing_terms = production_terms(MANUFACTURING_LEARNING)
-            nat_xp[TechDomain.MANUFACTURING.value] += sum(
-                term['quantity'] * term['coefficient'] for term in manufacturing_terms)
-            record_learning(n, TechDomain.MANUFACTURING.value,
-                            opening_xp[TechDomain.MANUFACTURING.value],
-                            nat_xp[TechDomain.MANUFACTURING.value],
-                            manufacturing_terms, turn=t)
+            # Farming and manufacturing share production-based learning, with
+            # domain-specific goods and weights. Keep their update/trace order.
+            for domain, weights in ((TechDomain.AGRONOMY, AGRONOMY_LEARNING),
+                                    (TechDomain.MANUFACTURING, MANUFACTURING_LEARNING)):
+                terms = production_terms(weights)
+                nat_xp[domain.value] += sum(term['quantity'] * term['coefficient']
+                                            for term in terms)
+                record_learning(n, domain.value, opening_xp[domain.value],
+                                nat_xp[domain.value], terms, turn=t)
 
             # 3. Civil Engineering: Freight volume across terrain (~2.0 XP/turn)
             exports_by_tile = [[_learning_sample(r, 'export_vol', good)

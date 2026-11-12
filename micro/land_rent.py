@@ -14,7 +14,6 @@ Conserved money transfer:
 """
 from treasury_trace import begin_public_change as _trace_public_begin, finish_public_change as _trace_public_finish
 
-from goods import Goods
 from land_tenure import TenureStatus
 from livelihood_access import assess_obligation
 
@@ -28,14 +27,15 @@ def assess_rents(region, t: int) -> tuple[float, list[dict]]:
     if tenure is None:
         return 0.0, []
     assessed, events = 0.0, []
+    live_agents = {a.id: a for a in region.agents if a.alive}
     for plot in sorted(tenure.plots, key=lambda p: p.plot_id):
         if plot.tenure not in (TenureStatus.ENCLOSED, TenureStatus.LEASEHOLD):
             continue
-        lord = next((a for a in region.agents if a.id == plot.lord_id and a.alive), None)
+        lord = live_agents.get(plot.lord_id)
         if lord is None:
             continue
         for tenant_id in sorted(set(getattr(plot, 'tenant_ids', []))):
-            tenant = next((a for a in region.agents if a.id == tenant_id and a.alive), None)
+            tenant = live_agents.get(tenant_id)
             if tenant is None:
                 continue
             amount = max(0.0, float(plot.rent_rate))
@@ -90,6 +90,10 @@ def collect_rents(region, t: int) -> tuple[float, float, list[dict]]:
     events = []
     tenants_count = len(tenants)
     current_idx = 0
+    scarcity_factor = min(1.0, tenants_count / max(1, len(enclosed_plots) * 8))
+    corp_wages = [a.wage for a in region.agents
+                  if getattr(a, 'is_corporation', False) and a.wage > 0]
+    avg_w = sum(corp_wages) / len(corp_wages) if corp_wages else 1.0
 
     for plot in enclosed_plots:
         lord = _find_agent(region, plot.lord_id)
@@ -97,13 +101,10 @@ def collect_rents(region, t: int) -> tuple[float, float, list[dict]]:
             continue
 
         # Demographic rent elasticity: when tenants are scarce, land rents crash
-        scarcity_factor = min(1.0, tenants_count / max(1, len(enclosed_plots) * 8))
         rent_rate = max(0.5, plot.rent_rate * scarcity_factor)
 
         # Rational pastoral conversion trigger: high wages, tenant scarcity, or arrears prompt pivot to sheep pasture
         if getattr(plot, 'production_type', 'arable') == 'arable':
-            corp_wages = [a.wage for a in region.agents if getattr(a, 'is_corporation', False) and a.wage > 0]
-            avg_w = (sum(corp_wages) / len(corp_wages)) if corp_wages else 1.0
             if avg_w >= 1.70 or tenants_count < len(enclosed_plots) * 6 or getattr(plot, 'arrears', 0.0) > 20.0:
                 plot.production_type = 'pasture'
                 events.append({

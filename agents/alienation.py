@@ -177,35 +177,10 @@ def process_despair_spending(agent, region, t: int,
             from state_handler import transfer_cash
             if recipients:
                 target = recipients[rand.randint(0, len(recipients) - 1)]
-                transfer_cash(
-                    agent, target, spend,
-                    region=region,
-                    kind='alienation:process_despair_spending',
-                    payer_source_writer='alienation.py:process_despair_spending:71d18e835ace3cf3:1',
-                    payee_source_writer='alienation.py:process_despair_spending:f94e59d41b3dc2a4:1',
-                    record_event_kind='despair_spending',
-                    turn=t,
-                    event_detail={
-                        'despair': round(despair, 4),
-                        'alienation': round(alienation, 4),
-                        'hungry': bool(getattr(agent, 'hungry_steps', 0) > 0),
-                    },
-                )
+                payee_writer = 'alienation.py:process_despair_spending:f94e59d41b3dc2a4:1'
             elif getattr(region, 'gov', None) and getattr(region.gov, 'agent', None):
-                transfer_cash(
-                    agent, region.gov.agent, spend,
-                    region=region,
-                    kind='alienation:process_despair_spending',
-                    payer_source_writer='alienation.py:process_despair_spending:71d18e835ace3cf3:1',
-                    payee_source_writer='alienation.py:process_despair_spending:dee3e507baacae0f:1',
-                    record_event_kind='despair_spending',
-                    turn=t,
-                    event_detail={
-                        'despair': round(despair, 4),
-                        'alienation': round(alienation, 4),
-                        'hungry': bool(getattr(agent, 'hungry_steps', 0) > 0),
-                    },
-                )
+                target = region.gov.agent
+                payee_writer = 'alienation.py:process_despair_spending:dee3e507baacae0f:1'
             else:
                 from state_handler import adjust_cash
                 adjust_cash(
@@ -215,6 +190,20 @@ def process_despair_spending(agent, region, t: int,
                     source_writer='alienation.py:process_despair_spending:ffea72abaed47bbd:1',
                 )
                 return
+            transfer_cash(
+                agent, target, spend,
+                region=region,
+                kind='alienation:process_despair_spending',
+                payer_source_writer='alienation.py:process_despair_spending:71d18e835ace3cf3:1',
+                payee_source_writer=payee_writer,
+                record_event_kind='despair_spending',
+                turn=t,
+                event_detail={
+                    'despair': round(despair, 4),
+                    'alienation': round(alienation, 4),
+                    'hungry': bool(getattr(agent, 'hungry_steps', 0) > 0),
+                },
+            )
 
 
 def update_class_consciousness(agent, region, entertainment_level: float, t: int) -> float:

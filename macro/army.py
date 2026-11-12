@@ -117,34 +117,21 @@ class MilitaryUnit:
         public_account_event_ids = []
         payroll_operation_id = f'army-payroll:{int(t)}:{self.nation_name}:{self.unit_id}'
 
-        # Procure wage cash
-        if gov.agent.cash >= total_wage:
-            cash_available_for_payroll = float(gov.agent.cash)
-            public_change = begin_public_change(trace_region, gov.agent, bank=bank)
-            gov.agent.cash -= total_wage
-            public_account_event_ids.extend(finish_public_change(
-                public_change, 'military_payroll_debit',
-                inputs={'operation_id': payroll_operation_id, 'unit_id': self.unit_id,
-                        'requested_wages': total_wage}))
-            wages_paid = total_wage
-        else:
-            # Try withdrawing from bank
-            if bank is not None:
-                needed = total_wage - gov.agent.cash
-                bank.Withdraw(
-                    gov.agent, min(needed, bank.deposits.get(gov.agent, 0.0)),
-                    trace_region=trace_region, t=t, reason='military_payroll',
-                    trace_event_ids=funding_event_ids)
-            
-            cash_available_for_payroll = float(gov.agent.cash)
-            payout = min(gov.agent.cash, total_wage)
-            public_change = begin_public_change(trace_region, gov.agent, bank=bank)
-            gov.agent.cash -= payout
-            public_account_event_ids.extend(finish_public_change(
-                public_change, 'military_payroll_debit',
-                inputs={'operation_id': payroll_operation_id, 'unit_id': self.unit_id,
-                        'requested_wages': total_wage}))
-            wages_paid = payout
+        # Fund any shortfall, then use one conserved payroll debit path.
+        if gov.agent.cash < total_wage and bank is not None:
+            needed = total_wage - gov.agent.cash
+            bank.Withdraw(
+                gov.agent, min(needed, bank.deposits.get(gov.agent, 0.0)),
+                trace_region=trace_region, t=t, reason='military_payroll',
+                trace_event_ids=funding_event_ids)
+        cash_available_for_payroll = float(gov.agent.cash)
+        wages_paid = min(gov.agent.cash, total_wage)
+        public_change = begin_public_change(trace_region, gov.agent, bank=bank)
+        gov.agent.cash -= wages_paid
+        public_account_event_ids.extend(finish_public_change(
+            public_change, 'military_payroll_debit',
+            inputs={'operation_id': payroll_operation_id, 'unit_id': self.unit_id,
+                    'requested_wages': total_wage}))
         cash_after_payroll = float(gov.agent.cash)
 
         # Food ration consumption

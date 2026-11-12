@@ -41,7 +41,7 @@ def potential(agent, region):
 def forage_tile(region, t):
     from households import demand, buyer
     from food_accounts import create
-    from work_allocation import begin, assign
+    from work_allocation import begin, assign, remaining
     if getattr(region, '_commons_food_turn', None) == t:
         return getattr(region, 'food_foraged_this_turn', 0)
     region._commons_food_turn = t
@@ -49,14 +49,14 @@ def forage_tile(region, t):
     if getattr(region, 'is_ocean', False) or getattr(region, 'elevation', 0) < 0:
         return 0
     maximum = max(0, float(getattr(region, 'commons_capacity', 0))) * 2
-    stock = min(maximum, max(0, getattr(region, 'commons_food_stock', 0)) + capacity(region, t))
+    replenishment = capacity(region, t)
+    stock = min(maximum, max(0, getattr(region, 'commons_food_stock', 0)) + replenishment)
     total = 0.0
     # Most deprived households receive the first opportunity, not list shuffle.
     people = sorted((a for a in region.agents if can_forage(a, region) and buyer(a, region)),
                     key=lambda a: (a.energy_reserve_kcal, a.id))
     for person in people:
         need = demand(person, region, reserve_turns=0)['meal_gap']
-        from work_allocation import remaining
         available_work = remaining(region, person)
         stock_before = stock
         work = assign(region, person, 'commons', min(need, stock) / BASE_FORAGE_YIELD)
@@ -64,7 +64,7 @@ def forage_tile(region, t):
         if units <= 0:
             continue
         create(region, person, units, kind='commons_gathering', work=work,
-               capacity=capacity(region, t))
+               capacity=replenishment)
         stock -= units
         total += units
         person.food_foraged += units

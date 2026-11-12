@@ -108,31 +108,22 @@ def _align_logs(region):
     stay empty and crash ``[-1]`` readers.  Pure bookkeeping — no money or
     goods move here.
     """
-    for g in region.goods:
-        if g == Goods.gov:
-            continue
-        region.production_log[g].append(0)
-        region.population_log[g].append(0)
-        region.hungry_log[g].append(0)
-        region.inventory_log[g].append(0.0)
-        region.per_capita_inventory[g].append(0.0)
-        region.cash_log[g].append(0.0)
-        region.gini_log[g].append(0.0)
-        region.demand_ratio_log[g].append(0.0)
-        region.demand_log[g].append(0)
-        region.supply_log[g].append(0)
-        region.sold_log[g].append(0)
-        region.price_log[g].append(region.recipes[g]['price'])
-        region.gdp_by_profession_log[g].append(0)
-    for key in ('trader',):
+    keys = [good for good in region.goods if good != Goods.gov] + ['trader']
+    for key in keys:
+        region.production_log[key].append(0)
         region.population_log[key].append(0)
-        region.cash_log[key].append(0.0)
-        region.gini_log[key].append(0.0)
         region.hungry_log[key].append(0)
         region.inventory_log[key].append(0.0)
         region.per_capita_inventory[key].append(0.0)
-        region.production_log[key].append(0)
+        region.cash_log[key].append(0.0)
+        region.gini_log[key].append(0.0)
         region.gdp_by_profession_log[key].append(0)
+        if key != 'trader':
+            region.demand_ratio_log[key].append(0.0)
+            region.demand_log[key].append(0)
+            region.supply_log[key].append(0)
+            region.sold_log[key].append(0)
+            region.price_log[key].append(region.recipes[key]['price'])
     for g in _GOODS_TRADE:
         region.export_vol[g].append(0)
         region.export_val[g].append(0.0)

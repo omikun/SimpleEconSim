@@ -143,7 +143,7 @@ def produce_corporation(region, agent, recipe, output, num_agents_per_good,
                                     + max(0.0, agreement.pace - 1.0) * 0.20 - 0.05)
         employee.workplace_accident = agreement.hours >= 14.0 or agreement.pace >= 1.75
     from work_allocation import main_work
-    effort_factors = [effort * (main_work(region, person, turn) if main_work(region, person, turn) is not None else 1)
+    effort_factors = [effort * main_work(region, person, turn, default=1)
                       for effort, person in zip(effort_factors, working_employees)]
     shift_mult = sum(effort_factors) / len(effort_factors) if effort_factors else calculate_shift_multiplier(getattr(agent, 'shift_hours', 8.0))
     terrain_mult = terrain_bonus(region, output, producer=agent)

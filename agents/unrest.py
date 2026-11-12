@@ -305,18 +305,19 @@ def step_unrest(region, t):
             events['takeover'] = True
         else:
             events['stage'] = 'mob'        # mob without legitimacy collapse or repelled by garrison
-            events['looted'] = _loot_and_burn(region, t, effective_mob)
     elif roll < intensity['compromise']:
         flipped = _forced_compromise(region, t)
         events['stage'] = 'compromise'
         events['flipped'] = flipped
     elif roll < intensity['mob']:
         events['stage'] = 'mob'
-        events['looted'] = _loot_and_burn(region, t, effective_mob)
     elif roll < intensity['protest']:
         events['stage'] = 'protest'
     elif roll < intensity['unrest']:
         events['stage'] = 'unrest'
+
+    if events['stage'] == 'mob':
+        events['looted'] = _loot_and_burn(region, t, effective_mob)
 
     # Severe pollution illness guarantees a local revolt, but regime replacement
     # still uses the existing legitimacy and defense gates above.
@@ -433,15 +434,17 @@ def apply_repression(region, t, cost_legitimacy=0.15, force_override=False,
     # Seed memory for casualties from armed dispersal
     seeded = 0
     seeded_agent_ids = []
+    agents_by_id = {}
+    for agent in region.agents:
+        agents_by_id.setdefault(agent.id, agent)
     for f in region.factions.factions.values():
         for aid in list(f.membership):
-            for a in region.agents:
-                if a.id == aid:
-                    a.mem_push('mem_casualties', 1.0)
-                    a.mem_push('mem_promises', 1.0)
-                    seeded += 1
-                    seeded_agent_ids.append(a.id)
-                    break
+            agent = agents_by_id.get(aid)
+            if agent is not None:
+                agent.mem_push('mem_casualties', 1.0)
+                agent.mem_push('mem_promises', 1.0)
+                seeded += 1
+                seeded_agent_ids.append(agent.id)
     emit_repression_outcome('repressed', seeded, seeded_agent_ids)
     return seeded
 

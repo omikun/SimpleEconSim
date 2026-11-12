@@ -34,7 +34,7 @@ def begin_turn(region, turn):
         return
     prepare_region(region, turn)
     from households import rebuild
-    from food_accounts import stocks, consume, balance
+    from food_accounts import stocks, consume, balance, reserve
     region._food_prepared_turn = turn
     region._food_opening_stock = stocks(region)['total']
     rebuild(region, turn)
@@ -60,7 +60,6 @@ def begin_turn(region, turn):
             farm['loss_remainder'] = exact - units
             if units:
                 consume(region, farm, units, kind='storage_loss')
-        from food_accounts import reserve
         reserve(region, farm, 'seed', farm['area'] * 6)
 
 

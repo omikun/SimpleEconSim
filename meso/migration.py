@@ -6,6 +6,7 @@ law restricts it; destination commons capacity is reserved before travel.
 
 import forex as fx
 import wilderness as wd
+from goods import Goods
 
 
 MIGRATION_COOLDOWN = 20
@@ -135,14 +136,14 @@ def arrive_subsistence_moves(t, regions):
                          subject={'type': 'agent', 'id': person.id, 'tile': source.name},
                          metric_id='people.migration', unit='people', after=1,
                          inputs={'destination': destination.name, 'arrival_turn': t,
-                                 'departure_turn': move['departure_turn'], 'food_carried': person.inv_get(__import__('goods').Goods.food, 0)})
+                                 'departure_turn': move['departure_turn'], 'food_carried': person.inv_get(Goods.food, 0)})
         source.subsistence_journeys = pending
     return events
 
 
 def run_migrations(t, regions, rng=None):
     """Plan one-turn household moves after loss of viable local subsistence."""
-    from households import rebuild, demand, human, food
+    from households import rebuild, human, food
     from nutrition import basic_food_units
     from foraging import capacity, commons_access, potential
     from career_transitions import working_adult, profession
@@ -167,7 +168,7 @@ def run_migrations(t, regions, rng=None):
             missing = max(0, meal_need - sum(food(a) for a in family))
             bank = getattr(source, 'bank', None)
             funds = person.cash + (bank.deposits.get(person, 0) if bank and not getattr(bank, 'is_frozen', False) else 0)
-            price = max(.01, source.recipes[__import__('goods').Goods.food]['price'])
+            price = max(.01, source.recipes[Goods.food]['price'])
             local_food = sum(potential(a, source) for a in family)
             from food_access import food_surplus
             offered = sum(food_surplus(a, source) for a in source.agents if a not in family)
@@ -188,12 +189,12 @@ def run_migrations(t, regions, rng=None):
                    and f.wage / price + local_food >= missing
                    for f in source.agents):
                 continue
+            from terrain_edges import get_edge_manager
+            edges = get_edge_manager()
             choices = []
             for dest in sorted(source.neighbors.values(), key=lambda r: r.name):
                 if dest is source or getattr(dest, 'is_ocean', False) or commons_access(dest) <= 0:
                     continue
-                from terrain_edges import get_edge_manager
-                edges = get_edge_manager()
                 if edges is not None and edges.get_friction(source.name, dest.name) == float('inf'):
                     continue
                 allowed, reason = movement_policy(source, dest, person)

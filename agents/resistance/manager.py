@@ -102,6 +102,11 @@ class PopularResistanceManager:
         self.resistance_log: List[Dict[str, Any]] = []
         self.config: RebellionConfig = config or RebellionConfig()
 
+    def _record_event(self, events, event):
+        """Publish the same event to the turn result and retained history."""
+        events.append(event)
+        self.resistance_log.append(event)
+
     def get_state(self, tile_name: str) -> ResistanceState:
         if tile_name not in self.tile_states:
             self.tile_states[tile_name] = ResistanceState(tile_name=tile_name)
@@ -240,8 +245,7 @@ class PopularResistanceManager:
                     'tile': tile.name,
                     'msg': f"🕊️ Peasant march in {tile.name} dissolved peacefully after enclosure grievances were resolved."
                 }
-                events.append(ev)
-                self.resistance_log.append(ev)
+                self._record_event(events, ev)
                 if world:
                     _safe_ticker_push(world, t, 'POLICY', f"🕊️ {ev['msg']}", (120, 240, 150))
                 return events
@@ -283,8 +287,7 @@ class PopularResistanceManager:
                     'leader_name': state.leader_name,
                     'msg': f"PLOT BLOWN: Infiltrator targeting {state.leader_name} was uncovered in {tile.name}! Public fury swells the agitator's ranks."
                 }
-                events.append(ev)
-                self.resistance_log.append(ev)
+                self._record_event(events, ev)
                 if world:
                     _safe_ticker_push(world, t, 'ALERT', f"⚠️ {ev['msg']}", (240, 80, 80))
             elif plot.turns_remaining <= 0:
@@ -299,8 +302,7 @@ class PopularResistanceManager:
                     'outcome': data.get('outcome', 'unknown'),
                     'msg': msg
                 }
-                events.append(ev)
-                self.resistance_log.append(ev)
+                self._record_event(events, ev)
                 if data.get('outcome') == 'decapitation':
                     return events
 
@@ -372,8 +374,7 @@ class PopularResistanceManager:
                     'participants': len(selected),
                     'msg': f"ORGANIZING: Clandestine peasant assemblies reported in {tile.name}. Secret oaths sworn to resist enclosures on {target_plot.plot_id}!"
                 }
-                events.append(ev)
-                self.resistance_log.append(ev)
+                self._record_event(events, ev)
                 if world:
                     _safe_ticker_push(world, t, 'ALERT', f"🌾 {ev['msg']}", (230, 180, 50))
                 return events
@@ -407,8 +408,7 @@ class PopularResistanceManager:
                 'participants': len(participants),
                 'msg': f"PROCLAMATION: Peasant manifestos nailed to church doors in {tile.name}, demanding fences on {state.target_plot_id} be opened!"
             }
-            events.append(ev)
-            self.resistance_log.append(ev)
+            self._record_event(events, ev)
             if world:
                 _safe_ticker_push(world, t, 'ALERT', f"📜 {ev['msg']}", (240, 150, 40))
 
@@ -440,8 +440,7 @@ class PopularResistanceManager:
                 'participants': len(participants),
                 'msg': f"PEASANT MARCH: Column of {len(participants)} peasants armed with scythes and spades is marching toward {state.target_plot_id} in {tile.name}!"
             }
-            events.append(ev)
-            self.resistance_log.append(ev)
+            self._record_event(events, ev)
             if world:
                 _safe_ticker_push(world, t, 'ALERT', f"🚶 {ev['msg']}", (240, 90, 40))
 
@@ -456,8 +455,7 @@ class PopularResistanceManager:
                 'participants': len(participants),
                 'msg': f"PERIMETER STANDOFF: Peasant demonstrators massed at the boundary ditches of {state.target_plot_id} in {tile.name}!"
             }
-            events.append(ev)
-            self.resistance_log.append(ev)
+            self._record_event(events, ev)
             if world:
                 _safe_ticker_push(world, t, 'ALERT', f"⚠️ {ev['msg']}", (240, 40, 40))
 
@@ -496,8 +494,7 @@ class PopularResistanceManager:
                     'new_commons_access': tenure.commons_access,
                     'msg': f"FENCE TEARING! Peasants leveled fences on {target_plot.plot_id} in {tile.name}, restoring commons foraging to {tenure.commons_access*100:.0f}%!"
                 }
-                events.append(ev)
-                self.resistance_log.append(ev)
+                self._record_event(events, ev)
                 if world:
                     _safe_ticker_push(world, t, 'ALERT', f"🌾 {ev['msg']}", (220, 190, 70))
 
@@ -890,8 +887,7 @@ class PopularResistanceManager:
                     'strike_rate': strike_rate,
                     'msg': f"GENERAL STRIKE! {strike_rate*100:.0f}% of workers walked out in {tile.name}. Production and transport routes frozen!"
                 }
-                events.append(ev)
-                self.resistance_log.append(ev)
+                self._record_event(events, ev)
 
                 if world:
                     _safe_ticker_push(world, t, 'ALERT', f"✊ {ev['msg']}", (240, 80, 80))
@@ -909,8 +905,7 @@ class PopularResistanceManager:
                     'tile': tile.name,
                     'msg': f"General strike in {tile.name} concluded. Work and transport resumed."
                 }
-                events.append(ev)
-                self.resistance_log.append(ev)
+                self._record_event(events, ev)
 
         return events
 
@@ -934,8 +929,7 @@ class PopularResistanceManager:
                 'tile': tile.name,
                 'msg': f"TO THE BARRICADES! Workers and students erected street barricades across {tile.name}!"
             }
-            events.append(ev)
-            self.resistance_log.append(ev)
+            self._record_event(events, ev)
             if world:
                 _safe_ticker_push(world, t, 'ALERT', f"🚧 {ev['msg']}", (240, 110, 50))
         elif state.has_barricades and state.barricade_hp <= 0.0:
@@ -992,8 +986,7 @@ class PopularResistanceManager:
                 'militia_strength': state.militia_strength,
                 'msg': f"ARMORY RAID! Insurgents seized the armory in {tile.name}, mobilizing {state.militia_strength} citizen militia!"
             }
-            events.append(ev)
-            self.resistance_log.append(ev)
+            self._record_event(events, ev)
             if world:
                 _safe_ticker_push(world, t, 'WAR', f"⚔️ {ev['msg']}", (250, 50, 50))
 
@@ -1015,8 +1008,7 @@ class PopularResistanceManager:
                         'tile': tile.name,
                         'msg': f"MILITARY SUPPRESSION: State military forces stormed and dismantled street barricades in {tile.name}!"
                     }
-                    events.append(ev)
-                    self.resistance_log.append(ev)
+                    self._record_event(events, ev)
                     if world:
                         _safe_ticker_push(world, t, 'MILITARY', f"⚔️ {ev['msg']}", (240, 80, 80))
             elif unrest < 1.5 and state.militia_strength == 0:
@@ -1029,8 +1021,7 @@ class PopularResistanceManager:
                     'tile': tile.name,
                     'msg': f"Barricades in {tile.name} dissolved as civil unrest subsided."
                 }
-                events.append(ev)
-                self.resistance_log.append(ev)
+                self._record_event(events, ev)
 
         return events
 
@@ -1097,8 +1088,7 @@ class PopularResistanceManager:
                 'repudiated_debt': repudiation_results.get('repudiated_debt', 0.0),
                 'msg': f"🚩 REVOLUTIONARY COMMUNE PROCLAIMED in {nation.name}! Private land titles abolished ({total_plots_reverted} plots restored to Commons). Sovereign foreign debt repudiated!"
             }
-            events.append(ev)
-            self.resistance_log.append(ev)
+            self._record_event(events, ev)
 
             _safe_ticker_push(world, t, 'ALERT', f"🚩 {ev['msg']}", (255, 30, 30))
 
@@ -1212,8 +1202,7 @@ class PopularResistanceManager:
                     'leader_name': state.leader_name,
                     'msg': f"PLOT BLOWN: Infiltrator targeting {state.leader_name} was uncovered in {tile.name}! Public fury swells the agitator's ranks."
                 }
-                events.append(ev)
-                self.resistance_log.append(ev)
+                self._record_event(events, ev)
                 if world:
                     _safe_ticker_push(world, t, 'ALERT', f"⚠️ {ev['msg']}", (240, 80, 80))
             elif plot.turns_remaining <= 0:
@@ -1228,8 +1217,7 @@ class PopularResistanceManager:
                     'outcome': data.get('outcome', 'unknown'),
                     'msg': msg
                 }
-                events.append(ev)
-                self.resistance_log.append(ev)
+                self._record_event(events, ev)
                 if data.get('outcome') == 'decapitation':
                     return events
 
@@ -1317,8 +1305,7 @@ class PopularResistanceManager:
                 'leader_name': state.leader_name,
                 'msg': f"ORGANIZING: {state.leader_name} mobilized clandestine assemblies ({len(state.revolt_participants)} followers) in {tile.name} to resist enclosures on {target_plot.plot_id}!"
             }
-            events.append(ev)
-            self.resistance_log.append(ev)
+            self._record_event(events, ev)
             if world:
                 _safe_ticker_push(world, t, 'ALERT', f"🌾 {ev['msg']}", (230, 180, 50))
 

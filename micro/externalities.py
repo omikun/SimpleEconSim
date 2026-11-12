@@ -402,31 +402,26 @@ def apply_environmental_health_wear(region):
     nation = getattr(region, 'owner_nation', None)
     has_clean_pest = 'biological_pest_control' in getattr(nation, 'unlocked_techs', set()) if nation else False
 
+    common_sources = {
+        'air_pollution': (0.0015 * (region.pollution_air - 15.0)
+                          if region.pollution_air > 15.0 else 0.0),
+        'water_pollution': (0.0020 * (region.pollution_water - 20.0)
+                            if region.pollution_water > 20.0 else 0.0),
+        'direct_pesticide_exposure': 0.0,
+        'soil_toxicity': 0.0,
+        'low_nutrition': (0.025 * (1.0 - region.nutrition_density)
+                          if region.nutrition_density < 0.85 else 0.0),
+    }
     for a in getattr(region, 'agents', []):
         if not getattr(a, 'alive', True) or getattr(a, 'is_corporation', False) or getattr(a, 'is_government', False):
             continue
-
-        attrition_sources = {'air_pollution': 0.0, 'water_pollution': 0.0,
-                             'direct_pesticide_exposure': 0.0, 'soil_toxicity': 0.0,
-                             'low_nutrition': 0.0}
-
-        # 1. Smog inhalation (particulate matter & sulfur)
-        if region.pollution_air > 15.0:
-            attrition_sources['air_pollution'] = 0.0015 * (region.pollution_air - 15.0)
-
-        # 2. Contaminated drinking water (cholera, heavy metals)
-        if region.pollution_water > 20.0:
-            attrition_sources['water_pollution'] = 0.0020 * (region.pollution_water - 20.0)
+        attrition_sources = common_sources.copy()
 
         # 3. Direct pesticide exposure (agricultural laborers handle toxic spray)
         if use_pest and not has_clean_pest and getattr(a, 'output', None) == Goods.food:
             attrition_sources['direct_pesticide_exposure'] = 0.040
         elif region.pollution_soil > 25.0:
             attrition_sources['soil_toxicity'] = 0.0015 * (region.pollution_soil - 25.0)
-
-        # 4. Poor food nutritional density (micronutrient deficiency)
-        if region.nutrition_density < 0.85:
-            attrition_sources['low_nutrition'] = 0.025 * (1.0 - region.nutrition_density)
 
         attrition_delta = sum(attrition_sources.values())
         if attrition_delta > 0.0:

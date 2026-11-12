@@ -166,60 +166,33 @@ class NationPolicyAI:
         return self._bottleneck_relief_breakdown(tile)['bonus']
 
     def _bottleneck_relief_breakdown(self, tile) -> dict:
-        bonus = 0.0
         own_tiles = self.nation.tiles
-
-        # Check for food or wood scarcity in own nation
-        avg_food_price = 0.0
-        avg_wood_price = 0.0
-        if own_tiles:
-            avg_food_price = sum(t.recipes.get(Goods.food, {}).get('price', 10.0) for t in own_tiles) / len(own_tiles)
-            avg_wood_price = sum(t.recipes.get(Goods.wood, {}).get('price', 10.0) for t in own_tiles) / len(own_tiles)
-
         tile_recipes = getattr(tile, 'recipes', {})
-        # If own food is expensive (> $15) and candidate tile has food advantage
-        food_price_gate = avg_food_price > 15.0
-        food_productivity = None
-        food_productivity_gate = False
-        if food_price_gate:
-            food_productivity = tile_recipes.get(
-                Goods.food, {}).get('productivity_mult', 1.0)
-            food_productivity_gate = food_productivity > 1.2
-        food_bonus = ((avg_food_price - 10.0) * 3.0
-                      if food_price_gate and food_productivity_gate else 0.0)
-        bonus += food_bonus
-
-        # If own wood is expensive (> $25) and candidate tile has wood advantage
-        wood_price_gate = avg_wood_price > 25.0
-        wood_productivity = None
-        wood_productivity_gate = False
-        if wood_price_gate:
-            wood_productivity = tile_recipes.get(
-                Goods.wood, {}).get('productivity_mult', 1.0)
-            wood_productivity_gate = wood_productivity > 1.2
-        wood_bonus = ((avg_wood_price - 20.0) * 2.5
-                      if wood_price_gate and wood_productivity_gate else 0.0)
-        bonus += wood_bonus
-
-        return {'bonus': bonus,
-                'own_average_food_price': avg_food_price,
-                'own_average_wood_price': avg_wood_price,
-                'food_price_threshold': 15.0,
-                'food_productivity_threshold': 1.2,
-                'food_bonus_price_base': 10.0,
-                'food_bonus_price_multiplier': 3.0,
-                'candidate_food_productivity': food_productivity,
-                'food_price_gate': food_price_gate,
-                'food_productivity_gate': food_productivity_gate,
-                'food_bonus': food_bonus,
-                'wood_price_threshold': 25.0,
-                'wood_productivity_threshold': 1.2,
-                'wood_bonus_price_base': 20.0,
-                'wood_bonus_price_multiplier': 2.5,
-                'candidate_wood_productivity': wood_productivity,
-                'wood_price_gate': wood_price_gate,
-                'wood_productivity_gate': wood_productivity_gate,
-                'wood_bonus': wood_bonus}
+        result = {'bonus': 0.0}
+        for name, good, threshold, base, multiplier in (
+                ('food', Goods.food, 15.0, 10.0, 3.0),
+                ('wood', Goods.wood, 25.0, 20.0, 2.5)):
+            average = (sum(own.recipes.get(good, {}).get('price', 10.0)
+                           for own in own_tiles) / len(own_tiles)
+                       if own_tiles else 0.0)
+            price_gate = average > threshold
+            productivity = (tile_recipes.get(good, {}).get('productivity_mult', 1.0)
+                            if price_gate else None)
+            productivity_gate = price_gate and productivity > 1.2
+            bonus = ((average - base) * multiplier
+                     if productivity_gate else 0.0)
+            result['bonus'] += bonus
+            result.update({
+                f'own_average_{name}_price': average,
+                f'{name}_price_threshold': threshold,
+                f'{name}_productivity_threshold': 1.2,
+                f'{name}_bonus_price_base': base,
+                f'{name}_bonus_price_multiplier': multiplier,
+                f'candidate_{name}_productivity': productivity,
+                f'{name}_price_gate': price_gate,
+                f'{name}_productivity_gate': productivity_gate,
+                f'{name}_bonus': bonus})
+        return result
 
     def _candidate_tile_valuation(self, tile) -> dict:
         terrain = self._terrain_value_breakdown(tile)

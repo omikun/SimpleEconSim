@@ -93,29 +93,19 @@ def apply_policy_satisfaction(region, *, evidence=None):
     wage_cap_sat = 1.0 if statute_active else 0.2
     free_labor_sat = 0.1 if statute_active else 1.0
 
+    satisfactions = {
+        'tax_cut': tax_sat, 'welfare': welfare_sat, 'tariff': tariff_sat,
+        'immigration': imm_sat, 'enclosure': enclosure_sat,
+        'commons_protection': commons_sat, 'wage_subsidy': welfare_sat,
+        'native_rights': native_sat, 'wage_cap': wage_cap_sat,
+        'free_labor': free_labor_sat,
+    }
+    concessions = getattr(region, 'compromise_concessions', ())
     for f in region.factions.factions.values():
         for d in f.demands:
-            if d.name == 'tax_cut':
-                d.satisfied = tax_sat
-            elif d.name == 'welfare':
-                d.satisfied = welfare_sat
-            elif d.name == 'tariff':
-                d.satisfied = tariff_sat
-            elif d.name == 'immigration':
-                d.satisfied = imm_sat
-            elif d.name == 'enclosure':
-                d.satisfied = enclosure_sat
-            elif d.name == 'commons_protection':
-                d.satisfied = commons_sat
-            elif d.name == 'wage_subsidy':
-                d.satisfied = welfare_sat
-            elif d.name == 'native_rights':
-                d.satisfied = native_sat
-            elif d.name == 'wage_cap':
-                d.satisfied = wage_cap_sat
-            elif d.name == 'free_labor':
-                d.satisfied = free_labor_sat
-            if d.name in getattr(region, 'compromise_concessions', ()):
+            if d.name in satisfactions:
+                d.satisfied = satisfactions[d.name]
+            if d.name in concessions:
                 d.satisfied = max(d.satisfied, 0.85)
     if evidence is not None:
         evidence.update(
@@ -138,20 +128,18 @@ def accumulate_grievances(region, t):
     grievance_scale = float(getattr(region, 'scenario_grievance_scale', 1.0))
     prior_grievances = ({f.name: dict(f.grievances) for f in region.factions.factions.values()}
                         if grievance_scale != 1.0 else {})
+    people = [a for a in agents if not a.is_corporation and not a.is_government]
     # hunger
     from nutrition import deficit_fraction
-    hungry_now = sum(deficit_fraction(a) for a in agents
-                     if not a.is_corporation and not a.is_government)
+    hungry_now = sum(deficit_fraction(a) for a in people)
     mem_hunger = sum(a.mem_avg('mem_hunger', 0.0)
-                     for a in agents
-                     if not a.is_corporation and not a.is_government)
+                     for a in people)
     hunger_pressure = hungry_now / 30.0 + mem_hunger / 120.0
     hunger_score = 3.0 * (1.0 - math.exp(-hunger_pressure / 3.0))
     # repression memory
     trauma = sum(a.mem_avg('mem_casualties', 0.0)
                  + a.mem_avg('mem_promises', 0.0)
-                 for a in agents
-                 if not a.is_corporation and not a.is_government)
+                 for a in people)
     trauma_score = min(2.0, trauma / 60.0)
     # gini
     gini = 0.0
@@ -168,16 +156,13 @@ def accumulate_grievances(region, t):
     levy_units = float(getattr(region, 'emergency_grain_levy_units', 0.0))
     levy_score = min(3.0, 2.0 * levy_units / max(1, len(agents)))
     # unemployment
-    adults = [a for a in agents
-              if not a.is_corporation and not a.is_government
-              and (a.birth_round == 0 or a.age(t) > 20)]
+    adults = [a for a in people if a.birth_round == 0 or a.age(t) > 20]
     unemp = (sum(1 for a in adults if a.employer is None
                  and not a.is_trader) / max(1, len(adults)))
 
     # eviction / enclosure memory (P1)
     eviction = sum(a.mem_avg('mem_eviction', 0.0)
-                   for a in agents
-                   if not a.is_corporation and not a.is_government)
+                   for a in people)
     eviction_score = min(2.5, eviction / 40.0)
 
     # labor exploitation, shift hours & casualties (P2.3)

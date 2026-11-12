@@ -243,10 +243,7 @@ def record_workforce_availability(region, t: int):
         if not getattr(firm, 'is_corporation', False):
             continue
         employees = list(getattr(firm, 'employees', ()))
-        working = [employee for employee in employees
-                   if not getattr(employee, 'is_striking', False)
-                   and not getattr(employee, 'in_revolt', False)
-                   and employee.id not in getattr(region, 'pollution_revolt_ids', set())]
+
 
         def scheduled_hours(employee):
             agreement = getattr(employee, 'labor_agreement', None)
@@ -291,7 +288,7 @@ def record_workforce_availability(region, t: int):
             inputs={'firm_id': firm.id,
                     'output_good': getattr(getattr(firm, 'output', None), 'name', None),
                     'employee_count': len(employees),
-                    'working_employee_count': len(working),
+                    'working_employee_count': sum(row['status'] == 'available' for row in worker_rows),
                     'striking_employee_ids': [employee.id for employee in employees
                                               if getattr(employee, 'is_striking', False)],
                     'revolting_employee_ids': [employee.id for employee in employees
@@ -331,8 +328,10 @@ def step_workplace_resistance(region, t: int) -> dict:
     workforce_event_ids = record_workforce_availability(region, t)
 
     # Aggregate tile resistance metrics
-    total_strikers = sum(1 for a in getattr(region, 'agents', [])
-                         if getattr(a, 'is_striking', False) and getattr(a, 'alive', True))
+    striker_ids = [a.id for a in getattr(region, 'agents', [])
+                   if getattr(a, 'is_striking', False)
+                   and getattr(a, 'alive', True)]
+    total_strikers = len(striker_ids)
     total_broken = sum(getattr(f, 'broken_machinery', 0) for f in firms)
     sabotage_by_firm = {row['firm_id']: row for row in sabotage_evidence}
     repair_by_firm = {row['firm_id']: row for row in repair_evidence}
@@ -357,9 +356,6 @@ def step_workplace_resistance(region, t: int) -> dict:
             'repair_evidence': repair_row,
         })
     active_strikes = sum(1 for f in firms if getattr(f, 'is_on_strike', False))
-    striker_ids = [a.id for a in getattr(region, 'agents', [])
-                   if getattr(a, 'is_striking', False)
-                   and getattr(a, 'alive', True)]
     from run_trace import emit
     emit(region, kind='labor_machinery_sabotage_calculation',
          record_class='calculation', phase='local',

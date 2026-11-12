@@ -168,6 +168,7 @@ def deliver_province_food(province, turn):
     """Unload only shipments whose physical travel time has elapsed."""
     if not provincial_relief_enabled(province):
         return
+    destinations = {tile.name: tile for tile in _national_tiles(province)}
     pending = []
     for shipment_index, shipment in enumerate(getattr(province, 'food_shipments', [])):
         if shipment['arrival_turn'] > turn:
@@ -176,8 +177,7 @@ def deliver_province_food(province, turn):
         # Cargo stays in its originating province's ledger even when its
         # destination is in another province. Ownership changes never turn it
         # into an unrecorded transfer to a foreign government.
-        destination = next((r for r in _national_tiles(province)
-                            if r.name == shipment['destination']), None)
+        destination = destinations.get(shipment['destination'])
         if destination is None:
             pending.append(shipment)
             continue
@@ -292,6 +292,7 @@ def dispatch_province_food(province, turn):
         if tile not in province.tiles:
             continue
         donors = []
+        available = 0
         for person in tile.agents:
             if (not person.alive or person.is_government
                     or getattr(person, 'military_unit_id', None)):
@@ -302,10 +303,7 @@ def dispatch_province_food(province, turn):
             surplus = max(0, person.inv_get(Goods.food, 0) - reserve)
             if surplus:
                 donors.append((person, surplus))
-        available = sum(levy_capacity(person,
-                                     max(protected_food(person, tile, emergency=True),
-                                         0 if person.is_corporation else 2 * appetite_units(person)))
-                        for person, _surplus in donors)
+                available += levy_capacity(person, reserve)
         if available > 4 * len(residents) and hungry_share < 0.1:
             sources.append((tile, available, donors))
     emit(province.tiles[0], kind='food_relief_network_assessment',
@@ -331,10 +329,10 @@ def dispatch_province_food(province, turn):
         gov._food_aid_turn = turn
     dispatched = []
     source_used_capacity = {}
+    provinces = list(getattr(nation, 'provinces', ()))
+    if province not in provinces:
+        provinces.append(province)
     for destination, _hunger, meal_gap in destinations:
-        provinces = list(getattr(nation, 'provinces', ()))
-        if province not in provinces:
-            provinces.append(province)
         incoming = sum(shipment['units'] for owner in provinces
                        for shipment in getattr(owner, 'food_shipments', ())
                        if shipment['destination'] == destination.name)

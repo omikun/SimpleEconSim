@@ -187,15 +187,13 @@ def calculate_bid(region, agent, good, good_price, current_desired, agent_recipe
         available = max(0, agent.remainingCash - payroll)
         return result(min(missing, int(available // (good_price * 1.5))), 'workshop_equipment_unfunded')
     if good == Goods.food and not agent.is_government:
-        from food_access import business_food_target, household_bid
-        if agent.is_corporation:
-            desired = max(0, business_food_target(agent, region) - agent.inv_get(good, 0))
-            affordable = int(max(0, agent.remainingCash) // (good_price * 1.75)) if good_price > 0 else 0
-            return result(int(min(desired, affordable)), 'business_food_commitments_satisfied' if desired <= 0
-                          else 'business_food_unaffordable')
-        quantity, demand, _ = household_bid(agent, region, good_price, max(0, agent.remainingCash))
-        return result(quantity, 'dependent_food_ordered_by_parent' if demand['dependent_order'] else
-                      'meal_reserve_satisfied' if demand['desired'] <= 0 else 'meal_reserve_unaffordable')
+        # Household food already returned above; only business input/store
+        # demand can reach this branch.
+        from food_access import business_food_target
+        desired = max(0, business_food_target(agent, region) - agent.inv_get(good, 0))
+        affordable = int(max(0, agent.remainingCash) // (good_price * 1.75)) if good_price > 0 else 0
+        return result(int(min(desired, affordable)), 'business_food_stock_sufficient' if desired <= 0
+                      else 'business_food_unaffordable')
     if not is_employee and input_good(region, agent) == good:
         num_employees = len(agent.employees) if agent.is_corporation else 0
         desired = max(0, agent_recipe['numInput'] * 2 * (1 + num_employees) - agent.inv_get(good, 0))

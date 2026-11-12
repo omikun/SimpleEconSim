@@ -237,14 +237,19 @@ def adoption_candidates(system, nation, region, firm, turn):
     return candidates
 
 
+def _has_active_private_project(region, firm):
+    return any(getattr(project, 'private_owner_id', None) == firm.id
+               and project.status in ACTIVE_PROJECT_STATUSES
+               for project in getattr(region, 'construction_projects', ()))
+
+
 def commission_private_adoption(system, nation, region, firm, candidate, turn, decision_id=None):
     """Fund a real contractor; credit follows the existing bank's balance sheet."""
     from construction_politics import find_or_emerge_contractor
     from buildings import ConstructionProject
     from engineering import _pay
     from run_trace import emit
-    if any(getattr(p, 'private_owner_id', None) == firm.id and p.status in ACTIVE_PROJECT_STATUSES
-           for p in getattr(region, 'construction_projects', ())):
+    if _has_active_private_project(region, firm):
         return None
     recipe = candidate['recipe']
     budget = float(recipe.cost)
@@ -338,8 +343,7 @@ def step_private_adoption(tiles, nations, turn, system=None):
             if (turn + firm.id) % DECISION_INTERVAL or getattr(firm, '_technology_adoption_turn', None) == turn:
                 continue
             firm._technology_adoption_turn = turn
-            if any(getattr(p, 'private_owner_id', None) == firm.id and p.status in ACTIVE_PROJECT_STATUSES
-                   for p in getattr(region, 'construction_projects', ())):
+            if _has_active_private_project(region, firm):
                 continue
             candidates = adoption_candidates(system, nation, region, firm, turn)
             feasible = [c for c in candidates if c['economics']['feasible']]

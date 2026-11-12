@@ -487,15 +487,10 @@ class SovereignBondMarket:
             holder.government.agent.cash -= principal
             holder_write_ids = finish_public_change(public_change, 'bond_issue_bond_cash',
                 inputs={'source_method': 'issue_bond'})
-            public_change = begin_public_change(issuer, issuer.government.agent)
-            issuer.government.agent.cash += principal
-            issuer_write_ids = finish_public_change(public_change, 'bond_issue_bond_cash',
-                inputs={'source_method': 'issue_bond'})
-        else:
-            public_change = begin_public_change(issuer, issuer.government.agent)
-            issuer.government.agent.cash += principal
-            issuer_write_ids = finish_public_change(public_change, 'bond_issue_bond_cash',
-                inputs={'source_method': 'issue_bond'})
+        public_change = begin_public_change(issuer, issuer.government.agent)
+        issuer.government.agent.cash += principal
+        issuer_write_ids = finish_public_change(public_change, 'bond_issue_bond_cash',
+            inputs={'source_method': 'issue_bond'})
 
         bond = SovereignBond(
             bond_id=bond_id,

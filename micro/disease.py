@@ -388,8 +388,6 @@ def step_medical_care(region, t: int, rand_gen=None) -> dict:
                         cause_event_ids=account_event_ids or None)
                     public_transfers += cost_per_cure
                     from economy.actor_accounts import record as record_economic_event
-                    operation_id = (f'medical-care:{region.name}:{int(t)}:'
-                                    f'{a.id}:{dis}:{disease_index}:public')
                     actor_account_event = record_economic_event(
                         region, 'medical_care', turn=t,
                         payer_id=gov_agent.id, recipient_id=provider.id,
@@ -414,32 +412,10 @@ def step_medical_care(region, t: int, rand_gen=None) -> dict:
                     non_transfer_treatments += 1
 
                 spending_pub += cost_per_cure
-                treated_count += 1
                 public_treated_count += 1
-                a.medical_treatments_count = getattr(a, 'medical_treatments_count', 0) + 1
-
-                cure_draw = r.random()
-                cured = cure_draw < effective_cure
-                emit(region, kind='medical_treatment', record_class='outcome',
-                     subject={'type': 'tile', 'id': region.name,
-                              'agent_id': getattr(a, 'id', None), 'disease': dis},
-                     metric_id='health.medical_treatment', unit='treatment',
-                     before=1, after=0 if cured else 1,
-                     formula_id='medicine.cure_chance.v1',
-                     inputs={'payer': 'public', 'treatment_cost': cost_per_cure,
-                             'effective_cure_chance': effective_cure,
-                             'cure_draw': cure_draw, 'provider_id': getattr(provider, 'id', None),
-                             'provider_is_treasury': provider == gov_agent,
-                             'cash_settlement': cash_settlement,
-                             'cash_transfer_event_id': cash_transfer_event_id,
-                             'operation_id': operation_id,
-                             'actor_account_event_id': actor_account_event['id']
-                             if actor_account_event is not None else None},
-                     cause_event_ids=([cash_transfer_event_id]
-                                      if cash_transfer_event_id else account_event_ids or None))
-                if cured:
-                    cured_this_turn.append(dis)
-                    a.health_attrition = max(0.0, getattr(a, 'health_attrition', 0.0) - 0.15)
+                treatment_inputs = {'payer': 'public',
+                                    'provider_is_treasury': provider == gov_agent}
+                attrition_recovery = 0.15
             elif a.cash >= cost_per_cure:
                 # Private out-of-pocket medical bill: patient pays
                 cash_transfer_event_id = None
@@ -473,8 +449,6 @@ def step_medical_care(region, t: int, rand_gen=None) -> dict:
                         inputs={'operation_id': operation_id, 'patient_id': a.id, 'disease': dis},
                         cause_event_ids=account_event_ids or None)
                     from economy.actor_accounts import record as record_economic_event
-                    operation_id = (f'medical-care:{region.name}:{int(t)}:'
-                                    f'{a.id}:{dis}:{disease_index}:private')
                     actor_account_event = record_economic_event(
                         region, 'medical_care', turn=t,
                         payer_id=a.id, recipient_id=provider.id,
@@ -500,30 +474,8 @@ def step_medical_care(region, t: int, rand_gen=None) -> dict:
 
                 spending_priv += cost_per_cure
                 a.medical_expenses_paid = getattr(a, 'medical_expenses_paid', 0.0) + cost_per_cure
-                treated_count += 1
-                a.medical_treatments_count = getattr(a, 'medical_treatments_count', 0) + 1
-
-                cure_draw = r.random()
-                cured = cure_draw < effective_cure
-                emit(region, kind='medical_treatment', record_class='outcome',
-                     subject={'type': 'tile', 'id': region.name,
-                              'agent_id': getattr(a, 'id', None), 'disease': dis},
-                     metric_id='health.medical_treatment', unit='treatment',
-                     before=1, after=0 if cured else 1,
-                     formula_id='medicine.cure_chance.v1',
-                     inputs={'payer': 'patient', 'treatment_cost': cost_per_cure,
-                             'effective_cure_chance': effective_cure,
-                             'cure_draw': cure_draw, 'provider_id': getattr(provider, 'id', None),
-                             'cash_settlement': cash_settlement,
-                             'cash_transfer_event_id': cash_transfer_event_id,
-                             'operation_id': operation_id,
-                             'actor_account_event_id': actor_account_event['id']
-                             if actor_account_event is not None else None},
-                     cause_event_ids=([cash_transfer_event_id]
-                                      if cash_transfer_event_id else account_event_ids or None))
-                if cured:
-                    cured_this_turn.append(dis)
-                    a.health_attrition = max(0.0, getattr(a, 'health_attrition', 0.0) - 0.10)
+                treatment_inputs = {'payer': 'patient'}
+                attrition_recovery = 0.10
             else:
                 # Cannot afford treatment! Disease festers
                 untreated_count += 1
@@ -554,6 +506,32 @@ def step_medical_care(region, t: int, rand_gen=None) -> dict:
                 })
                 if untreated_event_id is not None:
                     untreated_event_ids.append(untreated_event_id)
+                continue
+
+            treated_count += 1
+            a.medical_treatments_count = getattr(a, 'medical_treatments_count', 0) + 1
+
+            cure_draw = r.random()
+            cured = cure_draw < effective_cure
+            emit(region, kind='medical_treatment', record_class='outcome',
+                 subject={'type': 'tile', 'id': region.name,
+                          'agent_id': getattr(a, 'id', None), 'disease': dis},
+                 metric_id='health.medical_treatment', unit='treatment',
+                 before=1, after=0 if cured else 1,
+                 formula_id='medicine.cure_chance.v1',
+                 inputs={**treatment_inputs, 'treatment_cost': cost_per_cure,
+                         'effective_cure_chance': effective_cure,
+                         'cure_draw': cure_draw, 'provider_id': getattr(provider, 'id', None),
+                         'cash_settlement': cash_settlement,
+                         'cash_transfer_event_id': cash_transfer_event_id,
+                         'operation_id': operation_id,
+                         'actor_account_event_id': actor_account_event['id']
+                         if actor_account_event is not None else None},
+                 cause_event_ids=([cash_transfer_event_id]
+                                  if cash_transfer_event_id else account_event_ids or None))
+            if cured:
+                cured_this_turn.append(dis)
+                a.health_attrition = max(0.0, getattr(a, 'health_attrition', 0.0) - attrition_recovery)
 
         for c in cured_this_turn:
             if c in a.diseases:
@@ -704,11 +682,12 @@ def step_trade_epidemic_transmission(tiles: list, t: int, world: dict | None = N
 
         # 1. Loading Contagion onto Outgoing Routes
         if active_pest > 0:
+            source_population = len(getattr(r, 'agents', []))
+            inf_rate = active_pest / max(1, source_population)
+            load_probability = min(0.95, 0.30 + inf_rate * 1.5)
             for partner_name, rt in routes.items():
                 if rt.is_frozen or getattr(rt, 'is_quarantined', False):
                     continue
-                inf_rate = active_pest / max(1, len(getattr(r, 'agents', [])))
-                load_probability = min(0.95, 0.30 + inf_rate * 1.5)
                 load_draw = rng.random()
                 contagion_before = bool(getattr(rt, 'has_contagion', False))
                 if load_draw < load_probability:
@@ -722,7 +701,7 @@ def step_trade_epidemic_transmission(tiles: list, t: int, world: dict | None = N
                          before=contagion_before, after=bool(getattr(rt, 'has_contagion', False)),
                          formula_id='disease.trade_contagion_load.v1',
                          inputs={'active_infected_people': active_pest,
-                                 'source_population': len(getattr(r, 'agents', [])),
+                                 'source_population': source_population,
                                  'infection_rate': inf_rate,
                                  'load_probability': load_probability,
                                  'random_draw': load_draw,

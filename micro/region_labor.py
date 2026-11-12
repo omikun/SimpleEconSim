@@ -96,13 +96,14 @@ def borrow_or_layoff(region, t):
 def incorporate(region, t):
     """Found new corporations by sole proprietors with sufficient wealth."""
     new_companies = []
+    food_price = region.food_price
+    startup_target = max(300, food_price * 20)
     for a in region.agents:
         if (a.employer or a.is_corporation or a.cash <= 400 or a.company_owned
             or getattr(a, 'military_unit_id', None)
             or getattr(a, 'is_government', False) or getattr(a, 'is_lord', False)
             or a.output == Goods.gov):
             continue
-        food_price = region.food_price
         company = Agent(t)
         company.is_corporation = True
         seed_traits(company)
@@ -116,7 +117,6 @@ def incorporate(region, t):
             company.inventory[g.value] = a.inv_get(g, 0)
             a.inv_set(g, 0)
         equity = min(a.cash * 0.3, a.cash - 60)
-        startup_target = max(300, food_price * 20)
         shortfall = max(0, startup_target - equity)
         loaned = 0.0
         if shortfall > 0:
@@ -272,6 +272,7 @@ def adjust_wages(region, t):
             or not getattr(region, 'responsive_wages', True)):
         return
     tightness = calculate_labor_market_tightness(region)
+    reservation_wage = evaluate_worker_reservation_wage(None, region, tightness)
     is_statute = getattr(region, 'statute_of_laborers', False)
     wage_cap = getattr(region, 'maximum_wage_cap', None) if is_statute else None
 
@@ -289,8 +290,7 @@ def adjust_wages(region, t):
 
         # 1. ACUTE LABOR SHORTAGE (Tightness > 1.0)
         if tightness > 1.0:
-            res_wage = evaluate_worker_reservation_wage(None, region, tightness)
-            needs_raise = (a.wage < res_wage) or has_vacancies
+            needs_raise = (a.wage < reservation_wage) or has_vacancies
             # If firm has enough cash cushion to pay payroll and wage is below ceiling, bid up wages
             if needs_raise and a.cash > max(10.0, payroll * 1.1) and a.wage < effective_max:
                 shortage_intensity = min(3.0, tightness - 1.0)
@@ -333,7 +333,7 @@ def adjust_wages(region, t):
                      'cash': a.cash, 'payroll': payroll,
                      'mrpl_wage_ceiling': mrpl_ceiling,
                      'effective_wage_ceiling': effective_max,
-                     'reservation_wage': evaluate_worker_reservation_wage(None, region, tightness),
+                     'reservation_wage': reservation_wage,
                      'wage_cap': wage_cap,
                      'food_price': region.recipes.get(Goods.food, {}).get('price', 1.0)})
 

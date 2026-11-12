@@ -95,6 +95,8 @@ class LiveContext:
 def Live(t, agents, context: LiveContext):
     """Process one turn of the life-cycle for all agents (in place)."""
     ctx = context
+    from world_config import FULL_GAMEPLAY_FLAGS
+    flags = FULL_GAMEPLAY_FLAGS if ctx.gameplay_flags is None else ctx.gameplay_flags
 
     # 1. Pre-life-cycle government transfers
     for government in ctx.governments:
@@ -120,12 +122,10 @@ def Live(t, agents, context: LiveContext):
     # Public aid and charity get first opportunity; relief precedes consumption
     # and the starvation mortality check, regardless of shuffled agent order.
     from feudal_tribute import feed_estate_residents
-    if ctx.gameplay_flags is None or ctx.gameplay_flags.feudal_tribute:
+    if flags.feudal_tribute:
         feed_estate_residents(ctx.source_region, t, agents)
 
     from households import allocate
-    from world_config import FULL_GAMEPLAY_FLAGS
-    flags = FULL_GAMEPLAY_FLAGS if ctx.gameplay_flags is None else ctx.gameplay_flags
     lifecycle_enabled = flags.household_lifecycle
     if flags.household_food:
         if ctx.source_region is not None:

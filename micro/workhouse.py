@@ -201,10 +201,11 @@ def step_workhouse(region, t: int) -> list[dict]:
         # Purchase only from a named agent with physical food inventory.
         # Cash and food move directly between the government, seller, and inmate.
         remaining = food_needed - food_provided
+        sellers = sorted(region.agents, key=lambda person: person.id)
         for inmate in active_inmates[food_provided:]:
             if remaining <= 0 or gov_agent.cash < food_price:
                 break
-            seller = next((a for a in sorted(region.agents, key=lambda x: x.id)
+            seller = next((a for a in sellers
                            if a is not gov_agent and a is not inmate
                            and not getattr(a, 'is_corporation', False)
                            and getattr(a, 'alive', True)
@@ -287,13 +288,14 @@ def step_workhouse(region, t: int) -> list[dict]:
                     f"{forced_hours:.1f} compulsory labor hours recorded, with no sale revenue.")
     })
 
-    events[-1]['fed_inmate_ids'] = [inmate.id for inmate in fed_inmates]
-    events[-1]['starving_inmate_ids'] = [inmate.id for inmate in starving_inmates]
+    fed_ids = [inmate.id for inmate in fed_inmates]
+    starving_ids = [inmate.id for inmate in starving_inmates]
+    events[-1]['fed_inmate_ids'] = fed_ids
+    events[-1]['starving_inmate_ids'] = starving_ids
     _record_workhouse_turn(
         region, t, reason='workhouse_operations',
         inmate_ids_before=inmate_ids_before, events=events,
-        fed_inmate_ids=[inmate.id for inmate in fed_inmates],
-        starving_inmate_ids=[inmate.id for inmate in starving_inmates],
+        fed_inmate_ids=fed_ids, starving_inmate_ids=starving_ids,
         food_needed=food_needed, food_provided=food_provided,
         forced_labor_hours=forced_hours, revenue=total_revenue)
 

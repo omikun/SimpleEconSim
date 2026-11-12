@@ -75,6 +75,19 @@ def _find_host_province(tile, target_nation):
     return min(candidates, key=lambda p: (len(p.tiles), id(p)))
 
 
+def _settle_displaced_residents(tile, nation, turn, count):
+    """Create displaced residents identically for local and stranded refugees."""
+    for _ in range(count):
+        person = Agent(turn)
+        seed_traits(person)
+        initialize_agent(person, Goods.none, 0, 0, 0.0)
+        person.region = tile.name
+        person.social_class = 'dispossessed'
+        person.mem_push('mem_eviction', 1.0)
+        person.home_currency = nation.currency
+        tile.agents.append(person)
+
+
 def check_and_apply_claims(t, tiles, nations):
     """Evaluate and execute claims on all unclaimed wilderness tiles.
 
@@ -159,15 +172,7 @@ def check_and_apply_claims(t, tiles, nations):
                 refugee_count = wilderness_pop - dispossessed_count
 
                 # Half become living dispossessed proletarians on the tile
-                for _ in range(dispossessed_count):
-                    disp_agent = Agent(t)
-                    seed_traits(disp_agent)
-                    initialize_agent(disp_agent, Goods.none, 0, 0, 0.0)
-                    disp_agent.region = tile.name
-                    disp_agent.social_class = 'dispossessed'
-                    disp_agent.mem_push('mem_eviction', 1.0)
-                    disp_agent.home_currency = target_nation.currency
-                    tile.agents.append(disp_agent)
+                _settle_displaced_residents(tile, target_nation, t, dispossessed_count)
 
                 # Remaining half flee as refugees to adjacent wilderness tiles if available
                 wild_adj = [adj for adj in tile.neighbors.values()
@@ -181,19 +186,9 @@ def check_and_apply_claims(t, tiles, nations):
                         w_tile.wilderness_pop = getattr(w_tile, 'wilderness_pop', 0) + added
                 elif refugee_count > 0:
                     # If no adjacent wilderness, all become dispossessed on the tile
-                    for _ in range(refugee_count):
-                        disp_agent = Agent(t)
-                        seed_traits(disp_agent)
-                        initialize_agent(disp_agent, Goods.none, 0, 0, 0.0)
-                        disp_agent.region = tile.name
-                        disp_agent.social_class = 'dispossessed'
-                        disp_agent.mem_push('mem_eviction', 1.0)
-                        disp_agent.home_currency = target_nation.currency
-                        tile.agents.append(disp_agent)
+                    _settle_displaced_residents(tile, target_nation, t, refugee_count)
 
-                tile.wilderness_pop = 0
-            else:
-                tile.wilderness_pop = 0
+            tile.wilderness_pop = 0
 
             # ---- Option A: join an adjacent province with room, else found
             #      a fresh 0-capital province.  Both paths reuse ONE shared

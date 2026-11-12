@@ -234,12 +234,8 @@ class EliteCapitalistPlanner:
                             break
 
         new_items = current - known
-        if new_items:
-            self._known_market_goods[reg_name] = current
-            has_new_items = True
-        else:
-            self._known_market_goods[reg_name] = current
-            has_new_items = False
+        self._known_market_goods[reg_name] = current
+        has_new_items = bool(new_items)
 
         from run_trace import emit
         clock = getattr(region, '_collective_trace_clock', None)
@@ -261,7 +257,7 @@ class EliteCapitalistPlanner:
         if novelty_event_id is not None and clock is not None:
             self._last_market_novelty_trace[id(region)] = (
                 int(clock.get('turn', 0)), novelty_event_id)
-        elif id(region) in self._last_market_novelty_trace:
+        else:
             self._last_market_novelty_trace.pop(id(region), None)
         return has_new_items
 
@@ -301,13 +297,11 @@ class EliteCapitalistPlanner:
         if not self.is_elite(agent, region):
             return False
         reason = None
-        considered_gates = ['elite_eligibility']
+        considered_gates = ['elite_eligibility', 'market_novelty']
         matched_trigger = None
         if market_has_new_items:
             reason = 'new_market_item'
-            considered_gates.append('market_novelty')
         else:
-            considered_gates.append('market_novelty')
             matched_trigger = next((e for e in getattr(region, 'supply_proposal_events', [])
                                     if e.get('turn') == t
                                     and e.get('buyer_id') == agent.id), None)

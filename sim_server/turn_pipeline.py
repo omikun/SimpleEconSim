@@ -47,20 +47,18 @@ def _advance_scenario(server, turn):
         return
     if server.scenario_id == 'labor_frontier_rivalry':
         from scenario_labor_frontier_rivalry import advance_after_engine
-        advance_after_engine(server.get_world_dict(), turn)
-        from trace_phase import treasury_boundary
-        treasury_boundary(server.tiles, server.nations, 'scenario_after_hook')
-        server.currency_totals = {
-            currency: fx.audit_currency_total(server.tiles, currency)
-            for currency in server.currencies
-        }
     elif server.scenario_id == 'supply_rivalry':
         from scenario_supply_rivalry import advance_after_engine
-        advance_after_engine(server.get_world_dict(), turn)
-        server.currency_totals = {
-            currency: fx.audit_currency_total(server.tiles, currency)
-            for currency in server.currencies
-        }
+    else:
+        return
+    advance_after_engine(server.get_world_dict(), turn)
+    if server.scenario_id == 'labor_frontier_rivalry':
+        from trace_phase import treasury_boundary
+        treasury_boundary(server.tiles, server.nations, 'scenario_after_hook')
+    server.currency_totals = {
+        currency: fx.audit_currency_total(server.tiles, currency)
+        for currency in server.currencies
+    }
 
 
 def _record_claims(server, turn, claim_events):

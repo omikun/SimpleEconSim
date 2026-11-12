@@ -73,6 +73,7 @@ class Intent:
         status_before = self.status
         nation = nations_by_name.get(self.nation_name)
         treasury_before = nation.treasury()['total'] if nation is not None else None
+        execute_now = self.status == 'approved'
         if self.status == 'pending_approval':
             if self.approval_delay > 0:
                 self.approval_delay -= 1
@@ -84,15 +85,8 @@ class Intent:
                     'event': 'APPROVED',
                     'message': f"Parliament of {self.nation_name} approved {self.intent_type} (ID {self.intent_id})."
                 })
-                ok, msg = self.execute(tiles_by_name, nations_by_name, t)
-                events.append({
-                    't': t,
-                    'intent_id': self.intent_id,
-                    'event': 'EXEC_RESULT',
-                    'success': ok,
-                    'message': msg
-                })
-        elif self.status == 'approved':
+                execute_now = True
+        if execute_now:
             ok, msg = self.execute(tiles_by_name, nations_by_name, t)
             events.append({
                 't': t,

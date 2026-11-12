@@ -493,10 +493,10 @@ class ImperialismManager:
 
     def get_unresolved_defaults_against(self, debtor_nation: str, creditor_nation: str | None = None) -> List[Dict[str, Any]]:
         """Return list of open sovereign defaults for debtor."""
-        res = [d for d in self.delinquent_defaults if d['debtor'] == debtor_nation and d['status'] == 'unresolved']
-        if creditor_nation:
-            res = [d for d in res if d['creditor'] == creditor_nation]
-        return res
+        return [default for default in self.delinquent_defaults
+                if default['debtor'] == debtor_nation
+                and default['status'] == 'unresolved'
+                and (not creditor_nation or default['creditor'] == creditor_nation)]
 
     # ------------------------------------------------------------------
     # Customs Receivership & Caisse de la Dette
@@ -1226,10 +1226,8 @@ class ImperialismManager:
                                 and b.holder_nation != nation.name
                                 and b.status in ("active", "defaulted"))
 
-        foreign_reserves_held = sum(b.principal for b in market.bonds
-                                    if b.holder_nation == nation.name
-                                    and b.issuer_nation != nation.name
-                                    and b.status == "active")
+        foreign_reserves_held = sum(b.principal for b in market.get_bonds_held_by(nation.name)
+                                    if b.issuer_nation != nation.name)
 
         debt_ratio = foreign_debt_owed / total_wealth
         net_balance = foreign_reserves_held - foreign_debt_owed

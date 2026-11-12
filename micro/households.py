@@ -49,10 +49,10 @@ def members(person, region):
         children = [a for a in getattr(region, 'agents', ()) if human(a) and getattr(a, 'parent', None) is leader
                     and a.is_native_child and a.age(turn) < 14]
         return [leader, *children]
-    ids = set(row['members'])
     index = getattr(region, 'household_people', None)
     if index is not None:
         return [index[pid] for pid in row['members'] if pid in index and human(index[pid])]
+    ids = set(row['members'])
     return [a for a in region.agents if a.id in ids and human(a)]
 
 
@@ -82,9 +82,10 @@ def demand(person, region, *, reserve_turns=None):
                                 turns_until_harvest(region) if owns_crop else 1)
     reserve_turns = max(0, float(reserve_turns))
     target = meal + ordinary * reserve_turns
+    is_buyer = buyer(person, region)
     return {'meal_gap': max(0, meal - available), 'target': target,
-            'reserve_turns': reserve_turns, 'desired': max(0, target - available) if buyer(person, region) else 0,
-            'dependent_order': not buyer(person, region), 'ordinary': ordinary,
+            'reserve_turns': reserve_turns, 'desired': max(0, target - available) if is_buyer else 0,
+            'dependent_order': not is_buyer, 'ordinary': ordinary,
             'available': available, 'member_ids': [p.id for p in family]}
 
 
@@ -96,7 +97,8 @@ def allocate(region, turn):
     for row in region.households.values():
         family = [a for a in region.agents if a.id in row['members'] and human(a)]
         for good in (Goods.prepared_food, Goods.food):
-            total = sum(p.inv_get(good, 0) for p in family)
+            held = {person.id: person.inv_get(good, 0) for person in family}
+            total = sum(held.values())
             if total <= 0:
                 continue
             # First cover ordinary needs proportionally; recovery uses remainder.
@@ -105,8 +107,8 @@ def allocate(region, turn):
                        - getattr(p, 'emergency_food_units', 0)) for p in family}
             need = sum(targets.values())
             share = min(1, total / need) if need else 0
-            recipients = [(p, max(0, targets[p.id] * share - p.inv_get(good, 0))) for p in family]
-            donors = [(p, max(0, p.inv_get(good, 0) - targets[p.id] * share)) for p in family]
+            recipients = [(p, max(0, targets[p.id] * share - held[p.id])) for p in family]
+            donors = [(p, max(0, held[p.id] - targets[p.id] * share)) for p in family]
             for recipient, gap in recipients:
                 for i, (donor, surplus) in enumerate(donors):
                     moved = transfer(region, donor, recipient, min(gap, surplus),

@@ -912,7 +912,7 @@ def audit_currency_total(regions, currency):
                 gov_cur = getattr(nat_gov, 'currency', getattr(owner, 'currency', None))
                 if gov_cur == currency:
                     total += nat_agent.cash
-                total += sum(fx_balance(nat_agent, currency) for _ in [0])
+                total += fx_balance(nat_agent, currency)
 
         prov = getattr(r, 'province', None)
         prov_gov = getattr(prov, 'gov', None) if prov else None
@@ -924,7 +924,7 @@ def audit_currency_total(regions, currency):
                 gov_cur = getattr(prov_gov, 'currency', getattr(prov, 'currency', None))
                 if gov_cur == currency:
                     total += prov_agent.cash
-                total += sum(fx_balance(prov_agent, currency) for _ in [0])
+                total += fx_balance(prov_agent, currency)
 
     return total
 
@@ -963,54 +963,13 @@ def cycle_market(region_a, region_b, t=0):
         desk = getattr(region, 'forex', None)
         if desk is None:
             continue
-        other = partner.home_currency
-        bank = region.bank
-
-        # ---- Post working-capital BIDs (buy foreign to fund travel) ----
-        for trader in region.trader_agents:
-            if trader.home_region != region.name:
-                continue
-            cur_bal = fx_balance(trader, other)
-            shortfall = max(0.0, WORKING_CAPITAL_TARGET - cur_bal)
-            if shortfall <= 0:
-                continue
-            rate = desk.sell_rate()
-            affordable = trader.cash / rate if rate > 0 else 0.0
-            qty = min(shortfall, affordable)
-            if qty > 0:
-                desk.post_order('bid', trader, qty, rate)
-
-        # ---- Clear the book (wallet-to-wallet, conserved) ----
-        matched = desk.clear_book(region, t=t)
-        result[region.name] = matched
-
-        # ---- Desk last resort: repatriate residual asks ----
-        repatriate_traders(region.trader_agents, region, t)
-
-        # ---- Desk last resort: fill residual bids from reserves ----
-        for order in list(desk.book):
-            if order['kind'] != 'bid':
-                continue
-            trader = order['trader']
-            qty = order['qty']
-            if qty <= 0:
-                continue
-            bought = buy_fx_from_bank(bank, trader, other, qty,
-                                      desk.sell_rate(), region)
-            if bought > 0:
-                order['qty'] -= bought
-        # Drop fully-filled bids and STALE asks (trader's wallet was drained
-        # by repatriation this same turn, so those asks can never fill).
-        # Without this, foreign_sell stacks a fresh ask per turn and the book
-        # grows without bound -> O(T^2) hang.
-        desk.book = [o for o in desk.book
-                     if o['qty'] > 0 and o['kind'] == 'ask'
-                     and fx_balance(o['trader'], other) > 0]
+        result[region.name] = _cycle_one_desk(
+            region, partner, desk, t, legacy_repatriation=True)
 
     return result
 
 
-def _cycle_one_desk(region, partner, desk, t):
+def _cycle_one_desk(region, partner, desk, t, *, legacy_repatriation=False):
     """Run one desk's interbank cycle for region<->partner.
 
     Shared by cycle_market (legacy single-partner) and cycle_all_markets
@@ -1037,16 +996,21 @@ def _cycle_one_desk(region, partner, desk, t):
     # ---- Clear the book (wallet-to-wallet, conserved) ----
     matched = desk.clear_book(region, t=t)
 
-    # ---- Desk last resort: repatriate residual asks ----
-    for trader in region.trader_agents:
-        if trader.home_region != region.name:
-            continue
-        bal = fx_balance(trader, other)
-        if bal > 0:
-            rate = desk.buy_rate()
-            home = sell_fx_to_bank(bank, trader, other, bal, rate, region)
-            if home > 0:
-                trader._trader_revenue += home
+    # Legacy callers repatriate every listed trader through region.forex;
+    # multi-neighbor callers restrict this desk to traders based here.
+    if legacy_repatriation:
+        repatriate_traders(region.trader_agents, region, t)
+    else:
+        # ---- Desk last resort: repatriate residual asks ----
+        for trader in region.trader_agents:
+            if trader.home_region != region.name:
+                continue
+            bal = fx_balance(trader, other)
+            if bal > 0:
+                rate = desk.buy_rate()
+                home = sell_fx_to_bank(bank, trader, other, bal, rate, region)
+                if home > 0:
+                    trader._trader_revenue += home
 
     # ---- Desk last resort: fill residual bids from reserves ----
     for order in list(desk.book):

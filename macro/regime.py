@@ -44,20 +44,13 @@ LEGITIMACY_DRIFT = 0.05
 CAMPAIGN_BUDGET = 200.0
 
 
-def _clamp(x, lo, hi):
-    return max(lo, min(hi, x))
-
-
 def _avg_faction_support(nation):
     """Mean faction support across the nation's tiles (0..1)."""
-    supports = []
-    for tile in getattr(nation, 'tiles', []):
-        factions = getattr(getattr(tile, 'factions', None), 'factions', {})
-        for f in factions.values():
-            supports.append(getattr(f, 'support', 0.0))
-    if not supports:
-        return 0.5
-    return sum(supports) / len(supports)
+    supports = [getattr(faction, 'support', 0.0)
+                for tile in getattr(nation, 'tiles', [])
+                for faction in getattr(getattr(tile, 'factions', None),
+                                       'factions', {}).values()]
+    return sum(supports) / len(supports) if supports else 0.5
 
 
 def track_legitimacy(nation):
@@ -78,7 +71,7 @@ def track_legitimacy(nation):
     else:
         target = _avg_faction_support(nation)
     cur = getattr(nation, 'legitimacy', 0.6)
-    nation.legitimacy = _clamp(cur + (target - cur) * LEGITIMACY_DRIFT, 0.0, 1.0)
+    nation.legitimacy = max(0.0, min(1.0, cur + (target - cur) * LEGITIMACY_DRIFT))
     if nation.tiles:
         from run_trace import emit
         emit(nation.tiles[0], kind='legitimacy_drift', record_class='calculation',
