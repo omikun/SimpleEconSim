@@ -293,6 +293,9 @@ def record(region, kind, *, turn=None, payer_id=None, recipient_id=None,
     history = getattr(region, 'economic_events', [])
     history.append(event)
     region.economic_events = history[-2000:]
+    if getattr(getattr(region, 'elite_planner', None), '_active_plans', None):
+        from economy.elite_plan_receipts import observe_receipt
+        observe_receipt(region, event)
     return event
 
 

@@ -39,7 +39,13 @@ def main():
                         help='Disable one gameplay mechanism for this run; repeatable')
     parser.add_argument('--profile', default='full', metavar='PROFILE',
                         help='Gameplay profile: full, core, or isolate:MECHANISM')
+    from world_config import add_elite_planning_arguments, elite_planning_config_from_args
+    add_elite_planning_arguments(parser)
     args = parser.parse_args()
+    try:
+        elite_settings = elite_planning_config_from_args(args)
+    except ValueError as error:
+        parser.error(str(error))
 
     scenario_id = {'labor-frontier-rivalry': 'labor_frontier_rivalry',
                    'supply-rivalry': 'supply_rivalry'}.get(args.scenario)
@@ -58,7 +64,7 @@ def main():
     server = SimServer(seed=args.seed, terrain_seed=args.terrain_seed, nation_seed=args.nation_seed,
                        topology=args.topology,
                        gameplay_flags=gameplay_flags,
-                       gameplay_profile=args.profile,
+                       gameplay_profile=args.profile, elite_planning_config=elite_settings,
                        scenario_id=scenario_id)
     print(f"[Gameplay] {describe_gameplay_flags(server.gameplay_profile, server.gameplay_flags)}")
     print(f"[Server] Initialized world with {len(server.tiles)} tiles, {len(server.nations)} nations.")

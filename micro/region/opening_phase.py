@@ -119,6 +119,8 @@ def run(region, t, flags, legacy):
         region.labor_scheduler = LaborMobilityScheduler()
 
     planner_enabled = flags.elite_planning
+    from economy.elite_plan_execution import maintain_plans
+    maintain_plans(region.elite_planner, region, t)
     mobility_enabled = flags.career_mobility
     region.elite_planner.record_planning_phase_gate(region, t, planner_enabled)
     if planner_enabled:

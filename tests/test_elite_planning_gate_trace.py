@@ -168,7 +168,7 @@ class ElitePlanningGateTraceTests(unittest.TestCase):
         region.home_currency = 'crown'
 
         with patch.object(planner, '_elite_candidate_snapshot',
-                          side_effect=AssertionError('preflight must not run')), \
+                          side_effect=AssertionError('preflight must not run'), create=True), \
                 patch.object(planner, '_plan_and_execute_elite',
                              return_value={'action_taken': None, 'details': {}}):
             planner.plan_and_execute_elite(actor, region, 7)
@@ -202,7 +202,7 @@ class ElitePlanningGateTraceTests(unittest.TestCase):
             region.recipes = {Goods.foreign_luxuries: {'price': 10.0}}
             region.economic_events = []
             with patch.object(planner, '_elite_candidate_snapshot',
-                              side_effect=AssertionError('preflight must not run')), \
+                              side_effect=AssertionError('preflight must not run'), create=True), \
                     patch.object(planner, 'get_market_luxuries',
                                  return_value=[(Goods.foreign_luxuries, 10.0, 5.0, 1)]):
                 result = planner._plan_and_execute_elite(buyer, region, 7)
@@ -300,7 +300,7 @@ class ElitePlanningGateTraceTests(unittest.TestCase):
         random_index_before = rand._idx
 
         with patch.object(planner, '_elite_candidate_snapshot',
-                          side_effect=AssertionError('preflight must not run')), \
+                          side_effect=AssertionError('preflight must not run'), create=True), \
                 patch.object(planner, '_plan_and_execute_elite',
                              return_value={'action_taken': None, 'details': {}}):
             planner.plan_and_execute_elite(owner, region, 7)

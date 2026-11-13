@@ -377,7 +377,7 @@ class Agent:
         if g_enum is not None:
             val = self.inventory[g_enum]
             return val if val else default
-        cust = self.custom_inventory
+        cust = getattr(self, 'custom_inventory', None)
         if cust and str(good) in cust:
             return cust[str(good)]
         return default
@@ -393,7 +393,7 @@ class Agent:
             self._retire_production(g_enum, value - self.inventory[g_enum])
             self.inventory[g_enum] = value
         else:
-            cust = self.custom_inventory
+            cust = getattr(self, 'custom_inventory', None)
             if cust is None:
                 cust = {}
                 self.custom_inventory = cust
@@ -410,7 +410,7 @@ class Agent:
             self._retire_production(g_enum, delta)
             self.inventory[g_enum] += delta
         else:
-            cust = self.custom_inventory
+            cust = getattr(self, 'custom_inventory', None)
             if cust is None:
                 cust = {}
                 self.custom_inventory = cust

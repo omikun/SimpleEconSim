@@ -255,21 +255,18 @@ class ActorAccountTests(unittest.TestCase):
         planner = EliteCapitalistPlanner()
         planner._elite_candidate_snapshot = lambda *_args: []
 
-        def buy_luxury(agent, _region, _turn):
-            agent.cash -= 12.0
-            seller.cash += 12.0
-            return {'action_taken': 'PURCHASE_LUXURY',
-                    'details': {'good': 'furniture', 'seller_id': seller.id}}
-
-        planner._plan_and_execute_elite = buy_luxury
+        seller.inv_add(Goods.furniture, 1)
+        planner.get_market_luxuries = lambda *_args: [(Goods.furniture, 12.0, 1.0, 1)]
         planner.plan_and_execute_elite(buyer, region, 3)
         rows = {row['actor_id']: row for row in seal_turn(region, 3)}
         event = next(event for event in region.economic_events
-                     if event['kind'] == 'capitalist_action_cash')
+                     if event['kind'] == 'spot_sale')
 
         self.assertEqual(event['payer_id'], buyer.id)
         self.assertEqual(event['recipient_id'], seller.id)
-        self.assertEqual(event['detail']['action'], 'PURCHASE_LUXURY')
+        self.assertEqual(event['detail']['settlement_path'], 'elite_luxury_purchase')
+        self.assertFalse(any(e['kind'] == 'capitalist_action_cash'
+                             for e in region.economic_events))
         self.assertEqual(rows[buyer.id]['unposted_cash_change'], 0.0)
         self.assertEqual(rows[seller.id]['unposted_cash_change'], 0.0)
 

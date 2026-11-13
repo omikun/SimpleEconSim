@@ -247,6 +247,7 @@ def save(server, directory):
                     'gameplay_profile': getattr(server, 'gameplay_profile', 'custom'),
                     'gameplay_flags_version': GAMEPLAY_FLAGS_VERSION,
                     'gameplay_flags': server.gameplay_flags.as_dict(),
+                    'elite_planning': server.elite_planning_config.as_dict(),
                     'run_id': trace.run_id, 'branch_id': trace.branch_id,
                     'turn': server.turn, 'epoch': clock.get('epoch', 0),
                     'next_sequence': clock['next'], 'trace_bytes': boundary,
@@ -299,6 +300,9 @@ def restore(manifest_path, branch_directory):
             raise ValueError('checkpoint gameplay flags do not match saved state')
         if manifest.get('gameplay_profile') != getattr(server, 'gameplay_profile', 'custom'):
             raise ValueError('checkpoint gameplay profile does not match saved state')
+    from world_config import ElitePlanningConfig
+    if manifest.get('elite_planning', ElitePlanningConfig().as_dict()) != server.elite_planning_config.as_dict():
+        raise ValueError('checkpoint elite planning configuration mismatch')
     trace = server.run_trace
     clock = server.tiles[0]._collective_trace_clock
     if (trace.run_id != manifest['run_id'] or trace.count != manifest['trace_rows']

@@ -2,6 +2,7 @@
 Production engine (firm and independent production) with Cython acceleration.
 """
 
+from economy import production_math
 from collections import defaultdict
 from goods import Goods
 from random_cache import rand
@@ -120,12 +121,9 @@ def produce_corporation(region, agent, recipe, output, num_agents_per_good,
     max_inventory = recipe['maxinv'] * (1 + len(agent.employees))
     if agent.inv_get(output, 0) / max_inventory >= 1:
         return
-    num_slots = num_employees
-    if recipe.get('numInput', 0) > 0:
-        available = agent.inv_get(recipe['input'], 0)
-        active_slots = int(min(num_slots, available // recipe['numInput']))
-    else:
-        active_slots = int(num_slots)
+    active_slots = production_math.active_slots(num_employees,
+        agent.inv_get(recipe.get('input'), 0) if recipe.get('numInput', 0) > 0 else 0,
+        recipe.get('numInput', 0))
     if active_slots <= 0 or recipe.get('production', 0) <= 0:
         return
     synergy = 1.0 + (0.15 if num_employees < 4 else 0.20 if num_employees < 8 else 0.25 if num_employees < 12 else 0.30) * num_employees
@@ -150,30 +148,22 @@ def produce_corporation(region, agent, recipe, output, num_agents_per_good,
     from abundance import enabled, proficiency, learn
     practice_mult = (sum(proficiency(e, output) for e in working_employees) / num_employees
                      if enabled(region) else 1.0)
-    production_per_slot = base_production * synergy * terrain_mult * shift_mult * practice_mult
-
     machinery = getattr(agent, 'machinery_level', 1)
     broken = getattr(agent, 'broken_machinery', 0)
     working_machinery = max(0, machinery - broken)
-    if working_machinery < 1:
-        # If all machinery broken by sabotage, manual labor has 50% productivity penalty
-        production_per_slot *= 0.5
-    elif working_machinery > 1:
-        production_per_slot *= 1.0 + 0.40 * min(3, working_machinery - 1)
-
-    chance = 1.0
-    if agent.hungry_steps > 0:
-        chance *= 1 / (1 + agent.hungry_steps * 0.2)
-    if output in (Goods.food, Goods.wood):
-        chance *= min(1.0, recipe['maxtotalprod'] / max(1, num_agents_per_good[output]) / base_production)
-    chance *= max(0, 1 - agent.inv_get(output, 0) / max_inventory)
+    production_per_slot = production_math.production_per_slot(
+        base_production, num_employees, terrain_mult, shift_mult, practice_mult, working_machinery)
+    resource_factor = (min(1.0, recipe['maxtotalprod'] / max(1, num_agents_per_good[output]) / base_production)
+                       if output in (Goods.food, Goods.wood) else 1.0)
+    chance = production_math.success_probability(agent.hungry_steps, agent.inv_get(output, 0),
+                                                  max_inventory, resource_factor)
     vals = rand.random_n(active_slots)
     if _c is not None:
         successful_slots = _c.produce_corporation_slots(active_slots, chance, vals)
     else:
         successful_slots = sum(1 for v in vals if v < chance)
     if successful_slots:
-        if int(successful_slots * production_per_slot) <= 0:
+        if production_math.output_units(successful_slots, production_per_slot) <= 0:
             return
         inputs_cost = 0.0
         inputs_used = 0
@@ -192,7 +182,7 @@ def produce_corporation(region, agent, recipe, output, num_agents_per_good,
                                   good=recipe['input'], quantity=inputs_used,
                                   amount=inputs_used * recorded_basis,
                                   detail={'cost_basis_known': recorded_basis > 0})
-        num_output = int(successful_slots * production_per_slot)
+        num_output = production_math.output_units(successful_slots, production_per_slot)
         if output == Goods.prepared_food:
             num_output = min(num_output, inputs_used)
         _food_conversion(region, agent, recipe, inputs_used, output, num_output)

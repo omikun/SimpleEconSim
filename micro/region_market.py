@@ -28,6 +28,9 @@ def borrow_food(region, agent, food_price, t=None):
 
 
 def borrow_inputs(region, agent, t=None):
+    from economy.elite_plan_orders import active_plan
+    if active_plan(region, agent):
+        return  # Supported plans commit realized funds, including explicit zero bids.
     r = region.recipes.get(agent.output)
     if not r or r.get('numInput', 0) <= 0:
         return
@@ -133,6 +136,11 @@ def calculate_bid(region, agent, good, good_price, current_desired, agent_recipe
         if return_reason:
             return quantity, reason if quantity <= 0 else 'positive_quantity'
         return quantity
+
+    from economy.elite_plan_orders import input_bid
+    planned_input = input_bid(region, agent, good)
+    if planned_input is not None:
+        return result(planned_input, 'elite_production_plan')
 
     if good == Goods.transport and not agent.is_trader:
         return result(0, 'transport_service_trader_only')
@@ -357,13 +365,10 @@ def calculate_ask_price(region, agent, good, ref, *, offer_quantity=None,
         return ref
     stock = agent.inv_get(good, 0)
     maxinv = region.recipes.get(good, {}).get('maxinv', 10)
-    ratio = stock / max(1, maxinv)
-    scarcity = 1.10 - 0.30 * max(0.0, min(1.0, ratio))
     hungry = getattr(agent, 'hungry_steps', 0)
-    urgency = max(0.0, 1.0 - 0.12 * hungry)
-    mult = scarcity * urgency
-    mult = max(region.ASK_URGENCY_MIN, min(region.ASK_URGENCY_MAX, mult))
-    ask = ref * mult
+    from economy.market_math import ask_terms
+    ask, scarcity, urgency, mult = ask_terms(ref, stock, maxinv, hungry,
+                                            region.ASK_URGENCY_MIN, region.ASK_URGENCY_MAX)
     from run_trace import emit
     trace = getattr(region, '_run_trace', None)
     production_event_id = (trace._turn_production_events.get(
@@ -435,7 +440,8 @@ def calculate_bid_limit(region, agent, good, ref, demand_ratio, quantity, *, use
     planned = household_order(region, agent, good) if use_household_plan else None
     if planned is not None:
         limit = min(limit, planned['limit'])
-    return max(0.0, min(limit, available_cash / quantity))
+    from economy.elite_plan_orders import cap_limit
+    return cap_limit(region, agent, good, quantity, max(0.0, min(limit, available_cash / quantity)))
 
 
 def import_ask_price(region, trader, good, *, source_unit_cost=None,
@@ -686,11 +692,14 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
         buyer_order_event_ids = {
             row['agent'].id: row.get('quantity_event_id')
             for row in local_orders.get('buyers', ())}
+        buyer_order_provenance = {row['agent'].id: {key: row[key] for key in ('order_id', 'plan_id', 'step_id') if key in row}
+                                  for row in local_orders.get('buyers', ())}
         seller_order_event_ids = {
             row['agent'].id: row.get('quantity_event_id')
             for row in local_orders.get('sellers', ())}
     else:
         buyer_order_event_ids = {}
+        buyer_order_provenance = {}
         seller_order_event_ids = {}
         for a in agents:
             if getattr(a, 'is_trader', False) or not getattr(a, 'alive', True):
@@ -794,7 +803,8 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
                 bi = len(buyers)
                 break
             unit_price = (ask + bid_limit) / 2.0 if math.isfinite(bid_limit) else ask
-            afford = int(buyer.cash / unit_price) if unit_price > 0 else want
+            from economy.elite_plan_orders import spendable_cash
+            afford = int(spendable_cash(region, buyer) / unit_price) if unit_price > 0 else want
             take = min(remaining, want, max(0, afford), total_bids - units)
             if take <= 0:
                 bi += 1
@@ -1093,7 +1103,8 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
                 region, 'spot_sale', turn=t, payer_id=buyer.id,
                 recipient_id=seller.id, good=good, quantity=take,
                 amount=cost, source_id=sale_id,
-                detail={'unit_price': unit_price, 'imported': bool(is_import),
+                detail={**buyer_order_provenance.get(buyer.id, {}),
+                        'unit_price': unit_price, 'imported': bool(is_import),
                         'parked': bool(is_parked), 'shipment_id': shipment_id,
                         'source_unit_cost': source_unit_cost,
                         'freight_per_unit': freight_per_unit,
@@ -1789,9 +1800,10 @@ def trade(region, t, *, defer_food_price=False):
                                                    'name', None)})
                 if quantity_event_id is not None:
                     order_source_events[g]['buyers'].append(quantity_event_id)
-                local_orders[g]['buyers'].append({
-                    'agent': a, 'quantity': bid_quantity,
-                    'quantity_event_id': quantity_event_id})
+                row = {'agent': a, 'quantity': bid_quantity, 'quantity_event_id': quantity_event_id}
+                from economy.elite_plan_orders import attach_order
+                attach_order(region, a, g, row, t)
+                local_orders[g]['buyers'].append(row)
             else:
                 input_commodity = input_good(region, a)
                 zero_order_evidence[g]['buyers'].append({

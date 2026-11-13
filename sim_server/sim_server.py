@@ -29,7 +29,7 @@ from metric_catalog import grievance_breakdown, protest_band
 from run_trace import RunTrace
 from pathlib import Path
 from world_config import (FULL_GAMEPLAY_FLAGS, GAMEPLAY_FLAGS_VERSION,
-                          GameplayFlags, resolve_gameplay_flags,
+                          GameplayFlags, ElitePlanningConfig, resolve_gameplay_flags,
                           validate_gameplay_profile)
 
 
@@ -87,7 +87,8 @@ class SimServer:
                  topology: Optional[str] = None, scenario_id: Optional[str] = None,
                  autoplay_nations: bool = False, trace_enabled: bool = True,
                  gameplay_flags: GameplayFlags | None = None,
-                 gameplay_profile: str | None = None):
+                 gameplay_profile: str | None = None,
+                 elite_planning_config: ElitePlanningConfig | None = None):
         if gameplay_flags is None:
             self.gameplay_flags = resolve_gameplay_flags(
                 profile='full', scenario_id=scenario_id)
@@ -99,6 +100,9 @@ class SimServer:
             self.gameplay_profile = 'full' if gameplay_flags is None else 'custom'
         else:
             self.gameplay_profile = validate_gameplay_profile(gameplay_profile)
+        self.elite_planning_config = ElitePlanningConfig() if elite_planning_config is None else elite_planning_config
+        if not isinstance(self.elite_planning_config, ElitePlanningConfig):
+            raise TypeError('elite_planning_config must be an ElitePlanningConfig')
         self.trace_enabled = bool(trace_enabled)
         self.scenario_id = scenario_id
         self.autoplay_nations = bool(autoplay_nations)
@@ -144,6 +148,9 @@ class SimServer:
         if not hasattr(self, 'gameplay_profile'):
             self.gameplay_profile = ('full' if self.gameplay_flags == FULL_GAMEPLAY_FLAGS
                                      else 'custom')
+        self.elite_planning_config = getattr(self, 'elite_planning_config', ElitePlanningConfig())
+        for tile in self.tiles:
+            tile._elite_planning_config = self.elite_planning_config
         self._lock = threading.RLock()
         self._subscribers = []
         self.playing = False
@@ -184,6 +191,7 @@ class SimServer:
             self.nations = nations
             for participant in (*tiles, *nations):
                 participant._gameplay_flags = self.gameplay_flags
+                participant._elite_planning_config = self.elite_planning_config
             self.currencies = [n.currency for n in nations if getattr(n, 'currency', None)]
             self.hex_size = HEX_SIZE
 
@@ -1354,6 +1362,7 @@ class SimServer:
                 'gameplay_profile': self.gameplay_profile,
                 'gameplay_flags': self.gameplay_flags.as_dict(),
                 'gameplay_flags_version': GAMEPLAY_FLAGS_VERSION,
+                'elite_planning': self.elite_planning_config.as_dict(),
             }
 
     def _collect_progress_suite(self) -> Dict[str, Any]:
@@ -1900,6 +1909,7 @@ class SimServer:
                 'gameplay_profile': self.gameplay_profile,
                 'gameplay_flags': self.gameplay_flags.as_dict(),
                 'gameplay_flags_version': GAMEPLAY_FLAGS_VERSION,
+                'elite_planning': self.elite_planning_config.as_dict(),
                 'hex_size': float(getattr(self, 'hex_size', 50.0)),
                 'bbox': [float(v) for v in self.bbox],
                 'terrain_bounds': terrain_bounds,

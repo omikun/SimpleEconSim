@@ -52,14 +52,19 @@ def calculate_shift_multiplier(shift_hours: float) -> float:
     return max(0.25, shift_hours / CUSTOMARY_SHIFT_HOURS)
 
 
-def ensure_labor_agreement(worker, firm, turn=0):
+def preview_labor_agreement(worker, firm, turn=0):
     agreement = getattr(worker, 'labor_agreement', None)
     if agreement is None or not agreement.active or agreement.firm_id != firm.id:
         agreement = LaborAgreement(worker.id, firm.id, 'wage', int(turn), 0,
                                    float(getattr(firm, 'shift_hours', 8.0)),
                                    'scrip' if getattr(firm, 'pay_mode', 'cash') == 'scrip' else 'cash',
                                    float(getattr(firm, 'wage', 0.0)))
-        worker.labor_agreement = agreement
+    return agreement
+
+
+def ensure_labor_agreement(worker, firm, turn=0):
+    agreement = preview_labor_agreement(worker, firm, turn)
+    worker.labor_agreement = agreement
     return agreement
 
 

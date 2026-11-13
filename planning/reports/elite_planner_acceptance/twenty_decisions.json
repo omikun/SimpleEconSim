@@ -1,0 +1,5184 @@
+{
+  "scope": "Twenty paired production/supply decisions over complete declared turns",
+  "schema_version": 2,
+  "decisions_checked": 20,
+  "decision_families": {
+    "one_batch": 5,
+    "larger_batch": 5,
+    "wait": 5,
+    "decline": 5
+  },
+  "outcomes_at_manufacturing_cost": {
+    "lower": 17,
+    "tie": 3
+  },
+  "decisions": [
+    {
+      "case": {
+        "name": "affordable_batch_1",
+        "family": "one_batch",
+        "seed": 101,
+        "cash": 7.5,
+        "workers": 1,
+        "wage": 3,
+        "input_price": 2.0,
+        "output_price": 18,
+        "initial_inputs": 0,
+        "demand": 1,
+        "buyer_cash": 500,
+        "supply": 40,
+        "turns": 2,
+        "obligation": 0
+      },
+      "active": {
+        "mode": "active",
+        "first_decision": {
+          "action_taken": "PRODUCTION_PLAN",
+          "details": {
+            "plan_id": "Planning fixture:665:1",
+            "cursor": 0,
+            "status": "ready"
+          }
+        },
+        "opening": {
+          "cash": 7.5,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {},
+          "net_assets_at_manufacturing_cost": 7.5,
+          "net_assets_at_common_prices": 7.5
+        },
+        "closing": {
+          "cash": 22.822125,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {},
+          "net_assets_at_manufacturing_cost": 22.822125,
+          "net_assets_at_common_prices": 22.822125
+        },
+        "boundary": "after_production_payroll_arrears_and_obligations",
+        "measured_turns": 2,
+        "forecast": {
+          "status": "found",
+          "steps": [
+            {
+              "quantity": 2,
+              "limit_price": 2.0,
+              "turn": 1
+            },
+            {
+              "quantity": 0,
+              "limit_price": 2.0,
+              "turn": 2
+            }
+          ],
+          "baseline_value": 1.5,
+          "candidate_value": 10.1,
+          "expanded": 5,
+          "reason": "ordinary_requires_financing_compared_with_idle"
+        },
+        "opening_projection": {
+          "firm_id": 665,
+          "region": "Planning fixture",
+          "currency": "Planning fixture",
+          "turn": 1,
+          "phase": "opening",
+          "input_good": "wood",
+          "output_good": "furniture",
+          "cash": 7.5,
+          "inputs": 0,
+          "outputs": 0,
+          "payroll": 3.0,
+          "liabilities": 0,
+          "slots": 1,
+          "input_per_slot": 2,
+          "output_per_slot": 1.15,
+          "chance": 1.0,
+          "max_inventory": 200,
+          "input_price": 2.0,
+          "output_price": 12.6,
+          "supply": 40,
+          "demand": 1.0,
+          "baseline_quantity": 8,
+          "signature": [
+            "furniture",
+            "wood",
+            2,
+            1,
+            [
+              666
+            ],
+            1,
+            [],
+            3,
+            8.0
+          ],
+          "due_schedule": [],
+          "demand_per_turn": 1.0,
+          "buyer_budget": 500.0
+        },
+        "first_input_quantity": 2.0,
+        "input_quantity": 2.0,
+        "input_spend": 3.96,
+        "output_produced": 1.0,
+        "output_sold": 1.0,
+        "sale_receipts": 25.282125,
+        "wages_paid": 6.0,
+        "obligations_paid": 0,
+        "interest_paid": 0,
+        "unposted_cash_change": [
+          0.0,
+          0.0
+        ],
+        "aggregate_cash_change": 0.0,
+        "turns": [
+          {
+            "turn": 1,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": {
+              "action_taken": "PRODUCTION_PLAN",
+              "details": {
+                "plan_id": "Planning fixture:665:1",
+                "cursor": 0,
+                "status": "ready"
+              }
+            }
+          },
+          {
+            "turn": 2,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": {
+              "action_taken": "PRODUCTION_PLAN",
+              "details": {
+                "plan_id": "Planning fixture:665:1",
+                "cursor": 1,
+                "status": "waiting_sale"
+              }
+            }
+          }
+        ],
+        "forecast_comparable_terminal_value": 22.822125,
+        "forecast_error": 12.722125
+      },
+      "baseline": {
+        "mode": "off",
+        "first_decision": null,
+        "opening": {
+          "cash": 7.5,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {},
+          "net_assets_at_manufacturing_cost": 7.5,
+          "net_assets_at_common_prices": 7.5
+        },
+        "closing": {
+          "cash": 22.282125,
+          "deposits": 0,
+          "bank_principal": 5.330945048588857,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {
+            "wood": {
+              "quantity": 1,
+              "manufacturing_cost": 1.9569816828629527,
+              "common_reference_value": 2.0
+            },
+            "furniture": {
+              "quantity": 1,
+              "manufacturing_cost": 6.913963365725905,
+              "common_reference_value": 18
+            }
+          },
+          "net_assets_at_manufacturing_cost": 25.822125,
+          "net_assets_at_common_prices": 36.95117995141114
+        },
+        "boundary": "after_production_payroll_arrears_and_obligations",
+        "measured_turns": 2,
+        "forecast": null,
+        "opening_projection": {
+          "firm_id": 665,
+          "region": "Planning fixture",
+          "currency": "Planning fixture",
+          "turn": 1,
+          "phase": "opening",
+          "input_good": "wood",
+          "output_good": "furniture",
+          "cash": 7.5,
+          "inputs": 0,
+          "outputs": 0,
+          "payroll": 3.0,
+          "liabilities": 0,
+          "slots": 1,
+          "input_per_slot": 2,
+          "output_per_slot": 1.15,
+          "chance": 1.0,
+          "max_inventory": 200,
+          "input_price": 2.0,
+          "output_price": 12.6,
+          "supply": 40,
+          "demand": 1.0,
+          "baseline_quantity": 8,
+          "signature": [
+            "furniture",
+            "wood",
+            2,
+            1,
+            [
+              666
+            ],
+            1,
+            [],
+            3,
+            8.0
+          ],
+          "due_schedule": [],
+          "demand_per_turn": 1.0,
+          "buyer_budget": 500.0
+        },
+        "first_input_quantity": 3.0,
+        "input_quantity": 5.0,
+        "input_spend": 9.830945048588857,
+        "output_produced": 2.0,
+        "output_sold": 1.0,
+        "sale_receipts": 25.282125,
+        "wages_paid": 6.0,
+        "obligations_paid": 0,
+        "interest_paid": 0,
+        "unposted_cash_change": [
+          0.0,
+          0.0
+        ],
+        "aggregate_cash_change": -9.094947017729282e-13,
+        "turns": [
+          {
+            "turn": 1,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": null
+          },
+          {
+            "turn": 2,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": null
+          }
+        ]
+      },
+      "net_assets_delta": -3.0,
+      "common_price_net_assets_delta": -14.129054951411142,
+      "outcome": "lower"
+    },
+    {
+      "case": {
+        "name": "affordable_batch_2",
+        "family": "one_batch",
+        "seed": 102,
+        "cash": 8.7,
+        "workers": 1,
+        "wage": 4,
+        "input_price": 2.1,
+        "output_price": 19,
+        "initial_inputs": 0,
+        "demand": 1,
+        "buyer_cash": 500,
+        "supply": 40,
+        "turns": 2,
+        "obligation": 0
+      },
+      "active": {
+        "mode": "active",
+        "first_decision": {
+          "action_taken": "PRODUCTION_PLAN",
+          "details": {
+            "plan_id": "Planning fixture:683:1",
+            "cursor": 0,
+            "status": "ready"
+          }
+        },
+        "opening": {
+          "cash": 8.7,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {},
+          "net_assets_at_manufacturing_cost": 8.7,
+          "net_assets_at_common_prices": 8.7
+        },
+        "closing": {
+          "cash": 23.2286875,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {},
+          "net_assets_at_manufacturing_cost": 23.2286875,
+          "net_assets_at_common_prices": 23.2286875
+        },
+        "boundary": "after_production_payroll_arrears_and_obligations",
+        "measured_turns": 2,
+        "forecast": {
+          "status": "found",
+          "steps": [
+            {
+              "quantity": 2,
+              "limit_price": 2.1,
+              "turn": 1
+            },
+            {
+              "quantity": 0,
+              "limit_price": 2.1,
+              "turn": 2
+            }
+          ],
+          "baseline_value": 0.6999999999999993,
+          "candidate_value": 9.799999999999997,
+          "expanded": 5,
+          "reason": "ordinary_requires_financing_compared_with_idle"
+        },
+        "opening_projection": {
+          "firm_id": 683,
+          "region": "Planning fixture",
+          "currency": "Planning fixture",
+          "turn": 1,
+          "phase": "opening",
+          "input_good": "wood",
+          "output_good": "furniture",
+          "cash": 8.7,
+          "inputs": 0,
+          "outputs": 0,
+          "payroll": 4.0,
+          "liabilities": 0,
+          "slots": 1,
+          "input_per_slot": 2,
+          "output_per_slot": 1.15,
+          "chance": 1.0,
+          "max_inventory": 200,
+          "input_price": 2.1,
+          "output_price": 13.299999999999999,
+          "supply": 40,
+          "demand": 1.0,
+          "baseline_quantity": 8,
+          "signature": [
+            "furniture",
+            "wood",
+            2,
+            1,
+            [
+              684
+            ],
+            1,
+            [],
+            4,
+            8.0
+          ],
+          "due_schedule": [],
+          "demand_per_turn": 1.0,
+          "buyer_budget": 500.0
+        },
+        "first_input_quantity": 2.0,
+        "input_quantity": 2.0,
+        "input_spend": 4.158,
+        "output_produced": 1.0,
+        "output_sold": 1.0,
+        "sale_receipts": 26.6866875,
+        "wages_paid": 8.0,
+        "obligations_paid": 0,
+        "interest_paid": 0,
+        "unposted_cash_change": [
+          0.0,
+          0.0
+        ],
+        "aggregate_cash_change": 0.0,
+        "turns": [
+          {
+            "turn": 1,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": {
+              "action_taken": "PRODUCTION_PLAN",
+              "details": {
+                "plan_id": "Planning fixture:683:1",
+                "cursor": 0,
+                "status": "ready"
+              }
+            }
+          },
+          {
+            "turn": 2,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": {
+              "action_taken": "PRODUCTION_PLAN",
+              "details": {
+                "plan_id": "Planning fixture:683:1",
+                "cursor": 1,
+                "status": "waiting_sale"
+              }
+            }
+          }
+        ],
+        "forecast_comparable_terminal_value": 23.2286875,
+        "forecast_error": 13.428687500000002
+      },
+      "baseline": {
+        "mode": "off",
+        "first_decision": null,
+        "opening": {
+          "cash": 8.7,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {},
+          "net_assets_at_manufacturing_cost": 8.7,
+          "net_assets_at_common_prices": 8.7
+        },
+        "closing": {
+          "cash": 22.6866875,
+          "deposits": 0,
+          "bank_principal": 7.704717142064112,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {
+            "wood": {
+              "quantity": 2,
+              "manufacturing_cost": 4.123358571032055,
+              "common_reference_value": 4.2
+            },
+            "furniture": {
+              "quantity": 1,
+              "manufacturing_cost": 8.123358571032055,
+              "common_reference_value": 19
+            }
+          },
+          "net_assets_at_manufacturing_cost": 27.2286875,
+          "net_assets_at_common_prices": 38.18197035793589
+        },
+        "boundary": "after_production_payroll_arrears_and_obligations",
+        "measured_turns": 2,
+        "forecast": null,
+        "opening_projection": {
+          "firm_id": 683,
+          "region": "Planning fixture",
+          "currency": "Planning fixture",
+          "turn": 1,
+          "phase": "opening",
+          "input_good": "wood",
+          "output_good": "furniture",
+          "cash": 8.7,
+          "inputs": 0,
+          "outputs": 0,
+          "payroll": 4.0,
+          "liabilities": 0,
+          "slots": 1,
+          "input_per_slot": 2,
+          "output_per_slot": 1.15,
+          "chance": 1.0,
+          "max_inventory": 200,
+          "input_price": 2.1,
+          "output_price": 13.299999999999999,
+          "supply": 40,
+          "demand": 1.0,
+          "baseline_quantity": 8,
+          "signature": [
+            "furniture",
+            "wood",
+            2,
+            1,
+            [
+              684
+            ],
+            1,
+            [],
+            4,
+            8.0
+          ],
+          "due_schedule": [],
+          "demand_per_turn": 1.0,
+          "buyer_budget": 500.0
+        },
+        "first_input_quantity": 4.0,
+        "input_quantity": 6.0,
+        "input_spend": 12.404717142064111,
+        "output_produced": 2.0,
+        "output_sold": 1.0,
+        "sale_receipts": 26.6866875,
+        "wages_paid": 8.0,
+        "obligations_paid": 0,
+        "interest_paid": 0,
+        "unposted_cash_change": [
+          0.0,
+          0.0
+        ],
+        "aggregate_cash_change": 0.0,
+        "turns": [
+          {
+            "turn": 1,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": null
+          },
+          {
+            "turn": 2,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": null
+          }
+        ]
+      },
+      "net_assets_delta": -4.0,
+      "common_price_net_assets_delta": -14.95328285793589,
+      "outcome": "lower"
+    },
+    {
+      "case": {
+        "name": "affordable_batch_3",
+        "family": "one_batch",
+        "seed": 103,
+        "cash": 7.9,
+        "workers": 1,
+        "wage": 3,
+        "input_price": 2.2,
+        "output_price": 20,
+        "initial_inputs": 0,
+        "demand": 1,
+        "buyer_cash": 500,
+        "supply": 40,
+        "turns": 2,
+        "obligation": 0
+      },
+      "active": {
+        "mode": "active",
+        "first_decision": {
+          "action_taken": "PRODUCTION_PLAN",
+          "details": {
+            "plan_id": "Planning fixture:701:1",
+            "cursor": 0,
+            "status": "ready"
+          }
+        },
+        "opening": {
+          "cash": 7.9,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {},
+          "net_assets_at_manufacturing_cost": 7.9,
+          "net_assets_at_common_prices": 7.9
+        },
+        "closing": {
+          "cash": 25.635250000000003,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {},
+          "net_assets_at_manufacturing_cost": 25.635250000000003,
+          "net_assets_at_common_prices": 25.635250000000003
+        },
+        "boundary": "after_production_payroll_arrears_and_obligations",
+        "measured_turns": 2,
+        "forecast": {
+          "status": "found",
+          "steps": [
+            {
+              "quantity": 2,
+              "limit_price": 2.2,
+              "turn": 1
+            },
+            {
+              "quantity": 0,
+              "limit_price": 2.2,
+              "turn": 2
+            }
+          ],
+          "baseline_value": 1.9000000000000004,
+          "candidate_value": 11.5,
+          "expanded": 5,
+          "reason": "ordinary_requires_financing_compared_with_idle"
+        },
+        "opening_projection": {
+          "firm_id": 701,
+          "region": "Planning fixture",
+          "currency": "Planning fixture",
+          "turn": 1,
+          "phase": "opening",
+          "input_good": "wood",
+          "output_good": "furniture",
+          "cash": 7.9,
+          "inputs": 0,
+          "outputs": 0,
+          "payroll": 3.0,
+          "liabilities": 0,
+          "slots": 1,
+          "input_per_slot": 2,
+          "output_per_slot": 1.15,
+          "chance": 1.0,
+          "max_inventory": 200,
+          "input_price": 2.2,
+          "output_price": 14.0,
+          "supply": 40,
+          "demand": 1.0,
+          "baseline_quantity": 8,
+          "signature": [
+            "furniture",
+            "wood",
+            2,
+            1,
+            [
+              702
+            ],
+            1,
+            [],
+            3,
+            8.0
+          ],
+          "due_schedule": [],
+          "demand_per_turn": 1.0,
+          "buyer_budget": 500.0
+        },
+        "first_input_quantity": 2.0,
+        "input_quantity": 2.0,
+        "input_spend": 4.356000000000001,
+        "output_produced": 1.0,
+        "output_sold": 1.0,
+        "sale_receipts": 28.091250000000002,
+        "wages_paid": 6.0,
+        "obligations_paid": 0,
+        "interest_paid": 0,
+        "unposted_cash_change": [
+          0.0,
+          0.0
+        ],
+        "aggregate_cash_change": 0.0,
+        "turns": [
+          {
+            "turn": 1,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": {
+              "action_taken": "PRODUCTION_PLAN",
+              "details": {
+                "plan_id": "Planning fixture:701:1",
+                "cursor": 0,
+                "status": "ready"
+              }
+            }
+          },
+          {
+            "turn": 2,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": {
+              "action_taken": "PRODUCTION_PLAN",
+              "details": {
+                "plan_id": "Planning fixture:701:1",
+                "cursor": 1,
+                "status": "waiting_sale"
+              }
+            }
+          }
+        ],
+        "forecast_comparable_terminal_value": 25.635250000000003,
+        "forecast_error": 14.135250000000003
+      },
+      "baseline": {
+        "mode": "off",
+        "first_decision": null,
+        "opening": {
+          "cash": 7.9,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {},
+          "net_assets_at_manufacturing_cost": 7.9,
+          "net_assets_at_common_prices": 7.9
+        },
+        "closing": {
+          "cash": 25.091250000000002,
+          "deposits": 0,
+          "bank_principal": 5.914039553447744,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {
+            "wood": {
+              "quantity": 1,
+              "manufacturing_cost": 2.152679851149248,
+              "common_reference_value": 2.2
+            },
+            "furniture": {
+              "quantity": 1,
+              "manufacturing_cost": 7.305359702298496,
+              "common_reference_value": 20
+            }
+          },
+          "net_assets_at_manufacturing_cost": 28.635250000000003,
+          "net_assets_at_common_prices": 41.377210446552255
+        },
+        "boundary": "after_production_payroll_arrears_and_obligations",
+        "measured_turns": 2,
+        "forecast": null,
+        "opening_projection": {
+          "firm_id": 701,
+          "region": "Planning fixture",
+          "currency": "Planning fixture",
+          "turn": 1,
+          "phase": "opening",
+          "input_good": "wood",
+          "output_good": "furniture",
+          "cash": 7.9,
+          "inputs": 0,
+          "outputs": 0,
+          "payroll": 3.0,
+          "liabilities": 0,
+          "slots": 1,
+          "input_per_slot": 2,
+          "output_per_slot": 1.15,
+          "chance": 1.0,
+          "max_inventory": 200,
+          "input_price": 2.2,
+          "output_price": 14.0,
+          "supply": 40,
+          "demand": 1.0,
+          "baseline_quantity": 8,
+          "signature": [
+            "furniture",
+            "wood",
+            2,
+            1,
+            [
+              702
+            ],
+            1,
+            [],
+            3,
+            8.0
+          ],
+          "due_schedule": [],
+          "demand_per_turn": 1.0,
+          "buyer_budget": 500.0
+        },
+        "first_input_quantity": 3.0,
+        "input_quantity": 5.0,
+        "input_spend": 10.814039553447746,
+        "output_produced": 2.0,
+        "output_sold": 1.0,
+        "sale_receipts": 28.091250000000002,
+        "wages_paid": 6.0,
+        "obligations_paid": 0,
+        "interest_paid": 0,
+        "unposted_cash_change": [
+          0.0,
+          0.0
+        ],
+        "aggregate_cash_change": 0.0,
+        "turns": [
+          {
+            "turn": 1,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": null
+          },
+          {
+            "turn": 2,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": null
+          }
+        ]
+      },
+      "net_assets_delta": -3.0,
+      "common_price_net_assets_delta": -15.741960446552252,
+      "outcome": "lower"
+    },
+    {
+      "case": {
+        "name": "affordable_batch_4",
+        "family": "one_batch",
+        "seed": 104,
+        "cash": 9.1,
+        "workers": 1,
+        "wage": 4,
+        "input_price": 2.3,
+        "output_price": 21,
+        "initial_inputs": 0,
+        "demand": 1,
+        "buyer_cash": 500,
+        "supply": 40,
+        "turns": 2,
+        "obligation": 0
+      },
+      "active": {
+        "mode": "active",
+        "first_decision": {
+          "action_taken": "PRODUCTION_PLAN",
+          "details": {
+            "plan_id": "Planning fixture:719:1",
+            "cursor": 0,
+            "status": "ready"
+          }
+        },
+        "opening": {
+          "cash": 9.1,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {},
+          "net_assets_at_manufacturing_cost": 9.1,
+          "net_assets_at_common_prices": 9.1
+        },
+        "closing": {
+          "cash": 26.0418125,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {},
+          "net_assets_at_manufacturing_cost": 26.0418125,
+          "net_assets_at_common_prices": 26.0418125
+        },
+        "boundary": "after_production_payroll_arrears_and_obligations",
+        "measured_turns": 2,
+        "forecast": {
+          "status": "found",
+          "steps": [
+            {
+              "quantity": 2,
+              "limit_price": 2.3,
+              "turn": 1
+            },
+            {
+              "quantity": 0,
+              "limit_price": 2.3,
+              "turn": 2
+            }
+          ],
+          "baseline_value": 1.0999999999999996,
+          "candidate_value": 11.2,
+          "expanded": 5,
+          "reason": "ordinary_requires_financing_compared_with_idle"
+        },
+        "opening_projection": {
+          "firm_id": 719,
+          "region": "Planning fixture",
+          "currency": "Planning fixture",
+          "turn": 1,
+          "phase": "opening",
+          "input_good": "wood",
+          "output_good": "furniture",
+          "cash": 9.1,
+          "inputs": 0,
+          "outputs": 0,
+          "payroll": 4.0,
+          "liabilities": 0,
+          "slots": 1,
+          "input_per_slot": 2,
+          "output_per_slot": 1.15,
+          "chance": 1.0,
+          "max_inventory": 200,
+          "input_price": 2.3,
+          "output_price": 14.7,
+          "supply": 40,
+          "demand": 1.0,
+          "baseline_quantity": 8,
+          "signature": [
+            "furniture",
+            "wood",
+            2,
+            1,
+            [
+              720
+            ],
+            1,
+            [],
+            4,
+            8.0
+          ],
+          "due_schedule": [],
+          "demand_per_turn": 1.0,
+          "buyer_budget": 500.0
+        },
+        "first_input_quantity": 2.0,
+        "input_quantity": 2.0,
+        "input_spend": 4.554,
+        "output_produced": 1.0,
+        "output_sold": 1.0,
+        "sale_receipts": 29.4958125,
+        "wages_paid": 8.0,
+        "obligations_paid": 0,
+        "interest_paid": 0,
+        "unposted_cash_change": [
+          0.0,
+          0.0
+        ],
+        "aggregate_cash_change": 0.0,
+        "turns": [
+          {
+            "turn": 1,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": {
+              "action_taken": "PRODUCTION_PLAN",
+              "details": {
+                "plan_id": "Planning fixture:719:1",
+                "cursor": 0,
+                "status": "ready"
+              }
+            }
+          },
+          {
+            "turn": 2,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": {
+              "action_taken": "PRODUCTION_PLAN",
+              "details": {
+                "plan_id": "Planning fixture:719:1",
+                "cursor": 1,
+                "status": "waiting_sale"
+              }
+            }
+          }
+        ],
+        "forecast_comparable_terminal_value": 26.0418125,
+        "forecast_error": 14.8418125
+      },
+      "baseline": {
+        "mode": "off",
+        "first_decision": null,
+        "opening": {
+          "cash": 9.1,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {},
+          "net_assets_at_manufacturing_cost": 9.1,
+          "net_assets_at_common_prices": 9.1
+        },
+        "closing": {
+          "cash": 25.4958125,
+          "deposits": 0,
+          "bank_principal": 6.205586805877187,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {
+            "wood": {
+              "quantity": 1,
+              "manufacturing_cost": 2.250528935292395,
+              "common_reference_value": 2.3
+            },
+            "furniture": {
+              "quantity": 1,
+              "manufacturing_cost": 8.501057870584791,
+              "common_reference_value": 21
+            }
+          },
+          "net_assets_at_manufacturing_cost": 30.0418125,
+          "net_assets_at_common_prices": 42.590225694122815
+        },
+        "boundary": "after_production_payroll_arrears_and_obligations",
+        "measured_turns": 2,
+        "forecast": null,
+        "opening_projection": {
+          "firm_id": 719,
+          "region": "Planning fixture",
+          "currency": "Planning fixture",
+          "turn": 1,
+          "phase": "opening",
+          "input_good": "wood",
+          "output_good": "furniture",
+          "cash": 9.1,
+          "inputs": 0,
+          "outputs": 0,
+          "payroll": 4.0,
+          "liabilities": 0,
+          "slots": 1,
+          "input_per_slot": 2,
+          "output_per_slot": 1.15,
+          "chance": 1.0,
+          "max_inventory": 200,
+          "input_price": 2.3,
+          "output_price": 14.7,
+          "supply": 40,
+          "demand": 1.0,
+          "baseline_quantity": 8,
+          "signature": [
+            "furniture",
+            "wood",
+            2,
+            1,
+            [
+              720
+            ],
+            1,
+            [],
+            4,
+            8.0
+          ],
+          "due_schedule": [],
+          "demand_per_turn": 1.0,
+          "buyer_budget": 500.0
+        },
+        "first_input_quantity": 3.0,
+        "input_quantity": 5.0,
+        "input_spend": 11.305586805877187,
+        "output_produced": 2.0,
+        "output_sold": 1.0,
+        "sale_receipts": 29.4958125,
+        "wages_paid": 8.0,
+        "obligations_paid": 0,
+        "interest_paid": 0,
+        "unposted_cash_change": [
+          -0.0,
+          0.0
+        ],
+        "aggregate_cash_change": -4.547473508864641e-13,
+        "turns": [
+          {
+            "turn": 1,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": null
+          },
+          {
+            "turn": 2,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": null
+          }
+        ]
+      },
+      "net_assets_delta": -4.0,
+      "common_price_net_assets_delta": -16.548413194122816,
+      "outcome": "lower"
+    },
+    {
+      "case": {
+        "name": "affordable_batch_5",
+        "family": "one_batch",
+        "seed": 105,
+        "cash": 9.3,
+        "workers": 1,
+        "wage": 3,
+        "input_price": 2.4,
+        "output_price": 22,
+        "initial_inputs": 0,
+        "demand": 1,
+        "buyer_cash": 500,
+        "supply": 40,
+        "turns": 2,
+        "obligation": 1
+      },
+      "active": {
+        "mode": "active",
+        "first_decision": {
+          "action_taken": "PRODUCTION_PLAN",
+          "details": {
+            "plan_id": "Planning fixture:737:1",
+            "cursor": 0,
+            "status": "ready"
+          }
+        },
+        "opening": {
+          "cash": 9.3,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 1.0,
+          "wage_arrears": 0,
+          "inventory": {},
+          "net_assets_at_manufacturing_cost": 8.3,
+          "net_assets_at_common_prices": 8.3
+        },
+        "closing": {
+          "cash": 28.448375000000006,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {},
+          "net_assets_at_manufacturing_cost": 28.448375000000006,
+          "net_assets_at_common_prices": 28.448375000000006
+        },
+        "boundary": "after_production_payroll_arrears_and_obligations",
+        "measured_turns": 2,
+        "forecast": {
+          "status": "found",
+          "steps": [
+            {
+              "quantity": 2,
+              "limit_price": 2.4,
+              "turn": 1
+            },
+            {
+              "quantity": 0,
+              "limit_price": 2.4,
+              "turn": 2
+            }
+          ],
+          "baseline_value": 2.3000000000000007,
+          "candidate_value": 12.899999999999999,
+          "expanded": 5,
+          "reason": "ordinary_requires_financing_compared_with_idle"
+        },
+        "opening_projection": {
+          "firm_id": 737,
+          "region": "Planning fixture",
+          "currency": "Planning fixture",
+          "turn": 1,
+          "phase": "opening",
+          "input_good": "wood",
+          "output_good": "furniture",
+          "cash": 9.3,
+          "inputs": 0,
+          "outputs": 0,
+          "payroll": 3.0,
+          "liabilities": 1.0,
+          "slots": 1,
+          "input_per_slot": 2,
+          "output_per_slot": 1.15,
+          "chance": 1.0,
+          "max_inventory": 200,
+          "input_price": 2.4,
+          "output_price": 15.399999999999999,
+          "supply": 40,
+          "demand": 1.0,
+          "baseline_quantity": 8,
+          "signature": [
+            "furniture",
+            "wood",
+            2,
+            1,
+            [
+              738
+            ],
+            1,
+            [],
+            3,
+            8.0
+          ],
+          "due_schedule": [
+            [
+              2,
+              1.0
+            ]
+          ],
+          "demand_per_turn": 1.0,
+          "buyer_budget": 500.0
+        },
+        "first_input_quantity": 2.0,
+        "input_quantity": 2.0,
+        "input_spend": 4.752000000000001,
+        "output_produced": 1.0,
+        "output_sold": 1.0,
+        "sale_receipts": 30.900375000000004,
+        "wages_paid": 6.0,
+        "obligations_paid": 1.0,
+        "interest_paid": 0,
+        "unposted_cash_change": [
+          0.0,
+          0.0
+        ],
+        "aggregate_cash_change": 0.0,
+        "turns": [
+          {
+            "turn": 1,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": {
+              "action_taken": "PRODUCTION_PLAN",
+              "details": {
+                "plan_id": "Planning fixture:737:1",
+                "cursor": 0,
+                "status": "ready"
+              }
+            }
+          },
+          {
+            "turn": 2,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": {
+              "action_taken": "PRODUCTION_PLAN",
+              "details": {
+                "plan_id": "Planning fixture:737:1",
+                "cursor": 1,
+                "status": "waiting_sale"
+              }
+            }
+          }
+        ],
+        "forecast_comparable_terminal_value": 28.448375000000006,
+        "forecast_error": 15.548375000000007
+      },
+      "baseline": {
+        "mode": "off",
+        "first_decision": null,
+        "opening": {
+          "cash": 9.3,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 1.0,
+          "wage_arrears": 0,
+          "inventory": {},
+          "net_assets_at_manufacturing_cost": 8.3,
+          "net_assets_at_common_prices": 8.3
+        },
+        "closing": {
+          "cash": 26.900375000000004,
+          "deposits": 0,
+          "bank_principal": 5.497134058306631,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {
+            "wood": {
+              "quantity": 1,
+              "manufacturing_cost": 2.3483780194355437,
+              "common_reference_value": 2.4
+            },
+            "furniture": {
+              "quantity": 1,
+              "manufacturing_cost": 7.696756038871087,
+              "common_reference_value": 22
+            }
+          },
+          "net_assets_at_manufacturing_cost": 31.448375000000006,
+          "net_assets_at_common_prices": 45.803240941693375
+        },
+        "boundary": "after_production_payroll_arrears_and_obligations",
+        "measured_turns": 2,
+        "forecast": null,
+        "opening_projection": {
+          "firm_id": 737,
+          "region": "Planning fixture",
+          "currency": "Planning fixture",
+          "turn": 1,
+          "phase": "opening",
+          "input_good": "wood",
+          "output_good": "furniture",
+          "cash": 9.3,
+          "inputs": 0,
+          "outputs": 0,
+          "payroll": 3.0,
+          "liabilities": 1.0,
+          "slots": 1,
+          "input_per_slot": 2,
+          "output_per_slot": 1.15,
+          "chance": 1.0,
+          "max_inventory": 200,
+          "input_price": 2.4,
+          "output_price": 15.399999999999999,
+          "supply": 40,
+          "demand": 1.0,
+          "baseline_quantity": 8,
+          "signature": [
+            "furniture",
+            "wood",
+            2,
+            1,
+            [
+              738
+            ],
+            1,
+            [],
+            3,
+            8.0
+          ],
+          "due_schedule": [
+            [
+              2,
+              1.0
+            ]
+          ],
+          "demand_per_turn": 1.0,
+          "buyer_budget": 500.0
+        },
+        "first_input_quantity": 3.0,
+        "input_quantity": 5.0,
+        "input_spend": 11.797134058306632,
+        "output_produced": 2.0,
+        "output_sold": 1.0,
+        "sale_receipts": 30.900375000000004,
+        "wages_paid": 6.0,
+        "obligations_paid": 1.0,
+        "interest_paid": 0,
+        "unposted_cash_change": [
+          0.0,
+          0.0
+        ],
+        "aggregate_cash_change": -4.547473508864641e-13,
+        "turns": [
+          {
+            "turn": 1,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": null
+          },
+          {
+            "turn": 2,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": null
+          }
+        ]
+      },
+      "net_assets_delta": -3.0,
+      "common_price_net_assets_delta": -17.35486594169337,
+      "outcome": "lower"
+    },
+    {
+      "case": {
+        "name": "capacity_batch_2_workers_1",
+        "family": "larger_batch",
+        "seed": 106,
+        "cash": 13,
+        "workers": 2,
+        "wage": 2,
+        "input_price": 2,
+        "output_price": 20,
+        "initial_inputs": 0,
+        "demand": 2,
+        "buyer_cash": 500,
+        "supply": 40,
+        "turns": 2,
+        "obligation": 0
+      },
+      "active": {
+        "mode": "active",
+        "first_decision": {
+          "action_taken": "PRODUCTION_PLAN",
+          "details": {
+            "plan_id": "Planning fixture:755:1",
+            "cursor": 0,
+            "status": "ready"
+          }
+        },
+        "opening": {
+          "cash": 13,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {},
+          "net_assets_at_manufacturing_cost": 13,
+          "net_assets_at_common_prices": 13
+        },
+        "closing": {
+          "cash": 53.19499999999999,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {},
+          "net_assets_at_manufacturing_cost": 53.19499999999999,
+          "net_assets_at_common_prices": 53.19499999999999
+        },
+        "boundary": "after_production_payroll_arrears_and_obligations",
+        "measured_turns": 2,
+        "forecast": {
+          "status": "found",
+          "steps": [
+            {
+              "quantity": 4,
+              "limit_price": 2.0,
+              "turn": 1
+            },
+            {
+              "quantity": 0,
+              "limit_price": 2.0,
+              "turn": 2
+            }
+          ],
+          "baseline_value": 5.0,
+          "candidate_value": 25.0,
+          "expanded": 5,
+          "reason": "ordinary_requires_financing_compared_with_idle"
+        },
+        "opening_projection": {
+          "firm_id": 755,
+          "region": "Planning fixture",
+          "currency": "Planning fixture",
+          "turn": 1,
+          "phase": "opening",
+          "input_good": "wood",
+          "output_good": "furniture",
+          "cash": 13.0,
+          "inputs": 0,
+          "outputs": 0,
+          "payroll": 4.0,
+          "liabilities": 0,
+          "slots": 2,
+          "input_per_slot": 2,
+          "output_per_slot": 1.3,
+          "chance": 1.0,
+          "max_inventory": 300,
+          "input_price": 2.0,
+          "output_price": 14.0,
+          "supply": 40,
+          "demand": 2.0,
+          "baseline_quantity": 12,
+          "signature": [
+            "furniture",
+            "wood",
+            2,
+            1,
+            [
+              756,
+              759
+            ],
+            1,
+            [],
+            2,
+            8.0
+          ],
+          "due_schedule": [],
+          "demand_per_turn": 2.0,
+          "buyer_budget": 500.0
+        },
+        "first_input_quantity": 4.0,
+        "input_quantity": 4.0,
+        "input_spend": 7.92,
+        "output_produced": 2.0,
+        "output_sold": 2.0,
+        "sale_receipts": 56.114999999999995,
+        "wages_paid": 8.0,
+        "obligations_paid": 0,
+        "interest_paid": 0,
+        "unposted_cash_change": [
+          0.0,
+          0.0
+        ],
+        "aggregate_cash_change": -9.094947017729282e-13,
+        "turns": [
+          {
+            "turn": 1,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": {
+              "action_taken": "PRODUCTION_PLAN",
+              "details": {
+                "plan_id": "Planning fixture:755:1",
+                "cursor": 0,
+                "status": "ready"
+              }
+            }
+          },
+          {
+            "turn": 2,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": {
+              "action_taken": "PRODUCTION_PLAN",
+              "details": {
+                "plan_id": "Planning fixture:755:1",
+                "cursor": 1,
+                "status": "waiting_sale"
+              }
+            }
+          }
+        ],
+        "forecast_comparable_terminal_value": 53.19499999999999,
+        "forecast_error": 28.194999999999993
+      },
+      "baseline": {
+        "mode": "off",
+        "first_decision": null,
+        "opening": {
+          "cash": 13,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {},
+          "net_assets_at_manufacturing_cost": 13,
+          "net_assets_at_common_prices": 13
+        },
+        "closing": {
+          "cash": 52.114999999999995,
+          "deposits": 0,
+          "bank_principal": 6.787129497479497,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {
+            "furniture": {
+              "quantity": 2,
+              "manufacturing_cost": 11.867129497479498,
+              "common_reference_value": 40
+            }
+          },
+          "net_assets_at_manufacturing_cost": 57.19499999999999,
+          "net_assets_at_common_prices": 85.3278705025205
+        },
+        "boundary": "after_production_payroll_arrears_and_obligations",
+        "measured_turns": 2,
+        "forecast": null,
+        "opening_projection": {
+          "firm_id": 755,
+          "region": "Planning fixture",
+          "currency": "Planning fixture",
+          "turn": 1,
+          "phase": "opening",
+          "input_good": "wood",
+          "output_good": "furniture",
+          "cash": 13.0,
+          "inputs": 0,
+          "outputs": 0,
+          "payroll": 4.0,
+          "liabilities": 0,
+          "slots": 2,
+          "input_per_slot": 2,
+          "output_per_slot": 1.3,
+          "chance": 1.0,
+          "max_inventory": 300,
+          "input_price": 2.0,
+          "output_price": 14.0,
+          "supply": 40,
+          "demand": 2.0,
+          "baseline_quantity": 12,
+          "signature": [
+            "furniture",
+            "wood",
+            2,
+            1,
+            [
+              756,
+              759
+            ],
+            1,
+            [],
+            2,
+            8.0
+          ],
+          "due_schedule": [],
+          "demand_per_turn": 2.0,
+          "buyer_budget": 500.0
+        },
+        "first_input_quantity": 6.0,
+        "input_quantity": 8.0,
+        "input_spend": 15.787129497479498,
+        "output_produced": 4.0,
+        "output_sold": 2.0,
+        "sale_receipts": 56.114999999999995,
+        "wages_paid": 8.0,
+        "obligations_paid": 0,
+        "interest_paid": 0,
+        "unposted_cash_change": [
+          0.0,
+          -0.0
+        ],
+        "aggregate_cash_change": -4.547473508864641e-13,
+        "turns": [
+          {
+            "turn": 1,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": null
+          },
+          {
+            "turn": 2,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": null
+          }
+        ]
+      },
+      "net_assets_delta": -4.0,
+      "common_price_net_assets_delta": -32.132870502520504,
+      "outcome": "lower"
+    },
+    {
+      "case": {
+        "name": "capacity_batch_3_workers_2",
+        "family": "larger_batch",
+        "seed": 107,
+        "cash": 19,
+        "workers": 3,
+        "wage": 2,
+        "input_price": 2,
+        "output_price": 21,
+        "initial_inputs": 0,
+        "demand": 4,
+        "buyer_cash": 500,
+        "supply": 40,
+        "turns": 2,
+        "obligation": 0
+      },
+      "active": {
+        "mode": "active",
+        "first_decision": {
+          "action_taken": "PRODUCTION_PLAN",
+          "details": {
+            "plan_id": "Planning fixture:774:1",
+            "cursor": 0,
+            "status": "ready"
+          }
+        },
+        "opening": {
+          "cash": 19,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {},
+          "net_assets_at_manufacturing_cost": 19,
+          "net_assets_at_common_prices": 19
+        },
+        "closing": {
+          "cash": 107.953,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {},
+          "net_assets_at_manufacturing_cost": 107.953,
+          "net_assets_at_common_prices": 107.953
+        },
+        "boundary": "after_production_payroll_arrears_and_obligations",
+        "measured_turns": 2,
+        "forecast": {
+          "status": "found",
+          "steps": [
+            {
+              "quantity": 6,
+              "limit_price": 2.0,
+              "turn": 1
+            },
+            {
+              "quantity": 0,
+              "limit_price": 2.0,
+              "turn": 2
+            }
+          ],
+          "baseline_value": 7.0,
+          "candidate_value": 53.8,
+          "expanded": 5,
+          "reason": "ordinary_requires_financing_compared_with_idle"
+        },
+        "opening_projection": {
+          "firm_id": 774,
+          "region": "Planning fixture",
+          "currency": "Planning fixture",
+          "turn": 1,
+          "phase": "opening",
+          "input_good": "wood",
+          "output_good": "furniture",
+          "cash": 19.0,
+          "inputs": 0,
+          "outputs": 0,
+          "payroll": 6.0,
+          "liabilities": 0,
+          "slots": 3,
+          "input_per_slot": 2,
+          "output_per_slot": 1.45,
+          "chance": 1.0,
+          "max_inventory": 400,
+          "input_price": 2.0,
+          "output_price": 14.7,
+          "supply": 40,
+          "demand": 4.0,
+          "baseline_quantity": 16,
+          "signature": [
+            "furniture",
+            "wood",
+            2,
+            1,
+            [
+              775,
+              778,
+              779
+            ],
+            1,
+            [],
+            2,
+            8.0
+          ],
+          "due_schedule": [],
+          "demand_per_turn": 4.0,
+          "buyer_budget": 500.0
+        },
+        "first_input_quantity": 6.0,
+        "input_quantity": 6.0,
+        "input_spend": 11.879999999999999,
+        "output_produced": 4.0,
+        "output_sold": 4.0,
+        "sale_receipts": 112.833,
+        "wages_paid": 12.0,
+        "obligations_paid": 0,
+        "interest_paid": 0,
+        "unposted_cash_change": [
+          0.0,
+          0.0
+        ],
+        "aggregate_cash_change": -9.094947017729282e-13,
+        "turns": [
+          {
+            "turn": 1,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": {
+              "action_taken": "PRODUCTION_PLAN",
+              "details": {
+                "plan_id": "Planning fixture:774:1",
+                "cursor": 0,
+                "status": "ready"
+              }
+            }
+          },
+          {
+            "turn": 2,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": {
+              "action_taken": "PRODUCTION_PLAN",
+              "details": {
+                "plan_id": "Planning fixture:774:1",
+                "cursor": 1,
+                "status": "waiting_sale"
+              }
+            }
+          }
+        ],
+        "forecast_comparable_terminal_value": 107.953,
+        "forecast_error": 54.153000000000006
+      },
+      "baseline": {
+        "mode": "off",
+        "first_decision": null,
+        "opening": {
+          "cash": 19,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {},
+          "net_assets_at_manufacturing_cost": 19,
+          "net_assets_at_common_prices": 19
+        },
+        "closing": {
+          "cash": 106.833,
+          "deposits": 0,
+          "bank_principal": 8.769276268117771,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {
+            "wood": {
+              "quantity": 1,
+              "manufacturing_cost": 1.9778552536235545,
+              "common_reference_value": 2
+            },
+            "furniture": {
+              "quantity": 2,
+              "manufacturing_cost": 13.911421014494218,
+              "common_reference_value": 42
+            }
+          },
+          "net_assets_at_manufacturing_cost": 113.95299999999999,
+          "net_assets_at_common_prices": 142.06372373188222
+        },
+        "boundary": "after_production_payroll_arrears_and_obligations",
+        "measured_turns": 2,
+        "forecast": null,
+        "opening_projection": {
+          "firm_id": 774,
+          "region": "Planning fixture",
+          "currency": "Planning fixture",
+          "turn": 1,
+          "phase": "opening",
+          "input_good": "wood",
+          "output_good": "furniture",
+          "cash": 19.0,
+          "inputs": 0,
+          "outputs": 0,
+          "payroll": 6.0,
+          "liabilities": 0,
+          "slots": 3,
+          "input_per_slot": 2,
+          "output_per_slot": 1.45,
+          "chance": 1.0,
+          "max_inventory": 400,
+          "input_price": 2.0,
+          "output_price": 14.7,
+          "supply": 40,
+          "demand": 4.0,
+          "baseline_quantity": 16,
+          "signature": [
+            "furniture",
+            "wood",
+            2,
+            1,
+            [
+              775,
+              778,
+              779
+            ],
+            1,
+            [],
+            2,
+            8.0
+          ],
+          "due_schedule": [],
+          "demand_per_turn": 4.0,
+          "buyer_budget": 500.0
+        },
+        "first_input_quantity": 9.0,
+        "input_quantity": 11.0,
+        "input_spend": 21.76927626811777,
+        "output_produced": 6.0,
+        "output_sold": 4.0,
+        "sale_receipts": 112.833,
+        "wages_paid": 12.0,
+        "obligations_paid": 0,
+        "interest_paid": 0,
+        "unposted_cash_change": [
+          0.0,
+          0.0
+        ],
+        "aggregate_cash_change": -9.094947017729282e-13,
+        "turns": [
+          {
+            "turn": 1,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": null
+          },
+          {
+            "turn": 2,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": null
+          }
+        ]
+      },
+      "net_assets_delta": -5.999999999999986,
+      "common_price_net_assets_delta": -34.11072373188222,
+      "outcome": "lower"
+    },
+    {
+      "case": {
+        "name": "capacity_batch_4_workers_3",
+        "family": "larger_batch",
+        "seed": 108,
+        "cash": 25,
+        "workers": 4,
+        "wage": 2,
+        "input_price": 2,
+        "output_price": 22,
+        "initial_inputs": 0,
+        "demand": 7,
+        "buyer_cash": 500,
+        "supply": 40,
+        "turns": 2,
+        "obligation": 0
+      },
+      "active": {
+        "mode": "active",
+        "first_decision": {
+          "action_taken": "PRODUCTION_PLAN",
+          "details": {
+            "plan_id": "Planning fixture:794:1",
+            "cursor": 0,
+            "status": "ready"
+          }
+        },
+        "opening": {
+          "cash": 25,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {},
+          "net_assets_at_manufacturing_cost": 25,
+          "net_assets_at_common_prices": 25
+        },
+        "closing": {
+          "cash": 191.02616022782905,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {},
+          "net_assets_at_manufacturing_cost": 191.02616022782905,
+          "net_assets_at_common_prices": 191.02616022782905
+        },
+        "boundary": "after_production_payroll_arrears_and_obligations",
+        "measured_turns": 2,
+        "forecast": {
+          "status": "found",
+          "steps": [
+            {
+              "quantity": 8,
+              "limit_price": 2.0,
+              "turn": 1
+            },
+            {
+              "quantity": 0,
+              "limit_price": 2.0,
+              "turn": 2
+            }
+          ],
+          "baseline_value": 9.0,
+          "candidate_value": 100.79999999999998,
+          "expanded": 5,
+          "reason": "ordinary_requires_financing_compared_with_idle"
+        },
+        "opening_projection": {
+          "firm_id": 794,
+          "region": "Planning fixture",
+          "currency": "Planning fixture",
+          "turn": 1,
+          "phase": "opening",
+          "input_good": "wood",
+          "output_good": "furniture",
+          "cash": 25.0,
+          "inputs": 0,
+          "outputs": 0,
+          "payroll": 8.0,
+          "liabilities": 0,
+          "slots": 4,
+          "input_per_slot": 2,
+          "output_per_slot": 1.8,
+          "chance": 1.0,
+          "max_inventory": 500,
+          "input_price": 2.0,
+          "output_price": 15.399999999999999,
+          "supply": 40,
+          "demand": 7.0,
+          "baseline_quantity": 20,
+          "signature": [
+            "furniture",
+            "wood",
+            2,
+            1,
+            [
+              795,
+              798,
+              799,
+              800
+            ],
+            1,
+            [],
+            2,
+            8.0
+          ],
+          "due_schedule": [],
+          "demand_per_turn": 7.0,
+          "buyer_budget": 500.0
+        },
+        "first_input_quantity": 8.0,
+        "input_quantity": 8.0,
+        "input_spend": 15.84,
+        "output_produced": 7.0,
+        "output_sold": 7.0,
+        "sale_receipts": 197.86616022782903,
+        "wages_paid": 16.0,
+        "obligations_paid": 0,
+        "interest_paid": 0,
+        "unposted_cash_change": [
+          0.0,
+          -0.0
+        ],
+        "aggregate_cash_change": -9.094947017729282e-13,
+        "turns": [
+          {
+            "turn": 1,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": {
+              "action_taken": "PRODUCTION_PLAN",
+              "details": {
+                "plan_id": "Planning fixture:794:1",
+                "cursor": 0,
+                "status": "ready"
+              }
+            }
+          },
+          {
+            "turn": 2,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": {
+              "action_taken": "PRODUCTION_PLAN",
+              "details": {
+                "plan_id": "Planning fixture:794:1",
+                "cursor": 1,
+                "status": "waiting_sale"
+              }
+            }
+          }
+        ],
+        "forecast_comparable_terminal_value": 191.02616022782905,
+        "forecast_error": 90.22616022782907
+      },
+      "baseline": {
+        "mode": "off",
+        "first_decision": null,
+        "opening": {
+          "cash": 25,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {},
+          "net_assets_at_manufacturing_cost": 25,
+          "net_assets_at_common_prices": 25
+        },
+        "closing": {
+          "cash": 189.87752364352906,
+          "deposits": 0,
+          "bank_principal": 10.73055810094063,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {
+            "furniture": {
+              "quantity": 5,
+              "manufacturing_cost": 19.89055810094063,
+              "common_reference_value": 110
+            }
+          },
+          "net_assets_at_manufacturing_cost": 199.03752364352906,
+          "net_assets_at_common_prices": 289.1469655425884
+        },
+        "boundary": "after_production_payroll_arrears_and_obligations",
+        "measured_turns": 2,
+        "forecast": null,
+        "opening_projection": {
+          "firm_id": 794,
+          "region": "Planning fixture",
+          "currency": "Planning fixture",
+          "turn": 1,
+          "phase": "opening",
+          "input_good": "wood",
+          "output_good": "furniture",
+          "cash": 25.0,
+          "inputs": 0,
+          "outputs": 0,
+          "payroll": 8.0,
+          "liabilities": 0,
+          "slots": 4,
+          "input_per_slot": 2,
+          "output_per_slot": 1.8,
+          "chance": 1.0,
+          "max_inventory": 500,
+          "input_price": 2.0,
+          "output_price": 15.399999999999999,
+          "supply": 40,
+          "demand": 7.0,
+          "baseline_quantity": 20,
+          "signature": [
+            "furniture",
+            "wood",
+            2,
+            1,
+            [
+              795,
+              798,
+              799,
+              800
+            ],
+            1,
+            [],
+            2,
+            8.0
+          ],
+          "due_schedule": [],
+          "demand_per_turn": 7.0,
+          "buyer_budget": 500.0
+        },
+        "first_input_quantity": 12.0,
+        "input_quantity": 14.0,
+        "input_spend": 27.73055810094063,
+        "output_produced": 12.0,
+        "output_sold": 7.0,
+        "sale_receipts": 197.87752364352906,
+        "wages_paid": 16.0,
+        "obligations_paid": 0,
+        "interest_paid": 0,
+        "unposted_cash_change": [
+          0.0,
+          0.0
+        ],
+        "aggregate_cash_change": -9.094947017729282e-13,
+        "turns": [
+          {
+            "turn": 1,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": null
+          },
+          {
+            "turn": 2,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": null
+          }
+        ]
+      },
+      "net_assets_delta": -8.011363415700004,
+      "common_price_net_assets_delta": -98.12080531475937,
+      "outcome": "lower"
+    },
+    {
+      "case": {
+        "name": "capacity_batch_2_workers_4",
+        "family": "larger_batch",
+        "seed": 109,
+        "cash": 21,
+        "workers": 2,
+        "wage": 2,
+        "input_price": 2,
+        "output_price": 23,
+        "initial_inputs": 0,
+        "demand": 2,
+        "buyer_cash": 500,
+        "supply": 40,
+        "turns": 2,
+        "obligation": 0
+      },
+      "active": {
+        "mode": "active",
+        "first_decision": {
+          "action_taken": "PRODUCTION_PLAN",
+          "details": {
+            "plan_id": "Planning fixture:815:1",
+            "cursor": 0,
+            "status": "ready"
+          }
+        },
+        "opening": {
+          "cash": 21,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {},
+          "net_assets_at_manufacturing_cost": 21,
+          "net_assets_at_common_prices": 21
+        },
+        "closing": {
+          "cash": 61.69225,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {
+            "furniture": {
+              "quantity": 2,
+              "manufacturing_cost": 11.92,
+              "common_reference_value": 46
+            }
+          },
+          "net_assets_at_manufacturing_cost": 73.61225,
+          "net_assets_at_common_prices": 107.69225
+        },
+        "boundary": "after_production_payroll_arrears_and_obligations",
+        "measured_turns": 2,
+        "forecast": {
+          "status": "found",
+          "steps": [
+            {
+              "quantity": 8,
+              "limit_price": 2.0,
+              "turn": 1
+            },
+            {
+              "quantity": 0,
+              "limit_price": 2.0,
+              "turn": 2
+            }
+          ],
+          "baseline_value": 13.0,
+          "candidate_value": 61.39999999999999,
+          "expanded": 11,
+          "reason": "ordinary_requires_financing_compared_with_idle"
+        },
+        "opening_projection": {
+          "firm_id": 815,
+          "region": "Planning fixture",
+          "currency": "Planning fixture",
+          "turn": 1,
+          "phase": "opening",
+          "input_good": "wood",
+          "output_good": "furniture",
+          "cash": 21.0,
+          "inputs": 0,
+          "outputs": 0,
+          "payroll": 4.0,
+          "liabilities": 0,
+          "slots": 2,
+          "input_per_slot": 2,
+          "output_per_slot": 1.3,
+          "chance": 1.0,
+          "max_inventory": 300,
+          "input_price": 2.0,
+          "output_price": 16.099999999999998,
+          "supply": 40,
+          "demand": 2.0,
+          "baseline_quantity": 12,
+          "signature": [
+            "furniture",
+            "wood",
+            2,
+            1,
+            [
+              816,
+              819
+            ],
+            1,
+            [],
+            2,
+            8.0
+          ],
+          "due_schedule": [],
+          "demand_per_turn": 2.0,
+          "buyer_budget": 500.0
+        },
+        "first_input_quantity": 8.0,
+        "input_quantity": 8.0,
+        "input_spend": 15.84,
+        "output_produced": 4.0,
+        "output_sold": 2.0,
+        "sale_receipts": 64.53225,
+        "wages_paid": 8.0,
+        "obligations_paid": 0,
+        "interest_paid": 0,
+        "unposted_cash_change": [
+          0.0,
+          0.0
+        ],
+        "aggregate_cash_change": -9.094947017729282e-13,
+        "turns": [
+          {
+            "turn": 1,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": {
+              "action_taken": "PRODUCTION_PLAN",
+              "details": {
+                "plan_id": "Planning fixture:815:1",
+                "cursor": 0,
+                "status": "ready"
+              }
+            }
+          },
+          {
+            "turn": 2,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": {
+              "action_taken": "PRODUCTION_PLAN",
+              "details": {
+                "plan_id": "Planning fixture:815:1",
+                "cursor": 1,
+                "status": "waiting_sale"
+              }
+            }
+          }
+        ],
+        "forecast_comparable_terminal_value": 93.89224999999999,
+        "forecast_error": 32.49225
+      },
+      "baseline": {
+        "mode": "off",
+        "first_decision": null,
+        "opening": {
+          "cash": 21,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {},
+          "net_assets_at_manufacturing_cost": 21,
+          "net_assets_at_common_prices": 21
+        },
+        "closing": {
+          "cash": 60.532250000000005,
+          "deposits": 0,
+          "bank_principal": 6.721508931605337,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {
+            "wood": {
+              "quantity": 4,
+              "manufacturing_cost": 7.900754465802668,
+              "common_reference_value": 8
+            },
+            "furniture": {
+              "quantity": 2,
+              "manufacturing_cost": 11.900754465802667,
+              "common_reference_value": 46
+            }
+          },
+          "net_assets_at_manufacturing_cost": 73.61225,
+          "net_assets_at_common_prices": 107.81074106839466
+        },
+        "boundary": "after_production_payroll_arrears_and_obligations",
+        "measured_turns": 2,
+        "forecast": null,
+        "opening_projection": {
+          "firm_id": 815,
+          "region": "Planning fixture",
+          "currency": "Planning fixture",
+          "turn": 1,
+          "phase": "opening",
+          "input_good": "wood",
+          "output_good": "furniture",
+          "cash": 21.0,
+          "inputs": 0,
+          "outputs": 0,
+          "payroll": 4.0,
+          "liabilities": 0,
+          "slots": 2,
+          "input_per_slot": 2,
+          "output_per_slot": 1.3,
+          "chance": 1.0,
+          "max_inventory": 300,
+          "input_price": 2.0,
+          "output_price": 16.099999999999998,
+          "supply": 40,
+          "demand": 2.0,
+          "baseline_quantity": 12,
+          "signature": [
+            "furniture",
+            "wood",
+            2,
+            1,
+            [
+              816,
+              819
+            ],
+            1,
+            [],
+            2,
+            8.0
+          ],
+          "due_schedule": [],
+          "demand_per_turn": 2.0,
+          "buyer_budget": 500.0
+        },
+        "first_input_quantity": 10.0,
+        "input_quantity": 12.0,
+        "input_spend": 23.721508931605335,
+        "output_produced": 4.0,
+        "output_sold": 2.0,
+        "sale_receipts": 64.53225,
+        "wages_paid": 8.0,
+        "obligations_paid": 0,
+        "interest_paid": 0,
+        "unposted_cash_change": [
+          0.0,
+          0.0
+        ],
+        "aggregate_cash_change": -9.094947017729282e-13,
+        "turns": [
+          {
+            "turn": 1,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": null
+          },
+          {
+            "turn": 2,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": null
+          }
+        ]
+      },
+      "net_assets_delta": 0.0,
+      "common_price_net_assets_delta": -0.11849106839466117,
+      "outcome": "tie"
+    },
+    {
+      "case": {
+        "name": "capacity_batch_3_workers_5",
+        "family": "larger_batch",
+        "seed": 110,
+        "cash": 31,
+        "workers": 3,
+        "wage": 2,
+        "input_price": 2,
+        "output_price": 24,
+        "initial_inputs": 0,
+        "demand": 4,
+        "buyer_cash": 500,
+        "supply": 40,
+        "turns": 2,
+        "obligation": 0
+      },
+      "active": {
+        "mode": "active",
+        "first_decision": {
+          "action_taken": "PRODUCTION_PLAN",
+          "details": {
+            "plan_id": "Planning fixture:834:1",
+            "cursor": 0,
+            "status": "ready"
+          }
+        },
+        "opening": {
+          "cash": 31,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {},
+          "net_assets_at_manufacturing_cost": 31,
+          "net_assets_at_common_prices": 31
+        },
+        "closing": {
+          "cash": 124.19200000000001,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {
+            "furniture": {
+              "quantity": 4,
+              "manufacturing_cost": 17.88,
+              "common_reference_value": 96
+            }
+          },
+          "net_assets_at_manufacturing_cost": 142.072,
+          "net_assets_at_common_prices": 220.192
+        },
+        "boundary": "after_production_payroll_arrears_and_obligations",
+        "measured_turns": 2,
+        "forecast": {
+          "status": "found",
+          "steps": [
+            {
+              "quantity": 12,
+              "limit_price": 2.0,
+              "turn": 1
+            },
+            {
+              "quantity": 0,
+              "limit_price": 2.0,
+              "turn": 2
+            }
+          ],
+          "baseline_value": 19.0,
+          "candidate_value": 129.39999999999998,
+          "expanded": 11,
+          "reason": "ordinary_requires_financing_compared_with_idle"
+        },
+        "opening_projection": {
+          "firm_id": 834,
+          "region": "Planning fixture",
+          "currency": "Planning fixture",
+          "turn": 1,
+          "phase": "opening",
+          "input_good": "wood",
+          "output_good": "furniture",
+          "cash": 31.0,
+          "inputs": 0,
+          "outputs": 0,
+          "payroll": 6.0,
+          "liabilities": 0,
+          "slots": 3,
+          "input_per_slot": 2,
+          "output_per_slot": 1.45,
+          "chance": 1.0,
+          "max_inventory": 400,
+          "input_price": 2.0,
+          "output_price": 16.799999999999997,
+          "supply": 40,
+          "demand": 4.0,
+          "baseline_quantity": 16,
+          "signature": [
+            "furniture",
+            "wood",
+            2,
+            1,
+            [
+              835,
+              838,
+              839
+            ],
+            1,
+            [],
+            2,
+            8.0
+          ],
+          "due_schedule": [],
+          "demand_per_turn": 4.0,
+          "buyer_budget": 500.0
+        },
+        "first_input_quantity": 12.0,
+        "input_quantity": 12.0,
+        "input_spend": 23.759999999999998,
+        "output_produced": 8.0,
+        "output_sold": 4.0,
+        "sale_receipts": 128.952,
+        "wages_paid": 12.0,
+        "obligations_paid": 0,
+        "interest_paid": 0,
+        "unposted_cash_change": [
+          0.0,
+          0.0
+        ],
+        "aggregate_cash_change": -9.094947017729282e-13,
+        "turns": [
+          {
+            "turn": 1,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": {
+              "action_taken": "PRODUCTION_PLAN",
+              "details": {
+                "plan_id": "Planning fixture:834:1",
+                "cursor": 0,
+                "status": "ready"
+              }
+            }
+          },
+          {
+            "turn": 2,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": {
+              "action_taken": "PRODUCTION_PLAN",
+              "details": {
+                "plan_id": "Planning fixture:834:1",
+                "cursor": 1,
+                "status": "waiting_sale"
+              }
+            }
+          }
+        ],
+        "forecast_comparable_terminal_value": 191.392,
+        "forecast_error": 61.99200000000002
+      },
+      "baseline": {
+        "mode": "off",
+        "first_decision": null,
+        "opening": {
+          "cash": 31,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {},
+          "net_assets_at_manufacturing_cost": 31,
+          "net_assets_at_common_prices": 31
+        },
+        "closing": {
+          "cash": 122.952,
+          "deposits": 0,
+          "bank_principal": 8.674899554129686,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {
+            "wood": {
+              "quantity": 5,
+              "manufacturing_cost": 9.906772524604403,
+              "common_reference_value": 10
+            },
+            "furniture": {
+              "quantity": 4,
+              "manufacturing_cost": 17.888127029525286,
+              "common_reference_value": 96
+            }
+          },
+          "net_assets_at_manufacturing_cost": 142.072,
+          "net_assets_at_common_prices": 220.2771004458703
+        },
+        "boundary": "after_production_payroll_arrears_and_obligations",
+        "measured_turns": 2,
+        "forecast": null,
+        "opening_projection": {
+          "firm_id": 834,
+          "region": "Planning fixture",
+          "currency": "Planning fixture",
+          "turn": 1,
+          "phase": "opening",
+          "input_good": "wood",
+          "output_good": "furniture",
+          "cash": 31.0,
+          "inputs": 0,
+          "outputs": 0,
+          "payroll": 6.0,
+          "liabilities": 0,
+          "slots": 3,
+          "input_per_slot": 2,
+          "output_per_slot": 1.45,
+          "chance": 1.0,
+          "max_inventory": 400,
+          "input_price": 2.0,
+          "output_price": 16.799999999999997,
+          "supply": 40,
+          "demand": 4.0,
+          "baseline_quantity": 16,
+          "signature": [
+            "furniture",
+            "wood",
+            2,
+            1,
+            [
+              835,
+              838,
+              839
+            ],
+            1,
+            [],
+            2,
+            8.0
+          ],
+          "due_schedule": [],
+          "demand_per_turn": 4.0,
+          "buyer_budget": 500.0
+        },
+        "first_input_quantity": 15.0,
+        "input_quantity": 17.0,
+        "input_spend": 33.67489955412969,
+        "output_produced": 8.0,
+        "output_sold": 4.0,
+        "sale_receipts": 128.952,
+        "wages_paid": 12.0,
+        "obligations_paid": 0,
+        "interest_paid": 0,
+        "unposted_cash_change": [
+          0.0,
+          0.0
+        ],
+        "aggregate_cash_change": -9.094947017729282e-13,
+        "turns": [
+          {
+            "turn": 1,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": null
+          },
+          {
+            "turn": 2,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": null
+          }
+        ]
+      },
+      "net_assets_delta": 0.0,
+      "common_price_net_assets_delta": -0.08510044587029597,
+      "outcome": "tie"
+    },
+    {
+      "case": {
+        "name": "existing_inputs_1",
+        "family": "wait",
+        "seed": 111,
+        "cash": 12,
+        "workers": 1,
+        "wage": 3,
+        "input_price": 2,
+        "output_price": 18,
+        "initial_inputs": 4,
+        "demand": 2,
+        "buyer_cash": 500,
+        "supply": 40,
+        "turns": 2,
+        "obligation": 0
+      },
+      "active": {
+        "mode": "active",
+        "first_decision": {
+          "action_taken": "WAIT_INPUT",
+          "details": {
+            "plan_id": "Planning fixture:854:1",
+            "reason": "existing_inputs_cover_work",
+            "input_quantity": 0
+          }
+        },
+        "opening": {
+          "cash": 12,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {
+            "wood": {
+              "quantity": 4,
+              "manufacturing_cost": 8,
+              "common_reference_value": 8
+            }
+          },
+          "net_assets_at_manufacturing_cost": 20,
+          "net_assets_at_common_prices": 20
+        },
+        "closing": {
+          "cash": 31.282125,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {
+            "furniture": {
+              "quantity": 1,
+              "manufacturing_cost": 7.0,
+              "common_reference_value": 18
+            }
+          },
+          "net_assets_at_manufacturing_cost": 38.282125,
+          "net_assets_at_common_prices": 49.282125
+        },
+        "boundary": "after_production_payroll_arrears_and_obligations",
+        "measured_turns": 2,
+        "forecast": null,
+        "opening_projection": {
+          "firm_id": 854,
+          "region": "Planning fixture",
+          "currency": "Planning fixture",
+          "turn": 1,
+          "phase": "opening",
+          "input_good": "wood",
+          "output_good": "furniture",
+          "cash": 12.0,
+          "inputs": 4,
+          "outputs": 0,
+          "payroll": 3.0,
+          "liabilities": 0,
+          "slots": 1,
+          "input_per_slot": 2,
+          "output_per_slot": 1.15,
+          "chance": 1.0,
+          "max_inventory": 200,
+          "input_price": 2.0,
+          "output_price": 12.6,
+          "supply": 40,
+          "demand": 2.0,
+          "baseline_quantity": 4,
+          "signature": [
+            "furniture",
+            "wood",
+            2,
+            1,
+            [
+              855
+            ],
+            1,
+            [],
+            3,
+            8.0
+          ],
+          "due_schedule": [],
+          "demand_per_turn": 2.0,
+          "buyer_budget": 500.0
+        },
+        "first_input_quantity": 0,
+        "input_quantity": 0,
+        "input_spend": 0,
+        "output_produced": 2.0,
+        "output_sold": 1.0,
+        "sale_receipts": 25.282125,
+        "wages_paid": 6.0,
+        "obligations_paid": 0,
+        "interest_paid": 0,
+        "unposted_cash_change": [
+          0.0,
+          0.0
+        ],
+        "aggregate_cash_change": 0.0,
+        "turns": [
+          {
+            "turn": 1,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": {
+              "action_taken": "WAIT_INPUT",
+              "details": {
+                "plan_id": "Planning fixture:854:1",
+                "reason": "existing_inputs_cover_work",
+                "input_quantity": 0
+              }
+            }
+          },
+          {
+            "turn": 2,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": {
+              "action_taken": "WAIT_INPUT",
+              "details": {
+                "plan_id": "Planning fixture:854:2",
+                "reason": "existing_inputs_cover_work",
+                "input_quantity": 0
+              }
+            }
+          }
+        ]
+      },
+      "baseline": {
+        "mode": "off",
+        "first_decision": null,
+        "opening": {
+          "cash": 12,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {
+            "wood": {
+              "quantity": 4,
+              "manufacturing_cost": 8,
+              "common_reference_value": 8
+            }
+          },
+          "net_assets_at_manufacturing_cost": 20,
+          "net_assets_at_common_prices": 20
+        },
+        "closing": {
+          "cash": 22.282125,
+          "deposits": 0,
+          "bank_principal": 2.814016325775343,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {
+            "wood": {
+              "quantity": 6,
+              "manufacturing_cost": 11.875512244331507,
+              "common_reference_value": 12
+            },
+            "furniture": {
+              "quantity": 1,
+              "manufacturing_cost": 6.958504081443836,
+              "common_reference_value": 18
+            }
+          },
+          "net_assets_at_manufacturing_cost": 38.302125000000004,
+          "net_assets_at_common_prices": 49.46810867422466
+        },
+        "boundary": "after_production_payroll_arrears_and_obligations",
+        "measured_turns": 2,
+        "forecast": null,
+        "opening_projection": {
+          "firm_id": 854,
+          "region": "Planning fixture",
+          "currency": "Planning fixture",
+          "turn": 1,
+          "phase": "opening",
+          "input_good": "wood",
+          "output_good": "furniture",
+          "cash": 12.0,
+          "inputs": 4,
+          "outputs": 0,
+          "payroll": 3.0,
+          "liabilities": 0,
+          "slots": 1,
+          "input_per_slot": 2,
+          "output_per_slot": 1.15,
+          "chance": 1.0,
+          "max_inventory": 200,
+          "input_price": 2.0,
+          "output_price": 12.6,
+          "supply": 40,
+          "demand": 2.0,
+          "baseline_quantity": 4,
+          "signature": [
+            "furniture",
+            "wood",
+            2,
+            1,
+            [
+              855
+            ],
+            1,
+            [],
+            3,
+            8.0
+          ],
+          "due_schedule": [],
+          "demand_per_turn": 2.0,
+          "buyer_budget": 500.0
+        },
+        "first_input_quantity": 4.0,
+        "input_quantity": 6.0,
+        "input_spend": 11.814016325775343,
+        "output_produced": 2.0,
+        "output_sold": 1.0,
+        "sale_receipts": 25.282125,
+        "wages_paid": 6.0,
+        "obligations_paid": 0,
+        "interest_paid": 0,
+        "unposted_cash_change": [
+          0.0,
+          0.0
+        ],
+        "aggregate_cash_change": 0.0,
+        "turns": [
+          {
+            "turn": 1,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": null
+          },
+          {
+            "turn": 2,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": null
+          }
+        ]
+      },
+      "net_assets_delta": -0.020000000000003126,
+      "common_price_net_assets_delta": -0.18598367422465856,
+      "outcome": "lower"
+    },
+    {
+      "case": {
+        "name": "existing_inputs_2",
+        "family": "wait",
+        "seed": 112,
+        "cash": 13,
+        "workers": 2,
+        "wage": 3,
+        "input_price": 2,
+        "output_price": 18,
+        "initial_inputs": 12,
+        "demand": 4,
+        "buyer_cash": 500,
+        "supply": 40,
+        "turns": 3,
+        "obligation": 0
+      },
+      "active": {
+        "mode": "active",
+        "first_decision": {
+          "action_taken": "WAIT_INPUT",
+          "details": {
+            "plan_id": "Planning fixture:872:1",
+            "reason": "existing_inputs_cover_work",
+            "input_quantity": 0
+          }
+        },
+        "opening": {
+          "cash": 13,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {
+            "wood": {
+              "quantity": 12,
+              "manufacturing_cost": 24,
+              "common_reference_value": 24
+            }
+          },
+          "net_assets_at_manufacturing_cost": 37,
+          "net_assets_at_common_prices": 37
+        },
+        "closing": {
+          "cash": 102.31993750000001,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {
+            "furniture": {
+              "quantity": 2,
+              "manufacturing_cost": 14.0,
+              "common_reference_value": 36
+            }
+          },
+          "net_assets_at_manufacturing_cost": 116.31993750000001,
+          "net_assets_at_common_prices": 138.3199375
+        },
+        "boundary": "after_production_payroll_arrears_and_obligations",
+        "measured_turns": 3,
+        "forecast": null,
+        "opening_projection": {
+          "firm_id": 872,
+          "region": "Planning fixture",
+          "currency": "Planning fixture",
+          "turn": 1,
+          "phase": "opening",
+          "input_good": "wood",
+          "output_good": "furniture",
+          "cash": 13.0,
+          "inputs": 12,
+          "outputs": 0,
+          "payroll": 6.0,
+          "liabilities": 0,
+          "slots": 2,
+          "input_per_slot": 2,
+          "output_per_slot": 1.3,
+          "chance": 1.0,
+          "max_inventory": 300,
+          "input_price": 2.0,
+          "output_price": 12.6,
+          "supply": 40,
+          "demand": 4.0,
+          "baseline_quantity": 0,
+          "signature": [
+            "furniture",
+            "wood",
+            2,
+            1,
+            [
+              873,
+              876
+            ],
+            1,
+            [],
+            3,
+            8.0
+          ],
+          "due_schedule": [],
+          "demand_per_turn": 4.0,
+          "buyer_budget": 500.0
+        },
+        "first_input_quantity": 0,
+        "input_quantity": 0,
+        "input_spend": 0,
+        "output_produced": 6.0,
+        "output_sold": 4.0,
+        "sale_receipts": 107.31993750000001,
+        "wages_paid": 18.0,
+        "obligations_paid": 0,
+        "interest_paid": 0,
+        "unposted_cash_change": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "aggregate_cash_change": -9.094947017729282e-13,
+        "turns": [
+          {
+            "turn": 1,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": {
+              "action_taken": "WAIT_INPUT",
+              "details": {
+                "plan_id": "Planning fixture:872:1",
+                "reason": "existing_inputs_cover_work",
+                "input_quantity": 0
+              }
+            }
+          },
+          {
+            "turn": 2,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": {
+              "action_taken": "WAIT_INPUT",
+              "details": {
+                "plan_id": "Planning fixture:872:2",
+                "reason": "existing_inputs_cover_work",
+                "input_quantity": 0
+              }
+            }
+          },
+          {
+            "turn": 3,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": {
+              "action_taken": "WAIT_INPUT",
+              "details": {
+                "plan_id": "Planning fixture:872:3",
+                "reason": "existing_inputs_cover_work",
+                "input_quantity": 0
+              }
+            }
+          }
+        ]
+      },
+      "baseline": {
+        "mode": "off",
+        "first_decision": null,
+        "opening": {
+          "cash": 13,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {
+            "wood": {
+              "quantity": 12,
+              "manufacturing_cost": 24,
+              "common_reference_value": 24
+            }
+          },
+          "net_assets_at_manufacturing_cost": 37,
+          "net_assets_at_common_prices": 37
+        },
+        "closing": {
+          "cash": 86.957644369628,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {
+            "wood": {
+              "quantity": 8,
+              "manufacturing_cost": 15.608633178740305,
+              "common_reference_value": 16
+            },
+            "furniture": {
+              "quantity": 2,
+              "manufacturing_cost": 13.804316589370153,
+              "common_reference_value": 36
+            }
+          },
+          "net_assets_at_manufacturing_cost": 116.37059413773846,
+          "net_assets_at_common_prices": 138.95764436962799
+        },
+        "boundary": "after_production_payroll_arrears_and_obligations",
+        "measured_turns": 3,
+        "forecast": null,
+        "opening_projection": {
+          "firm_id": 872,
+          "region": "Planning fixture",
+          "currency": "Planning fixture",
+          "turn": 1,
+          "phase": "opening",
+          "input_good": "wood",
+          "output_good": "furniture",
+          "cash": 13.0,
+          "inputs": 12,
+          "outputs": 0,
+          "payroll": 6.0,
+          "liabilities": 0,
+          "slots": 2,
+          "input_per_slot": 2,
+          "output_per_slot": 1.3,
+          "chance": 1.0,
+          "max_inventory": 300,
+          "input_price": 2.0,
+          "output_price": 12.6,
+          "supply": 40,
+          "demand": 4.0,
+          "baseline_quantity": 0,
+          "signature": [
+            "furniture",
+            "wood",
+            2,
+            1,
+            [
+              873,
+              876
+            ],
+            1,
+            [],
+            3,
+            8.0
+          ],
+          "due_schedule": [],
+          "demand_per_turn": 4.0,
+          "buyer_budget": 500.0
+        },
+        "first_input_quantity": 0,
+        "input_quantity": 8.0,
+        "input_spend": 15.362293130372004,
+        "output_produced": 6.0,
+        "output_sold": 4.0,
+        "sale_receipts": 107.31993750000001,
+        "wages_paid": 18.0,
+        "obligations_paid": 0,
+        "interest_paid": 0,
+        "unposted_cash_change": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "aggregate_cash_change": -4.547473508864641e-13,
+        "turns": [
+          {
+            "turn": 1,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": null
+          },
+          {
+            "turn": 2,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": null
+          },
+          {
+            "turn": 3,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": null
+          }
+        ]
+      },
+      "net_assets_delta": -0.050656637738455856,
+      "common_price_net_assets_delta": -0.6377068696279764,
+      "outcome": "lower"
+    },
+    {
+      "case": {
+        "name": "existing_inputs_3",
+        "family": "wait",
+        "seed": 113,
+        "cash": 14,
+        "workers": 1,
+        "wage": 3,
+        "input_price": 2,
+        "output_price": 18,
+        "initial_inputs": 4,
+        "demand": 2,
+        "buyer_cash": 500,
+        "supply": 40,
+        "turns": 2,
+        "obligation": 0
+      },
+      "active": {
+        "mode": "active",
+        "first_decision": {
+          "action_taken": "WAIT_INPUT",
+          "details": {
+            "plan_id": "Planning fixture:891:1",
+            "reason": "existing_inputs_cover_work",
+            "input_quantity": 0
+          }
+        },
+        "opening": {
+          "cash": 14,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {
+            "wood": {
+              "quantity": 4,
+              "manufacturing_cost": 8,
+              "common_reference_value": 8
+            }
+          },
+          "net_assets_at_manufacturing_cost": 22,
+          "net_assets_at_common_prices": 22
+        },
+        "closing": {
+          "cash": 33.282125,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {
+            "furniture": {
+              "quantity": 1,
+              "manufacturing_cost": 7.0,
+              "common_reference_value": 18
+            }
+          },
+          "net_assets_at_manufacturing_cost": 40.282125,
+          "net_assets_at_common_prices": 51.282125
+        },
+        "boundary": "after_production_payroll_arrears_and_obligations",
+        "measured_turns": 2,
+        "forecast": null,
+        "opening_projection": {
+          "firm_id": 891,
+          "region": "Planning fixture",
+          "currency": "Planning fixture",
+          "turn": 1,
+          "phase": "opening",
+          "input_good": "wood",
+          "output_good": "furniture",
+          "cash": 14.0,
+          "inputs": 4,
+          "outputs": 0,
+          "payroll": 3.0,
+          "liabilities": 0,
+          "slots": 1,
+          "input_per_slot": 2,
+          "output_per_slot": 1.15,
+          "chance": 1.0,
+          "max_inventory": 200,
+          "input_price": 2.0,
+          "output_price": 12.6,
+          "supply": 40,
+          "demand": 2.0,
+          "baseline_quantity": 4,
+          "signature": [
+            "furniture",
+            "wood",
+            2,
+            1,
+            [
+              892
+            ],
+            1,
+            [],
+            3,
+            8.0
+          ],
+          "due_schedule": [],
+          "demand_per_turn": 2.0,
+          "buyer_budget": 500.0
+        },
+        "first_input_quantity": 0,
+        "input_quantity": 0,
+        "input_spend": 0,
+        "output_produced": 2.0,
+        "output_sold": 1.0,
+        "sale_receipts": 25.282125,
+        "wages_paid": 6.0,
+        "obligations_paid": 0,
+        "interest_paid": 0,
+        "unposted_cash_change": [
+          0.0,
+          0.0
+        ],
+        "aggregate_cash_change": 0.0,
+        "turns": [
+          {
+            "turn": 1,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": {
+              "action_taken": "WAIT_INPUT",
+              "details": {
+                "plan_id": "Planning fixture:891:1",
+                "reason": "existing_inputs_cover_work",
+                "input_quantity": 0
+              }
+            }
+          },
+          {
+            "turn": 2,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": {
+              "action_taken": "WAIT_INPUT",
+              "details": {
+                "plan_id": "Planning fixture:891:2",
+                "reason": "existing_inputs_cover_work",
+                "input_quantity": 0
+              }
+            }
+          }
+        ]
+      },
+      "baseline": {
+        "mode": "off",
+        "first_decision": null,
+        "opening": {
+          "cash": 14,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {
+            "wood": {
+              "quantity": 4,
+              "manufacturing_cost": 8,
+              "common_reference_value": 8
+            }
+          },
+          "net_assets_at_manufacturing_cost": 22,
+          "net_assets_at_common_prices": 22
+        },
+        "closing": {
+          "cash": 22.282125,
+          "deposits": 0,
+          "bank_principal": 0.8140163257753432,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {
+            "wood": {
+              "quantity": 6,
+              "manufacturing_cost": 11.875512244331507,
+              "common_reference_value": 12
+            },
+            "furniture": {
+              "quantity": 1,
+              "manufacturing_cost": 6.958504081443836,
+              "common_reference_value": 18
+            }
+          },
+          "net_assets_at_manufacturing_cost": 40.302125000000004,
+          "net_assets_at_common_prices": 51.46810867422466
+        },
+        "boundary": "after_production_payroll_arrears_and_obligations",
+        "measured_turns": 2,
+        "forecast": null,
+        "opening_projection": {
+          "firm_id": 891,
+          "region": "Planning fixture",
+          "currency": "Planning fixture",
+          "turn": 1,
+          "phase": "opening",
+          "input_good": "wood",
+          "output_good": "furniture",
+          "cash": 14.0,
+          "inputs": 4,
+          "outputs": 0,
+          "payroll": 3.0,
+          "liabilities": 0,
+          "slots": 1,
+          "input_per_slot": 2,
+          "output_per_slot": 1.15,
+          "chance": 1.0,
+          "max_inventory": 200,
+          "input_price": 2.0,
+          "output_price": 12.6,
+          "supply": 40,
+          "demand": 2.0,
+          "baseline_quantity": 4,
+          "signature": [
+            "furniture",
+            "wood",
+            2,
+            1,
+            [
+              892
+            ],
+            1,
+            [],
+            3,
+            8.0
+          ],
+          "due_schedule": [],
+          "demand_per_turn": 2.0,
+          "buyer_budget": 500.0
+        },
+        "first_input_quantity": 4.0,
+        "input_quantity": 6.0,
+        "input_spend": 11.814016325775343,
+        "output_produced": 2.0,
+        "output_sold": 1.0,
+        "sale_receipts": 25.282125,
+        "wages_paid": 6.0,
+        "obligations_paid": 0,
+        "interest_paid": 0,
+        "unposted_cash_change": [
+          0.0,
+          0.0
+        ],
+        "aggregate_cash_change": 0.0,
+        "turns": [
+          {
+            "turn": 1,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": null
+          },
+          {
+            "turn": 2,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": null
+          }
+        ]
+      },
+      "net_assets_delta": -0.020000000000003126,
+      "common_price_net_assets_delta": -0.18598367422465856,
+      "outcome": "lower"
+    },
+    {
+      "case": {
+        "name": "existing_inputs_4",
+        "family": "wait",
+        "seed": 114,
+        "cash": 15,
+        "workers": 2,
+        "wage": 3,
+        "input_price": 2,
+        "output_price": 18,
+        "initial_inputs": 12,
+        "demand": 4,
+        "buyer_cash": 500,
+        "supply": 40,
+        "turns": 3,
+        "obligation": 0
+      },
+      "active": {
+        "mode": "active",
+        "first_decision": {
+          "action_taken": "WAIT_INPUT",
+          "details": {
+            "plan_id": "Planning fixture:909:1",
+            "reason": "existing_inputs_cover_work",
+            "input_quantity": 0
+          }
+        },
+        "opening": {
+          "cash": 15,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {
+            "wood": {
+              "quantity": 12,
+              "manufacturing_cost": 24,
+              "common_reference_value": 24
+            }
+          },
+          "net_assets_at_manufacturing_cost": 39,
+          "net_assets_at_common_prices": 39
+        },
+        "closing": {
+          "cash": 104.31993750000001,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {
+            "furniture": {
+              "quantity": 2,
+              "manufacturing_cost": 14.0,
+              "common_reference_value": 36
+            }
+          },
+          "net_assets_at_manufacturing_cost": 118.31993750000001,
+          "net_assets_at_common_prices": 140.3199375
+        },
+        "boundary": "after_production_payroll_arrears_and_obligations",
+        "measured_turns": 3,
+        "forecast": null,
+        "opening_projection": {
+          "firm_id": 909,
+          "region": "Planning fixture",
+          "currency": "Planning fixture",
+          "turn": 1,
+          "phase": "opening",
+          "input_good": "wood",
+          "output_good": "furniture",
+          "cash": 15.0,
+          "inputs": 12,
+          "outputs": 0,
+          "payroll": 6.0,
+          "liabilities": 0,
+          "slots": 2,
+          "input_per_slot": 2,
+          "output_per_slot": 1.3,
+          "chance": 1.0,
+          "max_inventory": 300,
+          "input_price": 2.0,
+          "output_price": 12.6,
+          "supply": 40,
+          "demand": 4.0,
+          "baseline_quantity": 0,
+          "signature": [
+            "furniture",
+            "wood",
+            2,
+            1,
+            [
+              910,
+              913
+            ],
+            1,
+            [],
+            3,
+            8.0
+          ],
+          "due_schedule": [],
+          "demand_per_turn": 4.0,
+          "buyer_budget": 500.0
+        },
+        "first_input_quantity": 0,
+        "input_quantity": 0,
+        "input_spend": 0,
+        "output_produced": 6.0,
+        "output_sold": 4.0,
+        "sale_receipts": 107.31993750000001,
+        "wages_paid": 18.0,
+        "obligations_paid": 0,
+        "interest_paid": 0,
+        "unposted_cash_change": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "aggregate_cash_change": -9.094947017729282e-13,
+        "turns": [
+          {
+            "turn": 1,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": {
+              "action_taken": "WAIT_INPUT",
+              "details": {
+                "plan_id": "Planning fixture:909:1",
+                "reason": "existing_inputs_cover_work",
+                "input_quantity": 0
+              }
+            }
+          },
+          {
+            "turn": 2,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": {
+              "action_taken": "WAIT_INPUT",
+              "details": {
+                "plan_id": "Planning fixture:909:2",
+                "reason": "existing_inputs_cover_work",
+                "input_quantity": 0
+              }
+            }
+          },
+          {
+            "turn": 3,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": {
+              "action_taken": "WAIT_INPUT",
+              "details": {
+                "plan_id": "Planning fixture:909:3",
+                "reason": "existing_inputs_cover_work",
+                "input_quantity": 0
+              }
+            }
+          }
+        ]
+      },
+      "baseline": {
+        "mode": "off",
+        "first_decision": null,
+        "opening": {
+          "cash": 15,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {
+            "wood": {
+              "quantity": 12,
+              "manufacturing_cost": 24,
+              "common_reference_value": 24
+            }
+          },
+          "net_assets_at_manufacturing_cost": 39,
+          "net_assets_at_common_prices": 39
+        },
+        "closing": {
+          "cash": 88.89788677792274,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {
+            "wood": {
+              "quantity": 8,
+              "manufacturing_cost": 15.65597626028285,
+              "common_reference_value": 16
+            },
+            "furniture": {
+              "quantity": 2,
+              "manufacturing_cost": 13.827988130141424,
+              "common_reference_value": 36
+            }
+          },
+          "net_assets_at_manufacturing_cost": 118.38185116834701,
+          "net_assets_at_common_prices": 140.89788677792274
+        },
+        "boundary": "after_production_payroll_arrears_and_obligations",
+        "measured_turns": 3,
+        "forecast": null,
+        "opening_projection": {
+          "firm_id": 909,
+          "region": "Planning fixture",
+          "currency": "Planning fixture",
+          "turn": 1,
+          "phase": "opening",
+          "input_good": "wood",
+          "output_good": "furniture",
+          "cash": 15.0,
+          "inputs": 12,
+          "outputs": 0,
+          "payroll": 6.0,
+          "liabilities": 0,
+          "slots": 2,
+          "input_per_slot": 2,
+          "output_per_slot": 1.3,
+          "chance": 1.0,
+          "max_inventory": 300,
+          "input_price": 2.0,
+          "output_price": 12.6,
+          "supply": 40,
+          "demand": 4.0,
+          "baseline_quantity": 0,
+          "signature": [
+            "furniture",
+            "wood",
+            2,
+            1,
+            [
+              910,
+              913
+            ],
+            1,
+            [],
+            3,
+            8.0
+          ],
+          "due_schedule": [],
+          "demand_per_turn": 4.0,
+          "buyer_budget": 500.0
+        },
+        "first_input_quantity": 0,
+        "input_quantity": 8.0,
+        "input_spend": 15.422050722077277,
+        "output_produced": 6.0,
+        "output_sold": 4.0,
+        "sale_receipts": 107.31993750000001,
+        "wages_paid": 18.0,
+        "obligations_paid": 0,
+        "interest_paid": 0,
+        "unposted_cash_change": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "aggregate_cash_change": -4.547473508864641e-13,
+        "turns": [
+          {
+            "turn": 1,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": null
+          },
+          {
+            "turn": 2,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": null
+          },
+          {
+            "turn": 3,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": null
+          }
+        ]
+      },
+      "net_assets_delta": -0.06191366834700318,
+      "common_price_net_assets_delta": -0.5779492779227269,
+      "outcome": "lower"
+    },
+    {
+      "case": {
+        "name": "existing_inputs_5",
+        "family": "wait",
+        "seed": 115,
+        "cash": 16,
+        "workers": 1,
+        "wage": 3,
+        "input_price": 2,
+        "output_price": 18,
+        "initial_inputs": 4,
+        "demand": 2,
+        "buyer_cash": 500,
+        "supply": 40,
+        "turns": 2,
+        "obligation": 0
+      },
+      "active": {
+        "mode": "active",
+        "first_decision": {
+          "action_taken": "WAIT_INPUT",
+          "details": {
+            "plan_id": "Planning fixture:928:1",
+            "reason": "existing_inputs_cover_work",
+            "input_quantity": 0
+          }
+        },
+        "opening": {
+          "cash": 16,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {
+            "wood": {
+              "quantity": 4,
+              "manufacturing_cost": 8,
+              "common_reference_value": 8
+            }
+          },
+          "net_assets_at_manufacturing_cost": 24,
+          "net_assets_at_common_prices": 24
+        },
+        "closing": {
+          "cash": 35.282125,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {
+            "furniture": {
+              "quantity": 1,
+              "manufacturing_cost": 7.0,
+              "common_reference_value": 18
+            }
+          },
+          "net_assets_at_manufacturing_cost": 42.282125,
+          "net_assets_at_common_prices": 53.282125
+        },
+        "boundary": "after_production_payroll_arrears_and_obligations",
+        "measured_turns": 2,
+        "forecast": null,
+        "opening_projection": {
+          "firm_id": 928,
+          "region": "Planning fixture",
+          "currency": "Planning fixture",
+          "turn": 1,
+          "phase": "opening",
+          "input_good": "wood",
+          "output_good": "furniture",
+          "cash": 16.0,
+          "inputs": 4,
+          "outputs": 0,
+          "payroll": 3.0,
+          "liabilities": 0,
+          "slots": 1,
+          "input_per_slot": 2,
+          "output_per_slot": 1.15,
+          "chance": 1.0,
+          "max_inventory": 200,
+          "input_price": 2.0,
+          "output_price": 12.6,
+          "supply": 40,
+          "demand": 2.0,
+          "baseline_quantity": 4,
+          "signature": [
+            "furniture",
+            "wood",
+            2,
+            1,
+            [
+              929
+            ],
+            1,
+            [],
+            3,
+            8.0
+          ],
+          "due_schedule": [],
+          "demand_per_turn": 2.0,
+          "buyer_budget": 500.0
+        },
+        "first_input_quantity": 0,
+        "input_quantity": 0,
+        "input_spend": 0,
+        "output_produced": 2.0,
+        "output_sold": 1.0,
+        "sale_receipts": 25.282125,
+        "wages_paid": 6.0,
+        "obligations_paid": 0,
+        "interest_paid": 0,
+        "unposted_cash_change": [
+          0.0,
+          0.0
+        ],
+        "aggregate_cash_change": 0.0,
+        "turns": [
+          {
+            "turn": 1,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": {
+              "action_taken": "WAIT_INPUT",
+              "details": {
+                "plan_id": "Planning fixture:928:1",
+                "reason": "existing_inputs_cover_work",
+                "input_quantity": 0
+              }
+            }
+          },
+          {
+            "turn": 2,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": {
+              "action_taken": "WAIT_INPUT",
+              "details": {
+                "plan_id": "Planning fixture:928:2",
+                "reason": "existing_inputs_cover_work",
+                "input_quantity": 0
+              }
+            }
+          }
+        ]
+      },
+      "baseline": {
+        "mode": "off",
+        "first_decision": null,
+        "opening": {
+          "cash": 16,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {
+            "wood": {
+              "quantity": 4,
+              "manufacturing_cost": 8,
+              "common_reference_value": 8
+            }
+          },
+          "net_assets_at_manufacturing_cost": 24,
+          "net_assets_at_common_prices": 24
+        },
+        "closing": {
+          "cash": 23.46810867422466,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {
+            "wood": {
+              "quantity": 6,
+              "manufacturing_cost": 11.875512244331507,
+              "common_reference_value": 12
+            },
+            "furniture": {
+              "quantity": 1,
+              "manufacturing_cost": 6.958504081443836,
+              "common_reference_value": 18
+            }
+          },
+          "net_assets_at_manufacturing_cost": 42.302125000000004,
+          "net_assets_at_common_prices": 53.46810867422466
+        },
+        "boundary": "after_production_payroll_arrears_and_obligations",
+        "measured_turns": 2,
+        "forecast": null,
+        "opening_projection": {
+          "firm_id": 928,
+          "region": "Planning fixture",
+          "currency": "Planning fixture",
+          "turn": 1,
+          "phase": "opening",
+          "input_good": "wood",
+          "output_good": "furniture",
+          "cash": 16.0,
+          "inputs": 4,
+          "outputs": 0,
+          "payroll": 3.0,
+          "liabilities": 0,
+          "slots": 1,
+          "input_per_slot": 2,
+          "output_per_slot": 1.15,
+          "chance": 1.0,
+          "max_inventory": 200,
+          "input_price": 2.0,
+          "output_price": 12.6,
+          "supply": 40,
+          "demand": 2.0,
+          "baseline_quantity": 4,
+          "signature": [
+            "furniture",
+            "wood",
+            2,
+            1,
+            [
+              929
+            ],
+            1,
+            [],
+            3,
+            8.0
+          ],
+          "due_schedule": [],
+          "demand_per_turn": 2.0,
+          "buyer_budget": 500.0
+        },
+        "first_input_quantity": 4.0,
+        "input_quantity": 6.0,
+        "input_spend": 11.814016325775343,
+        "output_produced": 2.0,
+        "output_sold": 1.0,
+        "sale_receipts": 25.282125,
+        "wages_paid": 6.0,
+        "obligations_paid": 0,
+        "interest_paid": 0,
+        "unposted_cash_change": [
+          0.0,
+          0.0
+        ],
+        "aggregate_cash_change": 0.0,
+        "turns": [
+          {
+            "turn": 1,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": null
+          },
+          {
+            "turn": 2,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": null
+          }
+        ]
+      },
+      "net_assets_delta": -0.020000000000003126,
+      "common_price_net_assets_delta": -0.18598367422465856,
+      "outcome": "lower"
+    },
+    {
+      "case": {
+        "name": "no_observed_demand",
+        "family": "decline",
+        "seed": 116,
+        "cash": 14,
+        "workers": 1,
+        "wage": 3,
+        "input_price": 2,
+        "output_price": 18,
+        "initial_inputs": 0,
+        "demand": 0,
+        "buyer_cash": 0,
+        "supply": 40,
+        "turns": 2,
+        "obligation": 0
+      },
+      "active": {
+        "mode": "active",
+        "first_decision": {
+          "action_taken": "DECLINE_INPUT",
+          "details": {
+            "plan_id": "Planning fixture:946:1",
+            "reason": "no_recent_funded_demand",
+            "input_quantity": 0
+          }
+        },
+        "opening": {
+          "cash": 14,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {},
+          "net_assets_at_manufacturing_cost": 14,
+          "net_assets_at_common_prices": 14
+        },
+        "closing": {
+          "cash": 8.0,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {},
+          "net_assets_at_manufacturing_cost": 8.0,
+          "net_assets_at_common_prices": 8.0
+        },
+        "boundary": "after_production_payroll_arrears_and_obligations",
+        "measured_turns": 2,
+        "forecast": null,
+        "opening_projection": {
+          "firm_id": 946,
+          "region": "Planning fixture",
+          "currency": "Planning fixture",
+          "turn": 1,
+          "phase": "opening",
+          "input_good": "wood",
+          "output_good": "furniture",
+          "cash": 14.0,
+          "inputs": 0,
+          "outputs": 0,
+          "payroll": 3.0,
+          "liabilities": 0,
+          "slots": 1,
+          "input_per_slot": 2,
+          "output_per_slot": 1.15,
+          "chance": 1.0,
+          "max_inventory": 200,
+          "input_price": 2.0,
+          "output_price": 12.6,
+          "supply": 40,
+          "demand": 0.0,
+          "baseline_quantity": 8,
+          "signature": [
+            "furniture",
+            "wood",
+            2,
+            1,
+            [
+              947
+            ],
+            1,
+            [],
+            3,
+            8.0
+          ],
+          "due_schedule": [],
+          "demand_per_turn": 0.0,
+          "buyer_budget": 0
+        },
+        "first_input_quantity": 0,
+        "input_quantity": 0,
+        "input_spend": 0,
+        "output_produced": 0,
+        "output_sold": 0,
+        "sale_receipts": 0,
+        "wages_paid": 6.0,
+        "obligations_paid": 0,
+        "interest_paid": 0,
+        "unposted_cash_change": [
+          0.0,
+          0.0
+        ],
+        "aggregate_cash_change": -9.094947017729282e-13,
+        "turns": [
+          {
+            "turn": 1,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": {
+              "action_taken": "DECLINE_INPUT",
+              "details": {
+                "plan_id": "Planning fixture:946:1",
+                "reason": "no_recent_funded_demand",
+                "input_quantity": 0
+              }
+            }
+          },
+          {
+            "turn": 2,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": {
+              "action_taken": "DECLINE_INPUT",
+              "details": {
+                "plan_id": "Planning fixture:946:2",
+                "reason": "no_recent_funded_demand",
+                "input_quantity": 0
+              }
+            }
+          }
+        ]
+      },
+      "baseline": {
+        "mode": "off",
+        "first_decision": null,
+        "opening": {
+          "cash": 14,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {},
+          "net_assets_at_manufacturing_cost": 14,
+          "net_assets_at_common_prices": 14
+        },
+        "closing": {
+          "cash": 20.257125000000002,
+          "deposits": 0,
+          "bank_principal": 6.763728785286245,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {
+            "wood": {
+              "quantity": 5,
+              "manufacturing_cost": 9.85980627520446,
+              "common_reference_value": 10
+            },
+            "furniture": {
+              "quantity": 1,
+              "manufacturing_cost": 6.9439225100817845,
+              "common_reference_value": 18
+            }
+          },
+          "net_assets_at_manufacturing_cost": 30.297125,
+          "net_assets_at_common_prices": 41.493396214713755
+        },
+        "boundary": "after_production_payroll_arrears_and_obligations",
+        "measured_turns": 2,
+        "forecast": null,
+        "opening_projection": {
+          "firm_id": 946,
+          "region": "Planning fixture",
+          "currency": "Planning fixture",
+          "turn": 1,
+          "phase": "opening",
+          "input_good": "wood",
+          "output_good": "furniture",
+          "cash": 14.0,
+          "inputs": 0,
+          "outputs": 0,
+          "payroll": 3.0,
+          "liabilities": 0,
+          "slots": 1,
+          "input_per_slot": 2,
+          "output_per_slot": 1.15,
+          "chance": 1.0,
+          "max_inventory": 200,
+          "input_price": 2.0,
+          "output_price": 12.6,
+          "supply": 40,
+          "demand": 0.0,
+          "baseline_quantity": 8,
+          "signature": [
+            "furniture",
+            "wood",
+            2,
+            1,
+            [
+              947
+            ],
+            1,
+            [],
+            3,
+            8.0
+          ],
+          "due_schedule": [],
+          "demand_per_turn": 0.0,
+          "buyer_budget": 0
+        },
+        "first_input_quantity": 7.0,
+        "input_quantity": 9.0,
+        "input_spend": 17.763728785286247,
+        "output_produced": 2.0,
+        "output_sold": 1.0,
+        "sale_receipts": 23.257125000000002,
+        "wages_paid": 6.0,
+        "obligations_paid": 0,
+        "interest_paid": 0,
+        "unposted_cash_change": [
+          0.0,
+          0.0
+        ],
+        "aggregate_cash_change": -9.094947017729282e-13,
+        "turns": [
+          {
+            "turn": 1,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": null
+          },
+          {
+            "turn": 2,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": null
+          }
+        ]
+      },
+      "net_assets_delta": -22.297125,
+      "common_price_net_assets_delta": -33.493396214713755,
+      "outcome": "lower"
+    },
+    {
+      "case": {
+        "name": "buyer_unfunded",
+        "family": "decline",
+        "seed": 117,
+        "cash": 14,
+        "workers": 1,
+        "wage": 3,
+        "input_price": 2,
+        "output_price": 18,
+        "initial_inputs": 0,
+        "demand": 1,
+        "buyer_cash": 0,
+        "supply": 40,
+        "turns": 2,
+        "obligation": 0
+      },
+      "active": {
+        "mode": "active",
+        "first_decision": {
+          "action_taken": "DECLINE_INPUT",
+          "details": {
+            "plan_id": "Planning fixture:964:1",
+            "reason": "no_recent_funded_demand",
+            "input_quantity": 0
+          }
+        },
+        "opening": {
+          "cash": 14,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {},
+          "net_assets_at_manufacturing_cost": 14,
+          "net_assets_at_common_prices": 14
+        },
+        "closing": {
+          "cash": 8.0,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {},
+          "net_assets_at_manufacturing_cost": 8.0,
+          "net_assets_at_common_prices": 8.0
+        },
+        "boundary": "after_production_payroll_arrears_and_obligations",
+        "measured_turns": 2,
+        "forecast": null,
+        "opening_projection": {
+          "firm_id": 964,
+          "region": "Planning fixture",
+          "currency": "Planning fixture",
+          "turn": 1,
+          "phase": "opening",
+          "input_good": "wood",
+          "output_good": "furniture",
+          "cash": 14.0,
+          "inputs": 0,
+          "outputs": 0,
+          "payroll": 3.0,
+          "liabilities": 0,
+          "slots": 1,
+          "input_per_slot": 2,
+          "output_per_slot": 1.15,
+          "chance": 1.0,
+          "max_inventory": 200,
+          "input_price": 2.0,
+          "output_price": 12.6,
+          "supply": 40,
+          "demand": 0.0,
+          "baseline_quantity": 8,
+          "signature": [
+            "furniture",
+            "wood",
+            2,
+            1,
+            [
+              965
+            ],
+            1,
+            [],
+            3,
+            8.0
+          ],
+          "due_schedule": [],
+          "demand_per_turn": 0.0,
+          "buyer_budget": 0
+        },
+        "first_input_quantity": 0,
+        "input_quantity": 0,
+        "input_spend": 0,
+        "output_produced": 0,
+        "output_sold": 0,
+        "sale_receipts": 0,
+        "wages_paid": 6.0,
+        "obligations_paid": 0,
+        "interest_paid": 0,
+        "unposted_cash_change": [
+          0.0,
+          0.0
+        ],
+        "aggregate_cash_change": -9.094947017729282e-13,
+        "turns": [
+          {
+            "turn": 1,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": {
+              "action_taken": "DECLINE_INPUT",
+              "details": {
+                "plan_id": "Planning fixture:964:1",
+                "reason": "no_recent_funded_demand",
+                "input_quantity": 0
+              }
+            }
+          },
+          {
+            "turn": 2,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": {
+              "action_taken": "DECLINE_INPUT",
+              "details": {
+                "plan_id": "Planning fixture:964:2",
+                "reason": "no_recent_funded_demand",
+                "input_quantity": 0
+              }
+            }
+          }
+        ]
+      },
+      "baseline": {
+        "mode": "off",
+        "first_decision": null,
+        "opening": {
+          "cash": 14,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {},
+          "net_assets_at_manufacturing_cost": 14,
+          "net_assets_at_common_prices": 14
+        },
+        "closing": {
+          "cash": 20.257125000000002,
+          "deposits": 0,
+          "bank_principal": 6.763728785286245,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {
+            "wood": {
+              "quantity": 5,
+              "manufacturing_cost": 9.85980627520446,
+              "common_reference_value": 10
+            },
+            "furniture": {
+              "quantity": 1,
+              "manufacturing_cost": 6.9439225100817845,
+              "common_reference_value": 18
+            }
+          },
+          "net_assets_at_manufacturing_cost": 30.297125,
+          "net_assets_at_common_prices": 41.493396214713755
+        },
+        "boundary": "after_production_payroll_arrears_and_obligations",
+        "measured_turns": 2,
+        "forecast": null,
+        "opening_projection": {
+          "firm_id": 964,
+          "region": "Planning fixture",
+          "currency": "Planning fixture",
+          "turn": 1,
+          "phase": "opening",
+          "input_good": "wood",
+          "output_good": "furniture",
+          "cash": 14.0,
+          "inputs": 0,
+          "outputs": 0,
+          "payroll": 3.0,
+          "liabilities": 0,
+          "slots": 1,
+          "input_per_slot": 2,
+          "output_per_slot": 1.15,
+          "chance": 1.0,
+          "max_inventory": 200,
+          "input_price": 2.0,
+          "output_price": 12.6,
+          "supply": 40,
+          "demand": 0.0,
+          "baseline_quantity": 8,
+          "signature": [
+            "furniture",
+            "wood",
+            2,
+            1,
+            [
+              965
+            ],
+            1,
+            [],
+            3,
+            8.0
+          ],
+          "due_schedule": [],
+          "demand_per_turn": 0.0,
+          "buyer_budget": 0
+        },
+        "first_input_quantity": 7.0,
+        "input_quantity": 9.0,
+        "input_spend": 17.763728785286247,
+        "output_produced": 2.0,
+        "output_sold": 1.0,
+        "sale_receipts": 23.257125000000002,
+        "wages_paid": 6.0,
+        "obligations_paid": 0,
+        "interest_paid": 0,
+        "unposted_cash_change": [
+          0.0,
+          0.0
+        ],
+        "aggregate_cash_change": -9.094947017729282e-13,
+        "turns": [
+          {
+            "turn": 1,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": null
+          },
+          {
+            "turn": 2,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": null
+          }
+        ]
+      },
+      "net_assets_delta": -22.297125,
+      "common_price_net_assets_delta": -33.493396214713755,
+      "outcome": "lower"
+    },
+    {
+      "case": {
+        "name": "negative_material_contribution",
+        "family": "decline",
+        "seed": 118,
+        "cash": 30,
+        "workers": 1,
+        "wage": 3,
+        "input_price": 3,
+        "output_price": 2,
+        "initial_inputs": 0,
+        "demand": 1,
+        "buyer_cash": 500,
+        "supply": 40,
+        "turns": 2,
+        "obligation": 0
+      },
+      "active": {
+        "mode": "active",
+        "first_decision": {
+          "action_taken": "DECLINE_INPUT",
+          "details": {
+            "plan_id": "Planning fixture:982:1",
+            "reason": "nonpositive_material_contribution",
+            "input_quantity": 0
+          }
+        },
+        "opening": {
+          "cash": 30,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {},
+          "net_assets_at_manufacturing_cost": 30,
+          "net_assets_at_common_prices": 30
+        },
+        "closing": {
+          "cash": 24.0,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {},
+          "net_assets_at_manufacturing_cost": 24.0,
+          "net_assets_at_common_prices": 24.0
+        },
+        "boundary": "after_production_payroll_arrears_and_obligations",
+        "measured_turns": 2,
+        "forecast": null,
+        "opening_projection": {
+          "firm_id": 982,
+          "region": "Planning fixture",
+          "currency": "Planning fixture",
+          "turn": 1,
+          "phase": "opening",
+          "input_good": "wood",
+          "output_good": "furniture",
+          "cash": 30.0,
+          "inputs": 0,
+          "outputs": 0,
+          "payroll": 3.0,
+          "liabilities": 0,
+          "slots": 1,
+          "input_per_slot": 2,
+          "output_per_slot": 1.15,
+          "chance": 1.0,
+          "max_inventory": 200,
+          "input_price": 3.0,
+          "output_price": 1.4,
+          "supply": 40,
+          "demand": 1.0,
+          "baseline_quantity": 8,
+          "signature": [
+            "furniture",
+            "wood",
+            2,
+            1,
+            [
+              983
+            ],
+            1,
+            [],
+            3,
+            8.0
+          ],
+          "due_schedule": [],
+          "demand_per_turn": 1.0,
+          "buyer_budget": 500.0
+        },
+        "first_input_quantity": 0,
+        "input_quantity": 0,
+        "input_spend": 0,
+        "output_produced": 0,
+        "output_sold": 0,
+        "sale_receipts": 0,
+        "wages_paid": 6.0,
+        "obligations_paid": 0,
+        "interest_paid": 0,
+        "unposted_cash_change": [
+          0.0,
+          0.0
+        ],
+        "aggregate_cash_change": 0.0,
+        "turns": [
+          {
+            "turn": 1,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": {
+              "action_taken": "DECLINE_INPUT",
+              "details": {
+                "plan_id": "Planning fixture:982:1",
+                "reason": "nonpositive_material_contribution",
+                "input_quantity": 0
+              }
+            }
+          },
+          {
+            "turn": 2,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": {
+              "action_taken": "DECLINE_INPUT",
+              "details": {
+                "plan_id": "Planning fixture:982:2",
+                "reason": "nonpositive_material_contribution",
+                "input_quantity": 0
+              }
+            }
+          }
+        ]
+      },
+      "baseline": {
+        "mode": "off",
+        "first_decision": {
+          "action_taken": "REDUCE_OR_PAUSE_OUTPUT",
+          "details": {
+            "worker_ids": [
+              983
+            ],
+            "resume_turn": 6,
+            "estimated_margin": -7.0,
+            "max_employees_before": 0,
+            "max_employees_after": 0
+          },
+          "selected_score": 10.0,
+          "candidate_options": [
+            {
+              "candidate": "reduce_or_pause_output",
+              "feasible": true,
+              "good": "wood",
+              "shortage": 2,
+              "estimated_margin": -7.0,
+              "score": 10.0,
+              "reason": "input cost and payroll exceed expected output receipts"
+            }
+          ]
+        },
+        "opening": {
+          "cash": 30,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {},
+          "net_assets_at_manufacturing_cost": 30,
+          "net_assets_at_common_prices": 30
+        },
+        "closing": {
+          "cash": 21.238463267005475,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {
+            "wood": {
+              "quantity": 3,
+              "manufacturing_cost": 8.761536732994523,
+              "common_reference_value": 9
+            }
+          },
+          "net_assets_at_manufacturing_cost": 30.0,
+          "net_assets_at_common_prices": 30.238463267005475
+        },
+        "boundary": "after_production_payroll_arrears_and_obligations",
+        "measured_turns": 2,
+        "forecast": null,
+        "opening_projection": {
+          "firm_id": 982,
+          "region": "Planning fixture",
+          "currency": "Planning fixture",
+          "turn": 1,
+          "phase": "opening",
+          "input_good": "wood",
+          "output_good": "furniture",
+          "cash": 30.0,
+          "inputs": 0,
+          "outputs": 0,
+          "payroll": 3.0,
+          "liabilities": 0,
+          "slots": 1,
+          "input_per_slot": 2,
+          "output_per_slot": 1.15,
+          "chance": 1.0,
+          "max_inventory": 200,
+          "input_price": 3.0,
+          "output_price": 1.4,
+          "supply": 40,
+          "demand": 1.0,
+          "baseline_quantity": 8,
+          "signature": [
+            "furniture",
+            "wood",
+            2,
+            1,
+            [
+              983
+            ],
+            1,
+            [],
+            3,
+            8.0
+          ],
+          "due_schedule": [],
+          "demand_per_turn": 1.0,
+          "buyer_budget": 500.0
+        },
+        "first_input_quantity": 0,
+        "input_quantity": 3.0,
+        "input_spend": 8.761536732994523,
+        "output_produced": 0,
+        "output_sold": 0,
+        "sale_receipts": 0,
+        "wages_paid": 0,
+        "obligations_paid": 0,
+        "interest_paid": 0,
+        "unposted_cash_change": [
+          0.0,
+          -0.0
+        ],
+        "aggregate_cash_change": 0.0,
+        "turns": [
+          {
+            "turn": 1,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": {
+              "action_taken": "REDUCE_OR_PAUSE_OUTPUT",
+              "details": {
+                "worker_ids": [
+                  983
+                ],
+                "resume_turn": 6,
+                "estimated_margin": -7.0,
+                "max_employees_before": 0,
+                "max_employees_after": 0
+              },
+              "selected_score": 10.0,
+              "candidate_options": [
+                {
+                  "candidate": "reduce_or_pause_output",
+                  "feasible": true,
+                  "good": "wood",
+                  "shortage": 2,
+                  "estimated_margin": -7.0,
+                  "score": 10.0,
+                  "reason": "input cost and payroll exceed expected output receipts"
+                }
+              ]
+            }
+          },
+          {
+            "turn": 2,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": null
+          }
+        ]
+      },
+      "net_assets_delta": -6.0,
+      "common_price_net_assets_delta": -6.238463267005475,
+      "outcome": "lower"
+    },
+    {
+      "case": {
+        "name": "payroll_leaves_no_input_budget",
+        "family": "decline",
+        "seed": 119,
+        "cash": 5,
+        "workers": 1,
+        "wage": 3,
+        "input_price": 2,
+        "output_price": 18,
+        "initial_inputs": 0,
+        "demand": 1,
+        "buyer_cash": 500,
+        "supply": 40,
+        "turns": 2,
+        "obligation": 0
+      },
+      "active": {
+        "mode": "active",
+        "first_decision": {
+          "action_taken": "DECLINE_INPUT",
+          "details": {
+            "plan_id": "Planning fixture:1000:1",
+            "reason": "unaffordable_without_reserved_payroll",
+            "input_quantity": 0
+          }
+        },
+        "opening": {
+          "cash": 5,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {},
+          "net_assets_at_manufacturing_cost": 5,
+          "net_assets_at_common_prices": 5
+        },
+        "closing": {
+          "cash": 0.0,
+          "deposits": 0,
+          "bank_principal": 1.0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {},
+          "net_assets_at_manufacturing_cost": -1.0,
+          "net_assets_at_common_prices": -1.0
+        },
+        "boundary": "after_production_payroll_arrears_and_obligations",
+        "measured_turns": 2,
+        "forecast": null,
+        "opening_projection": {
+          "firm_id": 1000,
+          "region": "Planning fixture",
+          "currency": "Planning fixture",
+          "turn": 1,
+          "phase": "opening",
+          "input_good": "wood",
+          "output_good": "furniture",
+          "cash": 5.0,
+          "inputs": 0,
+          "outputs": 0,
+          "payroll": 3.0,
+          "liabilities": 0,
+          "slots": 1,
+          "input_per_slot": 2,
+          "output_per_slot": 1.15,
+          "chance": 1.0,
+          "max_inventory": 200,
+          "input_price": 2.0,
+          "output_price": 12.6,
+          "supply": 40,
+          "demand": 1.0,
+          "baseline_quantity": 8,
+          "signature": [
+            "furniture",
+            "wood",
+            2,
+            1,
+            [
+              1001
+            ],
+            1,
+            [],
+            3,
+            8.0
+          ],
+          "due_schedule": [],
+          "demand_per_turn": 1.0,
+          "buyer_budget": 500.0
+        },
+        "first_input_quantity": 0,
+        "input_quantity": 0,
+        "input_spend": 0,
+        "output_produced": 0,
+        "output_sold": 0,
+        "sale_receipts": 0,
+        "wages_paid": 6.0,
+        "obligations_paid": 0,
+        "interest_paid": 0,
+        "unposted_cash_change": [
+          0.0,
+          0.0
+        ],
+        "aggregate_cash_change": 0.0,
+        "turns": [
+          {
+            "turn": 1,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": {
+              "action_taken": "DECLINE_INPUT",
+              "details": {
+                "plan_id": "Planning fixture:1000:1",
+                "reason": "unaffordable_without_reserved_payroll",
+                "input_quantity": 0
+              }
+            }
+          },
+          {
+            "turn": 2,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": {
+              "action_taken": "DECLINE_INPUT",
+              "details": {
+                "plan_id": "Planning fixture:1000:2",
+                "reason": "unaffordable_without_reserved_payroll",
+                "input_quantity": 0
+              }
+            }
+          }
+        ]
+      },
+      "baseline": {
+        "mode": "off",
+        "first_decision": null,
+        "opening": {
+          "cash": 5,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {},
+          "net_assets_at_manufacturing_cost": 5,
+          "net_assets_at_common_prices": 5
+        },
+        "closing": {
+          "cash": 22.282125,
+          "deposits": 0,
+          "bank_principal": 5.847957755935104,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {
+            "furniture": {
+              "quantity": 1,
+              "manufacturing_cost": 6.887957755935104,
+              "common_reference_value": 18
+            }
+          },
+          "net_assets_at_manufacturing_cost": 23.322125,
+          "net_assets_at_common_prices": 34.434167244064895
+        },
+        "boundary": "after_production_payroll_arrears_and_obligations",
+        "measured_turns": 2,
+        "forecast": null,
+        "opening_projection": {
+          "firm_id": 1000,
+          "region": "Planning fixture",
+          "currency": "Planning fixture",
+          "turn": 1,
+          "phase": "opening",
+          "input_good": "wood",
+          "output_good": "furniture",
+          "cash": 5.0,
+          "inputs": 0,
+          "outputs": 0,
+          "payroll": 3.0,
+          "liabilities": 0,
+          "slots": 1,
+          "input_per_slot": 2,
+          "output_per_slot": 1.15,
+          "chance": 1.0,
+          "max_inventory": 200,
+          "input_price": 2.0,
+          "output_price": 12.6,
+          "supply": 40,
+          "demand": 1.0,
+          "baseline_quantity": 8,
+          "signature": [
+            "furniture",
+            "wood",
+            2,
+            1,
+            [
+              1001
+            ],
+            1,
+            [],
+            3,
+            8.0
+          ],
+          "due_schedule": [],
+          "demand_per_turn": 1.0,
+          "buyer_budget": 500.0
+        },
+        "first_input_quantity": 2.0,
+        "input_quantity": 4.0,
+        "input_spend": 7.847957755935104,
+        "output_produced": 2.0,
+        "output_sold": 1.0,
+        "sale_receipts": 25.282125,
+        "wages_paid": 6.0,
+        "obligations_paid": 0,
+        "interest_paid": 0,
+        "unposted_cash_change": [
+          0.0,
+          0.0
+        ],
+        "aggregate_cash_change": -4.547473508864641e-13,
+        "turns": [
+          {
+            "turn": 1,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": null
+          },
+          {
+            "turn": 2,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": null
+          }
+        ]
+      },
+      "net_assets_delta": -24.322125,
+      "common_price_net_assets_delta": -35.434167244064895,
+      "outcome": "lower"
+    },
+    {
+      "case": {
+        "name": "incomplete_input_batch",
+        "family": "decline",
+        "seed": 120,
+        "cash": 14,
+        "workers": 1,
+        "wage": 3,
+        "input_price": 2,
+        "output_price": 18,
+        "initial_inputs": 0,
+        "demand": 1,
+        "buyer_cash": 500,
+        "supply": 1,
+        "turns": 2,
+        "obligation": 0
+      },
+      "active": {
+        "mode": "active",
+        "first_decision": {
+          "action_taken": "DECLINE_INPUT",
+          "details": {
+            "plan_id": "Planning fixture:1018:1",
+            "reason": "no_complete_batch_available",
+            "input_quantity": 0
+          }
+        },
+        "opening": {
+          "cash": 14,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {},
+          "net_assets_at_manufacturing_cost": 14,
+          "net_assets_at_common_prices": 14
+        },
+        "closing": {
+          "cash": 8.0,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {},
+          "net_assets_at_manufacturing_cost": 8.0,
+          "net_assets_at_common_prices": 8.0
+        },
+        "boundary": "after_production_payroll_arrears_and_obligations",
+        "measured_turns": 2,
+        "forecast": null,
+        "opening_projection": {
+          "firm_id": 1018,
+          "region": "Planning fixture",
+          "currency": "Planning fixture",
+          "turn": 1,
+          "phase": "opening",
+          "input_good": "wood",
+          "output_good": "furniture",
+          "cash": 14.0,
+          "inputs": 0,
+          "outputs": 0,
+          "payroll": 3.0,
+          "liabilities": 0,
+          "slots": 1,
+          "input_per_slot": 2,
+          "output_per_slot": 1.15,
+          "chance": 1.0,
+          "max_inventory": 200,
+          "input_price": 2.1940000000000004,
+          "output_price": 12.6,
+          "supply": 1,
+          "demand": 1.0,
+          "baseline_quantity": 8,
+          "signature": [
+            "furniture",
+            "wood",
+            2,
+            1,
+            [
+              1019
+            ],
+            1,
+            [],
+            3,
+            8.0
+          ],
+          "due_schedule": [],
+          "demand_per_turn": 1.0,
+          "buyer_budget": 500.0
+        },
+        "first_input_quantity": 0,
+        "input_quantity": 0,
+        "input_spend": 0,
+        "output_produced": 0,
+        "output_sold": 0,
+        "sale_receipts": 0,
+        "wages_paid": 6.0,
+        "obligations_paid": 0,
+        "interest_paid": 0,
+        "unposted_cash_change": [
+          0.0,
+          0.0
+        ],
+        "aggregate_cash_change": -4.547473508864641e-13,
+        "turns": [
+          {
+            "turn": 1,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": {
+              "action_taken": "DECLINE_INPUT",
+              "details": {
+                "plan_id": "Planning fixture:1018:1",
+                "reason": "no_complete_batch_available",
+                "input_quantity": 0
+              }
+            }
+          },
+          {
+            "turn": 2,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": {
+              "action_taken": "DECLINE_INPUT",
+              "details": {
+                "plan_id": "Planning fixture:1018:2",
+                "reason": "no_complete_batch_available",
+                "input_quantity": 0
+              }
+            }
+          }
+        ]
+      },
+      "baseline": {
+        "mode": "off",
+        "first_decision": null,
+        "opening": {
+          "cash": 14,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {},
+          "net_assets_at_manufacturing_cost": 14,
+          "net_assets_at_common_prices": 14
+        },
+        "closing": {
+          "cash": 8.0,
+          "deposits": 0,
+          "bank_principal": 0,
+          "cash_obligations": 0,
+          "wage_arrears": 0,
+          "inventory": {},
+          "net_assets_at_manufacturing_cost": 8.0,
+          "net_assets_at_common_prices": 8.0
+        },
+        "boundary": "after_production_payroll_arrears_and_obligations",
+        "measured_turns": 2,
+        "forecast": null,
+        "opening_projection": {
+          "firm_id": 1018,
+          "region": "Planning fixture",
+          "currency": "Planning fixture",
+          "turn": 1,
+          "phase": "opening",
+          "input_good": "wood",
+          "output_good": "furniture",
+          "cash": 14.0,
+          "inputs": 0,
+          "outputs": 0,
+          "payroll": 3.0,
+          "liabilities": 0,
+          "slots": 1,
+          "input_per_slot": 2,
+          "output_per_slot": 1.15,
+          "chance": 1.0,
+          "max_inventory": 200,
+          "input_price": 2.1940000000000004,
+          "output_price": 12.6,
+          "supply": 1,
+          "demand": 1.0,
+          "baseline_quantity": 8,
+          "signature": [
+            "furniture",
+            "wood",
+            2,
+            1,
+            [
+              1019
+            ],
+            1,
+            [],
+            3,
+            8.0
+          ],
+          "due_schedule": [],
+          "demand_per_turn": 1.0,
+          "buyer_budget": 500.0
+        },
+        "first_input_quantity": 0,
+        "input_quantity": 0,
+        "input_spend": 0,
+        "output_produced": 0,
+        "output_sold": 0,
+        "sale_receipts": 0,
+        "wages_paid": 6.0,
+        "obligations_paid": 0,
+        "interest_paid": 0,
+        "unposted_cash_change": [
+          0.0,
+          0.0
+        ],
+        "aggregate_cash_change": -4.547473508864641e-13,
+        "turns": [
+          {
+            "turn": 1,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": null
+          },
+          {
+            "turn": 2,
+            "boundary": "after_production_payroll_arrears_and_obligations",
+            "decision": null
+          }
+        ]
+      },
+      "net_assets_delta": 0.0,
+      "common_price_net_assets_delta": 0.0,
+      "outcome": "tie"
+    }
+  ]
+}

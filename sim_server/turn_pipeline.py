@@ -14,6 +14,8 @@ def advance(server) -> int:
             return server.turn
         server.turn += 1
         turn = server.turn
+        from economy.elite_plan_execution import prepare_turn
+        prepare_turn(server.tiles, turn, server.elite_planning_config)
 
         def on_event(event_turn, kind, text):
             color = (120, 240, 150)

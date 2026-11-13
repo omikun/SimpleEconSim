@@ -49,6 +49,9 @@ def submit_law_petition(sponsor, region, law, fee, turn):
     government_change=begin_public_change(region,gov)
     sponsor.cash -= fee
     gov.cash += fee
+    from economy.actor_accounts import record
+    record(region, 'petition_fee', turn=turn, payer_id=sponsor.id,
+           recipient_id=gov.id, amount=fee, detail={'law': law})
     petition = {'id': int(getattr(region, '_next_law_petition_id', 1)),
                 'law': law, 'sponsor_id': sponsor.id, 'fee': float(fee),
                 'requested_turn': int(turn), 'decision_turn': int(turn) + 1,

@@ -1,0 +1,948 @@
+{
+  "scope": "20 supported production/supply decisions; actual two-turn handlers",
+  "seeds": [
+    101,
+    102,
+    103,
+    104,
+    105,
+    106,
+    107,
+    108,
+    109,
+    110,
+    111,
+    112,
+    113,
+    114,
+    115,
+    116,
+    117,
+    118,
+    119,
+    120
+  ],
+  "completed_decisions": 20,
+  "decisions": [
+    {
+      "seed": 101,
+      "selected": "PRODUCTION_PLAN",
+      "plan_id": "Planning fixture:468:1",
+      "status": "completed",
+      "opening_cash": 14,
+      "closing_cash": 40.1640625,
+      "bank_debt": 0,
+      "input_cost": 4.95,
+      "wages_paid": 4.0,
+      "output_produced": 1.0,
+      "output_sold": 1.0,
+      "sale_receipts": 35.1140625,
+      "forecast": {
+        "status": "found",
+        "steps": [
+          {
+            "quantity": 2,
+            "limit_price": 2.5,
+            "turn": 1
+          },
+          {
+            "quantity": 0,
+            "limit_price": 2.5,
+            "turn": 2
+          }
+        ],
+        "baseline_value": 14.0,
+        "candidate_value": 18.299999999999997,
+        "expanded": 27,
+        "reason": "baseline_cannot_fund_payroll"
+      },
+      "unposted_cash_change": [
+        0.0,
+        0.0
+      ],
+      "aggregate_cash_change": -4.547473508864641e-13,
+      "baseline": {
+        "closing_cash": 35.1140625,
+        "bank_debt": 4.625,
+        "unposted_cash_change": [
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "seed": 102,
+      "selected": "PRODUCTION_PLAN",
+      "plan_id": "Planning fixture:502:1",
+      "status": "completed",
+      "opening_cash": 12,
+      "closing_cash": 40.1540625,
+      "bank_debt": 0,
+      "input_cost": 3.96,
+      "wages_paid": 3.0,
+      "output_produced": 1.0,
+      "output_sold": 1.0,
+      "sale_receipts": 35.1140625,
+      "forecast": {
+        "status": "found",
+        "steps": [
+          {
+            "quantity": 2,
+            "limit_price": 2.0,
+            "turn": 1
+          },
+          {
+            "quantity": 0,
+            "limit_price": 2.0,
+            "turn": 2
+          }
+        ],
+        "baseline_value": 12.0,
+        "candidate_value": 19.0,
+        "expanded": 35,
+        "reason": "baseline_cannot_fund_payroll"
+      },
+      "unposted_cash_change": [
+        -0.0,
+        0.0
+      ],
+      "aggregate_cash_change": -4.547473508864641e-13,
+      "baseline": {
+        "closing_cash": 35.1140625,
+        "bank_debt": 5.129999999999999,
+        "unposted_cash_change": [
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "seed": 103,
+      "selected": "PRODUCTION_PLAN",
+      "plan_id": "Planning fixture:536:1",
+      "status": "completed",
+      "opening_cash": 13,
+      "closing_cash": 39.659062500000005,
+      "bank_debt": 0,
+      "input_cost": 4.455,
+      "wages_paid": 4.0,
+      "output_produced": 1.0,
+      "output_sold": 1.0,
+      "sale_receipts": 35.1140625,
+      "forecast": {
+        "status": "found",
+        "steps": [
+          {
+            "quantity": 2,
+            "limit_price": 2.25,
+            "turn": 1
+          },
+          {
+            "quantity": 0,
+            "limit_price": 2.25,
+            "turn": 2
+          }
+        ],
+        "baseline_value": 13.0,
+        "candidate_value": 19.2,
+        "expanded": 25,
+        "reason": "baseline_cannot_fund_payroll"
+      },
+      "unposted_cash_change": [
+        0.0,
+        0.0
+      ],
+      "aggregate_cash_change": -4.547473508864641e-13,
+      "baseline": {
+        "closing_cash": 35.1140625,
+        "bank_debt": 4.387499999999999,
+        "unposted_cash_change": [
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "seed": 104,
+      "selected": "PRODUCTION_PLAN",
+      "plan_id": "Planning fixture:570:1",
+      "status": "completed",
+      "opening_cash": 14,
+      "closing_cash": 41.1640625,
+      "bank_debt": 0,
+      "input_cost": 4.95,
+      "wages_paid": 3.0,
+      "output_produced": 1.0,
+      "output_sold": 1.0,
+      "sale_receipts": 35.1140625,
+      "forecast": {
+        "status": "found",
+        "steps": [
+          {
+            "quantity": 2,
+            "limit_price": 2.5,
+            "turn": 1
+          },
+          {
+            "quantity": 0,
+            "limit_price": 2.5,
+            "turn": 2
+          }
+        ],
+        "baseline_value": 14.0,
+        "candidate_value": 21.4,
+        "expanded": 35,
+        "reason": "baseline_cannot_fund_payroll"
+      },
+      "unposted_cash_change": [
+        0.0,
+        0.0
+      ],
+      "aggregate_cash_change": -4.547473508864641e-13,
+      "baseline": {
+        "closing_cash": 35.1140625,
+        "bank_debt": 3.625,
+        "unposted_cash_change": [
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "seed": 105,
+      "selected": "PRODUCTION_PLAN",
+      "plan_id": "Planning fixture:604:1",
+      "status": "completed",
+      "opening_cash": 12,
+      "closing_cash": 39.1540625,
+      "bank_debt": 0,
+      "input_cost": 3.96,
+      "wages_paid": 4.0,
+      "output_produced": 1.0,
+      "output_sold": 1.0,
+      "sale_receipts": 35.1140625,
+      "forecast": {
+        "status": "found",
+        "steps": [
+          {
+            "quantity": 2,
+            "limit_price": 2.0,
+            "turn": 1
+          },
+          {
+            "quantity": 0,
+            "limit_price": 2.0,
+            "turn": 2
+          }
+        ],
+        "baseline_value": 12.0,
+        "candidate_value": 16.6,
+        "expanded": 27,
+        "reason": "baseline_cannot_fund_payroll"
+      },
+      "unposted_cash_change": [
+        -0.0,
+        0.0
+      ],
+      "aggregate_cash_change": -4.547473508864641e-13,
+      "baseline": {
+        "closing_cash": 35.1140625,
+        "bank_debt": 6.129999999999999,
+        "unposted_cash_change": [
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "seed": 106,
+      "selected": "PRODUCTION_PLAN",
+      "plan_id": "Planning fixture:638:1",
+      "status": "completed",
+      "opening_cash": 13,
+      "closing_cash": 40.659062500000005,
+      "bank_debt": 0,
+      "input_cost": 4.455,
+      "wages_paid": 3.0,
+      "output_produced": 1.0,
+      "output_sold": 1.0,
+      "sale_receipts": 35.1140625,
+      "forecast": {
+        "status": "found",
+        "steps": [
+          {
+            "quantity": 2,
+            "limit_price": 2.25,
+            "turn": 1
+          },
+          {
+            "quantity": 0,
+            "limit_price": 2.25,
+            "turn": 2
+          }
+        ],
+        "baseline_value": 13.0,
+        "candidate_value": 18.799999999999997,
+        "expanded": 35,
+        "reason": "baseline_cannot_fund_payroll"
+      },
+      "unposted_cash_change": [
+        0.0,
+        0.0
+      ],
+      "aggregate_cash_change": -4.547473508864641e-13,
+      "baseline": {
+        "closing_cash": 35.1140625,
+        "bank_debt": 3.3874999999999993,
+        "unposted_cash_change": [
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "seed": 107,
+      "selected": "PRODUCTION_PLAN",
+      "plan_id": "Planning fixture:672:1",
+      "status": "completed",
+      "opening_cash": 14,
+      "closing_cash": 40.1640625,
+      "bank_debt": 0,
+      "input_cost": 4.95,
+      "wages_paid": 4.0,
+      "output_produced": 1.0,
+      "output_sold": 1.0,
+      "sale_receipts": 35.1140625,
+      "forecast": {
+        "status": "found",
+        "steps": [
+          {
+            "quantity": 2,
+            "limit_price": 2.5,
+            "turn": 1
+          },
+          {
+            "quantity": 0,
+            "limit_price": 2.5,
+            "turn": 2
+          }
+        ],
+        "baseline_value": 14.0,
+        "candidate_value": 19.0,
+        "expanded": 25,
+        "reason": "baseline_cannot_fund_payroll"
+      },
+      "unposted_cash_change": [
+        0.0,
+        0.0
+      ],
+      "aggregate_cash_change": -4.547473508864641e-13,
+      "baseline": {
+        "closing_cash": 35.1140625,
+        "bank_debt": 4.625,
+        "unposted_cash_change": [
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "seed": 108,
+      "selected": "PRODUCTION_PLAN",
+      "plan_id": "Planning fixture:706:1",
+      "status": "completed",
+      "opening_cash": 12,
+      "closing_cash": 40.1540625,
+      "bank_debt": 0,
+      "input_cost": 3.96,
+      "wages_paid": 3.0,
+      "output_produced": 1.0,
+      "output_sold": 1.0,
+      "sale_receipts": 35.1140625,
+      "forecast": {
+        "status": "found",
+        "steps": [
+          {
+            "quantity": 2,
+            "limit_price": 2.0,
+            "turn": 1
+          },
+          {
+            "quantity": 0,
+            "limit_price": 2.0,
+            "turn": 2
+          }
+        ],
+        "baseline_value": 12.0,
+        "candidate_value": 19.7,
+        "expanded": 35,
+        "reason": "baseline_cannot_fund_payroll"
+      },
+      "unposted_cash_change": [
+        -0.0,
+        0.0
+      ],
+      "aggregate_cash_change": -4.547473508864641e-13,
+      "baseline": {
+        "closing_cash": 35.1140625,
+        "bank_debt": 5.129999999999999,
+        "unposted_cash_change": [
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "seed": 109,
+      "selected": "PRODUCTION_PLAN",
+      "plan_id": "Planning fixture:740:1",
+      "status": "completed",
+      "opening_cash": 13,
+      "closing_cash": 39.659062500000005,
+      "bank_debt": 0,
+      "input_cost": 4.455,
+      "wages_paid": 4.0,
+      "output_produced": 1.0,
+      "output_sold": 1.0,
+      "sale_receipts": 35.1140625,
+      "forecast": {
+        "status": "found",
+        "steps": [
+          {
+            "quantity": 2,
+            "limit_price": 2.25,
+            "turn": 1
+          },
+          {
+            "quantity": 0,
+            "limit_price": 2.25,
+            "turn": 2
+          }
+        ],
+        "baseline_value": 13.0,
+        "candidate_value": 19.9,
+        "expanded": 25,
+        "reason": "baseline_cannot_fund_payroll"
+      },
+      "unposted_cash_change": [
+        0.0,
+        0.0
+      ],
+      "aggregate_cash_change": -4.547473508864641e-13,
+      "baseline": {
+        "closing_cash": 35.1140625,
+        "bank_debt": 4.387499999999999,
+        "unposted_cash_change": [
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "seed": 110,
+      "selected": "PRODUCTION_PLAN",
+      "plan_id": "Planning fixture:774:1",
+      "status": "completed",
+      "opening_cash": 14,
+      "closing_cash": 41.1640625,
+      "bank_debt": 0,
+      "input_cost": 4.95,
+      "wages_paid": 3.0,
+      "output_produced": 1.0,
+      "output_sold": 1.0,
+      "sale_receipts": 35.1140625,
+      "forecast": {
+        "status": "found",
+        "steps": [
+          {
+            "quantity": 2,
+            "limit_price": 2.5,
+            "turn": 1
+          },
+          {
+            "quantity": 0,
+            "limit_price": 2.5,
+            "turn": 2
+          }
+        ],
+        "baseline_value": 14.0,
+        "candidate_value": 18.6,
+        "expanded": 29,
+        "reason": "baseline_cannot_fund_payroll"
+      },
+      "unposted_cash_change": [
+        0.0,
+        0.0
+      ],
+      "aggregate_cash_change": -4.547473508864641e-13,
+      "baseline": {
+        "closing_cash": 35.1140625,
+        "bank_debt": 3.625,
+        "unposted_cash_change": [
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "seed": 111,
+      "selected": "PRODUCTION_PLAN",
+      "plan_id": "Planning fixture:808:1",
+      "status": "completed",
+      "opening_cash": 12,
+      "closing_cash": 39.1540625,
+      "bank_debt": 0,
+      "input_cost": 3.96,
+      "wages_paid": 4.0,
+      "output_produced": 1.0,
+      "output_sold": 1.0,
+      "sale_receipts": 35.1140625,
+      "forecast": {
+        "status": "found",
+        "steps": [
+          {
+            "quantity": 2,
+            "limit_price": 2.0,
+            "turn": 1
+          },
+          {
+            "quantity": 0,
+            "limit_price": 2.0,
+            "turn": 2
+          }
+        ],
+        "baseline_value": 12.0,
+        "candidate_value": 17.299999999999997,
+        "expanded": 27,
+        "reason": "baseline_cannot_fund_payroll"
+      },
+      "unposted_cash_change": [
+        -0.0,
+        0.0
+      ],
+      "aggregate_cash_change": -4.547473508864641e-13,
+      "baseline": {
+        "closing_cash": 35.1140625,
+        "bank_debt": 6.129999999999999,
+        "unposted_cash_change": [
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "seed": 112,
+      "selected": "PRODUCTION_PLAN",
+      "plan_id": "Planning fixture:842:1",
+      "status": "completed",
+      "opening_cash": 13,
+      "closing_cash": 40.659062500000005,
+      "bank_debt": 0,
+      "input_cost": 4.455,
+      "wages_paid": 3.0,
+      "output_produced": 1.0,
+      "output_sold": 1.0,
+      "sale_receipts": 35.1140625,
+      "forecast": {
+        "status": "found",
+        "steps": [
+          {
+            "quantity": 2,
+            "limit_price": 2.25,
+            "turn": 1
+          },
+          {
+            "quantity": 0,
+            "limit_price": 2.25,
+            "turn": 2
+          }
+        ],
+        "baseline_value": 13.0,
+        "candidate_value": 19.5,
+        "expanded": 34,
+        "reason": "baseline_cannot_fund_payroll"
+      },
+      "unposted_cash_change": [
+        0.0,
+        0.0
+      ],
+      "aggregate_cash_change": -4.547473508864641e-13,
+      "baseline": {
+        "closing_cash": 35.1140625,
+        "bank_debt": 3.3874999999999993,
+        "unposted_cash_change": [
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "seed": 113,
+      "selected": "PRODUCTION_PLAN",
+      "plan_id": "Planning fixture:876:1",
+      "status": "completed",
+      "opening_cash": 14,
+      "closing_cash": 40.1640625,
+      "bank_debt": 0,
+      "input_cost": 4.95,
+      "wages_paid": 4.0,
+      "output_produced": 1.0,
+      "output_sold": 1.0,
+      "sale_receipts": 35.1140625,
+      "forecast": {
+        "status": "found",
+        "steps": [
+          {
+            "quantity": 2,
+            "limit_price": 2.5,
+            "turn": 1
+          },
+          {
+            "quantity": 0,
+            "limit_price": 2.5,
+            "turn": 2
+          }
+        ],
+        "baseline_value": 14.0,
+        "candidate_value": 19.7,
+        "expanded": 25,
+        "reason": "baseline_cannot_fund_payroll"
+      },
+      "unposted_cash_change": [
+        0.0,
+        0.0
+      ],
+      "aggregate_cash_change": -4.547473508864641e-13,
+      "baseline": {
+        "closing_cash": 35.1140625,
+        "bank_debt": 4.625,
+        "unposted_cash_change": [
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "seed": 114,
+      "selected": "PRODUCTION_PLAN",
+      "plan_id": "Planning fixture:910:1",
+      "status": "completed",
+      "opening_cash": 12,
+      "closing_cash": 40.1540625,
+      "bank_debt": 0,
+      "input_cost": 3.96,
+      "wages_paid": 3.0,
+      "output_produced": 1.0,
+      "output_sold": 1.0,
+      "sale_receipts": 35.1140625,
+      "forecast": {
+        "status": "found",
+        "steps": [
+          {
+            "quantity": 2,
+            "limit_price": 2.0,
+            "turn": 1
+          },
+          {
+            "quantity": 0,
+            "limit_price": 2.0,
+            "turn": 2
+          }
+        ],
+        "baseline_value": 12.0,
+        "candidate_value": 20.4,
+        "expanded": 35,
+        "reason": "baseline_cannot_fund_payroll"
+      },
+      "unposted_cash_change": [
+        -0.0,
+        0.0
+      ],
+      "aggregate_cash_change": -4.547473508864641e-13,
+      "baseline": {
+        "closing_cash": 35.1140625,
+        "bank_debt": 5.129999999999999,
+        "unposted_cash_change": [
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "seed": 115,
+      "selected": "PRODUCTION_PLAN",
+      "plan_id": "Planning fixture:944:1",
+      "status": "completed",
+      "opening_cash": 13,
+      "closing_cash": 39.659062500000005,
+      "bank_debt": 0,
+      "input_cost": 4.455,
+      "wages_paid": 4.0,
+      "output_produced": 1.0,
+      "output_sold": 1.0,
+      "sale_receipts": 35.1140625,
+      "forecast": {
+        "status": "found",
+        "steps": [
+          {
+            "quantity": 2,
+            "limit_price": 2.25,
+            "turn": 1
+          },
+          {
+            "quantity": 0,
+            "limit_price": 2.25,
+            "turn": 2
+          }
+        ],
+        "baseline_value": 13.0,
+        "candidate_value": 17.1,
+        "expanded": 27,
+        "reason": "baseline_cannot_fund_payroll"
+      },
+      "unposted_cash_change": [
+        0.0,
+        0.0
+      ],
+      "aggregate_cash_change": -4.547473508864641e-13,
+      "baseline": {
+        "closing_cash": 35.1140625,
+        "bank_debt": 4.387499999999999,
+        "unposted_cash_change": [
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "seed": 116,
+      "selected": "PRODUCTION_PLAN",
+      "plan_id": "Planning fixture:978:1",
+      "status": "completed",
+      "opening_cash": 14,
+      "closing_cash": 41.1640625,
+      "bank_debt": 0,
+      "input_cost": 4.95,
+      "wages_paid": 3.0,
+      "output_produced": 1.0,
+      "output_sold": 1.0,
+      "sale_receipts": 35.1140625,
+      "forecast": {
+        "status": "found",
+        "steps": [
+          {
+            "quantity": 2,
+            "limit_price": 2.5,
+            "turn": 1
+          },
+          {
+            "quantity": 0,
+            "limit_price": 2.5,
+            "turn": 2
+          }
+        ],
+        "baseline_value": 14.0,
+        "candidate_value": 19.299999999999997,
+        "expanded": 39,
+        "reason": "baseline_cannot_fund_payroll"
+      },
+      "unposted_cash_change": [
+        0.0,
+        0.0
+      ],
+      "aggregate_cash_change": -4.547473508864641e-13,
+      "baseline": {
+        "closing_cash": 35.1140625,
+        "bank_debt": 3.625,
+        "unposted_cash_change": [
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "seed": 117,
+      "selected": "PRODUCTION_PLAN",
+      "plan_id": "Planning fixture:1012:1",
+      "status": "completed",
+      "opening_cash": 12,
+      "closing_cash": 39.1540625,
+      "bank_debt": 0,
+      "input_cost": 3.96,
+      "wages_paid": 4.0,
+      "output_produced": 1.0,
+      "output_sold": 1.0,
+      "sale_receipts": 35.1140625,
+      "forecast": {
+        "status": "found",
+        "steps": [
+          {
+            "quantity": 2,
+            "limit_price": 2.0,
+            "turn": 1
+          },
+          {
+            "quantity": 0,
+            "limit_price": 2.0,
+            "turn": 2
+          }
+        ],
+        "baseline_value": 12.0,
+        "candidate_value": 18.0,
+        "expanded": 25,
+        "reason": "baseline_cannot_fund_payroll"
+      },
+      "unposted_cash_change": [
+        -0.0,
+        0.0
+      ],
+      "aggregate_cash_change": -4.547473508864641e-13,
+      "baseline": {
+        "closing_cash": 35.1140625,
+        "bank_debt": 6.129999999999999,
+        "unposted_cash_change": [
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "seed": 118,
+      "selected": "PRODUCTION_PLAN",
+      "plan_id": "Planning fixture:1046:1",
+      "status": "completed",
+      "opening_cash": 13,
+      "closing_cash": 40.659062500000005,
+      "bank_debt": 0,
+      "input_cost": 4.455,
+      "wages_paid": 3.0,
+      "output_produced": 1.0,
+      "output_sold": 1.0,
+      "sale_receipts": 35.1140625,
+      "forecast": {
+        "status": "found",
+        "steps": [
+          {
+            "quantity": 2,
+            "limit_price": 2.25,
+            "turn": 1
+          },
+          {
+            "quantity": 0,
+            "limit_price": 2.25,
+            "turn": 2
+          }
+        ],
+        "baseline_value": 13.0,
+        "candidate_value": 20.2,
+        "expanded": 34,
+        "reason": "baseline_cannot_fund_payroll"
+      },
+      "unposted_cash_change": [
+        0.0,
+        0.0
+      ],
+      "aggregate_cash_change": -4.547473508864641e-13,
+      "baseline": {
+        "closing_cash": 35.1140625,
+        "bank_debt": 3.3874999999999993,
+        "unposted_cash_change": [
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "seed": 119,
+      "selected": "PRODUCTION_PLAN",
+      "plan_id": "Planning fixture:1080:1",
+      "status": "completed",
+      "opening_cash": 14,
+      "closing_cash": 40.1640625,
+      "bank_debt": 0,
+      "input_cost": 4.95,
+      "wages_paid": 4.0,
+      "output_produced": 1.0,
+      "output_sold": 1.0,
+      "sale_receipts": 35.1140625,
+      "forecast": {
+        "status": "found",
+        "steps": [
+          {
+            "quantity": 2,
+            "limit_price": 2.5,
+            "turn": 1
+          },
+          {
+            "quantity": 0,
+            "limit_price": 2.5,
+            "turn": 2
+          }
+        ],
+        "baseline_value": 14.0,
+        "candidate_value": 20.4,
+        "expanded": 25,
+        "reason": "baseline_cannot_fund_payroll"
+      },
+      "unposted_cash_change": [
+        0.0,
+        0.0
+      ],
+      "aggregate_cash_change": -4.547473508864641e-13,
+      "baseline": {
+        "closing_cash": 35.1140625,
+        "bank_debt": 4.625,
+        "unposted_cash_change": [
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "seed": 120,
+      "selected": "PRODUCTION_PLAN",
+      "plan_id": "Planning fixture:1114:1",
+      "status": "completed",
+      "opening_cash": 12,
+      "closing_cash": 40.1540625,
+      "bank_debt": 0,
+      "input_cost": 3.96,
+      "wages_paid": 3.0,
+      "output_produced": 1.0,
+      "output_sold": 1.0,
+      "sale_receipts": 35.1140625,
+      "forecast": {
+        "status": "found",
+        "steps": [
+          {
+            "quantity": 2,
+            "limit_price": 2.0,
+            "turn": 1
+          },
+          {
+            "quantity": 0,
+            "limit_price": 2.0,
+            "turn": 2
+          }
+        ],
+        "baseline_value": 12.0,
+        "candidate_value": 17.6,
+        "expanded": 35,
+        "reason": "baseline_cannot_fund_payroll"
+      },
+      "unposted_cash_change": [
+        -0.0,
+        0.0
+      ],
+      "aggregate_cash_change": -4.547473508864641e-13,
+      "baseline": {
+        "closing_cash": 35.1140625,
+        "bank_debt": 5.129999999999999,
+        "unposted_cash_change": [
+          0.0,
+          0.0
+        ]
+      }
+    }
+  ]
+}

@@ -16,6 +16,7 @@ import math
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any, Tuple
 from goods import Goods
+from economy.elite_cash import CashDistribution
 from economy.transformation_graph import TransformationGraph, CommoditySpec
 from economy.trade_circuit_discovery import TradeCircuitSpec, TradeCircuitGraphSearch, CircuitGatingEvaluator, CircuitStatus
 
@@ -159,6 +160,10 @@ class TradeTriangleManager:
             if getattr(agent, 'cash', 0.0) < total_cash_needed:
                 return False, f"Need {q_needed} {circuit.export_good} or ${total_cash_needed:.1f} to purchase export cargo"
 
+        if held_qty < q_needed and not any(
+                getattr(a, 'alive', True) and getattr(a, 'output', None) == export_g
+                for a in getattr(region, 'agents', [])):
+            return False, 'No export cargo producer to receive purchase payment'
         return True, "Ready to charter"
 
     def charter_voyage(self, agent: Any, region: Any, circuit_id: str, is_pioneer: bool = False) -> Dict[str, Any]:
@@ -171,11 +176,13 @@ class TradeTriangleManager:
         if not can_run:
             return {'success': False, 'message': reason}
 
+        payments = CashDistribution(region, getattr(region, '_last_turn', 0),
+                                    'voyage_charter',
+                                    'economy.triangular_trade:TradeTriangleManager.charter_voyage',
+                                    {'circuit_id': circuit_id})
         freight = circuit.base_freight_cost
-        _public_write = begin_public_change(None, agent)
-        agent.cash -= freight
-        finish_public_change(_public_write, 'economy.triangular_trade:TradeTriangleManager.charter_voyage',
-                             inputs={'source_writer': 'economy/triangular_trade.py:TradeTriangleManager.charter_voyage:846ba675d0f884c8:1', 'semantic_operation_id': locals().get('operation_id')})
+        payments.debit(agent, freight,
+                        source_writer='economy/triangular_trade.py:TradeTriangleManager.charter_voyage:846ba675d0f884c8:1')
 
         # Distribute freight cash strictly to local mariners / commoners
         mariners = [a for a in getattr(region, 'agents', []) if getattr(a, 'alive', True)
@@ -184,20 +191,14 @@ class TradeTriangleManager:
         if mariners:
             split = freight / len(mariners)
             for m in mariners:
-                _public_write = begin_public_change(None, m)
-                m.cash += split
-                finish_public_change(_public_write, 'economy.triangular_trade:TradeTriangleManager.charter_voyage',
-                                     inputs={'source_writer': 'economy/triangular_trade.py:TradeTriangleManager.charter_voyage:927237a0ff8750eb:1', 'semantic_operation_id': locals().get('operation_id')})
+                payments.credit(m, split,
+                                source_writer='economy/triangular_trade.py:TradeTriangleManager.charter_voyage:927237a0ff8750eb:1')
         elif getattr(region, 'gov', None) and getattr(region.gov, 'agent', None):
-            _public_write = begin_public_change(None, region.gov.agent)
-            region.gov.agent.cash += freight
-            finish_public_change(_public_write, 'economy.triangular_trade:TradeTriangleManager.charter_voyage',
-                                 inputs={'source_writer': 'economy/triangular_trade.py:TradeTriangleManager.charter_voyage:b189ad0516ba53a3:1', 'semantic_operation_id': locals().get('operation_id')})
+            payments.credit(region.gov.agent, freight,
+                            source_writer='economy/triangular_trade.py:TradeTriangleManager.charter_voyage:b189ad0516ba53a3:1')
         else:
-            _public_write = begin_public_change(None, agent)
-            agent.cash += freight  # refund if no recipient
-            finish_public_change(_public_write, 'economy.triangular_trade:TradeTriangleManager.charter_voyage',
-                                 inputs={'source_writer': 'economy/triangular_trade.py:TradeTriangleManager.charter_voyage:1806ec529c0a547b:1', 'semantic_operation_id': locals().get('operation_id')})
+            payments.credit(agent, freight,
+                            source_writer='economy/triangular_trade.py:TradeTriangleManager.charter_voyage:1806ec529c0a547b:1')
 
         # Acquire export cargo
         export_g = getattr(Goods, circuit.export_good, None)
@@ -216,20 +217,18 @@ class TradeTriangleManager:
             rem = q_needed - actual_cargo_loaded
             p_exp = float(region.recipes.get(export_g, {}).get('price', 15.0)) if export_g and hasattr(region, 'recipes') else 15.0
             cost = rem * p_exp
-            _public_write = begin_public_change(None, agent)
-            agent.cash -= cost
-            finish_public_change(_public_write, 'economy.triangular_trade:TradeTriangleManager.charter_voyage',
-                                 inputs={'source_writer': 'economy/triangular_trade.py:TradeTriangleManager.charter_voyage:cfa352224a344e4c:1', 'semantic_operation_id': locals().get('operation_id')})
+            payments.debit(agent, cost,
+                            source_writer='economy/triangular_trade.py:TradeTriangleManager.charter_voyage:cfa352224a344e4c:1')
             actual_cargo_loaded += rem
             # Conserve cash to producers of export good
             producers = [a for a in getattr(region, 'agents', []) if getattr(a, 'alive', True) and getattr(a, 'output', None) == export_g]
             if producers:
                 split_p = cost / len(producers)
                 for p in producers:
-                    _public_write = begin_public_change(None, p)
-                    p.cash += split_p
-                    finish_public_change(_public_write, 'economy.triangular_trade:TradeTriangleManager.charter_voyage',
-                                         inputs={'source_writer': 'economy/triangular_trade.py:TradeTriangleManager.charter_voyage:12ea3b2bedf9d4a9:1', 'semantic_operation_id': locals().get('operation_id')})
+                    payments.credit(p, split_p,
+                                    source_writer='economy/triangular_trade.py:TradeTriangleManager.charter_voyage:12ea3b2bedf9d4a9:1')
+
+        payments.finish()
 
         # Calculate target return luxury quantity
         arb = self.evaluate_dynamic_arbitrage(circuit, region)
@@ -327,23 +326,15 @@ class TradeTriangleManager:
                 total_val = qty_arrived * unit_val
                 tariff_owed = round(total_val * tariff_rate, 2)
 
-                if investor and investor.cash >= tariff_owed:
-                    _public_write = begin_public_change(None, investor)
-                    investor.cash -= tariff_owed
-                    finish_public_change(_public_write, 'economy.triangular_trade:TradeTriangleManager.step_all_voyages',
-                                         inputs={'source_writer': 'economy/triangular_trade.py:TradeTriangleManager.step_all_voyages:ac0739d980947e2e:1', 'semantic_operation_id': locals().get('operation_id')})
-                elif investor:
-                    tariff_owed = min(investor.cash, tariff_owed)
-                    _public_write = begin_public_change(None, investor)
-                    investor.cash -= tariff_owed
-                    finish_public_change(_public_write, 'economy.triangular_trade:TradeTriangleManager.step_all_voyages',
-                                         inputs={'source_writer': 'economy/triangular_trade.py:TradeTriangleManager.step_all_voyages:5f0801bc9b162884:1', 'semantic_operation_id': locals().get('operation_id')})
-
-                if region and getattr(region, 'gov', None) and getattr(region.gov, 'agent', None):
-                    _public_write = begin_public_change(None, region.gov.agent)
-                    region.gov.agent.cash += tariff_owed
-                    finish_public_change(_public_write, 'economy.triangular_trade:TradeTriangleManager.step_all_voyages',
-                                         inputs={'source_writer': 'economy/triangular_trade.py:TradeTriangleManager.step_all_voyages:c8efbbc8f0146861:1', 'semantic_operation_id': locals().get('operation_id')})
+                government = getattr(getattr(region, 'gov', None), 'agent', None)
+                tariff_owed = min(max(0.0, investor.cash), tariff_owed) if investor and government else 0.0
+                if tariff_owed > 0:
+                    from state_handler import transfer_cash
+                    transfer_cash(
+                        investor, government, tariff_owed, region=region,
+                        kind='economy.triangular_trade:TradeTriangleManager.step_all_voyages',
+                        turn=t, record_event_kind='voyage_tariff',
+                        event_detail={'voyage_id': v.voyage_id})
                 self.total_tariffs_collected += tariff_owed
 
                 # Deliver cargo

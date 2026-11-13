@@ -19,6 +19,45 @@ TopologyType = Literal["voronoi", "hex"]
 
 
 @dataclass(frozen=True, slots=True)
+class ElitePlanningConfig:
+    """Per-run bounded firm planner experiment; elite_planning remains its parent."""
+    mode: Literal['off', 'shadow', 'active'] = 'off'
+    max_decisions: int = 3
+    horizon: int = 4
+    max_states: int = 200
+    world_max_states: int = 2000
+    replans: int = 2
+
+    def __post_init__(self):
+        if self.mode not in ('off', 'shadow', 'active'):
+            raise ValueError('Invalid elite planning mode')
+        for item in fields(self):
+            if item.name != 'mode' and (type(getattr(self, item.name)) is not int
+                                       or getattr(self, item.name) <= 0):
+                raise ValueError(f'Elite planning {item.name} must be a positive integer')
+
+    def as_dict(self):
+        return asdict(self)
+
+
+def add_elite_planning_arguments(parser):
+    parser.add_argument('--elite-planning-mode', choices=('off', 'shadow', 'active'), default=None)
+    for item in fields(ElitePlanningConfig):
+        if item.name != 'mode':
+            parser.add_argument('--elite-planning-' + item.name.replace('_', '-'), type=int, default=None)
+
+
+def elite_planning_config_from_args(args):
+    return ElitePlanningConfig(**{item.name: getattr(args, 'elite_planning_' + item.name)
+                                 for item in fields(ElitePlanningConfig)
+                                 if getattr(args, 'elite_planning_' + item.name, None) is not None})
+
+
+def elite_planning_for(region):
+    return getattr(region, '_elite_planning_config', ElitePlanningConfig())
+
+
+@dataclass(frozen=True, slots=True)
 class GameplayFlags:
     """Per-run switches for independently stepped gameplay mechanisms.
 

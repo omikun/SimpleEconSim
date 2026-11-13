@@ -45,6 +45,7 @@ def canonical_state(tiles,nations,*,extra=None):
     from collections import Counter,defaultdict,deque
     from enum import Enum
     import hashlib,json,math,random,re,types
+    from pathlib import Path, PurePath, PosixPath, WindowsPath, PurePosixPath, PureWindowsPath
     import numpy as np
     from simulation_checkpoint import capture_globals
     globals_state,_=capture_globals()
@@ -116,6 +117,8 @@ def canonical_state(tiles,nations,*,extra=None):
                           defaults=encode(value.__defaults__),keyword_defaults=encode(value.__kwdefaults__),
                           closure=[encode(cell.cell_contents) for cell in value.__closure__ or ()],
                           attributes=encode(value.__dict__))
+        elif type(value) in (Path, PurePath, PosixPath, WindowsPath, PurePosixPath, PureWindowsPath):
+            result['path']=str(value)
         elif isinstance(value,random.Random):result['random_state']=encode(value.getstate())
         elif isinstance(value,np.random.Generator):
             result.update(bit_generator=type(value.bit_generator).__name__,random_state=encode(value.bit_generator.state))
